@@ -1,0 +1,2943 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Honor for GP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600&family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
+<style>
+/* Layout: full-bleed top-down water canvas; throttle lever pinned left, rudder wheel right, posture pad bottom-centre, readouts in the corners */
+:root{
+  --water:#10485a; --water-deep:#0a2c38; --bank:#2a3539; --foam:#e9f5f2; --buoy:#ff7a1a;
+  --hud:rgba(5,24,31,.68); --hud-line:rgba(233,245,242,.2); --fg:#eaf6f3; --muted:#9dbcbf;
+  --lever:#ffb42e; --good:#78e0a2; --warn:#ffd166; --bad:#ff6b5a;
+  --f-display:"Dela Gothic One","Hiragino Sans","Noto Sans JP",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-num:"Chakra Petch",ui-monospace,"SF Mono",monospace;
+  --sl:env(safe-area-inset-left,0px); --sr:env(safe-area-inset-right,0px);
+  --st:env(safe-area-inset-top,0px); --sb:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--water-deep);color:var(--fg);font-family:var(--f-body)}
+body{touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:none;-webkit-touch-callout:none}
+#cv{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+.hud{position:fixed;pointer-events:none;z-index:2}
+.tl{top:calc(10px + var(--st));left:calc(16px + var(--sl));display:grid;gap:2px;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.spd{display:flex;align-items:baseline;gap:6px}
+.spd b{font-family:var(--f-num);font-size:34px;line-height:1;font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:right}
+.spd span{font-size:12px;color:var(--muted);letter-spacing:.06em}
+.lap,.best{font-family:var(--f-num);font-size:13px;font-variant-numeric:tabular-nums;color:var(--fg)}
+.best{color:var(--muted)}
+.tr{top:calc(10px + var(--st));right:calc(16px + var(--sr));display:grid;grid-template-columns:auto auto;gap:8px;justify-items:end;align-items:start}
+.pills{grid-column:1/-1;grid-row:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:300px}
+.pill.alt{border-color:var(--lever);color:var(--lever)}
+.padtag{font-size:11px;letter-spacing:.06em;color:var(--good)}
+.demotag{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--lever)}
+.order{display:flex;gap:4px;margin-top:4px;pointer-events:auto}
+.dashbtn{position:fixed;z-index:3;right:calc(28px + var(--sr));bottom:calc(min(38vh,150px) + 46px + var(--sb));width:88px;height:88px;border-radius:50%;border:2px solid #fff;background:#2f6fe0;color:#fff;font:inherit;display:grid;place-items:center;align-content:center;gap:0;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.dashbtn b{font-family:var(--f-display);font-weight:400;font-size:24px;line-height:1}
+.dashbtn span{font-size:11px;letter-spacing:.1em}
+.dashbtn.done{background:#1f2629;opacity:.7}
+.dashbtn:focus-visible{outline:3px solid var(--lever);outline-offset:3px}
+.wakus{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:12px 0}
+.wakus button{aspect-ratio:1;border-radius:10px;border:1px solid rgba(233,245,242,.5);font-family:var(--f-num);font-size:24px;font-weight:600;cursor:pointer}
+.wakus button:focus-visible{outline:3px solid var(--lever);outline-offset:2px}
+.pill.on{background:#2f6fe0;border-color:#8fb4ff;color:#fff}
+.pill.sg{background:#b3261e;border-color:#ff6b5a;color:#fff}
+.chip.top{position:relative}
+.chip.top::after{content:'';position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:#ff3b30;border:1px solid #fff}
+table.race td.top{color:#ff5a4e;font-weight:700}
+.best.top{color:#ff5a4e}
+.chip{width:26px;height:26px;border-radius:5px;border:1px solid rgba(233,245,242,.55);font-family:var(--f-num);font-size:14px;font-weight:600;display:grid;place-items:center;cursor:pointer;padding:0;transition:transform .2s}
+.chip.on{outline:2px solid var(--lever);outline-offset:1px}
+.chip.f{text-decoration:line-through}
+.chip.foul{box-shadow:0 0 0 2px var(--warn)}
+.chip.dq{opacity:.35;text-decoration:line-through}
+.chip:focus-visible{outline:2px solid var(--lever);outline-offset:1px}
+.tablewrap{overflow-x:auto;margin:10px 0}
+table.race{border-collapse:collapse;width:100%;font-size:13px;white-space:nowrap}
+table.race th{font-size:11px;letter-spacing:.08em;color:var(--muted);font-weight:500;text-align:left;padding:4px 8px;border-bottom:1px solid var(--hud-line)}
+table.race td{padding:6px 8px;border-bottom:1px solid var(--hud-line)}
+table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;width:28px;border-radius:4px}
+#mini{width:160px;height:48px;border-radius:6px;background:var(--hud);border:1px solid var(--hud-line)}
+#gear{pointer-events:auto;width:40px;height:40px;border-radius:50%;border:1px solid var(--hud-line);background:var(--hud);color:var(--fg);display:grid;place-items:center;cursor:pointer}
+#gear:focus-visible,.btn:focus-visible,.pill:focus-visible{outline:2px solid var(--lever);outline-offset:2px}
+[hidden]{display:none!important}
+.pill{pointer-events:auto;height:34px;padding:0 14px;border-radius:20px;border:1px solid var(--hud-line);background:var(--hud);color:var(--fg);font:inherit;font-size:12px;font-weight:700;letter-spacing:.04em;cursor:pointer;white-space:nowrap}
+.clock{position:fixed;z-index:2;pointer-events:none;top:calc(6px + var(--st));left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:0}
+.clock svg{width:min(19vh,78px);height:min(19vh,78px);display:block}
+#clockTxt{font-family:var(--f-num);font-size:15px;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.clock.live #clockTxt{color:var(--good)}
+
+.lever{position:fixed;z-index:2;pointer-events:none;left:calc(16px + var(--sl));bottom:calc(16px + var(--sb));display:grid;justify-items:center;gap:6px}
+.lbl{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.track{position:relative;width:58px;height:min(46vh,220px);border-radius:14px;background:var(--hud);border:1px solid var(--hud-line);overflow:hidden}
+.fill{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(to top,rgba(255,180,46,.55),rgba(255,180,46,.18))}
+.knob{position:absolute;left:6px;right:6px;height:18px;bottom:0;border-radius:6px;background:var(--lever);box-shadow:0 2px 6px rgba(0,0,0,.4);transform:translateY(0)}
+.lever.on .track,.wheel.on svg{border-color:var(--lever);box-shadow:0 0 0 2px rgba(255,180,46,.35)}
+
+.wheel{position:fixed;z-index:2;pointer-events:none;right:calc(16px + var(--sr));bottom:calc(16px + var(--sb));display:grid;justify-items:center;gap:6px}
+.wheel svg{width:min(38vh,150px);height:min(38vh,150px);border-radius:50%;border:1px solid transparent;display:block}
+
+.pad{position:fixed;z-index:2;pointer-events:none;left:50%;bottom:calc(12px + var(--sb));transform:translateX(-50%);display:grid;justify-items:center;gap:4px}
+.box{position:relative;width:84px;height:84px;border-radius:12px;background:var(--hud);border:2px solid var(--h,var(--hud-line));transition:border-color .15s}
+.box span{position:absolute;font-size:10px;color:var(--muted);letter-spacing:.06em}
+.box .t{top:3px;left:50%;transform:translateX(-50%)}
+.box .b{bottom:3px;left:50%;transform:translateX(-50%)}
+.box .l{left:5px;top:50%;transform:translateY(-50%)}
+.box .r{right:5px;top:50%;transform:translateY(-50%)}
+.cross{position:absolute;inset:0;background:linear-gradient(var(--hud-line),var(--hud-line)) center/1px 70% no-repeat,linear-gradient(var(--hud-line),var(--hud-line)) center/70% 1px no-repeat}
+.dot{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--fg);box-shadow:0 0 8px rgba(233,245,242,.6)}
+.stab{position:relative;width:84px;height:8px;border-radius:4px;background:var(--hud);border:1px solid var(--hud-line);overflow:hidden}
+.stabfill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--good)}
+.stabline{position:absolute;top:-2px;bottom:-2px;left:66.7%;width:2px;background:var(--bad)}
+.stab.over{animation:blink .5s steps(2) infinite}
+@keyframes blink{50%{border-color:var(--bad);box-shadow:0 0 0 2px rgba(255,107,90,.5)}}
+@media (prefers-reduced-motion:reduce){.stab.over{animation:none;box-shadow:0 0 0 2px rgba(255,107,90,.5)}}
+.deg{font-family:var(--f-num);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+
+.toast{position:fixed;z-index:3;left:50%;top:calc(max(96px,24%) + var(--st));transform:translateX(-50%);text-align:center;pointer-events:none;opacity:0}
+.toast.show{animation:pop 1.9s ease-out forwards}
+#tBig{font-family:var(--f-display);font-size:clamp(26px,6vh,44px);letter-spacing:.04em;text-shadow:0 2px 10px rgba(0,0,0,.55)}
+#tSmall{font-size:13px;margin-top:2px;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+.toast[data-kind="good"] #tBig{color:var(--good)}
+.toast[data-kind="warn"] #tBig{color:var(--warn)}
+.toast[data-kind="bad"] #tBig{color:var(--bad)}
+@keyframes pop{0%{opacity:0;transform:translateX(-50%) scale(.9)}10%{opacity:1;transform:translateX(-50%) scale(1)}78%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.toast.show{animation:none;opacity:1}}
+
+.note{position:fixed;z-index:4;top:calc(64px + var(--st));white-space:pre-line;cursor:pointer;left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 340px));min-width:220px;background:var(--hud);border:1px solid var(--warn);border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.55;pointer-events:auto}
+
+.overlay{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:calc(12px + var(--st)) calc(16px + var(--sr)) calc(12px + var(--sb)) calc(16px + var(--sl));background:rgba(4,20,26,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.card{background:var(--hud);border:1px solid var(--hud-line);border-radius:14px;padding:18px 22px;max-width:680px;width:100%;max-height:100%;overflow:auto;touch-action:pan-y}
+.card h1{font-family:var(--f-display);font-weight:400;font-size:clamp(24px,5vh,34px);margin:0 0 2px;letter-spacing:.03em;text-wrap:balance}
+.card h1 .sub{display:block;font-family:var(--f-body);font-weight:700;font-size:clamp(13px,2.6vh,16px);letter-spacing:.3em;color:var(--muted);margin-top:4px}
+.card h1 small{display:block;font-family:var(--f-body);font-size:12px;letter-spacing:.14em;color:var(--lever);margin-bottom:2px}
+.card p{margin:6px 0;font-size:13px;line-height:1.6;color:var(--muted)}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 18px;margin:12px 0}
+.ctl div{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;font-size:13px;line-height:1.5}
+.ctl b{font-size:11px;letter-spacing:.08em;color:var(--bg,#0a2c38);background:var(--lever);border-radius:4px;padding:2px 6px;white-space:nowrap;margin-top:1px}
+.ctl .key{background:var(--foam)}
+.monkey{border-left:3px solid var(--good);padding:6px 10px;margin:10px 0;font-size:13px;line-height:1.6;background:rgba(120,224,162,.08);border-radius:0 6px 6px 0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+.btn{font:inherit;font-weight:700;font-size:15px;border-radius:10px;border:0;padding:12px 22px;background:var(--lever);color:#1c1300;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--hud-line);font-weight:500;font-size:13px;padding:9px 14px}
+.set{display:grid;gap:12px;margin-top:10px}
+.set label{display:flex;align-items:center;gap:10px;font-size:14px}
+.set input[type=checkbox]{width:20px;height:20px;accent-color:var(--lever)}
+.set input[type=range]{flex:1;accent-color:var(--lever)}
+.set select{font:inherit;font-size:13px;background:var(--hud);color:var(--fg);border:1px solid var(--hud-line);border-radius:6px;padding:4px 6px}
+.set output{font-family:var(--f-num);min-width:3.5ch;text-align:right}
+</style>
+</head>
+<body>
+<canvas id="cv" aria-label="競艇コースを真上から見た図"></canvas>
+
+<div class="hud tl">
+  <div class="spd"><b id="spd">0</b><span>km/h</span></div>
+  <div class="lap" id="lap">LAP 1  0:00.00</div>
+  <div class="best" id="best">ベスト —</div>
+  <div class="demotag" id="demoTag" hidden>6艇デモ</div>
+  <div class="padtag" id="padTag" hidden>コントローラ接続中</div>
+  <div class="order" id="order" hidden></div>
+</div>
+
+<div class="hud tr">
+  <div class="pills">
+    <button id="again" class="pill">スタート練習</button>
+    <button id="demoBtn" class="pill">6艇デモ</button>
+    <button id="entryBtn" class="pill" aria-pressed="false">進入：固定</button>
+    <button id="sgBtn" class="pill" aria-pressed="false">SG：オフ</button>
+    <button id="cardBtn" class="pill alt" hidden>出走表</button>
+    <button id="skipBtn" class="pill alt" hidden>事故のためスキップ</button>
+  </div>
+  <canvas id="mini" aria-hidden="true"></canvas>
+  <button id="gear" aria-label="設定">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/><circle cx="7" cy="5" r="2" fill="currentColor"/><circle cx="13" cy="10" r="2" fill="currentColor"/><circle cx="9" cy="15" r="2" fill="currentColor"/></svg>
+  </button>
+</div>
+
+<div id="toast" class="toast" aria-live="polite"><div id="tBig"></div><div id="tSmall"></div></div>
+<div class="clock" id="clock" hidden>
+  <svg viewBox="-40 -40 80 80" aria-hidden="true">
+    <circle r="36" fill="rgba(5,24,31,.78)" stroke="#eaf6f3" stroke-opacity=".35" stroke-width="1.5"/>
+    <path d="M0 -33 A33 33 0 0 1 16.5 -28.58" fill="none" stroke="#78e0a2" stroke-width="5"/>
+    <g stroke="#eaf6f3" stroke-opacity=".7" stroke-width="2" stroke-linecap="round">
+      <path d="M0 -33V-27M16.5 -28.6L13.5 -23.4M28.6 -16.5L23.4 -13.5M33 0H27M28.6 16.5L23.4 13.5M16.5 28.6L13.5 23.4M0 33V27M-16.5 28.6L-13.5 23.4M-28.6 16.5L-23.4 13.5M-33 0H-27M-28.6 -16.5L-23.4 -13.5M-16.5 -28.6L-13.5 -23.4"/>
+    </g>
+    <line id="hand" x1="0" y1="4" x2="0" y2="-30" stroke="#ffb42e" stroke-width="3" stroke-linecap="round"/>
+    <circle r="3" fill="#ffb42e"/>
+  </svg>
+  <div id="clockTxt">12.0</div>
+</div>
+<div class="note" id="note" hidden></div>
+
+<div class="lever" id="lever">
+  <div class="track" id="track"><div class="fill" id="lfill"></div><div class="knob" id="lknob"></div></div>
+  <div class="lbl">スロットル</div>
+</div>
+
+<div class="wheel" id="wheel">
+  <svg viewBox="-50 -50 100 100" aria-hidden="true">
+    <g id="wrot">
+      <circle r="44" fill="none" stroke="#eaf6f3" stroke-opacity=".85" stroke-width="7"/>
+      <circle r="44" fill="none" stroke="#0a2c38" stroke-opacity=".5" stroke-width="1"/>
+      <path d="M0 -40V-12M-38 12L-11 4M38 12L11 4" stroke="#eaf6f3" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>
+      <circle r="12" fill="rgba(5,24,31,.8)" stroke="#eaf6f3" stroke-opacity=".7" stroke-width="3"/>
+      <rect x="-4" y="-50" width="8" height="12" rx="2" fill="#ffb42e"/>
+    </g>
+  </svg>
+  <div class="lbl">舵</div>
+</div>
+
+<div class="pad">
+  <div class="stab" id="stab" title="安定度"><div class="stabfill" id="stabFill"></div><i class="stabline"></i></div>
+  <div class="box" id="pbox">
+    <i class="cross"></i>
+    <span class="t">伏せる</span><span class="b">起こす</span><span class="l">左</span><span class="r">右</span>
+    <i class="dot" id="pdot"></i>
+  </div>
+  <div class="deg" id="pdeg">体重移動</div>
+</div>
+
+<div class="overlay" id="start">
+  <div class="card">
+    <h1><small>開発版</small>Honor for GP<span class="sub">波の向こうに</span></h1>
+    <p>スマホを横向きにして、両手で持ってください。スタートを押した瞬間の持ち方が「まっすぐ座った姿勢」の基準になります。</p>
+    <div class="ctl">
+      <div><b>左の親指</b><span>スロットルレバー。上下にスライド。指を離しても位置はそのまま。一番下でもエンジンはアイドルで回り続ける。</span></div>
+      <div><b>右の親指</b><span>舵。左右にスライド。指を離すと真ん中に戻る。</span></div>
+      <div><b>左右に傾ける</b><span>体重移動。旋回の内側へ体を入れる。</span></div>
+      <div><b>奥へ／手前へ</b><span>画面の上側を奥へ倒すと伏せる（空気抵抗が減って伸びる）、手前へ起こすと体を起こす（減速するが、左右の体重移動がよく効く）。</span></div>
+    </div>
+    <div class="monkey">最初は大時計スタート。エンジンは止まらないので、針が0を指してから1秒以内にスタートラインを越えるよう、スロットルで間合いを詰めます。早すぎるとフライング。<br>コースは左回り。直線は伏せて伸ばし、ターンマークでは「体を起こす＋内へ傾ける＋舵」が揃うとモンキーターンが決まり、小さく速く回れます。全速のまま姿勢を入れずに回ると大きく膨らみ、伏せたまま・内へ傾けるだけの無茶な回り方は転覆の危険があります。レバーを落とすと小さく安定して回れますが、出口の速度は落ちます。外へ傾けると流されて転覆します。</div>
+    <div class="row">
+      <button class="btn" id="go">スタート</button>
+      <button class="btn ghost" id="goDemo">6艇デモを見る</button>
+      <span style="font-size:12px;color:var(--muted)">PCでは W/S＝スロットル、A/D＝舵、矢印キー＝体重移動（↑伏せる／↓起こす）、Space＝引く（ピット離れモード）。コントローラなら 左トリガー＝スロットル、右スティック＝舵、左スティック＝体重移動、Aでスタート</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="rotate" hidden>
+  <div class="card" style="max-width:360px;text-align:center">
+    <h1 style="font-size:22px">横向きにしてください</h1>
+    <p>左右の親指でレバーと舵を操作する前提の画面です。</p>
+    <div class="row" style="justify-content:center"><button class="btn ghost" id="stayPortrait">縦のまま試す</button></div>
+  </div>
+</div>
+
+<button class="dashbtn" id="dashBtn" hidden><b>引く</b><span>ダッシュ</span></button>
+
+<div class="overlay" id="waku" hidden>
+  <div class="card" style="max-width:460px">
+    <h1 style="font-size:22px"><small>スタート練習（ピット離れ）</small>枠を選ぶ</h1>
+    <p>ランプの数字が消えて「ピット離れ」でアクセル。早すぎるとエンスト、遅いと出遅れます（モーターの出足でも差が出ます）。バック側で内の艇より前に出ればコースを奪えますが、内も抵抗してきます。2マークを過ぎてから正対するまでに「引く」を押すとダッシュ。舵は自動、スタートラインを越えたらCPUが引き継ぎます。</p>
+    <div class="wakus" id="wakuBtns"></div>
+    <div class="row"><button class="btn ghost" id="wakuClose">やめる</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="card" hidden>
+  <div class="card" style="max-width:560px">
+    <h1 style="font-size:22px"><small>出走表</small>6艇の特性</h1>
+    <div class="tablewrap"><table class="race">
+      <thead><tr><th>艇</th><th>級</th><th>進入</th><th>スタート</th><th>戦法</th><th>進入志向</th><th>気性</th><th>出足</th></tr></thead>
+      <tbody id="cardBody"></tbody>
+    </table></div>
+    <p>イン志向の艇は枠より内のコースを取りにいき（前付け）、アウト志向の艇は外へ回ります。スローは助走が短く内の位置を生かし、ダッシュは助走を長く取って速度を乗せてスタートします。2コース・3コースは1マーク手前で、スタートで内より前に出ていれば握り、外がまくりに来ていれば壁になり、それ以外は「勝ちにいく差し」か「着を取る差し」を選びます。まくり艇は1マーク手前で内の艇と並んでいれば、張りついて回る「ツケマイ」に切り替えることがあります（上位級・攻撃的ほど積極的）。気性が攻撃的な艇ほど、ターンで外に並ばれるとダンプ（外へ押し出す）を仕掛け、後ろから迫る艇にも道を譲りにくくなります。直線では並んだら内側の艇が優先で、後ろや横にいる艇の前を横切る「斜行」は不良航法。2回、または斜行で接触させると妨害失格です。ターンマークの内側には消波装置があり、それでも内側を通過した艇は6着扱い。ターンマークはかすめる程度ならわずかな減速で済みます。各艇の下の輪は安定度で、限界に近づくと黄、危険ラインを越えると赤く点滅します（越えても必ず転ぶわけではなく、越えた深さと技量で確率が変わります）。点線の輪は勝負に出ている艇。スタートで外の艇が内より前に出ると、内を絞りにいくことがあります（3コースが最も積極的）。絞られた内の艇はたいてい引いて後ろにつき、抵抗することはまれで、抵抗して接触すると転覆の恐れがあります。引き波は近いほど荒く、乗った艇は暴れて接触で転覆しやすくなります（腕で差が出ます）。前の艇の真後ろ（航跡）に入ると伸びが鈍るので、後続は横にずれて並びにいきます。1マークは転覆しやすいので、そこでは基本的に無理をしません。転覆・落水は失格。事故が起きたらその時点の着順で固定され、追い抜き禁止で事故艇の外側を徐行します（右上の「スキップ」で結果へ飛べます）。フライングは返還で、1マークを過ぎたらコースから離脱。先頭が十分に離れているときは無理をせず、競り合いの勝負どころでは級と気性に応じて攻めのターンに出ることがあり、決まるかどうかも級で変わります。スタートは1コースが最も読みやすく、次に4カド、2・3コース、5・6コースの順にタイミングがブレやすく、ブレる艇ほど安全マージンを取って遅めに狙います。外のスタートの難しさはA1ほど影響を受けにくく、級が下がるほど外が苦手になります。直前でフライングになると分かれば放って（レバーを戻して）合わせます。右上の「進入」を「ピット離れ」にすると、ピット離れから進入争いになります（ピットは2マーク裏のホーム側で、内から1号艇。ピットを出たら全速で小回り防止ブイ（2マークから1マーク側へ90m、センターライン上）の外を回り、2マークへ向かう間に内より前に出た艇がコースを取り、内は抵抗することも。2マークから正対までに引いた艇はダッシュで外に並び、大きく遅れた艇は回り直しで大外）。大時計はピット離れの合図から動き出し、スタートまで1分40秒（実際の待機行動と同じ）。針が回るのは最後の12秒です。「引く」はピットを出た直後から正対するまで押せて、早く引くほど助走の長いダッシュ位置に自動でつきます。エンジンは止まらないので、待機中もアクセルを放した艇はゆっくり前に流れ続けます。スタートラインに艇を向けたら（正対したら）もう舵は切れません。なので2マークを回ったら、まず自分のコースの位置まで出て、舳先を外に向けたまま（舵を切って体を起こし、ほとんど進まない状態で）待ち、そこからまっすぐ流せばちょうど起こし位置に着くタイミングで正対します。正対したあとはまっすぐ進むだけ。2マークを早く回りすぎたり、正対後にレバーを握りすぎたりすると取り返せず、深い（助走の短い）起こしになります。レバーを握ると、その場で正対して前に出ます。画面上に「起こし見込み」が出ます。前付けを受けた内の艇は、抵抗する・入れる・引いてダッシュに回るのどれかを選びます。抵抗すると2艇とも舳先を下げずに待機水面を前に出ていくので深くなり、内の艇もつられて深くなります。深くなりすぎると抵抗をやめて入れるか引きます。待機行動違反（減点）：小回り防止ブイから2マークの間で前の艇との間隔が艇2つ分より詰まる「間隔不足」、待機中の接触、大時計の針が回る前にスタートラインを越える。後から正対した艇は、先に正対した外の艇の内へは割り込めません。「固定」のときは枠なり進入です（起こし位置の目安：1コース100〜110m、2コース100〜115m、3コース110〜125m、4コース140〜150m、5・6コース150〜160m。まれに3コースが140m付近まで引く3カドになり、その時はまくり一択）。級・戦法・気性はレースごとに入れ替わります。右上の「SG」をオンにすると全艇A1のSGレースになり、赤い印のついた艇はA1の中でもトップクラスです。</p>
+    <div class="row"><button class="btn ghost" id="cardClose">閉じる</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="settings" hidden>
+  <div class="card" style="max-width:460px">
+    <h1 style="font-size:22px">設定</h1>
+    <div class="set">
+      <button class="btn" id="zero">今の持ち方を基準にする</button>
+      <label><input type="checkbox" id="invR"> 左右の傾きを反転</label>
+      <label><input type="checkbox" id="invP"> 前後の傾きを反転</label>
+      <label><input type="checkbox" id="padRT"> コントローラのスロットルを右トリガーにする</label>
+      <label><input type="checkbox" id="sndOn" checked> 音</label>
+      <label>音量 <input type="range" id="sndVol" min="0" max="100" step="5" value="70"><output id="sndVolOut">70</output></label>
+      <div class="row" style="margin-top:0"><label style="flex:1"><input type="checkbox" id="hapOn" checked> 振動（コントローラ／Androidスマホ）</label><button class="btn ghost" id="hapTest">振動テスト</button></div>
+      <label>傾きの幅 <input type="range" id="sens" min="8" max="35" step="1" value="18"><output id="sensOut">18°</output></label>
+      <p style="margin:0">この角度まで傾けると体重移動が最大になります。小さいほど敏感です。</p>
+      <label>6艇デモの再生速度 <select id="simSpeed"><option value="1">1倍（実時間）</option><option value="1.5" selected>1.5倍</option><option value="2">2倍</option><option value="3">3倍</option></select></label>
+      <div class="row" style="margin-top:0">
+        <button class="btn ghost" id="reset">スタート練習をやり直す</button>
+        <button class="btn ghost" id="close">閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+const D2R = Math.PI / 180;
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const mini = $('mini'), mctx = mini.getContext('2d');
+const clamp = (v, a = -1, b = 1) => v < a ? a : v > b ? b : v;
+const wrap = d => ((d + 540) % 360 + 360) % 360 - 180;
+const dz = v => Math.abs(v) < 0.06 ? 0 : (v - Math.sign(v) * 0.06) / 0.94;
+const css = getComputedStyle(document.documentElement);
+const tok = n => css.getPropertyValue(n).trim();
+const C = { water: tok('--water'), deep: tok('--water-deep'), bank: tok('--bank'), buoy: tok('--buoy'), good: tok('--good'), warn: tok('--warn'), bad: tok('--bad'), lever: tok('--lever'), line: tok('--hud-line') };
+
+// Real course: start line midway, each turn mark 150 m from it (300 m apart), 3 laps of ~600 m.
+const MK = 150;
+const GRIP_BASE = 5;         // sideways grip; with the turn-rate cap this sets how wide a turn swings at speed
+const HAZARD = 0.2;
+// turning: how much leaning in adds grip, how much sitting up amplifies that and staying crouched spoils it,
+// how far full throttle pushes a turn wide without the body in it, how much easing the lever settles the hull,
+// and how much a flat-out, full-lock, deep hang-on at top speed (無茶) adds to the load
+const TURN = { lean: 0.85, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 0.2, dropCalm: 0.3, mucha: 0.5 };
+// 引き波: a boat's wake is a thick, lasting wave — width either side of each wave line (m), how long it
+// stays rough (s), and how hard crossing it hits speed, heading and grip (1 = the old strength)
+const WAKE = { width: 1.4, life: 2.4, drag: 1.8, kick: 1.9, grip: 1.6, unsettle: 0.55 };
+// 航跡: running in line behind a boat (not crossing its wake) takes the edge off thrust — the closer, the more
+const TRAIL = { range: 60, width: 2.5, max: 0.07 };          // chance per second of going over, scaled by (load − 1)^1.5 past the danger line
+const YAW_OVER = 1.15;       // how far past the grip limit the nose may be forced round (the excess slides)       // sideways grip before a slide; lower = turns swing wider at speed
+const THRUST = 7.85;          // full-lever push: top speed ≈ 83 km/h crouched, idle ≈ 16 km/h (an A1 alone runs 3 laps in ~1'46")
+const COURSE = { xMin: -200, xMax: 200, yMin: -50, yMax: 50, marks: [{ x: MK, y: 0, name: '1M' }, { x: -MK, y: 0, name: '2M' }] };
+// 消波装置: a float boom running 30 m in from each turn mark along the course centreline,
+// so a boat can't cut inside a mark without hitting it
+const BOOM_LEN = 30;
+const OBSTACLES = [
+  ...COURSE.marks.map(m => ({ kind: 'mark', x1: m.x, y1: m.y, x2: m.x, y2: m.y, r: 1.5 })),
+  { kind: 'boom', x1: MK - 2, y1: 0, x2: MK - 2 - BOOM_LEN, y2: 0, r: 0.35 },
+  { kind: 'boom', x1: -MK + 2, y1: 0, x2: -MK + 2 + BOOM_LEN, y2: 0, r: 0.35 },
+];
+const START = { x: -95, y: 30, a: 0 };
+const IDLE = 0.08;          // idle thrust share with the lever fully closed
+const CLOCK = 12;           // big-clock countdown seconds
+const SS = { phase: 'off', t0: 0, hideAt: 0 };
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const diag = { ori: 0, oriNull: 0, mot: 0, framed: (() => { try { return window.self !== window.top; } catch (e) { return true; } })() };
+
+const B = { x: START.x, y: START.y, a: START.a, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0 };
+const input = { thr: 0, steer: 0, steerT: 0, roll: 0, pitch: 0 };
+const raw = { roll: 0, pitch: 0 };
+const sensor = { got: false, calib: null, invR: false, invP: false, range: 18, deg: [0, 0] };
+const keys = new Set();
+const cam = { x: B.x, y: B.y };
+const wake = [], spray = [];
+const lap = { n: 0, start: 0, best: null, visR: false, visL: false, prevX: B.x };
+const T = { on: false, sum: 0, n: 0, maxVl: 0, minV: 99, entryV: 0, quiet: 0 };
+let running = false, paused = false, time = 0, harmony = 0, lowLeanT = 0, hitCool = 0, wakeAcc = 0, portraitOk = false;
+let W = 0, H = 0, DPR = 1;
+
+/* ---------- sizing ---------- */
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  const r = mini.getBoundingClientRect();
+  mini.width = Math.round(r.width * DPR); mini.height = Math.round(r.height * DPR);
+  $('rotate').hidden = !(H > W && !portraitOk);
+}
+addEventListener('resize', resize);
+
+/* ---------- tilt sensor ---------- */
+function screenAngle() {
+  const o = screen.orientation;
+  const a = (o && typeof o.angle === 'number') ? o.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
+  return a * D2R;
+}
+// Gravity "up" in device axes, rotated into screen axes, then read as lean (roll) and fore-aft (pitch)
+function fromUp(ux, uy, uz) {
+  const a = screenAngle();
+  const sx = ux * Math.cos(a) - uy * Math.sin(a);
+  const sy = ux * Math.sin(a) + uy * Math.cos(a);
+  return [Math.atan2(-sx, Math.hypot(sy, uz)) / D2R, Math.atan2(sy, uz) / D2R];
+}
+function readAngles(beta, gamma) {
+  const b = beta * D2R, g = gamma * D2R;
+  return fromUp(-Math.sin(g) * Math.cos(b), Math.sin(b), Math.cos(g) * Math.cos(b));
+}
+function applyAngles(ang) {
+  if (!sensor.got) { sensor.got = true; $('note').hidden = true; }
+  sensor.last = ang;
+  if (!sensor.calib) sensor.calib = ang.slice();
+  let dr = wrap(ang[0] - sensor.calib[0]);
+  let dp = -wrap(ang[1] - sensor.calib[1]);
+  if (sensor.invR) dr = -dr;
+  if (sensor.invP) dp = -dp;
+  sensor.deg = [dr, dp];
+  raw.roll = dz(clamp(dr / sensor.range));
+  raw.pitch = dz(clamp(dp / sensor.range));
+}
+function onOri(e) {
+  diag.ori++;
+  if (e.beta == null || e.gamma == null) { diag.oriNull++; return; }
+  sensor.src = 'ori';
+  applyAngles(readAngles(e.beta, e.gamma));
+}
+// fallback: gravity from the accelerometer when orientation events are empty
+const gs = { x: 0, y: 0, z: 0, init: false };
+function onMot(e) {
+  diag.mot++;
+  if (sensor.src === 'ori') return;
+  const g = e.accelerationIncludingGravity;
+  if (!g || g.x == null || g.y == null || g.z == null) return;
+  let x = g.x, y = g.y, z = g.z;
+  if (IOS) { x = -x; y = -y; z = -z; }
+  if (!gs.init) { gs.x = x; gs.y = y; gs.z = z; gs.init = true; }
+  gs.x += (x - gs.x) * 0.25; gs.y += (y - gs.y) * 0.25; gs.z += (z - gs.z) * 0.25;
+  const n = Math.hypot(gs.x, gs.y, gs.z) || 1;
+  sensor.src = 'mot';
+  applyAngles(fromUp(gs.x / n, gs.y / n, gs.z / n));
+}
+function recalibrate(msg) {
+  sensor.calib = sensor.last ? sensor.last.slice() : null;
+  if (msg) toast('基準リセット', msg, 'info');
+}
+const onTurnScreen = () => { sensor.calib = null; if (running) setTimeout(() => toast('基準リセット', '画面の向きが変わったので、今の持ち方を基準にしました', 'info'), 300); };
+if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', onTurnScreen);
+else addEventListener('orientationchange', onTurnScreen);
+
+function showNote(text) { const n = $('note'); n.textContent = text; n.hidden = false; }
+
+/* ---------- sound (Web Audio, all synthesised — no audio files) ----------
+   エンジン   one voice per boat: a buzzy two-stroke note whose pitch and brightness follow the lever
+              and the boat's speed; it dies when the boat goes over. The followed/own boat is up front,
+              the others fade with distance and sit left/right by where they are on screen.
+   水切り     a water hiss under the followed boat that rises with speed
+   スプラッシュ spray noise when the hull slides or turns hard
+   引き波     a dull slap each time the followed boat slams over a wave line
+   接触・転覆  a knock, or a long crashing splash; the big clock pips at 3, 2, 1 and chimes at 0 */
+const snd = { ctx: null, on: true, vol: 0.7, master: null, noise: null, engines: new Map(), hiss: null, spl: null, lastBump: 0, lastSec: null };
+function initAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  if (snd.ctx) { if (snd.ctx.state === 'suspended') snd.ctx.resume().catch(() => {}); return; }
+  try { snd.ctx = new AC(); } catch (e) { return; }
+  const c = snd.ctx;
+  const comp = c.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.ratio.value = 6;
+  snd.master = c.createGain(); snd.master.gain.value = 0;
+  snd.master.connect(comp); comp.connect(c.destination);
+  const len = c.sampleRate * 2, buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  snd.noise = buf;
+  snd.hiss = noiseBed('lowpass', 900, 0.7);
+  snd.spl = noiseBed('bandpass', 1800, 0.9);
+}
+function noiseBed(type, freq, q) {
+  const c = snd.ctx, src = c.createBufferSource(); src.buffer = snd.noise; src.loop = true;
+  const f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const g = c.createGain(); g.gain.value = 0;
+  src.connect(f); f.connect(g); g.connect(snd.master); src.start();
+  return { f, g };
+}
+const DRIVE_CURVE = (() => { const n = 1024, a = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; a[i] = Math.tanh(2.2 * x); } return a; })();
+function makeEngine() {
+  const c = snd.ctx;
+  const osc = c.createOscillator(); osc.type = 'sawtooth';
+  const sub = c.createOscillator(); sub.type = 'square';
+  const whine = c.createOscillator(); whine.type = 'triangle';
+  const lfo = c.createOscillator(); lfo.frequency.value = 17 + Math.random() * 8;   // the rough burble of a two-stroke
+  const lfoG = c.createGain(); lfoG.gain.value = 4;
+  lfo.connect(lfoG); lfoG.connect(osc.frequency);
+  const mix = c.createGain(); mix.gain.value = 0.5;
+  const subG = c.createGain(); subG.gain.value = 0.35;
+  const whG = c.createGain(); whG.gain.value = 0.12;
+  osc.connect(mix); sub.connect(subG); subG.connect(mix); whine.connect(whG); whG.connect(mix);
+  const sh = c.createWaveShaper(); sh.curve = DRIVE_CURVE;
+  const f = c.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 3;
+  const g = c.createGain(); g.gain.value = 0;
+  mix.connect(sh); sh.connect(f); f.connect(g);
+  let out = g;
+  const pan = c.createStereoPanner ? c.createStereoPanner() : null;
+  if (pan) { g.connect(pan); out = pan; }
+  out.connect(snd.master);
+  const t = c.currentTime;
+  osc.start(t); sub.start(t); whine.start(t); lfo.start(t);
+  return { osc, sub, whine, f, g, pan, stop() { try { osc.stop(); sub.stop(); whine.stop(); lfo.stop(); } catch (e) {} g.disconnect(); } };
+}
+function oneShot(dur, f0, f1, vol, type = 'bandpass', q = 1) {
+  if (!snd.ctx || !snd.on) return;
+  const c = snd.ctx, t = c.currentTime;
+  const src = c.createBufferSource(); src.buffer = snd.noise;
+  const f = c.createBiquadFilter(); f.type = type; f.Q.value = q;
+  f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(snd.master);
+  src.start(t, Math.random()); src.stop(t + dur + 0.05);
+}
+function pip(freq, dur, vol) {
+  if (!snd.ctx || !snd.on) return;
+  const c = snd.ctx, t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+  o.type = 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(snd.master); o.start(t); o.stop(t + dur + 0.05);
+}
+// how loud something at (x, y) is from where the camera is looking
+const earGain = (x, y) => clamp(1 - Math.hypot(x - cam.x, y - cam.y) / 140, 0, 1);
+function sfxHit(x, y, strength) { const e = earGain(x, y); if (e > 0.05) oneShot(0.25, 900, 180, 0.5 * e * clamp(strength / 6, 0.3, 1), 'lowpass', 2); }
+function sfxCapsize(x, y) { const e = earGain(x, y); if (e > 0.05) { oneShot(1.4, 3000, 200, 0.7 * e, 'bandpass', 0.6); oneShot(0.5, 300, 60, 0.6 * e, 'lowpass', 1); } }
+function updateAudio() {
+  if (!snd.ctx) return;
+  const c = snd.ctx, t = c.currentTime;
+  const live = snd.on && running && !paused && !document.hidden;
+  snd.master.gain.setTargetAtTime(live ? snd.vol : 0, t, 0.08);
+  if (!live) return;
+  const fr = fleet ? focusRow() : null;
+  const list = fleet ? fleet.boats.map(r => ({ id: r.no, b: r.b, inp: r.inp, focus: r === fr })) : [{ id: 0, b: B, inp: input, focus: true }];
+  const seen = new Set();
+  for (const e of list) {
+    seen.add(e.id);
+    let v = snd.engines.get(e.id);
+    if (!v) { v = makeEngine(); snd.engines.set(e.id, v); }
+    const b = e.b, thr = IDLE + (1 - IDLE) * (e.inp ? e.inp.thr : 0);
+    const rpm = clamp(0.15 + 0.55 * thr + 0.35 * b.v / 23 - 0.1 * (b.turnLoadV || 0), 0, 1.15);
+    const f0 = 58 + 150 * rpm + (e.id % 6) * 1.7;   // each engine a hair apart so six don't merge into one
+    v.osc.frequency.setTargetAtTime(f0, t, 0.05);
+    v.sub.frequency.setTargetAtTime(f0 / 2, t, 0.05);
+    v.whine.frequency.setTargetAtTime(f0 * 4.02, t, 0.05);
+    v.f.frequency.setTargetAtTime(350 + 2800 * thr * (0.6 + 0.4 * b.v / 23), t, 0.05);
+    const dead = b.cap > 0;
+    const vol = dead ? 0 : e.focus ? 0.2 : 0.2 * 0.5 * earGain(b.x, b.y) ** 1.5;
+    v.g.gain.setTargetAtTime(vol, t, dead ? 0.3 : 0.06);
+    if (v.pan) v.pan.pan.setTargetAtTime(e.focus ? 0 : clamp((b.x - cam.x) / 70, -0.9, 0.9), t, 0.1);
+  }
+  for (const [id, v] of snd.engines) if (!seen.has(id)) { v.stop(); snd.engines.delete(id); }
+  // water hiss and spray under the boat we're with
+  const me = list.find(e => e.focus);
+  if (me) {
+    const b = me.b, alive = b.cap <= 0;
+    snd.hiss.g.gain.setTargetAtTime(alive ? 0.07 * clamp(b.v / 22, 0, 1) : 0, t, 0.1);
+    snd.hiss.f.frequency.setTargetAtTime(500 + 1500 * clamp(b.v / 22, 0, 1), t, 0.1);
+    const spray = alive ? clamp(Math.max(Math.abs(b.vl) / 4, (Math.abs(b.yaw) > 0.35 ? Math.abs(b.yaw) * b.v / 14 : 0)), 0, 1) : 0;
+    snd.spl.g.gain.setTargetAtTime(0.22 * spray, t, 0.06);
+    const bump = b.wakeBump || 0;
+    if (alive && bump > 0.3 && snd.lastBump <= 0.3) oneShot(0.18, 420, 120, 0.35 * bump, 'lowpass', 1.5);
+    snd.lastBump = bump;
+  }
+  // the big clock: pips at 3, 2, 1 and a chime at zero
+  if (SS.phase === 'count') {
+    const rem = SS.t0 + CLOCK - time, sec = Math.ceil(rem);
+    if (sec !== snd.lastSec) { if (sec >= 1 && sec <= 3) pip(880, 0.12, 0.25); else if (sec === 0) pip(1320, 0.5, 0.3); snd.lastSec = sec; }
+  } else snd.lastSec = null;
+}
+// browsers only allow sound after the viewer interacts: wake it up on any tap, click or key
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { if (snd.ctx && snd.ctx.state === 'suspended') snd.ctx.resume().catch(() => {}); }, true);
+
+async function start() {
+  initAudio();
+  let ok = true;
+  // both requests fire inside the same tap so iOS still counts it as a user gesture
+  const reqs = [];
+  try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') reqs.push(DeviceOrientationEvent.requestPermission()); } catch (e) { ok = false; }
+  try { if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') reqs.push(DeviceMotionEvent.requestPermission()); } catch (e) { ok = false; }
+  try { const res = await Promise.all(reqs.map(p => p.catch(() => 'error'))); if (res.length && !res.includes('granted')) ok = false; } catch (e) { ok = false; }
+  addEventListener('deviceorientation', onOri);
+  addEventListener('devicemotion', onMot);
+  $('start').hidden = true;
+  running = true; last = performance.now();
+  try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
+  beginStart();
+  setTimeout(() => {
+    if (sensor.got || fleet) return;
+    const d = `診断：向き ${diag.ori}回（値なし ${diag.oriNull}）／加速度 ${diag.mot}回／${diag.framed ? '埋め込み表示' : '単独表示'}／${window.isSecureContext ? 'HTTPS' : '非HTTPS'}${ok ? '' : '／許可なし'}`;
+    showNote((diag.framed
+      ? '傾きが検知できていません。アプリ内の埋め込み表示ではセンサーが止められている可能性が高いです。単独のページとして開くと動くはずです。'
+      : '傾きが検知できていません。ブラウザの設定で「モーションと画面の向き」へのアクセスを許可してください。') + '\n' + d + '\n（タップで閉じる）');
+  }, 1800);
+}
+$('go').addEventListener('click', () => { start(); });
+$('goDemo').addEventListener('click', () => { start().then(() => entryMode ? startEntry(null) : startFleet()); });
+$('stayPortrait').addEventListener('click', () => { portraitOk = true; $('rotate').hidden = true; });
+
+/* ---------- settings ---------- */
+$('gear').addEventListener('click', () => { paused = true; $('settings').hidden = false; });
+$('close').addEventListener('click', () => { paused = false; last = performance.now(); $('settings').hidden = true; });
+$('zero').addEventListener('click', () => { recalibrate(); $('settings').hidden = true; paused = false; last = performance.now(); toast('基準リセット', '今の持ち方がまっすぐの姿勢になりました', 'info'); });
+$('padRT').addEventListener('change', e => { pad.useRT = e.target.checked; });
+$('sndOn').addEventListener('change', e => { snd.on = e.target.checked; initAudio(); });
+$('sndVol').addEventListener('input', e => { snd.vol = e.target.value / 100; $('sndVolOut').textContent = e.target.value; });
+$('hapOn').addEventListener('change', e => { hap.on = e.target.checked; if (!hap.on) { hap.active = true; hapticsStop(); } });
+$('hapTest').addEventListener('click', () => {
+  const g = currentPad();
+  if (g && g.vibrationActuator && g.vibrationActuator.playEffect) g.vibrationActuator.playEffect('dual-rumble', { startDelay: 0, duration: 400, strongMagnitude: 1, weakMagnitude: 1 }).catch(() => {});
+  else if (navigator.vibrate) { try { navigator.vibrate([120, 60, 240]); } catch (e) {} }
+  else toast('振動できません', 'この端末・ブラウザは振動に対応していません（iPhoneは非対応）', 'warn');
+  if (padBlocked) toast('コントローラ使用不可', 'この画面ではコントローラが禁止されています。ファイルを単独のページとして開いてください', 'warn');
+});
+$('invR').addEventListener('change', e => { sensor.invR = e.target.checked; });
+$('invP').addEventListener('change', e => { sensor.invP = e.target.checked; });
+$('sens').addEventListener('input', e => { sensor.range = +e.target.value; $('sensOut').textContent = e.target.value + '°'; });
+$('reset').addEventListener('click', () => { $('settings').hidden = true; paused = false; last = performance.now(); beginStart(); });
+$('again').addEventListener('click', () => { if (!running || paused) return; if (entryMode) { paused = true; $('waku').hidden = false; } else beginStart(); });
+$('note').addEventListener('click', () => { $('note').hidden = true; });
+
+function resetBoat() {
+  Object.assign(B, { x: START.x, y: START.y, a: START.a, v: 4, vl: 0, yaw: 0, porp: 0, cap: 0 });
+  input.thr = 0; wake.length = 0; spray.length = 0; T.on = false;
+  cam.x = B.x; cam.y = B.y;
+  lap.n = 0; lap.start = time; lap.visR = lap.visL = false; lap.prevX = B.x;
+}
+function beginStart() {
+  resetBoat();
+  SS.phase = 'count'; SS.t0 = time; SS.hideAt = 0;
+  $('clock').hidden = false;
+  toast('大時計スタート', '針が0を指してから1秒以内にスタートラインを越える', 'info');
+}
+const fmtRT = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}'${String(Math.floor(s)).padStart(2, '0')}"${Math.floor((s % 1) * 10)}`; };
+const fmtST = v => v >= 1 ? v.toFixed(2) : '.' + String(Math.round(v * 100)).padStart(2, '0');
+function judgeStart(st) {
+  SS.phase = 'done'; SS.hideAt = time + 2.5;
+  lap.start = time;
+  if (st < 0) toast('フライング', `F ${fmtST(-st)}　針が0になる前に越えた`, 'bad');
+  else if (st <= 0.15) toast('好スタート', `ST ${fmtST(st)}`, 'good');
+  else if (st <= 0.3) toast('スタート', `ST ${fmtST(st)}`, 'warn');
+  else toast('遅れ気味', `ST ${fmtST(st)}`, 'bad');
+}
+
+/* ---------- keyboard ---------- */
+addEventListener('keydown', e => { keys.add(e.code); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); if (e.code === 'Space' && !e.repeat && fleet && fleet.entry && fleet.playerNo) playerDash(); });
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+
+/* ---------- touch: left half = throttle lever, right half = rudder ---------- */
+const ptrs = new Map();
+let steerTouch = false;
+const leverSpan = () => $('track').getBoundingClientRect().height || 200;
+function sideOn(side) { $(side === 'thr' ? 'lever' : 'wheel').classList.toggle('on', [...ptrs.values()].some(p => p.side === side)); }
+cv.addEventListener('pointerdown', e => {
+  if (!running || paused || (fleet && !playerActive())) return;
+  e.preventDefault();
+  const side = e.clientX < W * 0.5 ? 'thr' : 'steer';
+  ptrs.set(e.pointerId, { side, x0: e.clientX, y0: e.clientY, v0: input.thr });
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  if (side === 'steer') { steerTouch = true; input.steerT = 0; }
+  sideOn(side);
+});
+cv.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  if (p.side === 'thr') input.thr = clamp(p.v0 + (p.y0 - e.clientY) / leverSpan(), 0, 1);
+  else input.steerT = clamp((e.clientX - p.x0) / (Math.min(W, H) * 0.2));
+});
+function endPtr(e) {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  ptrs.delete(e.pointerId);
+  if (p.side === 'steer') { steerTouch = [...ptrs.values()].some(q => q.side === 'steer'); if (!steerTouch) input.steerT = 0; }
+  sideOn(p.side);
+}
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', endPtr);
+
+/* ---------- game controller (Gamepad API, standard layout) ----------
+   LT = throttle lever (left hand, like the real boat; RT can be chosen in settings)
+   right stick ←→ = rudder,  left stick ←→ = lean,  left stick ↑ = 伏せる / ↓ = 体を起こす
+   A = start,  X = start practice,  Menu = settings,  B = close */
+const pad = { idx: -1, seenAt: -1, useRT: false, prev: [] };
+const padDz = v => Math.abs(v) < 0.12 ? 0 : (v - Math.sign(v) * 0.12) / 0.88;
+// Embedded views (like the in-app preview) can forbid controller access outright; then getGamepads
+// throws. Treat that as "no controller" for the rest of the session instead of letting it stop the game.
+let padBlocked = false;
+function currentPad() {
+  if (padBlocked || !navigator.getGamepads) return null;
+  let list;
+  try { list = navigator.getGamepads(); } catch (e) { padBlocked = true; return null; }
+  for (const g of list || []) if (g && g.connected) return g;
+  return null;
+}
+function pollPadButtons() {
+  const g = currentPad();
+  $('padTag').hidden = !g;
+  if (!g) return;
+  const down = i => !!(g.buttons[i] && g.buttons[i].pressed);
+  const edge = i => down(i) && !pad.prev[i];
+  if (edge(0) && !$('start').hidden) start();
+  else if (edge(0) && !$('rotate').hidden) { portraitOk = true; $('rotate').hidden = true; }
+  if (edge(9)) { if ($('settings').hidden) { if (running) { paused = true; $('settings').hidden = false; } } else { paused = false; last = performance.now(); $('settings').hidden = true; } }
+  if (edge(1)) {
+    if (!$('settings').hidden) { paused = false; last = performance.now(); $('settings').hidden = true; }
+    else if (!$('card').hidden) { paused = false; last = performance.now(); $('card').hidden = true; }
+  }
+  if (edge(2) && running && !paused && !fleet) beginStart();
+  if (edge(3) && running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();
+  pad.prev = g.buttons.map(b => b.pressed);
+}
+// returns the controller's four channels, or null when no controller is in use
+function readPad() {
+  const g = currentPad();
+  if (!g) return null;
+  const trig = i => (g.buttons[i] ? g.buttons[i].value : 0);
+  const thr = trig(pad.useRT ? 7 : 6);
+  const steer = padDz(g.axes[2] || 0), roll = padDz(g.axes[0] || 0), pitch = -padDz(g.axes[1] || 0);
+  if (thr > 0.02 || steer || roll || pitch) pad.seenAt = performance.now();
+  // once touched, the controller drives until it has sat idle for 3 s (so touch/keys can take back over)
+  if (pad.seenAt < 0 || performance.now() - pad.seenAt > 3000) return null;
+  return { thr, steer, roll, pitch };
+}
+addEventListener('gamepadconnected', e => toast('コントローラ接続', `${pad.useRT ? '右' : '左'}トリガー＝スロットル／右スティック＝舵／左スティック＝体重移動`, 'info'));
+addEventListener('gamepaddisconnected', () => toast('コントローラ切断', 'タッチ・キーボード操作に戻りました', 'info'));
+
+/* ---------- haptics (controller rumble / Android vibration) ----------
+   Four layers, each with its own feel:
+     コーナー    a light, steady hum on the high-frequency motor that grows with how hard the boat is turning
+     引き波      a short heavy knock each time the hull slams over a wave line
+     安定度      a heartbeat — ドクン、ドクン — that quickens and hardens as the boat nears the danger line
+     危険ライン超え  both motors flat out and ragged
+   Plus one-shots for a hit or a capsize. Phones only get on/off buzzes, so strength becomes pulse length. */
+const hap = { on: true, beat: -1, beatT: 0, beatMag: 0, knock: 0, lastBump: 0, shot: 0, shotMag: 0, sendT: 0, phoneBusy: 0, phonePri: 0, humT: 0, active: false };
+function hapticShot(dur, mag) { hap.shot = Math.max(hap.shot, dur); hap.shotMag = Math.max(hap.shotMag, mag); }
+function phoneBuzz(pattern, pri, busyMs) {
+  if (!navigator.vibrate) return;
+  const now = performance.now();
+  if (now < hap.phoneBusy && pri <= hap.phonePri) return;
+  try { navigator.vibrate(pattern); } catch (e) {}
+  hap.phoneBusy = now + busyMs; hap.phonePri = pri;
+}
+function hapticsStop() {
+  if (!hap.active) return;
+  hap.active = false;
+  const g = currentPad();
+  if (g && g.vibrationActuator && g.vibrationActuator.reset) g.vibrationActuator.reset().catch(() => {});
+  try { navigator.vibrate && navigator.vibrate(0); } catch (e) {}
+}
+function hapticsFrame(dt, b) {
+  if (!hap.on || !running || paused || fleet) { hapticsStop(); return; }
+  hap.active = true;
+  const load = b.cap > 0 ? 0 : (b.load || 0), turn = b.cap > 0 ? 0 : (b.turnLoadV || 0), bump = b.wakeBump || 0;
+  let strong = 0, weak = 0, phone = null;
+  // コーナー: steady hum
+  const hum = clamp((turn - 0.3) / 0.55, 0, 1);
+  weak = Math.max(weak, hum * 0.35);
+  // 引き波: a knock on each new wave line
+  if (bump > 0.25 && hap.lastBump <= 0.25) { hap.knock = 0.09; phone = { p: 30, pri: 2, ms: 60 }; }
+  hap.lastBump = bump;
+  if (hap.knock > 0) { hap.knock -= dt; strong = Math.max(strong, 0.35 + 0.6 * bump); }
+  // 安定度: heartbeat from 0.6 up to the line
+  if (load > 0.6 && load < 1) {
+    const x = (load - 0.6) / 0.4;
+    hap.beatT -= dt;
+    if (hap.beatT <= 0) {
+      hap.beatT = 0.9 - 0.65 * x; hap.beat = 0; hap.beatMag = 0.3 + 0.55 * x;
+      phone = { p: [Math.round(20 + 25 * x), 60, Math.round(15 + 20 * x)], pri: 2, ms: 160 };
+    }
+  } else hap.beatT = 0;
+  if (hap.beat >= 0) {
+    hap.beat += dt;
+    const ph = hap.beat;
+    if (ph < 0.07 || (ph > 0.14 && ph < 0.2)) { strong = Math.max(strong, hap.beatMag); weak = Math.max(weak, hap.beatMag * 0.4); }
+    if (ph > 0.2) hap.beat = -1;
+  }
+  // 危険ライン超え: violent and ragged
+  if (load >= 1) {
+    strong = 0.85 + 0.15 * Math.random(); weak = 0.7 + 0.3 * Math.random();
+    phone = { p: [90, 25, 70, 25, 110], pri: 3, ms: 300 };
+  }
+  // one-shots
+  if (hap.shot > 0) { hap.shot -= dt; strong = Math.max(strong, hap.shotMag); weak = Math.max(weak, hap.shotMag); phone = { p: Math.round(hap.shotMag * 300), pri: 4, ms: 320 }; if (hap.shot <= 0) hap.shotMag = 0; }
+  // controller: refresh the rumble every 50 ms with an overlapping 90 ms effect so it reads as continuous
+  const now = performance.now(), g = currentPad();
+  if (g && now - hap.sendT > 50) {
+    hap.sendT = now;
+    const va = g.vibrationActuator;
+    if (va && va.playEffect) va.playEffect('dual-rumble', { startDelay: 0, duration: 90, strongMagnitude: clamp(strong, 0, 1), weakMagnitude: clamp(weak, 0, 1) }).catch(() => {});
+    else if (g.hapticActuators && g.hapticActuators[0]) { try { g.hapticActuators[0].pulse(Math.max(strong, weak), 90); } catch (e) {} }
+  }
+  // phone (no controller in use): priority buzzes, and a faint tick for the corner hum
+  if (!g || pad.seenAt < 0) {
+    if (phone) phoneBuzz(phone.p, phone.pri, phone.ms);
+    else if (hum > 0.2) { hap.humT -= dt; if (hap.humT <= 0) { hap.humT = 0.12; phoneBuzz(Math.round(4 + 10 * hum), 1, 40); } }
+  }
+}
+
+function updateInput(dt) {
+  const k = 1 - Math.exp(-dt * 10);
+  const gp = readPad();
+  if (gp) {
+    // the controller is driving: it sets all four channels
+    input.thr += (gp.thr - input.thr) * (1 - Math.exp(-dt * 14));
+    input.steer += (gp.steer - input.steer) * (1 - Math.exp(-dt * 12));
+    input.roll += (gp.roll - input.roll) * k;
+    input.pitch += (gp.pitch - input.pitch) * k;
+    return;
+  }
+  if (keys.has('KeyW')) input.thr = Math.min(1, input.thr + dt * 1.2);
+  if (keys.has('KeyS')) input.thr = Math.max(0, input.thr - dt * 1.2);
+  const ks = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+  const st = steerTouch ? input.steerT : ks;
+  input.steer += (st - input.steer) * (1 - Math.exp(-dt * 9));
+  const kr = (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0);
+  const kp = (keys.has('ArrowUp') ? 1 : 0) - (keys.has('ArrowDown') ? 1 : 0);
+  let tr = raw.roll, tp = raw.pitch;
+  if (kr || kp || !sensor.got) { tr = kr; tp = kp; }
+  input.roll += (tr - input.roll) * k;
+  input.pitch += (tp - input.pitch) * k;
+}
+
+/* ---------- boat physics (metres, seconds) ----------
+   Shared by the player and any CPU boat.
+   inp = { thr 0..1 lever, steer -1..1 rudder (right +), roll -1..1 lean (right +), pitch -1..1 (forward lean +) }
+   Returns null, or an event: 'cap:<reason>', 'buoy', 'wall'. */
+function boatPhysics(b, inp, dt) {
+  const fx = Math.cos(b.a), fy = Math.sin(b.a), rx = -fy, ry = fx;
+  if (b.cap > 0) {
+    b.cap -= dt;
+    b.v *= Math.exp(-2.5 * dt); b.vl *= Math.exp(-3 * dt); b.yaw *= Math.exp(-4 * dt);
+    b.x += (fx * b.v + rx * b.vl) * dt; b.y += (fy * b.v + ry * b.vl) * dt;
+    if (b.cap <= 0) { b.v = 0; b.vl = 0; b.yaw = 0; b.porp = 0; }
+    wallsFor(b); b.harmony = 0; return null;
+  }
+
+  const t = inp.thr, s = inp.steer, r = inp.roll, p = inp.pitch;
+  const sgn = Math.abs(s) > 0.08 ? Math.sign(s) : 0;
+  const inside = sgn ? clamp(r * sgn) : 0;
+
+  // sitting far back at speed lifts the bow and the hull starts to hop
+  // posture (p): + = 伏せる, crouched flat along the deck; − = 体を起こす, sat up.
+  // Crouching cuts wind drag (the boat runs on); sitting up adds drag (slows it) but makes a
+  // hang-on to the inside bite much harder, which is what a monkey turn is.
+  b.porp = Math.max(0, b.porp - dt * 2);
+
+  // the engine never stops: lever at zero is idle, and the hull coasts on
+  const te = IDLE + (1 - IDLE) * t;
+  const up = Math.max(0, -p), down = Math.max(0, p);
+  const drag = 0.012 * (1 + 0.25 * up - 0.1 * down);
+  let acc = te * THRUST * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0)) - drag * b.v * b.v - 0.1 * b.v;
+  if (b.hold === 'hang') acc -= 1.5 * b.v;   // 待機: rudder hard over and sat up, bow off the line — the hull scrubs off nearly all way
+  else if (b.hold) acc -= 0.35 * b.v;   // 待機: sitting nearly still with the lever shut
+  acc -= b.porp * (1.2 + Math.random() * 2.2);
+  // 引き波: rough water from another boat. Riding in it drags; crossing it at an angle
+  // (bump) makes the hull slam and hop, costing more speed and grip and knocking it off line.
+  const wk = b.inWake || 0, bump = b.wakeBump || 0;
+  acc -= (wk * (0.5 + b.v * 0.04) + bump * (0.8 + b.v * 0.07)) * WAKE.drag;
+  if (bump > 0.05) b.yaw += (Math.random() * 2 - 1) * bump * 6 * WAKE.kick * dt;
+
+  // how hard the hull can be pushed sideways before it lets go: body position, then the rider's skill
+  // Posture counts for a lot: leaning in bites, sitting up makes the lean bite harder, staying crouched fights it.
+  // A full-throttle turn without the body in it (全速ターン) gets pushed wide by the prop; a proper full-throttle
+  // monkey (lean in + sit up) holds it in. Easing the lever (落とす) makes the hull settle and bite.
+  const ins = Math.max(0, inside), monkey = ins * (0.4 + 0.6 * up) * (1 - 0.5 * down);
+  let grip = GRIP_BASE * (1 + 0.15 * up) * (1 + TURN.lean * ins * (1 + TURN.upBoost * up - TURN.downCut * down)) * (1 + 0.5 * Math.min(0, inside))
+    * (1 - TURN.thrWide * t * (1 - monkey)) * (1 + TURN.dropGrip * (1 - t))
+    * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1);
+  grip = Math.max(2, grip);
+
+  const sf = clamp(b.v / 5, 0.3, 1);   // even nearly stopped, the hull can be pivoted round slowly
+  const turnBase = 1.35 / (1 + b.v / 35);
+  let yawT = s * turnBase * sf * (1 + 0.7 * Math.max(0, inside) * (0.6 + 0.5 * up - 0.4 * down)) + r * 0.28 * sf;
+  // the nose can only come round as fast as the grip allows at this speed: faster means a wider arc
+  const yawCap = grip * YAW_OVER / Math.max(4, b.v);
+  yawT = clamp(yawT, -yawCap, yawCap);
+  b.yaw += (yawT - b.yaw) * (1 - Math.exp(-5 * dt));
+
+  const demand = b.v * Math.abs(b.yaw);
+  const excess = demand - grip;
+  if (excess > 0 && Math.abs(b.yaw) > 0.05) b.vl += -Math.sign(b.yaw) * excess * 0.9 * dt;
+  b.vl *= Math.exp(-dt * 1.6 * grip / GRIP_BASE);
+
+  b.harmony = sgn ? clamp(0.5 * Math.max(0, inside) + 0.3 * up + 0.2 * t, 0, 1) : 0;
+  const turnLoss = 0.9 * (1 - 0.55 * b.harmony);   // turns bleed speed; a clean monkey turn keeps more of it
+  acc -= Math.abs(b.yaw) * b.v * turnLoss + Math.abs(b.vl) * 0.7;
+  b.v = Math.max(0, b.v + acc * dt);
+  b.a += b.yaw * dt;
+  b.x += (fx * b.v + rx * b.vl) * dt;
+  b.y += (fy * b.v + ry * b.vl) * dt;
+
+  // 安定度 (load): how close the hull is to letting go; 1.0 is the danger line.
+  // Below it the boat is safe. Above it every moment carries a chance of going over that grows
+  // with how far past the line it is (and how steady the rider is) — crossing it is a gamble.
+  const lowLean = Math.max(0, inside) * clamp((8 - b.v) / 5, 0, 1) * Math.min(1, Math.abs(s) * 1.5);
+  const turnLoad = demand / (grip * YAW_OVER), slideLoad = Math.abs(b.vl) / 7;
+  b.turnLoadV = 0.85 * turnLoad;
+  // a clean turn at the grip limit reads ~0.85 (限界ぎりぎり); a slide, wake or low-speed over-lean takes it past the line
+  // 無茶: a deep hang-on at full throttle and near top speed, rudder hard over, is past what the hull will take —
+  // worse still done crouched. Easing the lever calms everything down.
+  const mucha = ins * t * clamp((b.v / 22.8 - 0.7) / 0.3, 0, 1) * clamp(Math.abs(s) * 1.4 - 0.4, 0, 1) * (1 + 1.2 * down);
+  const load = (Math.max(0.85 * turnLoad, slideLoad, lowLean * 1.1) + TURN.mucha * mucha) * (1 - TURN.dropCalm * (1 - t)) + WAKE.unsettle * bump + 0.1 * wk;   // a hull bucking on a wave is on the edge
+  b.load = (b.load || 0) + (load - (b.load || 0)) * (1 - Math.exp(-dt * 8));
+  let ev = null;
+  if (b.load > 1 || Math.abs(b.vl) > 11) {
+    const haz = Math.abs(b.vl) > 11 ? 1e3 : HAZARD * Math.pow(b.load - 1, 1.5) * (b.hazMul || 1);
+    if (Math.random() < haz * dt) {
+      ev = 'cap:' + (lowLean * 1.1 >= Math.max(0.85 * turnLoad, slideLoad) ? '速度がないのに内へ倒れ込んだ'
+        : inside < -0.2 ? '外へ体重が逃げて振られた'
+        : bump > 0.3 ? '引き波に乗り上げてバランスを崩した'
+        : down > 0.5 ? '伏せたまま曲がって握りきれなかった'
+        : '限界を越えて握りきれなかった');
+    }
+  }
+
+  // turn marks and booms: a graze barely slows the boat, a square hit costs a lot
+  {
+    const fx0 = Math.cos(b.a), fy0 = Math.sin(b.a);
+    const ax = b.x - fx0 * HULL_AFT, ay = b.y - fy0 * HULL_AFT, bx2 = b.x + fx0 * HULL_FWD, by2 = b.y + fy0 * HULL_FWD;
+    for (const ob of OBSTACLES) {
+      const [px, py, qx, qy] = closestSegSeg(ax, ay, bx2, by2, ob.x1, ob.y1, ob.x2, ob.y2);
+      let nx = px - qx, ny = py - qy, d = Math.hypot(nx, ny);
+      const rr = HULL_R + ob.r;
+      if (d >= rr) continue;
+      if (d < 1e-4) { nx = b.x - qx; ny = b.y - qy; d = Math.hypot(nx, ny) || 1; }
+      nx /= d; ny /= d;
+      const pen = rr - Math.min(d, rr);
+      b.x += nx * pen; b.y += ny * pen;
+      const vx = fx0 * b.v - fy0 * b.vl, vy = fy0 * b.v + fx0 * b.vl;
+      const vn = -(vx * nx + vy * ny);                      // speed straight into it
+      if (vn > 0) {
+        const nvx = vx + nx * vn * 1.2, nvy = vy + ny * vn * 1.2;
+        const loss = clamp(0.02 + vn * (ob.kind === 'mark' ? 0.05 : 0.07), 0.02, 0.55);
+        b.v = Math.max(0, nvx * fx0 + nvy * fy0) * (1 - loss);
+        b.vl = (-nvx * fy0 + nvy * fx0) * 0.5;
+        if (vn > 2.5 && !(b.buoyCool > 0)) { ev = ev || (ob.kind === 'mark' ? 'buoy' : 'boom'); b.buoyCool = 1; }
+      }
+    }
+  }
+  b.buoyCool = Math.max(0, (b.buoyCool || 0) - dt);
+  const vBefore = b.v;
+  if (wallsFor(b) && vBefore > 5) ev = ev || 'wall';
+  if (ev && ev.startsWith('cap:')) b.cap = 2.2;
+  return ev;
+}
+
+function wallsFor(b) {
+  let hit = false;
+  if (b.x < COURSE.xMin + 2) { b.x = COURSE.xMin + 2; hit = true; }
+  if (b.x > COURSE.xMax - 2) { b.x = COURSE.xMax - 2; hit = true; }
+  if (b.y < COURSE.yMin + 2) { b.y = COURSE.yMin + 2; hit = true; }
+  if (b.y > COURSE.yMax - 2) { b.y = COURSE.yMax - 2; hit = true; }
+  if (hit) { b.v *= 0.5; b.vl = 0; }
+  return hit;
+}
+
+/* ---------- boat-to-boat contact ----------
+   Each hull is a capsule (a 3 m spine with 0.8 m of rounding) so bow, side and stern all hit
+   where they look. On touch the hulls are pushed apart and trade an impulse along the contact
+   normal; the boat driving harder into the other keeps more of its line, an off-centre hit
+   spins the hull, and a big enough shove can put a boat over (the physics capsizes it
+   when its sideways speed runs away). Returns one event per new touch. */
+const HULL_R = 0.8, HULL_AFT = 1.4, HULL_FWD = 1.6;
+function closestSegSeg(ax, ay, bx, by, cx, cy, dx, dy) {
+  const d1x = bx - ax, d1y = by - ay, d2x = dx - cx, d2y = dy - cy, rx = ax - cx, ry = ay - cy;
+  const a = d1x * d1x + d1y * d1y, e = d2x * d2x + d2y * d2y, f = d2x * rx + d2y * ry;
+  const c = d1x * rx + d1y * ry, bb = d1x * d2x + d1y * d2y, den = a * e - bb * bb;
+  if (e < 1e-9) { const s0 = clamp(-c / a, 0, 1); return [ax + d1x * s0, ay + d1y * s0, cx, cy]; }   // second one is a point
+  let s = den > 1e-9 ? clamp((bb * f - c * e) / den, 0, 1) : 0;
+  let t = (bb * s + f) / e;
+  if (t < 0) { t = 0; s = clamp(-c / a, 0, 1); } else if (t > 1) { t = 1; s = clamp((bb - c) / a, 0, 1); }
+  return [ax + d1x * s, ay + d1y * s, cx + d2x * t, cy + d2y * t];
+}
+function boatContacts(list) {
+  const evs = [];
+  for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+    const a = list[i], c = list[j];
+    if ((c.x - a.x) ** 2 + (c.y - a.y) ** 2 > 36) continue;
+    const fax = Math.cos(a.a), fay = Math.sin(a.a), fcx = Math.cos(c.a), fcy = Math.sin(c.a);
+    const [px, py, qx, qy] = closestSegSeg(a.x - fax * HULL_AFT, a.y - fay * HULL_AFT, a.x + fax * HULL_FWD, a.y + fay * HULL_FWD,
+                                           c.x - fcx * HULL_AFT, c.y - fcy * HULL_AFT, c.x + fcx * HULL_FWD, c.y + fcy * HULL_FWD);
+    let nx = qx - px, ny = qy - py, d = Math.hypot(nx, ny);
+    if (d >= 2 * HULL_R) continue;
+    if (d < 1e-4) { nx = c.x - a.x; ny = c.y - a.y; d = Math.hypot(nx, ny) || 1; }
+    nx /= d; ny /= d;
+    const pen = 2 * HULL_R - Math.min(d, 2 * HULL_R);
+    a.x -= nx * pen / 2; a.y -= ny * pen / 2; c.x += nx * pen / 2; c.y += ny * pen / 2;
+    // velocities in world space
+    const vax = fax * a.v - fay * a.vl, vay = fay * a.v + fax * a.vl;
+    const vcx = fcx * c.v - fcy * c.vl, vcy = fcy * c.v + fcx * c.vl;
+    const vrel = (vcx - vax) * nx + (vcy - vay) * ny;
+    if (vrel >= 0) continue;                       // already moving apart
+    const J = -(1 + 0.1) * vrel;                    // total impulse (equal masses)
+    // the boat pressing harder into the other takes the smaller share
+    const aInto = Math.max(0, vax * nx + vay * ny), cInto = Math.max(0, -(vcx * nx + vcy * ny));
+    const wA = clamp(0.5 + 0.35 * (cInto - aInto) / (aInto + cInto + 0.5), 0.2, 0.8);
+    const JA = J * wA, JC = J * (1 - wA);
+    const nax = vax - nx * JA, nay = vay - ny * JA, ncx = vcx + nx * JC, ncy = vcy + ny * JC;
+    // hulls shed most of a sideways shove into the water; only a hard hit sends a boat skating
+    a.v = Math.max(0, nax * fax + nay * fay) * 0.985; a.vl = clamp(a.vl + ((-nax * fay + nay * fax) - a.vl) * 0.6, -7, 7);
+    c.v = Math.max(0, ncx * fcx + ncy * fcy) * 0.985; c.vl = clamp(c.vl + ((-ncx * fcy + ncy * fcx) - c.vl) * 0.6, -7, 7);
+    // an off-centre hit swings the hull
+    a.yaw += ((px - a.x) * (-ny * JA) - (py - a.y) * (-nx * JA)) * 0.05;
+    c.yaw += ((qx - c.x) * (ny * JC) - (qy - c.y) * (nx * JC)) * 0.05;
+    // rear-end: the contact is square on one boat's bow
+    let rear = -1;
+    if (fax * fcx + fay * fcy > 0.8) {
+      if (nx * fax + ny * fay > 0.75) rear = i; else if (-(nx * fcx + ny * fcy) > 0.75) rear = j;
+    }
+    evs.push({ i, j, J, JA, JC, rear, x: (px + qx) / 2, y: (py + qy) / 2 });
+  }
+  return evs;
+}
+
+function boatFx(b, arr, dt) {
+  const fx = Math.cos(b.a), fy = Math.sin(b.a), rx = -fy, ry = fx;
+  if (b.v > 1.5) {
+    b.wakeAcc = (b.wakeAcc || 0) + dt;
+    if (b.wakeAcc > 0.04) { b.wakeAcc = 0; arr.push({ x: b.x - fx * 2.1, y: b.y - fy * 2.1, a: b.a, t: time, v: b.v }); }
+  }
+  while (arr.length && time - arr[0].t > 3) arr.shift();
+  if ((b.wakeBump || 0) > 0.3 && b.v > 8 && Math.random() < 0.5) {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    spray.push({ x: b.x + fx * 1.6 + rx * side * 0.7, y: b.y + fy * 1.6 + ry * side * 0.7, vx: rx * side * 3 + fx * 2, vy: ry * side * 3 + fy * 2, t: time, life: 0.45 });
+  }
+  if (Math.abs(b.vl) > 1.2 || (Math.abs(b.yaw) > 0.5 && b.v > 9)) {
+    const out = Math.abs(b.vl) > 0.3 ? Math.sign(b.vl) : -Math.sign(b.yaw);
+    for (let i = 0; i < 2; i++) {
+      const sp = 3 + Math.random() * 4 + Math.abs(b.vl);
+      spray.push({ x: b.x - fx * 1.2 + rx * out * 0.9, y: b.y - fy * 1.2 + ry * out * 0.9,
+        vx: rx * out * sp - fx * 2 + (Math.random() - .5) * 2, vy: ry * out * sp - fy * 2 + (Math.random() - .5) * 2, t: time, life: 0.5 + Math.random() * 0.4 });
+    }
+  }
+}
+
+function splash(b) {
+  for (let i = 0; i < 26; i++) {
+    const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 6;
+    spray.push({ x: b.x, y: b.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: time, life: 0.9 + Math.random() * 0.6 });
+  }
+}
+
+function step(dt) {
+  time += dt;
+  const ev = boatPhysics(B, input, dt);
+  harmony = B.harmony || 0;
+  hitCool = Math.max(0, hitCool - dt);
+  if (ev) {
+    if (ev.startsWith('cap:')) { splash(B); T.on = false; toast('転覆', ev.slice(4), 'bad'); hapticShot(0.45, 1); sfxCapsize(B.x, B.y); }
+    else {
+      hapticShot(0.15, 0.7); sfxHit(B.x, B.y, 5);
+      if (!hitCool) { toast(ev === 'buoy' ? '接触' : ev === 'boom' ? '消波装置' : '岸壁', ev === 'buoy' ? 'ターンマークに強く当たった' : ev === 'boom' ? 'マーク内側の消波装置に当たった' : 'コースの端にぶつかった', 'bad'); hitCool = 1.5; }
+    }
+  }
+  if (B.cap > 0) return;
+  boatFx(B, wake, dt);
+
+  // big-clock start: the line must be crossed 0–1.0 s after the hand hits zero
+  const crossed = lap.prevX < 0 && B.x >= 0 && B.y > 0;
+  if (SS.phase === 'count') {
+    if (crossed) { judgeStart(time - (SS.t0 + CLOCK)); lap.prevX = B.x; lap.visR = lap.visL = false; return; }
+    if (time > SS.t0 + CLOCK + 1) { SS.phase = 'done'; SS.hideAt = time + 2.5; toast('出遅れ', '1秒以内にスタートラインを越えられなかった', 'bad'); }
+  }
+  if (SS.phase === 'done' && SS.hideAt && time > SS.hideAt) { SS.phase = 'off'; $('clock').hidden = true; }
+
+  // laps: cross the line at x=0 on the lower straight after rounding both marks
+  if (SS.phase !== 'count' && Math.sign(lap.prevY || B.y) !== Math.sign(B.y) && Math.abs(B.x) < MK - 1) toast('内側航走', 'ターンマークの内側を通過（レースなら6着扱い）', 'bad');
+  lap.prevY = B.y;
+  if (B.x > MK - 15) lap.visR = true;
+  if (B.x < -MK + 15) lap.visL = true;
+  if (crossed) {
+    if (lap.visR && lap.visL) {
+      const lt = time - lap.start;
+      lap.best = lap.best == null ? lt : Math.min(lap.best, lt);
+      lap.n++;
+      if (!T.on) toast(`${lap.n}周`, `ラップ ${fmt(lt)}`, 'info');
+    }
+    lap.start = time; lap.visR = lap.visL = false;
+  }
+  lap.prevX = B.x;
+
+  // turn grading
+  if (!T.on && Math.abs(B.yaw) > 0.55 && B.v > 7) Object.assign(T, { on: true, sum: 0, n: 0, maxVl: 0, minV: B.v, entryV: B.v, quiet: 0 });
+  if (T.on) {
+    T.sum += harmony * dt; T.n += dt;
+    T.maxVl = Math.max(T.maxVl, Math.abs(B.vl)); T.minV = Math.min(T.minV, B.v);
+    if (Math.abs(B.yaw) < 0.3) { T.quiet += dt; if (T.quiet > 0.35) gradeTurn(); } else T.quiet = 0;
+  }
+}
+
+function gradeTurn() {
+  T.on = false;
+  if (T.n < 0.6) return;
+  const avg = T.sum / T.n;
+  const detail = `進入 ${kmh(T.entryV)} → 最低 ${kmh(T.minV)} km/h`;
+  if (avg >= 0.68 && T.maxVl < 3.5) toast('モンキーターン', detail, 'good');
+  else if (avg >= 0.42 && T.maxVl < 5.5) toast('まずまず', detail + '（体を起こして、もっと内へ）', 'warn');
+  else toast('流れた', detail + (T.maxVl >= 5 ? '（外へ流された）' : '（体重移動が足りない）'), 'bad');
+}
+
+const kmh = v => Math.round(v * 3.6);
+const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(2)}`; };
+
+function toast(big, small, kind) {
+  const el = $('toast');
+  $('tBig').textContent = big; $('tSmall').textContent = small;
+  el.dataset.kind = kind;
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+}
+
+/* ---------- CPU driver ----------
+   Outputs the same four inputs a player gives (lever, rudder, lean, fore-aft),
+   so boatPhysics() can't tell a person from the CPU. One driver per boat.
+   Profile knobs:
+     lean      how far it leans inside in a turn (0..1)
+     up        how far it sits up in a turn (0..1) — sitting up is what makes the hang-on bite
+     cruise    how flat it crouches on the straights (0..1) — less wind, more speed
+     line      turning radius it aims for around a mark (m)
+     turnThr   lever kept through the turn
+     react     how quickly its body follows its intent (per second)
+     leanLate  how late it starts leaning into a turn (m of travel)
+     st        target start timing (s after zero), stJit = spread
+     wobble    rudder noise
+   Optional racing-line knobs (defaults in brackets):
+     look0/lookK  how far ahead it aims: look0 + speed*lookK metres [7, 0.55]
+     gain         rudder per radian of heading error [2.2]
+     preLean      metres before the turn it starts leaning [4]
+     exitEarly    metres before the turn ends it sits back up [4]
+   SG級 was found by searching these knobs for the fastest clean laps in this physics. */
+const DRIVERS = [
+  { name: 'A1', gap: 3.2, grip: 1.0,  lean: 1.0,  up: 1.0,  cruise: 1.0,  line: 16, turnThr: 1.0,  react: 9.4, leanLate: 0,  st: 0.08, stJit: 0.03, wobble: 0.02,
+    look0: 20.8, lookK: 0.99, gain: 1.58, preLean: 5.3, exitEarly: 0 },
+  { name: 'A2', gap: 3.8, grip: 0.97, lean: 1.0,  up: 0.95,  cruise: 0.95,  line: 16, turnThr: 1.0,  react: 9, leanLate: 0,  st: 0.08, stJit: 0.035, wobble: 0.02 , look0: 20.8, lookK: 0.99, gain: 1.58, preLean: 5.3, exitEarly: 0 },
+  { name: 'B1', gap: 5, grip: 0.95, lean: 0.9,  up: 0.85,  cruise: 0.85, line: 16.5, turnThr: 1.0, react: 7.5, leanLate: 2, st: 0.13, stJit: 0.07, wobble: 0.04 , look0: 19, lookK: 0.95, gain: 1.7, preLean: 4.5, exitEarly: 1 },
+  { name: 'B2', gap: 6.5, grip: 0.93, lean: 0.8,  up: 0.75,  cruise: 0.75, line: 17, turnThr: 0.95,  react: 6, leanLate: 4,  st: 0.2, stJit: 0.12, wobble: 0.07 , look0: 17, lookK: 0.9,  gain: 1.85, preLean: 4, exitEarly: 2 },
+  // トップクラス: A1 on the card, but a cut above — tighter to the buoy, more grip, sharper, surer at the start (SG mode only)
+  { name: 'TOP', label: 'A1', top: true, gap: 2.8, grip: 1.05, lean: 1.0, up: 1.0, cruise: 1.0, line: 15.5, turnThr: 1.0, react: 10.5, leanLate: 0, st: 0.06, stJit: 0.02, wobble: 0.01, look0: 20.8, lookK: 0.99, gain: 1.58, preLean: 5.3, exitEarly: 0 },
+];
+
+// the racing line: a stadium around both marks, run anticlockwise
+// The racing line: two straights joined by half-circles of radius R. Each circle is pulled toward the
+// infield so that its outermost point passes `gap` metres from the mark: the boat swings round and
+// brushes the buoy at the apex. gap = R (the default) centres the circle on the mark instead.
+const arcX = (R, gap = R) => MK - R + Math.min(gap, R);
+const loopLen = (R, gap) => 4 * arcX(R, gap) + 2 * Math.PI * R;
+function loopPt(R, s, gap) {
+  const M = arcX(R, gap), A = Math.PI * R, L = loopLen(R, gap);
+  s = ((s % L) + L) % L;
+  if (s < 2 * M) return [-M + s, R];
+  s -= 2 * M;
+  if (s < A) { const th = Math.PI / 2 - s / R; return [M + R * Math.cos(th), R * Math.sin(th)]; }
+  s -= A;
+  if (s < 2 * M) return [M - s, -R];
+  s -= 2 * M;
+  const th = 3 * Math.PI / 2 - s / R; return [-M + R * Math.cos(th), R * Math.sin(th)];
+}
+function loopS(R, x, y, gap) {
+  const M = arcX(R, gap), A = Math.PI * R;
+  let best = Infinity, bs = 0;
+  const cand = (s, px, py) => { const d = (px - x) ** 2 + (py - y) ** 2; if (d < best) { best = d; bs = s; } };
+  let t = clamp(x + M, 0, 2 * M); cand(t, -M + t, R);
+  t = clamp(M - x, 0, 2 * M); cand(2 * M + A + t, M - t, -R);
+  let th = clamp(Math.atan2(y, x - M), -Math.PI / 2, Math.PI / 2);
+  cand(2 * M + (Math.PI / 2 - th) * R, M + R * Math.cos(th), R * Math.sin(th));
+  th = Math.atan2(y, x + M); if (th < 0) th += 2 * Math.PI; th = clamp(th, Math.PI / 2, 3 * Math.PI / 2);
+  cand(4 * M + A + (3 * Math.PI / 2 - th) * R, -M + R * Math.cos(th), R * Math.sin(th));
+  return bs;
+}
+// how far along the loop until the next turn begins (0 while in a turn), and whether we're in one
+function turnInfo(R, s, gap) {
+  const M = arcX(R, gap), A = Math.PI * R, L = loopLen(R, gap);
+  const seg = [[2 * M, 2 * M + A], [4 * M + A, L]];
+  for (const [a, b] of seg) if (s >= a && s < b) return { inTurn: true, toTurn: 0, left: b - s };
+  const next = s < 2 * M ? 2 * M : 4 * M + A;
+  return { inTurn: false, toTurn: next - s, left: 0 };
+}
+// seconds to reach a line d metres ahead from speed v with the lever wide open
+function timeToLine(d, v, crouch = 0) {
+  let x = 0, t = 0;
+  while (x < d && t < 20) { const acc = THRUST - 0.012 * (1 - 0.1 * crouch) * v * v - 0.1 * v; v += acc * 0.05; x += v * 0.05; t += 0.05; }
+  return t;
+}
+const wrapRad = a => Math.atan2(Math.sin(a), Math.cos(a));
+// Aim point on the racing line, pulled back if the straight run to it would clip a turn mark
+// or cut across the boom inside it (a long look-ahead otherwise shortcuts the corner).
+function aimOnLine(b, R, s, look, gap) {
+  for (let k = 0; k < 8; k++) {
+    const [tx, ty] = loopPt(R, s + look, gap);
+    if (look < 3 || clearOfMarks(b.x, b.y, tx, ty)) return [tx, ty];
+    look *= 0.7;
+  }
+  return loopPt(R, s + look, gap);
+}
+function clearOfMarks(x1, y1, x2, y2) {
+  for (const m of COURSE.marks) {
+    const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy || 1;
+    const t = clamp(((m.x - x1) * dx + (m.y - y1) * dy) / L2, 0, 1);
+    if (Math.hypot(x1 + dx * t - m.x, y1 + dy * t - m.y) < 2.8) return false;   // buoy 1.5 m + hull 0.8 m + a little
+  }
+  if ((y1 > 0) !== (y2 > 0)) {                       // crosses the centreline: only allowed outside the marks
+    const xc = x1 + (x2 - x1) * (-y1 / ((y2 - y1) || 1e-9));
+    if (Math.abs(xc) < MK + 1.8) return false;
+  }
+  return true;
+}
+
+// How rough the water is at a point from other boats' wake (引き波), and which way that wake runs.
+// `ahead` ages the wake so the CPU can judge where it will be, not just where it is.
+function wakeAt(x, y, wakes, now, ahead = 0) {
+  let w = 0, ang = 0;
+  for (const arr of wakes) for (let i = arr.length - 1; i >= 0; i -= 2) {
+    const pt = arr[i], age = now + ahead - pt.t;
+    if (age < 0.3) continue;
+    if (age > WAKE.life) break;
+    const spread = age * (1.4 + pt.v * 0.12);
+    const c = Math.cos(pt.a), s = Math.sin(pt.a), dx = x - pt.x, dy = y - pt.y;
+    const lat = Math.abs(-dx * s + dy * c), fwd = Math.abs(dx * c + dy * s);
+    // the trough right behind the boat and the two spreading wave lines
+    if (fwd < 1.2 && (lat < WAKE.width || Math.abs(lat - spread) < WAKE.width)) {
+      const k = Math.pow(1 - age / WAKE.life, 0.7) * Math.min(1, pt.v / 15);   // fresh wake, close behind the boat, hits hardest
+      if (k > w) { w = k; ang = pt.a; }
+    }
+  }
+  return { w, ang };
+}
+const nearMarkAt = (x, y, r) => COURSE.marks.some(m => Math.hypot(x - m.x, y - m.y) < r);
+
+// Risk by class. At a 勝負どころ (close fight going into a turn, not when comfortably clear):
+//   go   chance of going for it (ムリ) at that turn      ok   chance it comes off
+//   acc  chance a failed attempt ends in 転覆/落水       hit  how badly a heavy contact rattles it
+//   fly  chance of misjudging the big clock (フライング)
+// 差し構え: where it drops the lever before 1M (m before the turn), how far, when it grips again
+// (share of the arc), how much tighter the arc, how much later the lean, how much wider past the buoy
+const SASHI = {
+  win:   { dropAt: 38, lever: 0.5,  regrip: 0.28, rCut: 2,   late: 3, gapAdd: 0.5 },
+  place: { dropAt: 48, lever: 0.42, regrip: 0.35, rCut: 1.5, late: 5, gapAdd: 1.5 },
+};
+// 立ち上がり: after a turn, hold the exit line until the boat reaches upAt × top speed (m/s),
+// then drift toward the preferred line at this many m/s sideways, by class
+const EXIT = { vTop: 22.8, from: 0.6, upAt: 0.88, drift: { TOP: 1.2, A1: 1.1, A2: 1.0, B1: 0.85, B2: 0.7 } };
+// 1マーク is where boats go over — CPU riders rarely gamble there (share of their usual rate)
+const PUSH_AT_1M = 0.15;
+// 絞り: after the start, an outside boat whose bow is `lead` m or more ahead of the boat just inside it
+// may squeeze in on it (chance by course), closing to `gap` m centre-to-centre. The squeezed boat mostly
+// gives way (引く: lifts and tucks in behind), and only sometimes fights it (抵抗) — which risks going over.
+const SQUEEZE = { lead: 2, gap: 3.0, p: { 2: 0.4, 3: 0.85, 4: 0.6, 5: 0.45, 6: 0.35, kado: 0.9 },
+                  resist: { calm: 0.06, normal: 0.15, aggr: 0.3 }, yieldLever: 0.55, yieldTime: 1.1,
+                  fightCap: 0.08 };   // chance of going over per half-second of rubbing hulls while resisting (× class)
+const RISK = {
+  A1: { go: 0.06, ok: 0.85, acc: 0.15, hit: 0.6, fly: 0.004 },
+  A2: { go: 0.05, ok: 0.72, acc: 0.2,  hit: 0.8, fly: 0.006 },
+  B1: { go: 0.04, ok: 0.58, acc: 0.27, hit: 1.0, fly: 0.008 },
+  B2: { go: 0.035, ok: 0.42, acc: 0.34, hit: 1.2, fly: 0.012 },
+  TOP: { go: 0.08, ok: 0.93, acc: 0.1, hit: 0.45, fly: 0.003 },
+};
+// trait = { course, laneY, tactic: 'nige'|'sashi'|'makuri', lineOff, dump, care } (all optional for a lone boat)
+function makeDriver(prof, trait = {}) {
+  const o = { thr: 0, steer: 0, roll: 0, pitch: 0 };
+  const mem = { stTarget: 0, go: false, firstDone: false, dumpT: 0, dumpQ: null, dumpSeen: new Set(), wakeT: 0, wakeOff: 0, wakeOffT: 0, wakeAhead: 0, brace: 0, emergency: 0 };
+  function reset() {
+    o.thr = o.steer = o.roll = o.pitch = 0;
+    // Start judgement: the further out, the harder the timing is to read (stErr, ± spread by course),
+    // so outside boats aim later to leave a safety margin. The class adds a little of its own wobble.
+    // the extra difficulty of an outside start (over the 1コース's) bites less on an A1 — they can win from
+    // anywhere — and more the lower the class
+    const cSpread = trait.kado ? ST_SPREAD.kado : ST_SPREAD[trait.course] ?? ST_SPREAD.def;
+    const spread = ST_SPREAD[1] + Math.max(0, cSpread - ST_SPREAD[1]) * (ST_OUT[prof.name] ?? 1);
+    mem.stTarget = prof.st + ST_MARGIN * spread + (Math.random() * 2 - 1) * prof.stJit * 0.4;
+    mem.stErr = (Math.random() * 2 - 1) * spread;
+    mem.misread = false; mem.hou = false; mem.houed = false;
+    if (Math.random() < (trait.flyRisk || 0)) { mem.stTarget = -0.01 - Math.random() * 0.05; mem.stErr = 0; mem.misread = true; }   // reads the clock wrong and never notices
+    mem.push = null; mem.pushDecided = false;
+    mem.go = false; mem.firstDone = false; mem.dumpT = 0; mem.dumpQ = null; mem.dumpSeen.clear();
+    mem.wakeOff = mem.wakeOffT = mem.wakeAhead = mem.brace = mem.emergency = 0; mem.sashiDrop = false; mem.exitHold = null; mem.wasInTurn = false; mem.entryWide = 0; mem.nigeDrop = false; mem.squeeze = null; mem.sqDecided = false; mem.sqResp = null; mem.sqRespT = 0; mem.resistQ = null; mem.planDecided = false; mem.plan = null; mem.tsukeDecided = false; mem.tsukeQ = null; mem.tacticNow = trait.tactic; mem.tacticLock = null; mem.tacticNow = trait.tactic;
+  }
+  reset();
+  const care = trait.care ?? 1;   // how early it gives way (cautious > 1, aggressive < 1)
+
+  // Avoidance: project every nearby boat and myself 1.4 s ahead along curved paths (current
+  // speed, slide and turn rate) and check the real hull shapes for the closest approach.
+  // Only boats that would come within touching distance count. Who gives way:
+  //   boat ahead → it has the line, I go round and lift off
+  //   alongside, it's on my inside → inside has the water, I open the gap
+  //   alongside, it's on my outside → I hold my line and just don't drift into it
+  //   boat behind → its job, not mine
+  // The one deliberate exception is a dump target.
+  const PRED_T = [0.05, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.7];
+  function predictPos(q, t) {
+    const am = q.a + q.yaw * t * 0.5, c = Math.cos(am), s = Math.sin(am);
+    return [q.x + (c * q.v - s * q.vl) * t, q.y + (s * q.v + c * q.vl) * t, q.a + q.yaw * t];
+  }
+  function hullGap(ax, ay, aa, bx, by, ba) {
+    const ca = Math.cos(aa), sa = Math.sin(aa), cb = Math.cos(ba), sb = Math.sin(ba);
+    const [px, py, qx, qy] = closestSegSeg(ax - ca * HULL_AFT, ay - sa * HULL_AFT, ax + ca * HULL_FWD, ay + sa * HULL_FWD,
+                                           bx - cb * HULL_AFT, by - sb * HULL_AFT, bx + cb * HULL_FWD, by + sb * HULL_FWD);
+    return Math.hypot(qx - px, qy - py) - 2 * HULL_R;
+  }
+  function avoid(b, others) {
+    let steerAdd = 0, thrMul = 1;
+    if (!others) return { steerAdd, thrMul };
+    const fx = Math.cos(b.a), fy = Math.sin(b.a);
+    const inTurn = nearMarkAt(b.x, b.y, 22);
+    const margin = 0.5 + 0.5 * care + (inTurn ? 0.4 : 0);
+    const mine = PRED_T.map(t => predictPos(b, t));
+    for (const q of others) {
+      if (q === b || (mem.dumpT > 0 && q === mem.dumpQ) || q === mem.resistQ || (q === mem.squeeze && b.x < MK - 45 && b.y > 0)) continue;
+      const dx = q.x - b.x, dy = q.y - b.y;
+      if (dx * dx + dy * dy > 900) continue;
+      const fwd = dx * fx + dy * fy, lat = -dx * fy + dy * fx;   // lat > 0: q is on my right (outside)
+      if (fwd < -2.5) continue;
+      let gapMin = Infinity, tc = 0, rcx = 0, rcy = 0;
+      for (let k = 0; k < PRED_T.length; k++) {
+        const [ax, ay, aa] = mine[k], [qx, qy, qa] = predictPos(q, PRED_T[k]);
+        const g = hullGap(ax, ay, aa, qx, qy, qa);
+        if (g < gapMin) { gapMin = g; tc = PRED_T[k]; rcx = qx - ax; rcy = qy - ay; }
+        if (g < 0) break;
+      }
+      const tsukeTgt = mem.tacticNow === 'tsuke' && q === mem.tsukeQ && !mem.firstDone;
+      if (gapMin > (tsukeTgt ? 0.15 : margin)) continue;   // stays clear
+      const urg = clamp(1 - tc / 1.8, 0, 1) * (gapMin < 0 ? 1 : 1 - 0.5 * gapMin / margin);
+      const cl = -rcx * fy + rcy * fx;                     // where it will be, across my bow
+      if (fwd > 1.5) {
+        const side = Math.abs(cl) < 0.5 ? (inTurn ? 1 : (lat >= 0 ? -1 : 1)) : (cl >= 0 ? -1 : 1);
+        steerAdd += side * (0.35 + 0.65 * urg);
+        if (b.v > q.v - 1) thrMul = Math.min(thrMul, 1 - 0.95 * urg);
+        if (urg > 0.5) mem.emergency = 0.4;
+      } else if (lat < 0) {
+        // I'm the outside boat: open the gap and drop back
+        steerAdd += (0.4 + 0.6 * urg) * Math.max(0.8, care);
+        thrMul = Math.min(thrMul, 1 - 0.6 * urg);
+      } else {
+        // I'm the inside boat: keep my line; if I'm sliding out toward it, lift to tighten up
+        steerAdd -= 0.2 * urg;
+        thrMul = Math.min(thrMul, 1 - (b.vl > 0.5 ? 0.6 : 0.2) * urg);
+        if (b.vl > 0.5) mem.tighten = 0.4;
+      }
+    }
+    // near a turn mark there is no room inside: only dodge outward, otherwise lift off
+    if (inTurn && steerAdd < 0 && !(mem.emergency > 0)) { thrMul = Math.min(thrMul, 0.7); steerAdd = 0; }
+    return { steerAdd: clamp(steerAdd, -0.9, 0.9), thrMul };
+  }
+
+  // Wake reading: ten times a second, try a few lines to either side and take the one
+  // with the calmest water, paying a little for leaving the racing line.
+  function planWake(b, env, dt) {
+    mem.wakeT -= dt;
+    mem.wakeOff += (mem.wakeOffT - mem.wakeOff) * (1 - Math.exp(-3 * dt));
+    if (mem.wakeT > 0 || !env.wakes || !env.wakes.length) return;
+    mem.wakeT = 0.1;
+    const fx = Math.cos(b.a), fy = Math.sin(b.a), rx = -fy, ry = fx;
+    const L1 = Math.max(6, b.v * 0.6), L2 = Math.max(10, b.v * 1.1);
+    const nm = nearMarkAt(b.x, b.y, 26);
+    let best = 0, bestC = Infinity;
+    for (const off of [-3, -1.5, 0, 1.5, 3]) {
+      let c = wakeAt(b.x + fx * L1 + rx * off * 0.6, b.y + fy * L1 + ry * off * 0.6, env.wakes, env.now, 0.35).w
+            + 0.8 * wakeAt(b.x + fx * L2 + rx * off, b.y + fy * L2 + ry * off, env.wakes, env.now, 0.6).w
+            + Math.abs(off) * 0.04 + Math.abs(off - mem.wakeOffT) * 0.02;
+      if (off < 0 && nm) c += 1;            // no going inside at the mark
+      if (off === 0) mem.wakeAhead = c;
+      if (c < bestC) { bestC = c; best = off; }
+    }
+    mem.wakeOffT = best;
+    // can't get round it: brace for the hit
+    if (bestC > 0.35) mem.brace = 0.5;
+  }
+
+  // ダンプ: in a turn, when a boat draws alongside on my outside, lean out and shove it wide.
+  // Decided once per boat per turn; how often depends on temperament.
+  function considerDump(b, others, dt) {
+    mem.dumpT = Math.max(0, mem.dumpT - dt);
+    if (!nearMarkAt(b.x, b.y, 24)) { mem.dumpSeen.clear(); return; }
+    if (mem.dumpT > 0 || !others || !(trait.dump > 0) || b.v < 8) return;
+    const fx = Math.cos(b.a), fy = Math.sin(b.a);
+    for (const q of others) {
+      if (q === b || q.cap > 0 || mem.dumpSeen.has(q)) continue;
+      const dx = q.x - b.x, dy = q.y - b.y;
+      const fwd = dx * fx + dy * fy, lat = -dx * fy + dy * fx;
+      if (lat > 1.2 && lat < 4.5 && fwd > -3 && fwd < 2.5 && q.v > 8) {
+        mem.dumpSeen.add(q);
+        if (Math.random() < trait.dump) { mem.dumpT = 0.55; mem.dumpQ = q; return; }
+      }
+    }
+  }
+
+  // env = { now, clockZero (null once racing), laneY, others: boat states, wakes: other boats' trails,
+  //         cruise: { ahead } once past the finish }
+  function drive(b, env, dt) {
+    let thrT, steerT, rollT = 0, pitchT = 0;
+    const k = 1 - Math.exp(-prof.react * dt);
+    mem.emergency = Math.max(0, mem.emergency - dt);
+    mem.brace = Math.max(0, mem.brace - dt);
+    mem.tighten = Math.max(0, (mem.tighten || 0) - dt);
+    const av = avoid(b, env.others);
+    mem.av = av;
+    o.ev = null;
+    b.gripBoost = mem.push && mem.push.ok ? 1.35 : 1;
+    b.gripSkill = prof.grip ?? 1;
+    b.hazMul = (RISK[prof.name] || RISK.B1).hit;
+    b.pushing = !!mem.push;
+
+    if (env.retire) {
+      // フライング返還: past 1M, peel off to the outside edge and park against it
+      const edge = Math.abs(b.y) > 43;
+      const [tx, ty] = edge ? [b.x - 5, -60] : [b.x - 40, -47];
+      const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
+      steerT = clamp(err * 2 + av.steerAdd * 0.5);
+      thrT = edge ? 0 : 0.2;
+      o.thr += (thrT - o.thr) * (1 - Math.exp(-3 * dt));
+    } else if (env.caution) {
+      // 事故後: order is frozen — no overtaking, slow right down near the wreck, pass it on the outside
+      let R = prof.line + 4;
+      for (const w of env.caution.wrecks) {
+        const mk = COURSE.marks.reduce((m, c) => Math.hypot(w.x - c.x, w.y - c.y) < Math.hypot(w.x - m.x, w.y - m.y) ? c : m);
+        const dw = Math.hypot(w.x - mk.x, w.y - mk.y);
+        if (dw < 35) R = Math.max(R, Math.min(30, dw + 9));
+      }
+      const s = loopS(R, b.x, b.y);
+      let [tx, ty] = aimOnLine(b, R, s, 10 + b.v * 0.5);
+      let nearWreck = Infinity;
+      for (const w of env.caution.wrecks) {
+        const d = Math.hypot(w.x - b.x, w.y - b.y);
+        nearWreck = Math.min(nearWreck, d);
+        if (Math.abs(w.x) < MK && Math.sign(w.y) === Math.sign(b.y)) {
+          const cd = b.y > 0 ? 1 : -1, along = (w.x - b.x) * cd;
+          if (along > -10 && along < 70) {
+            let wy = w.y + Math.sign(w.y || 1) * 9;              // 9 m outside the wreck
+            if (Math.abs(wy) > 45) wy = w.y - Math.sign(w.y || 1) * 9;
+            if (Math.abs(ty) < Math.abs(wy) || Math.abs(wy) < Math.abs(w.y)) ty = wy;
+          }
+        }
+      }
+      const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
+      steerT = clamp(err * 2 + av.steerAdd * 0.6);
+      let vT = clamp(8 + (nearWreck - 30) * 0.15, 8, 16);
+      const q = env.caution.ahead;
+      if (q) {
+        const gap = Math.hypot(q.x - b.x, q.y - b.y);
+        if (gap < 25) vT = Math.min(vT, q.v - (25 - gap) * 0.4);
+        if (gap < 12) vT = Math.min(vT, 3);
+      }
+      thrT = clamp(0.3 + (vT - b.v) * 0.3, 0, 1);
+      rollT = turnInfo(R, s).inTurn ? -0.4 : 0;
+      o.thr += (thrT - o.thr) * (1 - Math.exp(-4 * dt));
+    } else if (env.cruise) {
+      // after the finish: ease off and run round wide in finishing order
+      const R = 27;
+      const s = loopS(R, b.x, b.y);
+      const [tx, ty] = aimOnLine(b, R, s, 8 + b.v * 0.5);
+      const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
+      steerT = clamp(err * 2 + av.steerAdd * 0.6);
+      let vT = 8.5;
+      const q = env.cruise.ahead;
+      if (q) { const gap = Math.hypot(q.x - b.x, q.y - b.y); if (gap < 20) vT = Math.min(vT, q.v - (20 - gap) * 0.3); }
+      thrT = clamp(0.3 + (vT - b.v) * 0.25, 0, 1) * av.thrMul;
+      rollT = turnInfo(R, s).inTurn ? -0.25 : 0;
+      o.thr += (thrT - o.thr) * (1 - Math.exp(-3 * dt));
+    } else if (env.clockZero != null) {
+      // flying start: idle along the waiting lane, open up when the timing works out
+      const d = -b.x, rem = env.clockZero - env.now;
+      const tFull = timeToLine(Math.max(0, d), b.v, prof.cruise);
+      // it goes by its own read of the clock, which is off by stErr
+      // lever lag makes it arrive a touch late; from a standstill (待機水面で止まっていた) the hull has to climb onto the plane too
+      const aim = rem + mem.stErr + mem.stTarget - 0.05 - (!trait.slow && b.v < 3 ? 0.08 : 0);
+      if (!mem.go && tFull >= aim) mem.go = true;
+      if (mem.go && tFull < aim - 0.35) mem.go = false;  // would jump the clock: back off
+      // 放る: close to the line the clock reads true — if flat out from here would be a certain フライング,
+      // throw the lever off and let it coast until it's safe, then open up again
+      const stNow = tFull - rem;
+      if (mem.go && !mem.misread && tFull < 1.8 && stNow < HOU_AT) { mem.hou = true; mem.houed = true; }
+      if (mem.hou && stNow > HOU_AT + 0.03) mem.hou = false;
+      thrT = mem.go && !mem.hou ? 1 : 0;
+      const err = wrapRad(Math.atan2(env.laneY - b.y, 25) - b.a);
+      steerT = clamp(err * 2.2 + av.steerAdd * 0.3);
+      pitchT = mem.go && b.v > 12 ? prof.cruise : 0;
+      o.thr += (thrT - o.thr) * (1 - Math.exp(-12 * dt));
+    } else {
+      if (!mem.firstDone && b.y < -4 && b.x < MK - 5) mem.firstDone = true;
+      const first = !mem.firstDone && env.laneY != null;
+      let R = prof.line + (first ? 0 : (trait.lineOff || 0)), tThr = prof.turnThr, late = prof.leanLate, pre = prof.preLean ?? 4;
+      // ツケマイ: on the run to 1M, a まくり boat whose bow is level with (or just ahead of) the boat
+      // directly inside it turns tight on that boat's side instead of going round wide, so its wake
+      // lands on the inside boat. Decided once on the approach and kept through the turn.
+      let tactic = trait.tactic;
+      // 2コース・3コース read the run-in to 1M (60 m out) and pick a plan:
+      //   握る   got the jump on the boat inside (better start and the bow in front) → grip and go over it
+      //   壁     the boat outside is coming with a まくり → hold speed and line, and shut it out
+      //   差し   otherwise: 勝ちにいく差し (drop late and light, cut in tight, grip early) or
+      //          着を取る差し (drop early and deep, a safer line behind, no gambles) — by class and temper
+      if (first && (trait.course === 2 || trait.course === 3) && !trait.kado && env.inner) {
+        if (mem.planDecided) tactic = mem.plan;
+        else if (b.x > MK - 60) {
+          mem.planDecided = true;
+          const aggr = trait.pushMul ?? 1;
+          const innerAhead = env.inner.x - b.x;                 // + = the inside boat is in front
+          const outerComing = env.outer && env.outer.x - b.x > -3 && (env.outerPlan === 'makuri' || env.outerPlan === 'tsuke');
+          let plan = tactic;
+          if (mem.squeeze) plan = 'makuri';   // it squeezed the inside: now go over the top
+          else if (innerAhead < -2.5 && env.stAdv > 0.05 && Math.random() < 0.55 * aggr) plan = 'makuri';
+          else if (outerComing && Math.random() < 0.35) plan = 'wall';
+          else if (plan === 'sashi') {
+            const pWin = ({ TOP: 0.75, A1: 0.65, A2: 0.55, B1: 0.4, B2: 0.3 }[prof.name] ?? 0.45) + (aggr > 1.2 ? 0.15 : aggr < 0.8 ? -0.15 : 0);
+            plan = Math.random() < pWin ? 'sashiWin' : 'sashiPlace';
+          }
+          mem.plan = plan; tactic = plan;
+        }
+      }
+      if (first && tactic === 'makuri' && !trait.kado && !mem.squeeze && env.others) {
+        if (mem.tsukeDecided) tactic = mem.tacticNow;
+        else if (b.x > MK - 55) {
+          mem.tsukeDecided = true;
+          const fx = Math.cos(b.a), fy = Math.sin(b.a);
+          let tgt = null, bestL = 99, tf = 0;
+          for (const q of env.others) {
+            if (q === b) continue;
+            const dx = q.x - b.x, dy = q.y - b.y, f = dx * fx + dy * fy, l = -dx * fy + dy * fx;
+            if (l < -1 && l > -12 && Math.abs(f) < 10 && -l < bestL) { bestL = -l; tgt = q; tf = f; }
+          }
+          if (tgt && tf < 1.5 && tf > -6 && Math.random() < (trait.tsuke ?? 0.5)) { tactic = 'tsuke'; mem.tsukeQ = tgt; }
+        }
+      }
+      if (first) mem.tacticNow = tactic;
+      // how close to the buoy the apex runs (A1 nearly scrapes it)
+      let gap = (prof.gap ?? 5) + (first ? 0 : (trait.lineOff || 0) * 0.5);
+      // 逃げ: hug the mark and turn first
+      if (first && tactic === 'nige') {
+        R = Math.max(8, prof.line - 3.5); pre += 2; gap -= 0.5;
+        // coming in hot off a 100 m run-up: blip the lever down just before the mark so it can turn tight
+        // and shut the door on the 差し, then grip again as soon as it's pointing round
+        const tiN = turnInfo(R, loopS(R, b.x, b.y, gap), gap);
+        if (!tiN.inTurn && tiN.toTurn < NIGE_DROP.at) mem.nigeDrop = true;
+        if (tiN.inTurn && (Math.PI * R - tiN.left) > Math.PI * R * NIGE_DROP.regrip) mem.nigeDrop = false;
+      }
+      // 差し: lift off a touch, let the inside boats turn, then cut underneath them
+      const isSashi = tactic === 'sashi' || tactic === 'sashiWin' || tactic === 'sashiPlace';
+      if (first && isSashi) {
+        // 差し構え: drop the lever on the run-in so the inside boat turns first and the outside boats can
+        // go over the top, then grip again part-way round and cut in underneath.
+        // 勝ちにいく差し drops late and light and grips early, tight to the buoy; 着を取る差し drops early
+        // and deep, grips later and runs a safer line a little wider.
+        const k = SASHI[tactic === 'sashiPlace' ? 'place' : 'win'];
+        R = Math.max(8.5, prof.line - k.rCut); late += k.late; gap += k.gapAdd;
+        const tiA = turnInfo(R, loopS(R, b.x, b.y, gap), gap);
+        if (!tiA.inTurn && tiA.toTurn < k.dropAt) mem.sashiDrop = true;
+        if (tiA.inTurn && (Math.PI * R - tiA.left) > Math.PI * R * k.regrip) mem.sashiDrop = false;
+        mem.sashiLever = k.lever;
+        tThr = mem.sashiDrop ? k.lever : 1;
+      }
+      // 壁: stay on the gas and turn just outside the boat inside, so the まくり from outside can't get over
+      if (first && tactic === 'wall') { R = prof.line; gap = Math.max(gap, (prof.gap ?? 5) + 4); tThr = 1; }
+      // まくり: carry full speed and go round the outside of everyone
+      if (first && tactic === 'makuri') { R = prof.line + 3 + trait.course * 1.5; tThr = 1; pre += 5; gap = Math.min(R, gap + 3 + trait.course * 1.5); }
+      // ツケマイ: ride 3 m outside the target's line, flat out, leaning in early and hard
+      if (first && tactic === 'tsuke' && mem.tsukeQ) {
+        const q = mem.tsukeQ, mk = COURSE.marks[0], dq = Math.hypot(q.x - mk.x, q.y - mk.y);
+        gap = clamp((dq < 30 ? dq : Math.abs(q.y)) + 3, prof.gap ?? 5, 26);
+        tThr = 1; pre += 6; late = 0;
+      }
+      // 勝負どころ: going into a turn in a close fight (never when comfortably clear), sometimes go for it.
+      // Whether it comes off is decided by class up front; the physics then plays it out.
+      {
+        const t0 = turnInfo(R, loopS(R, b.x, b.y, gap), gap);
+        // 差させない: someone creeping up on my inside going into the turn → shut the door, run tighter to the buoy
+        if (env.others && (t0.inTurn || t0.toTurn < 40)) {
+          const fx = Math.cos(b.a), fy = Math.sin(b.a);
+          const threat = env.others.some(q => { if (q === b || q.cap > 0) return false; const dx = q.x - b.x, dy = q.y - b.y, f = dx * fx + dy * fy, l = -dx * fy + dy * fx; return l < -0.5 && l > -6 && f > -12 && f < 2; });
+          if (threat) gap = Math.max(2.8, gap - 1.2);
+        }
+        if (!t0.inTurn && t0.toTurn > 60) { mem.pushDecided = false; mem.push = null; }
+        if (!mem.pushDecided && !t0.inTurn && t0.toTurn < 35) {
+          mem.pushDecided = true;
+          const rk = RISK[prof.name] || RISK.B1;
+          const at1M = b.y > 0;   // on the home straight, the next mark is 1M
+          if (env.battle && !(first && tactic === 'sashiPlace') && Math.random() < rk.go * (trait.pushMul ?? 1) * (at1M ? PUSH_AT_1M : 1)) mem.push = { ok: Math.random() < rk.ok, applied: false, done: false };
+        }
+        if (mem.push) { R = Math.max(7.5, R - 2.5); gap = Math.max(2.8, gap - 1); tThr = 1; late = 0; pre += 3; }
+      }
+      // still out wide when the next mark comes up: don't dive back in — take the turn wider instead
+      if (mem.entryWide) gap = Math.min(R, gap + mem.entryWide);
+      const s = loopS(R, b.x, b.y, gap);
+      let look = (prof.look0 ?? 7) + b.v * (prof.lookK ?? 0.55);
+      let [tx, ty] = aimOnLine(b, R, s, look, gap);
+      // 立ち上がり: coming out of a turn, put the power down and run straight on the line it came out on.
+      // Only once the boat is up to speed does it start drifting across to where it wants to be — slowly.
+      const tiNow = turnInfo(R, s, gap);
+      if (tiNow.inTurn) { mem.wasInTurn = true; mem.exitHold = null; }
+      else if (mem.wasInTurn) {
+        mem.wasInTurn = false; mem.entryWide = 0;
+        if (Math.abs(b.x) > MK - 40) mem.exitHold = { y: Math.abs(b.y), side: Math.sign(b.y) || 1, up: false };
+      }
+      const eh = mem.exitHold;
+      if (eh && !env.finalStretch && tiNow.toTurn > 55 && Math.sign(b.y) === eh.side) {
+        const want = Math.abs(ty);
+        // the drift toward the ideal line fades in with speed: none just out of the turn, full once it's running
+        const kUp = clamp((b.v / EXIT.vTop - EXIT.from) / (EXIT.upAt - EXIT.from), 0, 1);
+        if (kUp >= 1) eh.up = true;
+        const rate = (EXIT.drift[prof.name] ?? 0.9) * kUp;
+        eh.y += clamp(want - eh.y, -rate * dt, rate * dt);
+        if (eh.up && Math.abs(want - eh.y) < 0.3) mem.exitHold = null;
+        const dir = eh.side > 0 ? 1 : -1;   // home straight runs +x, back straight −x
+        look *= 1.3;
+        tx = b.x + dir * look; ty = eh.side * eh.y;
+      } else if (eh && tiNow.toTurn <= 55) {
+        mem.entryWide = Math.max(0, eh.y - Math.abs(ty));
+        mem.exitHold = null;
+      }
+      const accelerating = !!(mem.exitHold && !mem.exitHold.up);
+      // first straight: hold the entry lane, then converge on the mark
+      if (first && b.y > 0 && b.x < MK - 45) { const w = clamp((b.x + 20) / (MK - 25), 0, 1); ty = env.laneY + (ty - env.laneY) * w; }
+      // 絞り: got the jump on the boat inside? squeeze in on it, slowly enough not to be 斜行
+      let squeezing = false;
+      if (first && b.y > 0 && env.inner && b.x < MK - 45) {
+        if (!mem.sqDecided && b.x > 8) {
+          mem.sqDecided = true;
+          const pc = trait.kado ? SQUEEZE.p.kado : SQUEEZE.p[trait.course] ?? 0;
+          if (env.inner.x - b.x <= -SQUEEZE.lead && env.inner.cap <= 0 && Math.random() < pc * Math.min(1.3, trait.pushMul ?? 1)) { mem.squeeze = env.inner; o.ev = 'squeeze'; }
+        }
+        if (mem.squeeze && mem.squeeze.cap <= 0) { ty = Math.max(ty - 6, mem.squeeze.y + SQUEEZE.gap); squeezing = true; }
+      }
+      // being squeezed from outside: give way (引く — lift, tuck in behind) or, now and then, fight it (抵抗)
+      if (first && b.y > 0 && env.outerSqueeze && !mem.sqResp && b.x < MK - 45) {
+        mem.sqResp = Math.random() < (SQUEEZE.resist[trait.temper] ?? 0.15) ? 'resist' : 'yield';
+        mem.sqRespT = SQUEEZE.yieldTime;
+        if (mem.sqResp === 'resist') mem.resistQ = env.outer;
+        o.ev = mem.sqResp;
+        if (mem.sqResp === 'yield' && (trait.course === 2 || trait.course === 3) && !mem.planDecided) { mem.planDecided = true; mem.plan = 'sashiPlace'; }
+      }
+      mem.sqRespT = Math.max(0, mem.sqRespT - dt);
+      if (mem.sqResp === 'yield' && mem.sqRespT > 0) ty = Math.max(4, b.y - 1.5);
+      if (mem.sqResp === 'resist' && b.x < MK - 45 && env.outer) ty = Math.min(env.outer.y - 1.1, b.y + 2);   // 張る: push out into it
+      if (!(first && b.x < MK - 45)) mem.resistQ = null;
+      // read the wake and shift the line toward calmer water
+      planWake(b, env, dt);
+      if (mem.wakeOff) { const fx = Math.cos(b.a), fy = Math.sin(b.a); tx += -fy * mem.wakeOff; ty += fx * mem.wakeOff; }
+      // Don't sit in a boat's wake: on a straight, if a boat ahead is on my line, move over and run
+      // alongside it instead (5 m to the side, where no one is behind or alongside me). After the last
+      // turn it looks further ahead and commits harder, since the run home is all straight.
+      if ((Math.abs(b.x) < STRAIGHT_X + 10 || accelerating) && env.others && !first) {
+        const cd = b.y > 0 ? 1 : -1, reach = env.finalStretch ? TRAIL.range : accelerating ? 45 : TRAIL.range, gapSide = env.finalStretch ? 5.5 : accelerating ? 4.5 : 5;
+        let lead = null, best = reach;
+        for (const q of env.others) {
+          if (q === b || q.cap > 0 || Math.sign(q.y) !== Math.sign(b.y)) continue;
+          const along = (q.x - b.x) * cd;
+          if (along > 2 && along < best && Math.abs(q.y - b.y) < 3.5) { lead = q; best = along; }
+        }
+        if (lead) {
+          mem.sideT = (mem.sideT || 0) - dt;
+          if (mem.sideLead !== lead || mem.sideY == null || mem.sideT <= 0) {
+            mem.sideT = 0.5;
+            mem.sideLead = lead; mem.sideY = null;
+            // try inside first, then outside — but while still accelerating out of a turn, only the side I'm
+            // already on relative to it (no cutting across its bow)
+            const sides = accelerating ? [Math.sign(b.y - lead.y) || Math.sign(b.y)] : [-Math.sign(b.y), Math.sign(b.y)];
+            for (const sd of sides) {
+              const y2 = lead.y + sd * gapSide;
+              if (Math.abs(y2) < 5 || Math.abs(y2) > 44 || Math.sign(y2) !== Math.sign(b.y)) continue;
+              const blocked = env.others.some(q => {
+                if (q === b || q === lead || q.cap > 0) return false;
+                const al = (q.x - b.x) * cd, dy = q.y - b.y;
+                // someone behind or alongside on that side: moving over would be 斜行
+                if (al > -14 && al < 4 && Math.sign(dy) === Math.sign(y2 - b.y) && Math.abs(dy) < gapSide + 3) return true;
+                // someone already up ahead on that line: I'd just be in their wake instead
+                return al >= 4 && al < best + 8 && Math.abs(q.y - y2) < 3.2;
+              });
+              if (!blocked) { mem.sideY = y2; break; }
+            }
+          }
+          if (mem.sideY != null) { ty = mem.sideY; if (mem.exitHold) mem.exitHold.y = Math.abs(mem.sideY); }
+        } else { mem.sideLead = null; mem.sideY = null; }
+      }
+      // 斜行 is not allowed: on a straight, cap how steeply it angles across the water.
+      // Nearly parallel while any boat is on that side (behind or alongside); a moderate angle only when clear.
+      if (Math.abs(b.x) < STRAIGHT_X && env.others) {
+        const cd = b.y > 0 ? 1 : -1, courseA = cd > 0 ? 0 : Math.PI;
+        let want = wrapRad(Math.atan2(ty - b.y, tx - b.x) - courseA);
+        const dyDir = Math.sign(ty - b.y);
+        const crowded = dyDir !== 0 && env.others.some(q => {
+          if (squeezing && q === mem.squeeze) return false;
+          if (q === mem.resistQ) return false;
+          if (q === b) return false;
+          const along = (q.x - b.x) * cd;
+          return along > -14 && along < 4 && Math.sign(q.y - b.y) === dyDir && Math.abs(q.y - b.y) < 8;
+        });
+        const maxDev = squeezing ? 0.055 : mem.resistQ ? 0.07 : crowded ? 0.03 : 0.22;
+        want = clamp(want, -maxDev, maxDev);
+        tx = b.x + Math.cos(courseA + want) * look; ty = b.y + Math.sin(courseA + want) * look;
+      }
+      const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
+      considerDump(b, env.others, dt);
+      const dumping = mem.dumpT > 0;
+      steerT = clamp(err * (prof.gain ?? 2.2) * (accelerating ? 0.75 : 1) + (dumping ? 0.65 : av.steerAdd) + (Math.random() * 2 - 1) * prof.wobble * (accelerating ? 0.5 : 1));
+      const ti = turnInfo(R, s, gap);
+      // body goes in once the turn is close enough (late drivers lean later)
+      const leanIn = ti.inTurn ? (ti.left > 0 && (Math.PI * R - ti.left) >= late) : ti.toTurn < pre + b.v * 0.15 - late;
+      const exiting = ti.inTurn && ti.left < (prof.exitEarly ?? 4);
+      if (leanIn && !exiting) {
+        rollT = -prof.lean * clamp((b.v - 4) / 4, 0, 1);   // anticlockwise course: inside is left
+        pitchT = -prof.up;
+        thrT = tThr;
+        if (tactic === 'tsuke' && first) { rollT = -Math.max(prof.lean, 0.9) * clamp((b.v - 4) / 4, 0, 1); pitchT = -Math.max(prof.up, 0.8); }
+        if (mem.push) {
+          rollT = -clamp((b.v - 4) / 4, 0, 1); pitchT = -1;
+          const into = Math.PI * R - ti.left;
+          if (!mem.push.ok && !mem.push.applied && ti.inTurn && into > Math.PI * R * 0.3) { mem.push.applied = true; o.ev = 'pushFail'; }
+        }
+        // bracing for wake mid-turn: ease the lean and the lever a touch so the hull doesn't let go
+        if (mem.brace > 0) { rollT *= 0.85; thrT *= 0.9; }   // bracing mid-turn: ease the lean and the lever a touch
+        if (mem.tighten > 0) { rollT = Math.min(rollT, -0.9 * clamp((b.v - 4) / 4, 0, 1)); pitchT = Math.min(pitchT, -0.8); }
+      } else {
+        if (mem.push && mem.push.ok && !mem.push.done && ti.inTurn) { mem.push.done = true; o.ev = 'pushOk'; }
+        thrT = 1;
+        pitchT = b.v > 12 || accelerating ? prof.cruise : 0;   // out of the turn: get down and let it run
+        if (env.finalStretch && b.v > 12) pitchT = 1;   // flat out for the line
+        // bracing on a straight: come up off the deck a touch to ride the wave out
+        if (mem.brace > 0) pitchT = Math.min(pitchT, 0.3);
+      }
+      thrT = dumping ? Math.max(thrT, 0.9) : thrT * av.thrMul;
+      if (mem.sqResp === 'yield' && mem.sqRespT > 0) thrT = Math.min(thrT, SQUEEZE.yieldLever);
+      if (mem.resistQ) thrT = 1;
+      if (first && isSashi && mem.sashiDrop) { thrT = Math.min(thrT, mem.sashiLever); pitchT = Math.min(pitchT, 0); }   // lever down, sat up
+      if (first && tactic === 'wall' && !(mem.emergency > 0)) thrT = Math.max(thrT, 0.95);
+      if (first && tactic === 'nige' && mem.nigeDrop) thrT = Math.min(thrT, NIGE_DROP.lever[prof.name] ?? 0.7);
+      if (first && tactic === 'makuri' && !(mem.emergency > 0)) thrT = 1;   // まくり: flat out all the way round
+      // near the danger line with nobody to fight: back off a touch (no point risking it).
+      // In a close fight it holds on; only a deliberate 勝負 goes past the line. Cautious riders ease earlier.
+      const near1M = Math.hypot(b.x - MK, b.y) < 40;
+      if (!mem.push && !(first && tactic === 'makuri') && (!env.battle || near1M) && (b.load || 0) > 0.95 + 0.06 * (1 - Math.min(1, care))) { thrT *= 0.9; }
+      // swerving against the lean (dodging outward mid-turn): take the body out of it too
+      if (Math.abs(steerT) > 0.2 && rollT !== 0 && Math.sign(steerT) !== Math.sign(rollT)) rollT *= 0.6;
+      if (b.cap > 0) { thrT = 0; rollT = 0; pitchT = 0; }
+      o.thr += (thrT - o.thr) * (1 - Math.exp(-6 * dt));
+    }
+    o.steer += (steerT - o.steer) * (1 - Math.exp(-prof.react * (mem.emergency > 0 ? 3 : 1.6) * dt));
+    o.roll += (rollT - o.roll) * k;
+    o.pitch += (pitchT - o.pitch) * k;
+    return o;
+  }
+  return { prof, trait, drive, reset, out: o, dumping: q => mem.dumpT > 0 && mem.dumpQ === q, mem };
+}
+
+/* ---------- 6-boat demo race ----------
+   Each boat: class (A1–B2 driver profile), entry preference, course, slow/dash start, first-turn tactic. */
+const LANE_COL = [['#f4f7f6', '#0a2c38'], ['#1f2629', '#f4f7f6'], ['#e0453c', '#ffffff'], ['#2f6fe0', '#ffffff'], ['#f2cf2e', '#1c1300'], ['#2fa35a', '#ffffff']];
+const STRAIGHT_X = MK - 23;   // |x| below this is straight water
+const TACTIC_JA = { tsuke: 'ツケマイ', wall: '壁', sashiWin: '差し（勝負）', sashiPlace: '差し（着取り）', nige: '逃げ', sashi: '差し', makuri: 'まくり' };
+const PREF_JA = { in: 'イン志向', waku: '枠なり', out: 'アウト志向' };
+const TEMPER = { calm: { ja: '慎重', dump: 0.05, care: 1.25 }, normal: { ja: '普通', dump: 0.3, care: 0.9 }, aggr: { ja: '攻撃的', dump: 0.75, care: 0.55 } };
+const LREF = loopLen(13);
+const FIXED_ENTRY = true;
+// 起こし positions (m before the start line) by course, and the rare 3カド
+const OKOSHI = { 1: [100, 110], 2: [100, 115], 3: [110, 125], 4: [140, 150], 5: [150, 160], 6: [150, 160] };
+const KADO3_RATE = 0.08, KADO3_OKOSHI = [135, 142];
+const IDLE_V = 4.2;
+// start timing: how far off each course reads the clock (± s), the share of that it adds as a safety margin,
+// and the flat-out ST below which a boat near the line throws the lever off (放る) instead of going early
+const ST_SPREAD = { 1: 0.03, 2: 0.08, 3: 0.08, 4: 0.06, 5: 0.10, 6: 0.10, kado: 0.06, def: 0.08 };   // 4カド (and 3カド) is the easiest start after the 1
+const ST_MARGIN = 0.5, HOU_AT = 0.01;
+// by class: how much of that extra outside-start difficulty it actually suffers
+const ST_OUT = { TOP: 0.4, A1: 0.5, A2: 0.8, B1: 1.1, B2: 1.3 };
+// 1コース逃げ: how far before 1M it eases the lever, to what (by class), and when it grips again (share of the arc)
+const NIGE_DROP = { at: 22, regrip: 0.2, lever: { TOP: 0.76, A1: 0.72, A2: 0.68, B1: 0.62, B2: 0.58 } };   // steady speed with the lever shut (m/s)   // demo: every boat takes its own number's course, 3 slow / 3 dash
+let fleet = null, simSpeed = 1.5, sgMode = false;   // demo playback speed; the race clock always shows real race time
+
+function pickW(pairs) { let r = Math.random() * pairs.reduce((a, p) => a + p[1], 0); for (const [v, w] of pairs) { if ((r -= w) < 0) return v; } return pairs[0][0]; }
+
+// the six riders for a race: class, entry preference, temperament, motor. SG: all A1 with a few トップクラス.
+function newRows(fixedEntry) {
+  const rows = [];
+  for (let no = 1; no <= 6; no++) {
+    const pi = sgMode ? 0 : pickW([[0, 2], [1, 3], [2, 3], [3, 2]]);   // SG: everyone is A1
+    const pref = fixedEntry ? 'waku' : pickW([['waku', 8], ['in', 1.0], ['out', 1.2]]);
+    rows.push({ no, prof: DRIVERS[pi], pref, key: no + (pref === 'in' ? -2.6 : pref === 'out' ? 2.6 : 0) + Math.random() * 0.1,
+                temper: pickW([['calm', 3], ['normal', 5], ['aggr', 2]]), motor: { deashi: 0.93 + Math.random() * 0.14 }, col: LANE_COL[no - 1] });
+  }
+  if (sgMode) {
+    const n = pickW([[1, 5], [2, 4], [3, 1]]);
+    rows.slice().sort(() => Math.random() - 0.5).slice(0, n).forEach(r => { r.prof = DRIVERS.find(d => d.top); });
+  }
+  return rows;
+}
+// give a boat its course for the race: lane, start style, first-turn plan, and a fresh CPU driver
+function applyCourse(r, course, slow, kado, okoshi) {
+  const tactic = course === 1 ? 'nige'
+    : kado ? 'makuri'
+    : course === 2 ? 'sashi'   // 2コース goes in 差し構え; on the run-in it may grip or wall instead
+    : course === 4 && !slow ? pickW([['makuri', 7], ['sashi', 3]])
+    : pickW([['sashi', 5], ['makuri', 5]]);
+  const laneY = 8 + (course - 1) * 6;
+  r.trait = { course, laneY, tactic, slow, kado, okoshi, temper: r.temper, lineOff: Math.random() * 2.5, dump: TEMPER[r.temper].dump, care: TEMPER[r.temper].care,
+              tsuke: ({ TOP: 0.8, A1: 0.7, A2: 0.55, B1: 0.35, B2: 0.2 }[r.prof.name] || 0.4) + (r.temper === 'aggr' ? 0.15 : 0),
+              pushMul: { calm: 0.5, normal: 1, aggr: 1.6 }[r.temper], flyRisk: (RISK[r.prof.name] || RISK.B1).fly };
+  r.drv = makeDriver(r.prof, r.trait);
+  if (!r.player) r.inp = r.drv.out;
+}
+function raceFieldsInit(r) {
+  r.wake = r.wake || []; r.prevX = r.b.x; r.vis = 0; r.st = null; r.laps = 0; r.fin = null; r.prog = r.b.x - 1000; r.flying = false;
+}
+function setupFleet() {
+  const rows = newRows(FIXED_ENTRY);
+  // entry: boats take courses by preference, inside first
+  rows.sort((a, b) => a.key - b.key);
+  // 3カド: now and then the 3コース boat pulls back to dash from ~140 m, and then it's まくり or nothing
+  const kado3 = FIXED_ENTRY && Math.random() < KADO3_RATE;
+  const nSlow = FIXED_ENTRY ? (kado3 ? 2 : 3) : pickW([[3, 6], [2, 2], [4, 2]]);
+  rows.forEach((r, i) => {
+    const course = i + 1;
+    const slow = course <= nSlow;
+    const kado = kado3 && course === 3;
+    // 起こし: where it opens the lever, metres before the line. It idles in from further back so that it
+    // reaches that point just as the clock says go (the lever itself still goes by timing, for the ST).
+    const [okLo, okHi] = kado ? KADO3_OKOSHI : OKOSHI[course] || OKOSHI[6];
+    const okoshi = okLo + Math.random() * (okHi - okLo);
+    const creep = Math.max(0, CLOCK - (timeToLine(okoshi, IDLE_V, r.prof.cruise) - 0.1));
+    const x0 = -(okoshi + IDLE_V * creep);
+    applyCourse(r, course, slow, kado, okoshi);
+    r.b = { x: x0, y: r.trait.laneY, a: 0, v: IDLE_V, vl: 0, yaw: 0, porp: 0, cap: 0 };
+    raceFieldsInit(r);
+  });
+  rows.sort((a, b) => a.no - b.no);
+  return rows;
+}
+function freshFleet(boats) {
+  const f = { boats, order: [], rank: boats.slice(), focus: fleet ? fleet.focus : null, endAt: 0, raceStart: 0, rankT: 0, touchCool: {}, cutCool: {}, touches: 0, dumps: 0, rears: 0, cuts: 0, dqs: 0, finOrder: [], tsukeTry: 0, tsukeWin: 0, caution: false, lockOrder: [], wrecks: [], accidents: 0, pushTry: 0, pushFail: 0, cutsInside: 0, squeezes: 0, resists: 0, yields: 0 };
+  for (const r of boats) r.wakesOthers = boats.filter(q => q !== r).map(q => q.wake);
+  f.byCourse = {}; for (const r of boats) if (r.trait) f.byCourse[r.trait.course] = r;
+  return f;
+}
+
+/* ---------- 進入 (pit-out and the fight for courses) ----------
+   Follows the real flow of 待機行動, simplified:
+     ピット離れ   boats sit in the pits; a lamp counts down and on "GO" each rider opens up. Reaction time plus
+                  the motor's 出足 decides how cleanly it gets away (an early jump stalls it).
+     小回り防止ブイ  out of the pits flat out, round the outside of the buoy beyond 1M, onto the back straight.
+     バック側     running to 2M in lanes, inside to outside. A boat that gets ENTRY.steal m ahead of the boat inside
+                  it takes its course (前付け). The inside boat may speed up to fight it off (抵抗).
+     2マーク     round 2M; from passing it until the boat squares up to the start line it may 引く (pull back
+                  to dash). Dash boats are placed from the outside; the rest go slow, inside first.
+     回り直し     a boat still not facing the line well after the first one did goes round again: outermost.
+     待機        each boat settles on its spot and sits nearly still. The big clock runs from the pit release:
+                  1分40秒 to the start, as in the real thing; its hand sweeps the last 12 s and the race's own start
+                  takes over (the player keeps the lever until the line).
+     待機行動違反  (減点, not a DQ) 間隔不足 between the buoy and 2M, 接触 while waiting, crossing the start line
+                  before the hand starts. Squaring up later than a boat outside you means
+                  going outside it: no 割り込み. */
+const ENTRY = {
+  pitX: -186, pitY: [24, 28.5, 33, 37.5, 42, 46.5], // ピット: behind 2M on the home side, bows toward 1M; 1号艇 innermost
+  lamp: 3,                                          // s of lamp countdown before the release
+  runR: k => 12 + 3.5 * k,                          // lane radius for slot k on the way round (clear of the far bank)
+  vBack: 9.5, vPush: 3, vTurn: 4.5, vBuoy: 8,                 // (fallback cruise) / extra m/s pushing for a course / rounding 2M / rounding the buoy (m/s)
+  steal: 5,                                         // m ahead of the inside neighbour to take its course
+  maeRate: 0.09,                                    // share of races where a CPU rider goes for 前付け (≈10% of races end with one; later a rider trait)
+  resist: { calm: 0.35, normal: 0.55, aggr: 0.8 },  // chance an inside boat fights a 前付け off (+0.25 for the 1コース, less when many are going slow)
+  fightLimit: { calm: 4, normal: 7, aggr: 11 },     // s of fighting before giving it up (+4 for the 1コース)
+  fightV: 2.1,                                      // m/s two boats fighting for a course creep at in the waiting water (bows level, neither gives)
+  tooDeep: 88,                                      // m: a fight projected to leave the 起こし shorter than this is given up
+  hangA: 1.2,                                       // rad: bow off the line while hanging before squaring up
+  faceRate: 1.5,                                    // m/s: square up once a straight idle from here would just fill the time
+  total: 100,                                       // s from the pit release to the start (実際の待機行動 ≈ 1分40秒)
+  rewindAfter: 16,                                  // s after the 3rd boat squares up: still not facing → 回り直し
+  rewindBy: 30,                                     // s before the start: still not round 2M → 回り直し
+  dashSwing: 10,                                    // m further back than 2M a dash boat rounds
+  dashDepth: 16,                                    // m of extra run-up for a dash called the moment the boat leaves the pits
+  gap: 6, gapT: 1.2,                                // 艇2つ分: closer than this behind a boat for this long = 間隔不足
+  slowX: -107, dashX: -150,                         // waiting spots (m before the line); a dash called early sits deeper
+  react: { TOP: 0.08, A1: 0.1, A2: 0.14, B1: 0.2, B2: 0.28 },   // pit reaction (s) by class
+};
+const SMALL_TURN_BUOY = { x: -MK + 90, y: 0 };      // 小回り防止ブイ: on the centre line, 90 m in from 2M (placed well out so the pit-out loop uses up the waiting time); boats leaving the pits go round outside it
+let onEntryHandoff = null;                          // UI hook
+
+function makeEntryFleet(playerNo) {
+  const rows = newRows(false);
+  const go = time + ENTRY.lamp;
+  rows.forEach(r => {
+    r.player = r.no === playerNo;
+    r.b = { x: ENTRY.pitX, y: ENTRY.pitY[r.no - 1], a: 0, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0, thrMul: r.motor.deashi };
+    r.inp = { thr: 0, steer: 0, roll: 0, pitch: 0 };
+    r.en = { slot: r.no, stage: 'pit', react: r.player ? null : go + Math.max(0.03, (ENTRY.react[r.prof.name] ?? 0.18) + (Math.random() - 0.5) * 0.14),
+             dash: false, rewind: false, faced: false, facedAt: 0, resistVs: new Map(), decided: false, dashBonus: 0, gapT: 0, slowT: 0 };
+    raceFieldsInit(r);
+    r.entryViol = [];
+  });
+  // 前付け race: one CPU rider (an イン志向 one if there is) goes for a course further in
+  const mae = Math.random() < ENTRY.maeRate;
+  if (mae) {
+    const cand = rows.filter(r => !r.player && r.no >= 2);
+    const inPref = cand.filter(r => r.pref === 'in');
+    const pick = (inPref.length ? inPref : cand)[Math.floor(Math.random() * (inPref.length || cand.length))];
+    if (pick) pick.en.wantIn = true;
+  }
+  const f = freshFleet(rows);
+  f.entry = { t0: time, go, zero: go + ENTRY.total, mae, lampStep: -1, faced: [], steals: 0, stealLog: [], lastFacedAt: 0, done: false, viol: [] };
+  f.pitMode = true; f.playerNo = playerNo || null;
+  f.focus = playerNo || null;
+  return f;
+}
+const laneYOf = course => 8 + (course - 1) * 6;
+// provisional courses from the current lane order: slow boats inside first, then dash boats, then 回り直し
+function entryOrder(E, boats) {
+  const bySlot = boats.slice().sort((a, b) => a.en.slot - b.en.slot);
+  const slow = bySlot.filter(r => !r.en.dash && !r.en.rewind), dash = bySlot.filter(r => r.en.dash && !r.en.rewind), rew = bySlot.filter(r => r.en.rewind);
+  const order = [...slow, ...dash, ...rew];
+  order.forEach((r, i) => { r.en.course = i + 1; });
+  return { order, nSlow: slow.length };
+}
+function entrySpot(r, nSlow, contested) {
+  const c = r.en.course;
+  if (!r.en.dash && !r.en.rewind) {
+    // more boats going slow, or a course taken by force, leaves the inside less room: shallower run-up (深イン)
+    const deep = Math.max(0, nSlow - 3) * 7 + (contested ? 8 : 0);
+    return { x: ENTRY.slowX - (c - 1) * 2.5 + deep * (1 - (c - 1) * 0.2), y: laneYOf(c) };
+  }
+  // dash: the earlier the call, the deeper (longer run-up) the spot it takes
+  return { x: Math.max(COURSE.xMin + 10, ENTRY.dashX - Math.max(0, c - nSlow - 1) * 3 - (r.en.dashBonus || 0)), y: laneYOf(c) };
+}
+// how far round the pre-start loop a boat is: 0 leaving the pits … 1 squared up to the line
+function entryProgress(r) {
+  const en = r.en, b = r.b;
+  if (en.stage === 'pit') return 0;
+  if (en.stage === 'out') return 0.1;
+  if (en.stage === 'back') return 0.2 + 0.6 * clamp((MK - b.x) / (2 * MK - 30), 0, 1);
+  if (en.stage === 'turn') return 0.85;
+  return en.faced ? 1 : 0.95;
+}
+function callDash(r) {
+  r.en.dash = true;
+  r.en.dashBonus = ENTRY.dashDepth * clamp((0.95 - entryProgress(r)) / 0.85, 0, 1);
+}
+// 待機行動違反: 減点 (shown, recorded), not a disqualification. Once per kind per boat.
+function entryFoul(r, kind) {
+  if (r.entryViol.includes(kind)) return;
+  r.entryViol.push(kind); fleet.entry.viol.push({ no: r.no, kind });
+  toast('待機行動違反', `${r.no}号艇 ${kind}（減点）`, 'bad');
+  if (typeof buildCard === 'function' && typeof document !== 'undefined' && document.getElementById('cardBody')) buildCard();
+}
+const thrFor = (v, vT) => clamp(0.25 + (vT - v) * 0.35, 0, 1);
+// The engine never stops: lever shut and sat up, a boat still runs on at about WAIT_V. So waiting is
+// timing — the only way to kill time is to swing the bow off the line (it then moves slower toward it),
+// and only so far. Arrive too early, or hold the lever too long, and the boat ends up deep (起こし short).
+const WAIT_V = 1.4;
+const creepAfter = ok => WAIT_V * Math.max(0, CLOCK - timeToLine(ok, WAIT_V) - 0.2) + 2;   // m still crept after the hand starts (till the lever opens)
+// steering for the pit-out loop: along the home side to the 小回り防止ブイ, round it (outside), back to 2M, round 2M
+function entryAim(b, R, stage, look, A = -MK) {
+  const Bx = SMALL_TURN_BUOY.x;
+  const round = cx => { const ph = Math.atan2(b.y, b.x - cx) - look / R; return [cx + R * Math.cos(ph), R * Math.sin(ph)]; };
+  if (stage === 'out') {
+    if (b.y > 0 && b.x < Bx - 2) return [Math.min(b.x + look, Bx), R];
+    return round(Bx);
+  }
+  if (stage === 'back' && b.x > A + 1) return [Math.max(b.x - look, A), -R];
+  return round(A);
+}
+// pace from the buoy to 2M: come round 2M so that, after squaring up, the drift at idle carries the boat
+// onto its 起こし mark as the hand starts. Slow boats round earlier, dash boats later (with a little spare).
+function entryPace(r, R, nSlow, contested) {
+  const E = fleet.entry, b = r.b, en = r.en;
+  const sp = entrySpot(r, nSlow, contested), xh = sp.x - creepAfter(-sp.x);
+  const drift = Math.max(0, xh - (-MK + 2)) / 1.35;                 // s of idling from squaring up to the mark
+  const tA = E.zero - CLOCK - Math.PI * R / ENTRY.vTurn - drift - (en.dash ? 14 : 3);
+  const left = Math.max(0, b.x - (-MK - (en.dash ? ENTRY.dashSwing : 0) + 3));
+  return clamp(left / Math.max(0.5, tA - time), 1.8, 10);
+}
+function startFight(a, c) {
+  if (a.en.fightWith || c.en.fightWith) return;
+  a.en.fightWith = c; c.en.fightWith = a; a.en.fightT = c.en.fightT = 0;
+  toast('抵抗', `${a.no}号艇が${c.no}号艇の前付けに抵抗`, 'warn');
+}
+// one of a fighting pair gives up
+function endFight(r, why) {
+  const q = r.en.fightWith; if (!q) return;
+  r.en.fightWith = null; q.en.fightWith = null; r.en.gaveUp = true;
+  const inner = r.en.slot < q.en.slot;
+  if (!inner) { r.en.gained = 2; toast('前付け断念', `${r.no}号艇 ${why}`, 'info'); return; }
+  // the inside boat lets it in: before squaring up it may pull right back to dash instead
+  if (!r.en.faced && r.en.slot >= 2 && !r.player && Math.random() < 0.55) {
+    callDash(r); r.en.decided = true; toast('引く', `${r.no}号艇 ${why}、ダッシュへ`, 'info'); return;
+  }
+  // once squared up nobody can cross over: the inside boat keeps its course, it just stops pushing forward
+  toast('抵抗やめ', `${r.no}号艇 ${why}`, 'info');
+}
+// an inside boat challenged for its course: fight it, let it in, or pull back to dash rather than be squeezed deep
+function entryAnswer(r, nSlowNow) {
+  const en = r.en;
+  const pRes = (ENTRY.resist[r.temper] ?? 0.55) + (en.slot === 1 ? 0.25 : 0) - Math.max(0, nSlowNow - 3) * 0.15;
+  if (Math.random() < pRes) return 'resist';
+  if (en.slot >= 2 && Math.random() < (en.slot >= 3 ? 0.55 : 0.3) + Math.max(0, nSlowNow - 3) * 0.2) {
+    callDash(r); en.decided = true; toast('引く', `${r.no}号艇 前付けを受けずダッシュへ`, 'info'); return 'hiku';
+  }
+  return 'yield';
+}
+
+function entryStep(dt, playerInput) {
+  time += dt;
+  const E = fleet.entry, boats = fleet.boats, all = boats.map(r => r.b);
+  // pit lamp
+  const step = Math.floor(time - E.t0);
+  if (step !== E.lampStep && time < E.go + 0.5) { E.lampStep = step; const n = ENTRY.lamp - step; toast(n > 0 ? String(n) : 'ピット離れ', n > 0 ? 'ピット離れまで' : 'GO', n > 0 ? 'info' : 'good'); }
+  for (const r of boats) { const { w, ang } = wakeAt(r.b.x, r.b.y, r.wakesOthers, time); r.b.inWake = w; r.b.wakeBump = w * (0.35 + 0.65 * Math.abs(Math.sin(r.b.a - ang))); r.b.trail = 0; }
+  const { order, nSlow } = entryOrder(E, boats);
+  fleet.rank = order;
+  const contested = E.steals > 0;
+
+  // 前付け: on the back straight, a boat far enough ahead of the boat inside it takes its lane
+  const inLanes = boats.filter(r => r.en.stage === 'back').sort((a, b) => a.en.slot - b.en.slot);
+  for (let k = 1; k < inLanes.length; k++) {
+    const o = inLanes[k], i = inLanes[k - 1];
+    if (o.en.slot !== i.en.slot + 1) continue;
+    if (!o.en.dash && i.b.x - o.b.x >= ENTRY.steal && (o.player || (o.en.wantIn && (o.en.gained || 0) < 2 && !o.en.gaveUp))) {       // running −x: smaller x is further along; only if it wants in
+      o.en.slot--; i.en.slot++; E.steals++; o.en.stole = true; i.en.lost = true; o.en.gained = (o.en.gained || 0) + 1;
+      if (o.en.fightWith === i) { o.en.fightWith = null; i.en.fightWith = null; }
+      toast('前付け', `${o.no}号艇が${i.no}号艇の内に入った`, 'warn');
+    }
+  }
+
+  for (const r of boats) {
+    const b = r.b, en = r.en;
+    let vT = 0, thr = 0, tx = b.x + 10, ty = b.y, holdIt = false;
+    // ---- stage changes
+    if (en.stage === 'pit') {
+      if (r.player && en.pressAt == null && playerInput && playerInput.thr > 0.3) {
+        en.pressAt = time;
+        if (time < E.go) { en.react = E.go + 0.6; toast('早すぎ', 'エンスト気味で出遅れ', 'bad'); }
+        else { en.react = time; const d = time - E.go; toast(d < 0.1 ? '好ピット離れ' : d < 0.25 ? 'ピット離れ' : '出遅れ', `反応 ${d.toFixed(2)}秒`, d < 0.1 ? 'good' : d < 0.25 ? 'warn' : 'bad'); }
+      }
+      if (r.player && en.pressAt == null && time > E.go + 2.5) { en.pressAt = time; en.react = time; toast('大きく出遅れ', 'ピット離れの合図でアクセル', 'bad'); }
+      if (en.react != null && time >= en.react) en.stage = 'out';
+      else { b.v = 0; b.vl = 0; b.yaw = 0; r.inp = { thr: 0, steer: 0, roll: 0, pitch: 0 }; continue; }
+    }
+    if (en.stage === 'out' && b.y < -5 && Math.cos(b.a) < -0.3 && b.x < SMALL_TURN_BUOY.x + 3) { en.stage = 'back'; if (!r.player) cpuDashEarly(r); }
+    if (en.stage === 'back' && b.x < -MK - (en.dash ? ENTRY.dashSwing : 0) + 3) en.stage = 'turn';
+    if (en.stage === 'turn' && b.x < -MK - 4 && b.y > 0.55 * ENTRY.runR(en.slot)) { en.stage = 'approach'; if (!r.player) cpuDashChoice(r, nSlow); }
+    if (en.stage === 'approach' && en.facing && Math.cos(b.a) > 0.97 && b.y > 2) {
+      en.stage = 'wait'; en.faced = true; en.facedAt = time; E.faced.push(r); E.lastFacedAt = time;
+      // 見透し線 priority: a slow boat squaring up after a boat outside it has already squared up
+      // may not force its way inside (割り込み禁止) — it takes the course outside that boat instead
+      if (r.player && !en.dash && !en.rewind) {
+        const outerSet = boats.filter(q => q !== r && q.en.faced && !q.en.dash && !q.en.rewind && q.en.slot > en.slot && q.en.facedAt < time - 3);
+        if (outerSet.length) {
+          const to = Math.max(...outerSet.map(q => q.en.slot)), from = en.slot;
+          for (const q of boats) if (q !== r && q.en.slot > from && q.en.slot <= to) q.en.slot--;
+          en.slot = to;
+          toast('割り込み不可', `${r.no}号艇 正対が遅れ、外へ`, 'warn');
+        }
+      }
+    }
+    // 回り直し: far too late squaring up
+    if (!en.faced && !en.rewind && (en.stage === 'out' || en.stage === 'back') &&
+        ((E.faced.length >= 3 && time > E.faced[2].en.facedAt + ENTRY.rewindAfter) || time > E.zero - ENTRY.rewindBy)) {
+      en.rewind = true; en.dash = true; toast('回り直し', `${r.no}号艇 大外から`, 'warn');
+    }
+    // ---- where to go and how fast
+    const R = ENTRY.runR(en.slot);
+    if (en.stage === 'out' || en.stage === 'back' || en.stage === 'turn') {
+      // a dash boat swings wide round 2M (further back) to come out with a long run-up
+      [tx, ty] = entryAim(b, R, en.stage, 5 + b.v * 0.5, -MK - (en.dash ? ENTRY.dashSwing : 0));
+      if (en.stage === 'out') vT = b.x < SMALL_TURN_BUOY.x - 22 && b.y > 0 ? 30 : ENTRY.vBuoy;   // flat out, then round the buoy under control
+      else if (en.stage === 'turn') vT = en.rewind ? 7 : ENTRY.vTurn;
+      else {
+        // buoy → 2M: idle along, timed to come round 2M when it's right for its course
+        vT = entryPace(r, R, nSlow, contested);
+        en.pace = vT;
+        // wants a course further in (イン志向, or the player's own call): push
+        const inner = boats.find(q => q.en.stage === 'back' && q.en.slot === en.slot - 1);
+        if (!r.player && en.wantIn && inner && (en.gained || 0) < 2 && !en.gaveUp && !en.dash) vT += ENTRY.vPush;
+        // being challenged from outside: fight it off, let it in, or pull back to dash
+        const outer = boats.find(q => q.en.stage === 'back' && q.en.slot === en.slot + 1);
+        if (!r.player && !en.dash && outer && (outer.player || (outer.en.wantIn && !outer.en.gaveUp)) && !outer.en.dash && b.x - outer.b.x > -8 && outer.b.v > b.v + 0.3) {
+          if (!en.resistVs.has(outer)) en.resistVs.set(outer, entryAnswer(r, nSlow));
+          if (en.resistVs.get(outer) === 'resist' && !en.gaveUp) { vT = Math.max(vT, outer.b.v + 2); startFight(r, outer); }
+        }
+        if (en.fightWith && !en.gaveUp && !r.player) vT = Math.max(vT, en.fightWith.b.v + (en.fightWith.en.slot > en.slot ? 2 : 0.5));
+      }
+    } else {
+      // after 2M. Once a boat squares up to the start line it may not use the rudder again, so all the
+      // timing is done before that: it hangs with its bow off the line (rudder over, sat up, barely moving),
+      // edging to its lane, and turns to face only when a straight idle from there lands it on its 起こし
+      // mark as the hand starts. Face too soon (or come round 2M too early) and there's no undoing it: deep.
+      const sp = entrySpot(r, nSlow, contested), ok = -sp.x, xh = sp.x - creepAfter(ok);
+      const T = Math.max(0.5, E.zero - CLOCK - time), D = xh - b.x;
+      const manual = r.player && playerInput && playerInput.thr >= 0.08;
+      let rate = D > 0 ? D / T : 0;
+      if (!en.faced) {
+        const dy = sp.y - b.y;
+        if (!en.facing) {
+          const ready = rate >= ENTRY.faceRate && Math.abs(dy) < 2.5;
+          if (ready || manual || T < 16 || dy < -3 || (en.fightWith && !en.gaveUp)) en.facing = true;
+        }
+        if (en.facing) { tx = b.x + 20; ty = b.y + clamp(dy, -3, 3); vT = WAIT_V; }
+        else {
+          // out to the lane at a steep angle (little headway toward the line), then hang there bow-out
+          if (dy > 2.5) { const aT = Math.atan2(dy, 4); tx = b.x + 12 * Math.cos(aT); ty = b.y + 12 * Math.sin(aT); vT = 3; en.hang = false; }
+          else { tx = b.x + 12 * Math.cos(ENTRY.hangA); ty = b.y + 12 * Math.sin(ENTRY.hangA); vT = 0; en.hang = true; }
+        }
+        en.projOk = Math.max(0, -Math.max(xh, b.x + 0.3 * T) - creepAfter(ok));
+      } else {
+        en.hang = false;
+        if (en.fightWith && !en.gaveUp) rate = Math.max(rate, ENTRY.fightV);   // neither gives: bows level, straight on
+        // a slow boat keeps its bow level with the slow boats outside it (else they'd get inside it)
+        if (!en.dash && !en.rewind) {
+          let mx = -Infinity, mv = 0;
+          for (const q of boats) if (q !== r && q.en.faced && !q.en.dash && !q.en.rewind && q.en.slot > en.slot && q.b.x > mx) { mx = q.b.x; mv = q.b.v * Math.cos(q.b.a); }
+          if (mx > b.x - 1 && mx < -85) rate = Math.max(rate, Math.min(3, mv + (mx - b.x + 1) * 0.3));   // but not chasing a boat gone mad toward the line
+        }
+        // straight at the line: the rudder only holds the heading
+        tx = b.x + 30; ty = b.y; vT = Math.max(rate, 0.5);
+        const xProj = b.x + Math.max(rate, WAIT_V, manual ? b.v : 0) * T;
+        en.projOk = Math.max(0, -xProj - creepAfter(Math.max(20, -xProj)));
+      }
+      en.waitRate = rate;
+    }
+    if (en.rewind && en.stage === 'back') vT = Math.max(vT, ENTRY.vBack);
+    // keep 艇2つ分 off the stern of a boat ahead in the same lane (the rule between the buoy and 2M)
+    if (!r.player && en.stage !== 'wait') {
+      const hx = Math.cos(b.a), hy = Math.sin(b.a);
+      for (const q of boats) {
+        if (q === r || q.en.stage === 'pit') continue;
+        const dx = q.b.x - b.x, dy = q.b.y - b.y, along = dx * hx + dy * hy, lat = Math.abs(-dx * hy + dy * hx);
+        if (along > 0 && along < ENTRY.gap + 4 && lat < 2.8) vT = Math.min(vT, q.b.v - 0.4 - (ENTRY.gap + 4 - along) * 0.35);
+      }
+    }
+    const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
+    const steer = en.faced ? clamp(err * 2.2, -0.12, 0.12) : clamp(err * 2.2);   // squared up: no more rudder
+    // the player's lever rules until 2M; after that, lever shut = the boat settles itself onto its spot
+    const auto = !r.player || ((en.stage === 'approach' || en.stage === 'wait') && !(playerInput && playerInput.thr >= 0.08));
+    if (!auto) thr = playerInput ? playerInput.thr : 0;
+    else thr = thrFor(b.v, vT);
+    if (auto && en.hang) { holdIt = 'hang'; thr = 0; }   // rudder over, sat up: all but stopped (the engine still turns)
+    else if (auto && en.stage === 'wait') { if (vT < b.v + 0.1 || vT <= WAIT_V) { holdIt = true; thr = 0; } else thr = clamp(0.1 + (vT - b.v) * 0.5, 0, 0.6); }   // lever shut and sat up: it still runs on
+    else if (auto && (vT <= 2 || vT < b.v - 0.8)) { holdIt = true; thr = 0; }   // settle: lever shut, sit up and let it die
+    b.hold = holdIt;
+    r.inp = { thr, steer, roll: 0, pitch: 0 };
+    boatPhysics(b, r.inp, dt);
+    boatFx(b, r.wake, dt);
+  }
+  // fights for a course: each side gives up after a while, or when it's being dragged too deep
+  for (const r of boats) {
+    const en = r.en; if (!en.fightWith) continue;
+    en.fightT += dt;
+    const lim = (ENTRY.fightLimit[r.temper] ?? 7) + (en.slot === 1 ? 4 : 0);
+    if (en.faced && en.projOk != null && en.projOk < ENTRY.tooDeep && Math.random() < dt * (r.player ? 0 : 0.5)) endFight(r, '深くなりすぎて');
+    else if (en.fightT > lim && !r.player) endFight(r, '抵抗を諦めて');
+  }
+  // 待機行動違反 checks
+  for (const r of boats) {
+    const b = r.b, en = r.en;
+    if (en.stage === 'pit') continue;
+    // 間隔不足: between the buoy and 2M, sitting on another boat's stern (and closing) — 艇2つ分 apart
+    if (en.stage === 'back' || en.stage === 'turn') {
+      let close = false;
+      for (const q of boats) {
+        if (q === r || (q.en.stage !== 'back' && q.en.stage !== 'turn')) continue;
+        const hx = Math.cos(q.b.a), hy = Math.sin(q.b.a), dx = b.x - q.b.x, dy = b.y - q.b.y;
+        const along = dx * hx + dy * hy, lat = Math.abs(-dx * hy + dy * hx);
+        if (along < -1 && along > -ENTRY.gap && lat < 2.2 && b.v > q.b.v - 0.2) { close = true; break; }
+      }
+      en.gapT = close ? en.gapT + dt : Math.max(0, en.gapT - dt * 0.5);
+      if (en.gapT > ENTRY.gapT) entryFoul(r, '間隔不足');
+    }
+    // over the start line before the hand has started
+    if ((en.stage === 'approach' || en.stage === 'wait') && b.x > 0.5 && b.y > 0) entryFoul(r, '大時計前にスタートライン越え');
+  }
+  for (const e of boatContacts(all)) {
+    if (e.J < 0.8) continue;
+    const a = boats[e.i], c = boats[e.j];
+    const who = e.rear === e.i ? a : e.rear === e.j ? c : (a.b.v > c.b.v ? a : c);   // the boat that ran into the other
+    // jostling on the way out of the pits isn't 待機行動 yet; from the back straight on it is
+    if (who.en.stage === 'pit' || who.en.stage === 'out' || (!who.player && e.J < 1.5)) continue;
+    entryFoul(who, '待機中の接触');
+  }
+  // the hand starts 12 s out: hand over to the race's own start
+  if (time >= E.zero - CLOCK) entryHandoff();
+}
+function cpuDashEarly(r) {
+  // an out-minded rider, or one drawn wide with no wish to fight for the inside, calls it on the back straight
+  if (r.en.decided || r.en.wantIn) return;
+  if (r.en.slot >= 3 && (r.pref === 'out' || (r.en.slot >= 4 && r.pref !== 'in' && Math.random() < 0.92))) {
+    r.en.decided = true; r.en.dash = true;
+    r.en.dashBonus = ENTRY.dashDepth * (0.55 + Math.random() * 0.45);
+  }
+}
+function cpuDashChoice(r, nSlowNow) {
+  const en = r.en;
+  if (en.decided) return;
+  en.decided = true;
+  const slot = en.slot;
+  if (en.wantIn && !en.gaveUp) return;   // went in for a course: stays slow
+  if (slot <= 2) return;
+  if (r.pref === 'out' || (slot >= 4 && Math.random() < 0.92) || (slot === 3 && (Math.random() < KADO3_RATE || (en.lost && Math.random() < 0.5)))) { en.dash = true; en.dashBonus = ENTRY.dashDepth * Math.random() * 0.15; }
+}
+function playerDash() {
+  const r = fleet && fleet.entry && fleet.boats.find(q => q.player);
+  if (!r) return;
+  const en = r.en;
+  if (en.dash) return;
+  if (en.stage !== 'pit' && !en.faced) {
+    callDash(r);
+    toast('ダッシュ', `後ろに引く。外から配置・助走 +${Math.round(en.dashBonus)}m`, 'info');
+  } else toast('今は引けない', en.stage === 'pit' ? 'ピットを出てから' : '正対したあとは引けない', 'warn');
+}
+function entryHandoff() {
+  const E = fleet.entry;
+  const { nSlow } = entryOrder(E, fleet.boats);
+  // courses are counted from the inside as the boats actually lie (slow group, then dash, then 回り直し);
+  // nobody can have got inside another after squaring up, so this is the order they hold
+  const grp = r => r.en.rewind ? 2 : r.en.dash ? 1 : 0;
+  const order = fleet.boats.slice().sort((a, c) => grp(a) - grp(c) || a.b.y - c.b.y);
+  order.forEach((r, i) => {
+    r.en.course = i + 1;
+    const course = i + 1, slow = !r.en.dash && !r.en.rewind, kado = !slow && course === 3;
+    applyCourse(r, course, slow, kado, Math.round(-r.b.x - creepAfter(Math.max(20, -r.b.x))));
+    r.b.thrMul = 1; r.b.hold = true;
+  });
+  // each boat runs in on the line it squared up on (it can't steer across now), kept in course order
+  let yPrev = 2;
+  for (const r of order) { r.trait.laneY = clamp(Math.max(r.b.y, yPrev + 3), 4, 46); yPrev = r.trait.laneY; }
+  fleet.byCourse = {}; for (const r of fleet.boats) fleet.byCourse[r.trait.course] = r;
+  fleet.rank = order;
+  fleet.entryResult = { text: order.slice(0, nSlow).map(r => r.no).join('') + '/' + order.slice(nSlow).map(r => r.no).join(''), steals: E.steals, nSlow,
+                        rewinds: fleet.boats.filter(r => r.en.rewind).length, viol: E.viol.slice() };
+  fleet.entry = null;
+  SS.phase = 'count'; SS.t0 = time; SS.hideAt = 0;
+  toast('進入', fleet.entryResult.text + (E.steals ? '　前付けあり' : ''), 'info');
+  if (onEntryHandoff) onEntryHandoff();
+}
+
+let entryMode = false;
+function startEntry(playerNo) {
+  fleet = makeEntryFleet(playerNo);
+  ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
+  input.thr = input.steer = input.roll = input.pitch = 0;
+  wake.length = 0; spray.length = 0;
+  SS.phase = 'entry'; SS.hideAt = 0; $('clock').hidden = false;
+  buildOrderStrip(); buildCard();
+  refreshFleetUi();
+}
+function nextRace() {
+  if (fleet && fleet.playerNo) startEntry(fleet.playerNo);
+  else if (entryMode) startEntry(null);
+  else startFleet();
+}
+const playerRow = () => fleet && fleet.playerNo ? fleet.boats.find(r => r.player) : null;
+// the player has the lever from the pits until the start line
+function playerActive() { const r = playerRow(); return !!(r && (fleet.entry || (r.st == null && !r.lateTold))); }
+function startFleet() {
+  fleet = freshFleet(setupFleet());
+  ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
+  wake.length = 0; spray.length = 0;
+  SS.phase = 'count'; SS.t0 = time; SS.hideAt = 0; $('clock').hidden = false;
+  buildOrderStrip(); buildCard();
+  const k3 = fleet.boats.some(r => r.trait.kado);
+  toast(k3 ? '3カド' : sgMode ? 'SG' : '6艇レース', k3 ? '3コースがダッシュに引いてカド。まくり一択' : '枠なり進入・スロー3艇／ダッシュ3艇。出走表で各艇の特性を確認できます', 'info');
+  refreshFleetUi();
+}
+function stopFleet() {
+  fleet = null;
+  input.thr = input.steer = input.roll = input.pitch = 0;
+  $('order').hidden = true;
+  beginStart();
+  refreshFleetUi();
+}
+function refreshFleetUi() {
+  $('demoBtn').textContent = fleet ? (fleet.playerNo ? '練習をやめる' : '自分で操作') : '6艇デモ';
+  $('cardBtn').hidden = !fleet;
+  $('skipBtn').hidden = true;
+  $('demoTag').hidden = !fleet;
+  $('again').hidden = !!fleet;
+}
+
+const IDLE_INPUT = { thr: 0, steer: 0, roll: 0, pitch: 0 };
+function fleetStep(dt, playerInput) {
+  if (fleet.entry) { entryStep(dt, playerInput); return; }
+  time += dt;
+  const zero = SS.t0 + CLOCK;
+  const all = fleet.boats.map(r => r.b);
+  // 引き波: how much wake is under each hull, and how square it is crossing it
+  for (const r of fleet.boats) {
+    const { w, ang } = wakeAt(r.b.x, r.b.y, r.wakesOthers, time);
+    r.b.inWake = w;
+    r.b.wakeBump = w * (0.35 + 0.65 * Math.abs(Math.sin(r.b.a - ang)));
+    // 航跡: a boat ahead on (nearly) my line
+    let tr = 0; const fx = Math.cos(r.b.a), fy = Math.sin(r.b.a);
+    for (const q of fleet.boats) {
+      if (q === r || q.b.cap > 0 || q.b.v < 8) continue;
+      const dx = q.b.x - r.b.x, dy = q.b.y - r.b.y, f = dx * fx + dy * fy;
+      if (f < 3 || f > TRAIL.range) continue;
+      const l = Math.abs(-dx * fy + dy * fx);
+      if (l < TRAIL.width) tr = Math.max(tr, (1 - f / TRAIL.range) * (1 - 0.5 * l / TRAIL.width));
+    }
+    r.b.trail = tr;
+  }
+  // 勝負どころ: racing boats with a rival within 12 m — except a leader already 25 m clear
+  const racing = fleet.rank.filter(r => r.st != null && r.fin == null && !r.dq);
+  for (const r of fleet.boats) r.battle = false;
+  racing.forEach((r, i) => {
+    const near = racing.some(q => q !== r && Math.hypot(q.b.x - r.b.x, q.b.y - r.b.y) < 12);
+    const clear = i === 0 && (racing.length < 2 || Math.hypot(racing[1].b.x - r.b.x, racing[1].b.y - r.b.y) > 25);
+    r.battle = near && !clear;
+  });
+  for (const r of fleet.boats) {
+    const b = r.b;
+    let o = IDLE_INPUT;
+    if (!r.out) {
+      const fi = r.fin != null ? fleet.finOrder.indexOf(r) : -1;
+      const inR = fleet.byCourse[r.trait.course - 1], outR = fleet.byCourse[r.trait.course + 1];
+    const env = { now: time, clockZero: (r.st == null && time < zero + 1.2) ? zero : null, laneY: r.trait.laneY, others: all, wakes: r.wakesOthers,
+                  inner: inR && !inR.dq ? inR.b : null, outer: outR && !outR.dq ? outR.b : null,
+                  outerPlan: outR ? (outR.drv.mem.tacticNow || outR.trait.tactic) : null,
+                  outerSqueeze: !!(outR && !outR.dq && outR.drv.mem.squeeze === r.b),
+                  stAdv: inR && inR.st != null && r.st != null ? inR.st - r.st : 0,
+                    battle: r.battle, retire: r.flying && r.passed1M,
+                    cruise: r.fin != null ? { ahead: fi > 0 ? fleet.finOrder[fi - 1].b : null } : null,
+                    caution: fleet.caution && r.fin == null && !r.dq ? { ahead: cautionAhead(r), wrecks: fleet.wrecks } : null };
+      env.finalStretch = r.laps === 2 && (r.vis & 2) && b.y > 0;   // round the last mark, heading for the line
+      o = r.drv.drive(b, env, dt);
+      if (r.player && r.st == null && time > zero + 1 && !r.lateTold) { r.lateTold = true; toast('出遅れ', '1秒以内に越えられなかった。CPUが引き継ぎ', 'bad'); }
+      if (r.player && r.st == null && !r.lateTold) {
+        // the player has the lever (and posture) until the start line; steering follows the lane
+        o = { thr: playerInput ? playerInput.thr : 0, steer: o.steer, roll: 0, pitch: playerInput ? playerInput.pitch : 0, ev: null };
+        r.inp = o;
+      } else if (r.player && r.inp !== r.drv.out) r.inp = r.drv.out;
+      b.hold = fleet.pitMode && r.st == null && (r.player ? o.thr < 0.08 : !r.drv.mem.go);
+      if (o.ev === 'pushFail') pushFailed(r);
+      else if (o.ev === 'squeeze') { fleet.squeezes++; toast('絞り', `${r.no}号艇が内の${fleet.byCourse[r.trait.course - 1].no}号艇を絞りにいく`, 'info'); }
+      else if (o.ev === 'resist') { fleet.resists++; toast('抵抗', `${r.no}号艇が張って抵抗`, 'warn'); }
+      else if (o.ev === 'yield') fleet.yields++;
+      else if (o.ev === 'pushOk') { fleet.pushTry++; toast('勝負', `${r.no}号艇が攻めのターンを決めた`, 'good'); }
+    }
+    const ev = boatPhysics(b, o, dt);
+    if (ev && ev.startsWith('cap:') && !r.out) accident(r, '転覆', ev.slice(4));
+    else if (ev === 'buoy' || ev === 'boom') toast(ev === 'buoy' ? 'ターンマーク接触' : '消波装置に接触', `${r.no}号艇`, 'warn');
+    // 内側航走: crossing the course centreline between the marks means a mark was cut
+    if (r.st != null && !r.dq && r.fin == null && !r.relegated && r.prevY != null && Math.sign(r.prevY) !== Math.sign(b.y) && Math.abs(b.x) < MK - 1) {
+      r.relegated = true; fleet.cutsInside++;
+      toast('内側航走', `${r.no}号艇 ターンマークの内側を通過　6着扱い`, 'bad');
+    }
+    r.prevY = b.y;
+    boatFx(b, r.wake, dt);
+    if (r.flying && !r.passed1M && b.y < -5 && b.x < MK - 10) r.passed1M = true;
+    if (b.x > MK - 15) r.vis |= 1;
+    if (b.x < -MK + 15) r.vis |= 2;
+    if (r.prevX < 0 && b.x >= 0 && b.y > 0 && !r.out) {
+      if (r.st == null) {
+        r.st = time - zero; r.vis = 0;
+        if (r.st < 0) { r.flying = true; r.dq = true; toast('フライング', `${r.no}号艇 F${fmtST(-r.st)}　返還、1マークを過ぎたら離脱`, 'bad'); }
+        else if (r.player && !r.lateTold) toast(r.st <= 0.15 ? '好スタート' : r.st <= 0.3 ? 'スタート' : '遅れ気味', `ST ${fmtST(r.st)}　ここからCPUが引き継ぎ`, r.st <= 0.15 ? 'good' : r.st <= 0.3 ? 'warn' : 'bad');
+      } else if (r.vis === 3 && r.fin == null && !r.flying) {
+        r.laps++; r.vis = 0;
+        if (r.laps >= 3) {
+          r.fin = time; fleet.finOrder.push(r);
+          if (!r.dq) fleet.order.push(r);
+          if (!r.dq && fleet.order.length === 1) toast('ゴール', `1着 ${r.no}号艇 ${fmtRT(time - zero)}（${r.trait.course}コース・${TACTIC_JA[r.drv.mem.tacticNow || r.trait.tactic]}）`, 'good');
+        }
+      }
+    }
+    r.prevX = b.x;
+    const li = fleet.caution ? fleet.lockOrder.indexOf(r) : -1;
+    const pg = r.fin != null ? 1e6 - fleet.order.indexOf(r)
+      : li >= 0 ? 5e5 - li
+      : r.st == null ? b.x - 1000
+      : r.laps * LREF + ((loopS(13, b.x, b.y) - MK + LREF) % LREF);
+    // tiers: racing order, then boats placed last for cutting a mark, then disqualified
+    r.prog = r.dq ? -3e6 + (r.out ? 0 : 1) : r.relegated ? -2e6 + pg / 1e3 : pg;
+  }
+  // 斜行: on a straight, a boat sliding sideways across one that is behind or alongside it
+  if (time > zero + 1.5 && !fleet.caution) for (const r of fleet.boats) {
+    const b = r.b;
+    // judged once the boat is properly on the straight, not while it is still coming out of a turn
+    if (r.st == null || r.fin != null || r.dq || b.cap > 0 || Math.abs(b.x) > STRAIGHT_X - 12) continue;
+    const vy = Math.sin(b.a) * b.v + Math.cos(b.a) * b.vl;   // sideways speed across the straight
+    if (Math.abs(vy) < 2.2) continue;
+    const cd = b.y > 0 ? 1 : -1;
+    for (const q of fleet.boats) {
+      if (q === r || q.b.cap > 0 || q.dq) continue;
+      const along = (q.b.x - r.b.x) * cd, gap = q.b.y - b.y;
+      if (along > -10 && along < 1.5 && Math.sign(gap) === Math.sign(vy) && Math.abs(gap) < 4.5) {
+        const key = r.no * 10 + q.no;
+        if ((fleet.cutCool[key] || 0) > time) continue;
+        fleet.cutCool[key] = time + 3;
+        r.fouls = (r.fouls || 0) + 1; r.lastCut = { q, t: time }; fleet.cuts++;
+        if (r.fouls >= 2) disqualify(r, '斜行2回');
+        else toast('斜行', `${r.no}号艇が${q.no}号艇の前を横切った（不良航法）`, 'bad');
+        break;
+      }
+    }
+  }
+  // ツケマイ result: once both are round 1M, is the attacker in front of its target?
+  for (const r of fleet.boats) {
+    const m = r.drv.mem;
+    if (m.tacticNow !== 'tsuke' || !m.tsukeQ || r.tsukeJudged || r.out) continue;
+    const q = m.tsukeQ;
+    if (r.b.y < -5 && q.y < -5 && r.b.x < MK - 12 && q.x < MK - 12) {
+      r.tsukeJudged = true; fleet.tsukeTry++;
+      const t = fleet.boats.find(x => x.b === q);
+      if (r.b.x < q.x - 1) { fleet.tsukeWin++; toast('ツケマイ', `${r.no}号艇が${t.no}号艇に張りついて回り、前に出た`, 'good'); }
+      else toast('ツケマイ不発', `${r.no}号艇、${t.no}号艇を捉えきれず`, 'warn');
+    }
+  }
+  // hull contact
+  for (const e of boatContacts(all)) {
+    const A = fleet.boats[e.i], Bt = fleet.boats[e.j];
+    // fighting a squeeze side by side (抵抗): hull rubbing on hull, even gently, can put the resisting boat over
+    const fighter = A.drv.mem.resistQ === Bt.b ? A : Bt.drv.mem.resistQ === A.b ? Bt : null;
+    if (fighter && !fighter.out && time > (fighter.fightRollT || 0)) {
+      fighter.fightRollT = time + 0.5;
+      const other = fighter === A ? Bt : A;
+      if (Math.random() < SQUEEZE.fightCap * (RISK[fighter.prof.name] || RISK.B1).hit) accident(fighter, Math.random() < 0.5 ? '転覆' : '落水', `${other.no}号艇の絞りに抵抗して接触`);
+    }
+    if (e.J < 1.5) continue;
+    for (let n = 0; n < Math.min(14, 4 + e.J * 2); n++) {
+      const an = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * e.J;
+      spray.push({ x: e.x, y: e.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, t: time, life: 0.4 + Math.random() * 0.4 });
+    }
+    const key = Math.min(A.no, Bt.no) * 10 + Math.max(A.no, Bt.no);
+    if ((fleet.touchCool[key] || 0) > time) continue;
+    fleet.touchCool[key] = time + 2;
+    fleet.touches++;
+    sfxHit(e.x, e.y, e.J);
+    // contact right after cutting across the victim's path is interference
+    for (const [x, y] of [[A, Bt], [Bt, A]]) if (x.lastCut && x.lastCut.q === y && time - x.lastCut.t < 2.5 && !x.dq) disqualify(x, `斜行で${y.no}号艇と接触`);
+    const dumper = A.drv.dumping(Bt.b) ? A : Bt.drv.dumping(A.b) ? Bt : null;
+    if (dumper) { const vic = dumper === A ? Bt : A; fleet.dumps++; toast('ダンプ', `${dumper.no}号艇が${vic.no}号艇を外へ押し出した`, 'warn'); }
+    else if (e.rear >= 0 && e.J > 3) { const hit = fleet.boats[e.rear], vic = hit === A ? Bt : A; fleet.rears++; toast('追突', `${hit.no}号艇が${vic.no}号艇に後ろから接触`, 'bad'); }
+    else if (e.J > 2.5) toast('接触', `${A.no}号艇と${Bt.no}号艇`, 'warn');
+    // a heavy hit can put the boat that took the brunt of it over, or its rider in the water
+    const vic = e.JA >= e.JC ? A : Bt, other = vic === A ? Bt : A, vb = vic.b.wakeBump || 0;
+    const jLim = Math.max(3, 8 - 6 * vb);   // a boat bucking on a wave goes over far more easily
+    if (e.J > jLim) {
+      const p = clamp((e.J - jLim) / 12 * (1 + 2 * vb), 0, 0.5) * (RISK[vic.prof.name] || RISK.B1).hit;
+      if (!vic.out && Math.random() < p) accident(vic, Math.random() < 0.5 ? '転覆' : '落水', `${other.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : ''}`);
+    }
+  }
+  if (SS.phase === 'count' && time > zero + 1.2) {
+    SS.phase = 'done'; SS.hideAt = time + 2.5; fleet.raceStart = zero;
+    const started = fleet.boats.filter(r => r.st != null && r.st >= 0).sort((a, b) => a.st - b.st);
+    if (started.length) toast('スタート', `トップST ${started[0].no}号艇 ${fmtST(started[0].st)}（${started[0].trait.slow ? 'スロー' : 'ダッシュ'}）`, 'info');
+  }
+  if (SS.phase === 'done' && SS.hideAt && time > SS.hideAt) { SS.phase = 'off'; $('clock').hidden = true; }
+  fleet.rankT -= dt;
+  if (fleet.rankT <= 0) { fleet.rankT = 0.25; fleet.rank = fleet.boats.slice().sort((a, b) => b.prog - a.prog); }
+  const stillRacing = fleet.boats.filter(r => !r.dq && r.fin == null).length;
+  if (!fleet.endAt && time > zero + 5 && (stillRacing === 0 || (fleet.order.length && time > fleet.order[0].fin + 30))) {
+    fleet.endAt = time + 7;
+    setTimeout(() => toast('レース結果', fleet ? resultLine() : '', 'good'), 300);
+  }
+  if (fleet.endAt && time > fleet.endAt) nextRace();
+}
+
+function resultLine() {
+  let place = 0;
+  return fleet.rank.map(r => r.flying ? `F ${r.no}` : r.out ? `${r.out} ${r.no}` : r.dq ? `失格 ${r.no}`
+    : `${++place}着 ${r.no}` + (r.relegated ? '（内側航走）' : r.fin != null && !r.skipped ? ` ${fmtRT(r.fin - fleet.raceStart)}` : '')).join('  ');
+}
+// the boat directly ahead in the frozen order that is still out on the course
+function cautionAhead(r) {
+  const i = fleet.lockOrder.indexOf(r);
+  for (let k = i - 1; k >= 0; k--) { const q = fleet.lockOrder[k]; if (q.fin == null && !q.dq) return q.b; }
+  return null;
+}
+function accident(r, kind, why) {
+  if (r.out) return;
+  r.out = kind; r.dq = true; fleet.accidents++;
+  const b = r.b;
+  b.cap = 1e9; b.fallen = kind === '落水'; b.v *= 0.4; b.vl *= 0.3;
+  if (b.fallen) { b.fx = b.x - Math.cos(b.a) * 3.5 + Math.sin(b.a) * 1.5; b.fy = b.y - Math.sin(b.a) * 3.5 - Math.cos(b.a) * 1.5; }
+  splash(b); sfxCapsize(b.x, b.y);
+  toast(kind, `${r.no}号艇 ${why}　失格`, 'bad');
+  fleet.wrecks.push(b);
+  if (!fleet.caution) {
+    fleet.caution = true;
+    fleet.rank = fleet.boats.slice().sort((a, b) => b.prog - a.prog);   // fresh, not the 0.25 s-old display order
+    fleet.lockOrder = fleet.rank.filter(q => !q.dq);
+    setTimeout(() => toast('事故発生', '着順固定・追い抜き禁止。事故艇の外側を徐行', 'warn'), 1800);
+  }
+}
+function pushFailed(r) {
+  fleet.pushTry++; fleet.pushFail++;
+  const rk = RISK[r.prof.name] || RISK.B1;
+  if (Math.random() < rk.acc) accident(r, Math.random() < 0.55 ? '転覆' : '落水', '無理なターン');
+  else { r.b.vl += 6; r.b.v *= 0.6; toast('ターン膨らむ', `${r.no}号艇、勝負に出たが握りきれず大きく流れた`, 'warn'); }
+}
+
+function disqualify(r, why) {
+  if (r.dq) return;
+  r.dq = true; fleet.dqs++;
+  toast('妨害失格', `${r.no}号艇（${why}）`, 'bad');
+}
+
+function focusRow() {
+  if (!fleet) return null;
+  return fleet.boats.find(r => r.no === fleet.focus) || fleet.rank[0];
+}
+function buildOrderStrip() {
+  const box = $('order'); box.hidden = false; box.textContent = '';
+  for (const r of fleet.boats) {
+    const btn = document.createElement('button');
+    btn.className = 'chip'; btn.id = 'chip' + r.no; btn.textContent = r.no;
+    btn.style.background = r.col[0]; btn.style.color = r.col[1];
+    btn.setAttribute('aria-label', `${r.no}号艇を追尾`);
+    btn.addEventListener('click', () => { fleet.focus = fleet.focus === r.no ? null : r.no; });
+    box.appendChild(btn);
+  }
+}
+function updateOrderStrip() {
+  if (!fleet) return;
+  fleet.rank.forEach((r, i) => {
+    const c = $('chip' + r.no); if (!c) return;
+    c.style.order = i;
+    c.classList.toggle('on', fleet.focus === r.no);
+    c.classList.toggle('f', r.flying);
+    c.classList.toggle('dq', !!r.dq && !r.flying);
+    c.classList.toggle('top', !!r.prof.top);
+    c.classList.toggle('foul', !r.dq && (!!r.fouls || !!(r.entryViol && r.entryViol.length)));
+  });
+}
+function buildCard() {
+  const tb = $('cardBody'); tb.textContent = '';
+  for (const r of fleet.boats) {
+    const tr = document.createElement('tr');
+    const dsh = !r.motor ? '—' : r.motor.deashi >= 1.04 ? '◎' : r.motor.deashi >= 0.98 ? '○' : '△';
+    const cells = [r.no, r.prof.top ? 'A1 ★トップ' : r.prof.name, (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? TACTIC_JA[r.trait.tactic] : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh];
+    cells.forEach((v, i) => {
+      const td = document.createElement('td'); td.textContent = v;
+      if (i === 0) { td.className = 'no'; td.style.background = r.col[0]; td.style.color = r.col[1]; }
+      if (i === 1 && r.prof.top) td.className = 'top';
+      tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  }
+}
+$('simSpeed').addEventListener('change', e => { simSpeed = +e.target.value; });
+$('sgBtn').addEventListener('click', () => {
+  sgMode = !sgMode;
+  $('sgBtn').textContent = sgMode ? 'SG：オン' : 'SG：オフ';
+  $('sgBtn').setAttribute('aria-pressed', String(sgMode));
+  $('sgBtn').classList.toggle('sg', sgMode);
+  if (fleet && running && !paused) nextRace();
+});
+$('entryBtn').addEventListener('click', () => {
+  entryMode = !entryMode;
+  $('entryBtn').textContent = entryMode ? '進入：ピット離れ' : '進入：固定';
+  $('entryBtn').setAttribute('aria-pressed', String(entryMode));
+  $('entryBtn').classList.toggle('on', entryMode);
+  toast(entryMode ? 'ピット離れモード' : '進入固定', entryMode ? 'ピット離れから進入争い。スタート練習は枠を選んで自分で操作' : '枠なり進入で固定', 'info');
+  if (fleet && running && !paused && !fleet.playerNo) nextRace();
+});
+for (let no = 1; no <= 6; no++) {
+  const bt = document.createElement('button');
+  bt.textContent = no; bt.style.background = LANE_COL[no - 1][0]; bt.style.color = LANE_COL[no - 1][1];
+  bt.setAttribute('aria-label', `${no}号艇で練習`);
+  bt.addEventListener('click', () => { $('waku').hidden = true; paused = false; last = performance.now(); initAudio(); startEntry(no); });
+  $('wakuBtns').appendChild(bt);
+}
+$('wakuClose').addEventListener('click', () => { $('waku').hidden = true; paused = false; last = performance.now(); });
+$('dashBtn').addEventListener('click', () => playerDash());
+onEntryHandoff = () => { $('clock').hidden = false; buildCard(); };
+$('demoBtn').addEventListener('click', () => { initAudio(); if (!running || paused) return; fleet ? stopFleet() : entryMode ? startEntry(null) : startFleet(); });
+$('skipBtn').addEventListener('click', skipRace);
+// after an accident the order is frozen anyway, so jump straight to the result
+function skipRace() {
+  if (!fleet || !fleet.caution || fleet.endAt) return;
+  for (const r of fleet.lockOrder) if (r.fin == null && !r.dq) { r.fin = time; r.skipped = true; fleet.order.push(r); }
+  for (const r of fleet.boats) if (r.fin != null && !r.dq) r.prog = r.relegated ? -2e6 + (1e6 - fleet.order.indexOf(r)) / 1e3 : 1e6 - fleet.order.indexOf(r);
+  fleet.rank = fleet.boats.slice().sort((a, b) => b.prog - a.prog);
+  fleet.endAt = time + 4;
+  toast('レース結果', resultLine(), 'good');
+}
+$('cardBtn').addEventListener('click', () => { if (!fleet) return; paused = true; $('card').hidden = false; });
+$('cardClose').addEventListener('click', () => { paused = false; last = performance.now(); $('card').hidden = true; });
+
+/* ---------- drawing ---------- */
+const hash = (i, j) => { const h = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return h - Math.floor(h); };
+
+// Cached deck artwork avoids rebuilding hull gradients for every boat every frame.
+const boatSprites = new Map();
+function boatSprite(sty, overturned) {
+  const key = [sty.hull, sty.num, sty.label, overturned].join('|');
+  if (boatSprites.has(key)) return boatSprites.get(key);
+  const cvb = document.createElement('canvas'); cvb.width = 424; cvb.height = 176;
+  const c = cvb.getContext('2d'); c.scale(80, 80); c.translate(2.65, 1.1);
+  const outline = () => {
+    c.beginPath(); c.moveTo(2.25, 0); c.bezierCurveTo(1.94, -.3, 1.49, -.71, 1.05, -.83);
+    c.lineTo(-1.94, -.83); c.quadraticCurveTo(-2.04, -.81, -2.04, -.67);
+    c.lineTo(-2.04, .67); c.quadraticCurveTo(-2.04, .81, -1.94, .83);
+    c.lineTo(1.05, .83); c.bezierCurveTo(1.49, .71, 1.94, .3, 2.25, 0); c.closePath();
+  };
+  outline(); c.fillStyle = overturned ? '#65747b' : '#d0ba86'; c.fill();
+  c.save(); c.clip();
+  const g = c.createLinearGradient(0, -.85, 0, .85);
+  g.addColorStop(0, '#fff2d0'); g.addColorStop(.19, '#d8c397'); g.addColorStop(.55, '#b5a078'); g.addColorStop(1, '#716552');
+  c.fillStyle = g; c.fillRect(-2.1, -.9, 4.5, 1.8);
+  // Natural plywood seams under a lacquered deck.
+  c.strokeStyle = 'rgba(82,59,33,.13)'; c.lineWidth = .015;
+  for (let i = 0; i < 10; i++) { const y = -.75 + i * .16; c.beginPath(); c.moveTo(-2, y); c.bezierCurveTo(-.3, y + .05, .3, y - .03, 2.2, y); c.stroke(); }
+  c.fillStyle = overturned ? '#43545e' : sty.hull;
+  c.beginPath(); c.moveTo(2.21, 0); c.lineTo(.92, -.65); c.lineTo(-.1, -.65); c.lineTo(.05, .65); c.lineTo(.92, .65); c.closePath(); c.fill();
+  const gloss = c.createLinearGradient(0, -.8, 0, .8);
+  gloss.addColorStop(0, 'rgba(255,255,255,.48)'); gloss.addColorStop(.43, 'rgba(255,255,255,.06)'); gloss.addColorStop(1, 'rgba(0,15,27,.38)');
+  c.fillStyle = gloss; c.fillRect(-2.1, -.85, 4.4, 1.7);
+  c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = .045;
+  c.beginPath(); c.moveTo(2.13, 0); c.lineTo(.89, -.57); c.lineTo(.12, -.57); c.stroke();
+  // Recessed cockpit and aft transom.
+  c.fillStyle = '#58616a'; c.fillRect(-1.65, -.59, 1.43, 1.18);
+  const cockpit = c.createLinearGradient(0, -.53, 0, .53);
+  cockpit.addColorStop(0, '#071c28'); cockpit.addColorStop(1, '#344650');
+  c.fillStyle = cockpit; c.fillRect(-1.59, -.53, 1.3, 1.06);
+  c.strokeStyle = '#b6b4a6'; c.lineWidth = .055; c.strokeRect(-1.65, -.59, 1.43, 1.18);
+  c.fillStyle = '#89795f'; c.fillRect(-1.95, -.75, .17, 1.5);
+  for (const y of [-.7, .7]) { c.fillStyle = '#e8e2cb'; c.beginPath(); c.arc(-1.84, y, .04, 0, Math.PI * 2); c.fill(); }
+  c.restore();
+  outline(); c.strokeStyle = '#122d38'; c.lineWidth = .075; c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,.72)'; c.lineWidth = .025;
+  c.beginPath(); c.moveTo(-1.96, -.78); c.lineTo(1.02, -.78); c.lineTo(2.15, -.04); c.stroke();
+  // Outboard cowling, bracket and metal trim.
+  c.fillStyle = '#a3adb0'; c.fillRect(-2.2, -.19, .3, .38);
+  const motor = c.createLinearGradient(0, -.34, 0, .34);
+  motor.addColorStop(0, '#849198'); motor.addColorStop(.3, '#384953'); motor.addColorStop(1, '#0c1c27');
+  c.fillStyle = motor; c.beginPath(); c.roundRect(-2.54, -.34, .48, .68, .09); c.fill();
+  c.strokeStyle = '#bdc9ca'; c.lineWidth = .03; c.stroke();
+  c.fillStyle = '#bcc8c9'; c.fillRect(-2.43, -.25, .23, .055);
+  c.strokeStyle = '#101f29'; c.lineWidth = .03;
+  for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(-2.42, .04 + i * .055); c.lineTo(-2.15, .04 + i * .055); c.stroke(); }
+  if (!overturned) {
+    c.save(); c.translate(.89, 0); c.rotate(Math.PI / 2);
+    c.fillStyle = sty.num; c.beginPath(); c.roundRect(-.37, -.37, .74, .74, .075); c.fill();
+    c.fillStyle = sty.hull; c.font = 'bold .62px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(sty.label, 0, .035); c.restore();
+  } else { c.strokeStyle = '#a9b3b4'; c.lineWidth = .09; c.beginPath(); c.moveTo(-1.8, 0); c.lineTo(1.75, 0); c.stroke(); }
+  boatSprites.set(key, cvb); return cvb;
+}
+
+function drawWaterSurface(S, cw, ch) {
+  ctx.save(); ctx.beginPath(); ctx.rect(COURSE.xMin, COURSE.yMin, cw, ch); ctx.clip();
+  const water = ctx.createLinearGradient(0, COURSE.yMin, 0, COURSE.yMax);
+  water.addColorStop(0, '#245d65'); water.addColorStop(.27, '#28747b');
+  water.addColorStop(.66, '#185b69'); water.addColorStop(1, '#103b4c');
+  ctx.fillStyle = water; ctx.fillRect(COURSE.xMin, COURSE.yMin, cw, ch);
+  const vw = W / S, vh = H / S;
+  const minX = Math.max(COURSE.xMin, cam.x - vw / 2 - 7), maxX = Math.min(COURSE.xMax, cam.x + vw / 2 + 7);
+  const minY = Math.max(COURSE.yMin, cam.y - vh / 2 - 7), maxY = Math.min(COURSE.yMax, cam.y + vh / 2 + 7);
+  ctx.lineCap = 'round';
+  // Three wave scales, all tied to world coordinates; no full-screen blur or readback.
+  for (let layer = 0; layer < 3; layer++) {
+    const cell = [8, 4.4, 2.8][layer];
+    for (let i = Math.floor(minX / cell); i <= Math.ceil(maxX / cell); i++) {
+      for (let j = Math.floor(minY / cell); j <= Math.ceil(maxY / cell); j++) {
+        const h = hash(i + layer * 100, j), h2 = hash(j + 9, i);
+        const phase = time * (.55 + layer * .28) + h * 28;
+        const x = i * cell + h * cell + Math.sin(phase * .32) * .12;
+        const y = j * cell + h2 * cell + Math.sin(phase) * (.11 + layer * .025);
+        const len = cell * (.22 + h2 * .48), wave = Math.sin(phase) * .11;
+        ctx.strokeStyle = `rgba(3,32,43,${[.16,.13,.1][layer]})`; ctx.lineWidth = [.23,.1,.055][layer];
+        ctx.beginPath(); ctx.moveTo(x - len / 2, y + .09); ctx.quadraticCurveTo(x, y + wave + .09, x + len / 2, y + .09); ctx.stroke();
+        const flash = Math.pow(Math.max(0, Math.sin(phase * .68 + h2 * 9)), 8);
+        ctx.strokeStyle = `rgba(186,231,222,${[.09,.12,.1][layer] + flash * .15})`;
+        ctx.lineWidth = [.07,.045,.025][layer];
+        ctx.beginPath(); ctx.moveTo(x - len / 2, y); ctx.quadraticCurveTo(x, y + wave, x + len / 2, y); ctx.stroke();
+        if (layer === 1 && flash > .7 && h > .55) {
+          ctx.strokeStyle = `rgba(252,255,228,${flash * .36})`; ctx.lineWidth = .035;
+          ctx.beginPath(); ctx.moveTo(x - .13, y); ctx.lineTo(x + .13, y); ctx.moveTo(x, y - .065); ctx.lineTo(x, y + .065); ctx.stroke();
+        }
+      }
+    }
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(153,207,199,.45)'; ctx.lineWidth = .35;
+  ctx.strokeRect(COURSE.xMin, COURSE.yMin, cw, ch);
+}
+
+function draw() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const S = Math.min(W, H) / (fleet ? 44 : 34); // px per metre
+  const fr = focusRow(), vb = fr ? fr.b : B;
+  const look = 5 + vb.v * 0.45;
+  const k = 0.12;
+  cam.x += (vb.x + Math.cos(vb.a) * look - cam.x) * k;
+  cam.y += (vb.y + Math.sin(vb.a) * look - cam.y) * k;
+
+  ctx.fillStyle = C.bank; ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(W / 2 - cam.x * S, H / 2 - cam.y * S);
+  ctx.scale(S, S);
+
+  // World-anchored layers keep the water moving independently of the camera.
+  const cw = COURSE.xMax - COURSE.xMin, ch = COURSE.yMax - COURSE.yMin;
+  drawWaterSurface(S, cw, ch);
+
+  // start / finish line on the lower straight
+  ctx.setLineDash([1.2, 1]); ctx.strokeStyle = 'rgba(233,245,242,.45)'; ctx.lineWidth = 0.22;
+  ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(0, COURSE.yMax); ctx.stroke();
+  // turning guide rings
+  ctx.setLineDash([0.8, 1.4]); ctx.strokeStyle = 'rgba(233,245,242,.14)'; ctx.lineWidth = 0.18;
+  for (const m of COURSE.marks) { ctx.beginPath(); ctx.arc(m.x, m.y, 11, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(233,245,242,.55)'; ctx.font = '700 1.6px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('スタート／ゴール', 0, COURSE.yMax - 2);
+
+  ctx.lineCap = 'round';
+  if (fleet) for (const r of fleet.boats) drawWake(r.wake); else drawWake(wake);
+
+  // ピット and 小回り防止ブイ (shown in ピット離れ mode)
+  if (entryMode || (fleet && fleet.pitMode)) {
+    const px = ENTRY.pitX, py = ENTRY.pitY;
+    ctx.fillStyle = 'rgba(160,140,110,.85)'; ctx.fillRect(COURSE.xMin, py[0] - 2.6, px - 2.8 - COURSE.xMin, py[5] - py[0] + 4.6);
+    ctx.strokeStyle = 'rgba(233,245,242,.5)'; ctx.lineWidth = 0.15;
+    for (let k = 0; k <= 6; k++) { const y = (k === 0 ? py[0] - 2.25 : k === 6 ? py[5] + 2.25 : (py[k - 1] + py[k]) / 2); ctx.beginPath(); ctx.moveTo(px - 3, y); ctx.lineTo(px + 3.5, y); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(233,245,242,.8)'; ctx.font = '700 1.6px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'center';
+    ctx.save(); ctx.translate(COURSE.xMin + 4.5, (py[0] + py[5]) / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('ピット', 0, 0.5); ctx.restore();
+    // 小回り防止: no going inside the line from 2M to the buoy; 150m見通し線 through 2M
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(-MK + 2, 0); ctx.lineTo(SMALL_TURN_BUOY.x - 1.2, 0); ctx.stroke();
+    ctx.strokeStyle = 'rgba(232,70,60,.6)'; ctx.lineWidth = 0.25;
+    ctx.beginPath(); ctx.moveTo(-MK, 2); ctx.lineTo(-MK, COURSE.yMax); ctx.stroke();
+    ctx.fillStyle = 'rgba(232,70,60,.8)'; ctx.font = '700 1.3px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('150m見通し線', -MK + 0.8, COURSE.yMax - 2); ctx.textAlign = 'center';
+    ctx.fillStyle = '#f2cf2e'; ctx.beginPath(); ctx.arc(SMALL_TURN_BUOY.x, SMALL_TURN_BUOY.y, 1.1, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.2; ctx.stroke();
+    ctx.fillStyle = 'rgba(233,245,242,.7)'; ctx.font = '700 1.3px "Zen Kaku Gothic New", sans-serif';
+    ctx.fillText('小回り防止ブイ', SMALL_TURN_BUOY.x, SMALL_TURN_BUOY.y - 2);
+  }
+  // 消波装置: a rope of floats in from each mark
+  for (const ob of OBSTACLES) {
+    if (ob.kind !== 'boom') continue;
+    ctx.strokeStyle = 'rgba(233,245,242,.35)'; ctx.lineWidth = 0.12;
+    ctx.beginPath(); ctx.moveTo(ob.x1, ob.y1); ctx.lineTo(ob.x2, ob.y2); ctx.stroke();
+    const n = Math.round(BOOM_LEN / 1.5);
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, x = ob.x1 + (ob.x2 - ob.x1) * t, y = ob.y1 + (ob.y2 - ob.y1) * t;
+      ctx.fillStyle = i % 2 ? '#f4f7f6' : C.buoy;
+      ctx.beginPath(); ctx.arc(x, y, 0.38, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // turn marks
+  for (const m of COURSE.marks) {
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(m.x + 0.4, m.y + 0.5, 1.7, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.buoy; ctx.beginPath(); ctx.arc(m.x, m.y, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.28; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(m.x - 0.45, m.y - 0.45, 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(233,245,242,.8)'; ctx.font = '700 1.8px "Chakra Petch", sans-serif';
+    ctx.fillText(m.name, m.x, m.y - 2.6);
+  }
+
+  // spray
+  for (let i = spray.length - 1; i >= 0; i--) {
+    const s = spray[i], age = time - s.t;
+    if (age > s.life) { spray.splice(i, 1); continue; }
+    ctx.fillStyle = `rgba(240,250,248,${0.75 * (1 - age / s.life)})`;
+    ctx.beginPath(); ctx.arc(s.x + s.vx * age * 0.7, s.y + s.vy * age * 0.7, 0.14 + age * 0.35, 0, Math.PI * 2); ctx.fill();
+  }
+
+  if (fleet) {
+    for (const r of fleet.boats) drawBoatAt(r.b, r.inp, { hull: r.col[0], num: r.col[1], label: String(r.no), helmet: r.col[0], top: !!r.prof.top }, r === fr);
+  } else drawBoatAt(B, input, PLAYER_STYLE, false);
+  ctx.restore();
+  drawMini();
+}
+
+function drawWake(arr) {
+  ctx.save(); ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
+  for (let i = 1; i < arr.length; i++) {
+    const p = arr[i - 1], q = arr[i], age = time - q.t;
+    if (age < 0 || age > 3) continue;
+    const al = (1 - age / 3) * Math.min(1, q.v / 10);
+    // Turbulent propeller wash: dark trough, soft aerated water, white core.
+    ctx.strokeStyle = `rgba(3,35,45,${0.23 * al})`; ctx.lineWidth = 1.25 + age * 1.55;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+    ctx.strokeStyle = `rgba(157,218,218,${0.27 * al})`; ctx.lineWidth = 0.85 + age * 1.05;
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(247,255,250,${0.58 * al * Math.exp(-age * 0.65)})`;
+    ctx.lineWidth = 0.24 + age * 0.32; ctx.stroke();
+    for (const side of [-1, 1]) {
+      const sp = (time - p.t) * (1.4 + p.v * 0.12), sq = age * (1.4 + q.v * 0.12);
+      const px = p.x - Math.sin(p.a) * side * sp, py = p.y + Math.cos(p.a) * side * sp;
+      const qx = q.x - Math.sin(q.a) * side * sq, qy = q.y + Math.cos(q.a) * side * sq;
+      ctx.strokeStyle = `rgba(2,40,49,${0.3 * al})`; ctx.lineWidth = 0.36 + age * 0.1;
+      ctx.beginPath(); ctx.moveTo(px, py + 0.12); ctx.lineTo(qx, qy + 0.12); ctx.stroke();
+      ctx.strokeStyle = `rgba(227,251,241,${0.48 * al})`; ctx.lineWidth = 0.1 + age * 0.045;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(qx, qy); ctx.stroke();
+    }
+    // Deterministic foam flecks: no random calls that could change race outcomes.
+    if (i % 2 === 0) {
+      const h = hash(i, Math.floor(q.t * 25)), spread = 0.2 + age * 0.48;
+      ctx.fillStyle = `rgba(239,255,246,${0.45 * al})`;
+      ctx.beginPath(); ctx.ellipse(q.x + Math.sin(q.a) * (h - .5) * spread,
+        q.y - Math.cos(q.a) * (h - .5) * spread, 0.08 + age * .065,
+        0.045 + age * .025, q.a, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+const PLAYER_STYLE = { hull: '#f4f7f6', num: '#0a2c38', label: '1', helmet: C.lever };
+function drawBoatAt(b, inp, sty, focused) {
+  ctx.save();
+  ctx.translate(b.x, b.y); ctx.rotate(b.a);
+  if (focused) {
+    ctx.setLineDash([0.6, 0.6]); ctx.strokeStyle = C.lever; ctx.lineWidth = 0.2;
+    ctx.beginPath(); ctx.arc(0, 0, 3.4, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  }
+  const bob = 1 + 0.07 * Math.sin(time * 18) * Math.max(b.porp, (b.wakeBump || 0) * 1.3);
+  ctx.scale(bob, 1);
+  const capT = b.cap > 0 ? (b.cap > 100 ? (time * 0.6) % 1 : 1 - b.cap / 2.2) : 0;
+  // stability on the water: amber as it nears the line, red and pulsing past it; a second ring while it's going for it
+  if (b.cap <= 0) {
+    const ld = b.load || 0;
+    if (ld > 0.7) {
+      const over = ld >= 1, pulse = over ? 0.5 + 0.5 * Math.sin(time * 14) : 1;
+      ctx.strokeStyle = over ? `rgba(255,107,90,${0.45 + 0.4 * pulse})` : `rgba(255,209,102,${clamp((ld - 0.7) / 0.3, 0, 1) * 0.6})`;
+      ctx.lineWidth = over ? 0.3 : 0.2;
+      ctx.beginPath(); ctx.ellipse(0, 0, 3.1, 1.9, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (b.pushing) {
+      ctx.strokeStyle = 'rgba(255,180,46,.85)'; ctx.lineWidth = 0.14; ctx.setLineDash([0.5, 0.4]);
+      ctx.beginPath(); ctx.ellipse(0, 0, 3.7, 2.4, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  // Soft contact shadow, then a cached shaded hull (same physical footprint).
+  ctx.fillStyle = 'rgba(0,22,30,.22)';
+  ctx.beginPath(); ctx.ellipse(0.12, 0.4 + inp.roll * 0.25, 2.55, 1.05, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(0,18,25,.25)';
+  ctx.beginPath(); ctx.ellipse(-0.15, 0.22, 2.15, 0.78, 0, 0, Math.PI * 2); ctx.fill();
+  // Bow spray follows speed and lateral load; it is entirely visual.
+  if (b.cap <= 0 && b.v > 5) {
+    const speed = clamp(b.v / 23, 0, 1);
+    ctx.lineCap = 'round';
+    for (const side of [-1, 1]) {
+      ctx.strokeStyle = `rgba(232,255,248,${0.32 + speed * .35})`; ctx.lineWidth = .09 + speed * .1;
+      ctx.beginPath(); ctx.moveTo(1.65, side * .38);
+      ctx.bezierCurveTo(.8, side * .96, -.7, side * (1.02 + speed * .3), -2.55, side * (1.1 + speed * .5)); ctx.stroke();
+      for (let n = 0; n < 7; n++) {
+        const h = hash(n + side * 15, Math.floor(time * 12));
+        const u = n / 7;
+        ctx.fillStyle = `rgba(243,255,250,${(.15 + h * .4) * speed})`;
+        ctx.beginPath(); ctx.ellipse(.8 - u * 3.6,
+          side * (.87 + u * (.35 + Math.abs(b.vl) * .05) + h * .18), .06 + h * .07, .035, -.25 * side, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+  const hullSprite = boatSprite(sty, b.cap > 0 && !b.fallen);
+  ctx.save(); ctx.scale(1, 1 - Math.abs(inp.roll) * .06);
+  ctx.drawImage(hullSprite, -2.65, -1.1, 5.3, 2.2); ctx.restore();
+  if (b.cap <= 0) {
+    // Life jacket, bent arms, helmet shell and visor; pose follows the actual inputs.
+    const rxp = -0.35 + inp.pitch * 0.6, ryp = inp.roll * 0.55;
+    ctx.save(); ctx.translate(rxp, ryp); ctx.rotate(inp.roll * .13);
+    ctx.strokeStyle = '#152d3b'; ctx.lineWidth = .21; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-.48, -.24); ctx.lineTo(-.78, -.34); ctx.lineTo(-.9, -.12);
+    ctx.moveTo(-.48, .24); ctx.lineTo(-.8, .34); ctx.lineTo(-.92, .12); ctx.stroke();
+    const vest = ctx.createLinearGradient(0, -.38, 0, .38);
+    vest.addColorStop(0, '#f8faf2'); vest.addColorStop(.35, sty.hull); vest.addColorStop(1, '#263c47');
+    ctx.fillStyle = vest; ctx.beginPath(); ctx.ellipse(-.25, 0, .55, .36, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(6,24,34,.6)'; ctx.lineWidth = .075; ctx.stroke();
+    ctx.strokeStyle = '#d8e5df'; ctx.lineWidth = .12;
+    ctx.beginPath(); ctx.moveTo(-.08, -.26); ctx.lineTo(.38, -.36); ctx.lineTo(.62, -.24);
+    ctx.moveTo(-.08, .26); ctx.lineTo(.32, .4); ctx.lineTo(.56, .27); ctx.stroke();
+    ctx.fillStyle = '#101d2a'; ctx.beginPath(); ctx.ellipse(.22, .06, .4, .34, 0, 0, Math.PI * 2); ctx.fill();
+    const helm = ctx.createRadialGradient(.1, -.15, .015, .2, 0, .41);
+    helm.addColorStop(0, '#ffffff'); helm.addColorStop(.3, sty.helmet); helm.addColorStop(1, '#243a47');
+    ctx.fillStyle = helm; ctx.beginPath(); ctx.ellipse(.22, -.04, .37, .32, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#153141'; ctx.beginPath(); ctx.ellipse(.46, -.015, .13, .235, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#7eb9c9'; ctx.lineWidth = .045; ctx.beginPath(); ctx.moveTo(.48, -.17); ctx.lineTo(.5, .09); ctx.stroke();
+    if (sty.top) { ctx.strokeStyle = '#ff4032'; ctx.lineWidth = .09; ctx.beginPath(); ctx.arc(.22, -.04, .33, 1.1, 4.7); ctx.stroke(); }
+    ctx.restore();
+  } else {
+    ctx.strokeStyle = `rgba(233,245,242,${1 - capT})`; ctx.lineWidth = 0.15;
+    ctx.beginPath(); ctx.arc(0, 0, 2.5 + capT * 3, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
+  if (b.fallen) {
+    // 落水: the rider bobbing in the water behind an empty boat
+    const rt = (time * 0.8) % 1;
+    ctx.strokeStyle = `rgba(233,245,242,${0.8 * (1 - rt)})`; ctx.lineWidth = 0.12;
+    ctx.beginPath(); ctx.arc(b.fx, b.fy, 0.6 + rt * 1.8, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = sty.helmet; ctx.beginPath(); ctx.arc(b.fx, b.fy, 0.38, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#0a2c38'; ctx.lineWidth = 0.08; ctx.stroke();
+  }
+}
+
+function drawMini() {
+  const w = mini.width, h = mini.height; if (!w) return;
+  mctx.setTransform(1, 0, 0, 1, 0, 0);
+  mctx.clearRect(0, 0, w, h);
+  const pad = 5 * DPR;
+  const sc = Math.min((w - pad * 2) / (COURSE.xMax - COURSE.xMin), (h - pad * 2) / (COURSE.yMax - COURSE.yMin)), sx = sc, sy = sc;
+  const ox = (w - (COURSE.xMax - COURSE.xMin) * sc) / 2, oy = (h - (COURSE.yMax - COURSE.yMin) * sc) / 2;
+  const X = x => ox + (x - COURSE.xMin) * sx, Y = y => oy + (y - COURSE.yMin) * sy;
+  mctx.strokeStyle = 'rgba(233,245,242,.3)'; mctx.lineWidth = DPR;
+  mctx.strokeRect(X(COURSE.xMin), Y(COURSE.yMin), (COURSE.xMax - COURSE.xMin) * sx, (COURSE.yMax - COURSE.yMin) * sy);
+  mctx.beginPath(); mctx.moveTo(X(0), Y(6)); mctx.lineTo(X(0), Y(COURSE.yMax)); mctx.stroke();
+  mctx.strokeStyle = 'rgba(255,122,26,.7)'; mctx.lineWidth = 1.5 * DPR;
+  for (const ob of OBSTACLES) if (ob.kind === 'boom') { mctx.beginPath(); mctx.moveTo(X(ob.x1), Y(ob.y1)); mctx.lineTo(X(ob.x2), Y(ob.y2)); mctx.stroke(); }
+  mctx.fillStyle = C.buoy;
+  for (const m of COURSE.marks) { mctx.beginPath(); mctx.arc(X(m.x), Y(m.y), 2.5 * DPR, 0, Math.PI * 2); mctx.fill(); }
+  if (fleet) {
+    for (const r of fleet.boats) { mctx.fillStyle = r.col[0]; mctx.strokeStyle = 'rgba(233,245,242,.8)'; mctx.lineWidth = DPR; mctx.beginPath(); mctx.arc(X(r.b.x), Y(r.b.y), 2.6 * DPR, 0, Math.PI * 2); mctx.fill(); mctx.stroke(); }
+    return;
+  }
+  mctx.fillStyle = '#f4f7f6';
+  mctx.beginPath(); mctx.arc(X(B.x), Y(B.y), 3 * DPR, 0, Math.PI * 2); mctx.fill();
+  mctx.strokeStyle = '#f4f7f6'; mctx.lineWidth = 1.5 * DPR;
+  mctx.beginPath(); mctx.moveTo(X(B.x), Y(B.y)); mctx.lineTo(X(B.x) + Math.cos(B.a) * 8 * DPR, Y(B.y) + Math.sin(B.a) * 8 * DPR); mctx.stroke();
+}
+
+/* ---------- HUD ---------- */
+const el = { stab: $('stab'), stabFill: $('stabFill'), demoTag: $('demoTag'), spd: $('spd'), lap: $('lap'), best: $('best'), fill: $('lfill'), knob: $('lknob'), wrot: $('wrot'), pdot: $('pdot'), pdeg: $('pdeg'), pbox: $('pbox'), track: $('track'), hand: $('hand'), clockTxt: $('clockTxt'), clock: $('clock') };
+let lastTxt = {};
+const setTxt = (k, v) => { if (lastTxt[k] !== v) { lastTxt[k] = v; el[k].textContent = v; } };
+function updateHud() {
+  const fr = focusRow();
+  const vb = fr ? fr.b : B, vi = fr ? fr.inp : input, vh = fr ? (fr.b.harmony || 0) : harmony;
+  setTxt('spd', String(kmh(vb.v)));
+  const pr = playerRow();
+  $('dashBtn').hidden = !(fleet && fleet.entry && pr);
+  if (pr && fleet.entry) { $('dashBtn').classList.toggle('done', pr.en.dash); $('dashBtn').disabled = pr.en.dash; }
+  if (fr && fleet.entry) {
+    const STAGE = { pit: 'ピット', out: 'ピットアウト', back: '2マークへ', turn: '2マーク', approach: '正対へ', wait: '待機' };
+    setTxt('lap', `進入　${STAGE[fr.en.stage]}${fr.en.rewind ? '（回り直し）' : ''}`);
+    el.best.classList.toggle('top', !!fr.prof.top);
+    setTxt('best', `${fr.prof.top ? 'A1★トップ' : fr.prof.name + '級'}・予定${fr.en.course || fr.en.slot}コース${fr.en.dash ? '（ダッシュ）' : ''}${fr.en.projOk != null && (fr.en.stage === 'wait' || fr.en.stage === 'approach') ? `・起こし見込み${Math.round(fr.en.projOk)}m` : ''}${fr.en.fightWith ? '・抵抗中' : ''}`);
+    setTxt('demoTag', fr.player ? `自分 ${fr.no}号艇` : `追尾 ${fr.no}号艇${fleet.focus == null ? '（先頭を自動追尾）' : ''}`);
+    updateOrderStrip();
+    $('skipBtn').hidden = true;
+  } else if (fr) {
+    const lead = fleet.rank[0];
+    setTxt('lap', SS.phase === 'count' ? '待機行動' : `${Math.min(3, lead.laps + 1)}周目  ${fmtRT(Math.max(0, (lead.fin ?? time) - fleet.raceStart))}`);
+    el.best.classList.toggle('top', !!fr.prof.top);
+    setTxt('best', `${fr.prof.top ? 'A1★トップ' : fr.prof.name + '級'}・${fr.trait.course}コース・${fr.trait.kado ? '3カド' : fr.trait.slow ? 'スロー' : 'ダッシュ'}・${TACTIC_JA[fr.drv.mem.tacticNow || fr.trait.tactic]}`);
+    setTxt('demoTag', fr.player ? `自分 ${fr.no}号艇${fr.st == null ? '' : '（CPU操縦中）'}` : `追尾 ${fr.no}号艇${fleet.focus == null ? '（先頭を自動追尾）' : ''}`);
+    updateOrderStrip();
+    $('skipBtn').hidden = !(fleet.caution && !fleet.endAt);
+  } else {
+    el.best.classList.remove('top');
+    setTxt('lap', `LAP ${lap.n + 1}  ${fmt(Math.max(0, time - lap.start))}`);
+    setTxt('best', lap.best == null ? 'ベスト —' : `ベスト ${fmt(lap.best)}`);
+  }
+  const th = el.track.clientHeight;
+  el.fill.style.height = (vi.thr * 100) + '%';
+  el.knob.style.transform = `translateY(${-vi.thr * (th - 18)}px)`;
+  el.wrot.setAttribute('transform', `rotate(${vi.steer * 110})`);
+  el.pdot.style.transform = `translate(${vi.roll * 30}px, ${-vi.pitch * 30}px)`;
+  const f = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n));
+  // 安定度 gauge: 0 … 1.5, danger line at 1.0 (two-thirds across)
+  const ld = vb.cap > 0 ? 1.5 : (vb.load || 0);
+  el.stabFill.style.width = Math.min(100, ld / 1.5 * 100) + '%';
+  el.stabFill.style.background = ld < 0.75 ? C.good : ld < 1 ? C.warn : C.bad;
+  el.stab.classList.toggle('over', ld >= 1 && vb.cap <= 0);
+  const stabWord = vb.cap > 0 ? '転覆' : ld >= 1 ? '危険ライン超え' : ld >= 0.85 ? '限界ぎりぎり' : ld >= 0.55 ? '攻め' : '余裕';
+  el.stab.title = stabWord;
+  setTxt('pdeg', (vb.pushing ? '勝負中・' : '') + stabWord + '　' + (!fr && pad.seenAt > 0 && performance.now() - pad.seenAt < 3000 ? `パッド 左右 ${f(input.roll * 100)}%  前後 ${f(input.pitch * 100)}%` : fr ? `想定 左右 ${f(vi.roll * sensor.range)}°  前後 ${f(vi.pitch * sensor.range)}°` : sensor.got ? `左右 ${f(sensor.deg[0])}°  前後 ${f(sensor.deg[1])}°` : (running ? '傾き入力なし' : '体重移動')));
+  const turning = Math.abs(vi.steer) > 0.3 && vb.cap <= 0;
+  el.pbox.style.setProperty('--h', !turning ? C.line : vh > 0.68 ? C.good : vh > 0.42 ? C.warn : C.bad);
+  if (SS.phase === 'entry' && fleet && fleet.entry) {
+    // big clock from the pit release: time to the start; the hand waits at the top for the last 12 s
+    const E = fleet.entry, left = Math.max(0, time < E.go ? ENTRY.total : E.zero - time);
+    el.hand.setAttribute('transform', 'rotate(0)');
+    setTxt('clockTxt', `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`);
+    el.clock.classList.remove('live');
+  } else if (SS.phase !== 'off' && SS.phase !== 'entry') {
+    const el2 = time - SS.t0, rem = CLOCK - el2;
+    el.hand.setAttribute('transform', `rotate(${(el2 / CLOCK) * 360})`);
+    setTxt('clockTxt', SS.phase === 'count' ? (rem > 0 ? rem.toFixed(1) : '+' + (-rem).toFixed(2)) : el.clockTxt.textContent);
+    el.clock.classList.toggle('live', SS.phase === 'count' && rem <= 0);
+  }
+}
+
+/* ---------- loop ---------- */
+let last = performance.now();
+function frame(now) {
+  // never let one bad frame stop the loop
+  try { tick(now); } catch (err) { if (!frame.warned) { frame.warned = true; console.error(err); } }
+  requestAnimationFrame(frame);
+}
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  pollPadButtons();
+  if (running && !paused) {
+    if (fleet && playerActive()) { updateInput(dt); fleetStep(dt / 2, input); fleetStep(dt / 2, input); }   // practice runs in real time
+    else if (fleet) { const n = Math.ceil(simSpeed * 2); for (let i = 0; i < n; i++) fleetStep(dt * simSpeed / n, input); }
+    else { updateInput(dt); step(dt / 2); step(dt / 2); hapticsFrame(dt, B); }
+  }
+  if (!running || paused || fleet) hapticsStop();
+  updateAudio();
+  draw(); updateHud();
+}
+document.addEventListener('visibilitychange', () => { last = performance.now(); keys.clear(); });
+resize();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
