@@ -111,6 +111,10 @@ table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;widt
 
 .note{position:fixed;z-index:4;top:calc(64px + var(--st));white-space:pre-line;cursor:pointer;left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 340px));min-width:220px;background:var(--hud);border:1px solid var(--warn);border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.55;pointer-events:auto}
 
+.calbox{position:relative;width:150px;height:150px;margin:6px auto 4px;border-radius:50%;border:2px solid rgba(233,245,242,.35);background:rgba(5,24,31,.5)}
+.calbox .calx,.calbox .caly{position:absolute;background:rgba(233,245,242,.25)}
+.calbox .calx{left:8px;right:8px;top:50%;height:1px}.calbox .caly{top:8px;bottom:8px;left:50%;width:1px}
+#calDot{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:#ffb42e;box-shadow:0 0 8px rgba(255,180,46,.7)}
 .overlay{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:calc(12px + var(--st)) calc(16px + var(--sr)) calc(12px + var(--sb)) calc(16px + var(--sl));background:rgba(4,20,26,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
 .card{background:var(--hud);border:1px solid var(--hud-line);border-radius:14px;padding:18px 22px;max-width:680px;width:100%;max-height:100%;overflow:auto;touch-action:pan-y}
 .card h1{font-family:var(--f-display);font-weight:400;font-size:clamp(24px,5vh,34px);margin:0 0 2px;letter-spacing:.03em;text-wrap:balance}
@@ -213,12 +217,22 @@ table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;widt
       <div><b>左右に傾ける</b><span>体重移動。旋回の内側へ体を入れる。</span></div>
       <div><b>奥へ／手前へ</b><span>画面の上側を奥へ倒すと伏せる（空気抵抗が減って伸びる）、手前へ起こすと体を起こす（減速するが、左右の体重移動がよく効く）。</span></div>
     </div>
-    <div class="monkey">最初は大時計スタート。エンジンは止まらないので、針が0を指してから1秒以内にスタートラインを越えるよう、スロットルで間合いを詰めます。早すぎるとフライング。<br>コースは左回り。直線は伏せて伸ばし、ターンマークでは「体を起こす＋内へ傾ける＋舵」が揃うとモンキーターンが決まり、小さく速く回れます。全速のまま姿勢を入れずに回ると大きく膨らみ、伏せたまま・内へ傾けるだけの無茶な回り方は転覆の危険があります。レバーを落とすと小さく安定して回れますが、出口の速度は落ちます。外へ傾けると流されて転覆します。</div>
+    <div class="monkey">最初は大時計スタート。エンジンは止まらないので、針が0を指してから1秒以内にスタートラインを越えるよう、スロットルで間合いを詰めます。早すぎるとフライング。<br>コースは左回り。直線は伏せて伸ばし、ターンマークでは「体を起こす＋内へ傾ける＋舵」が揃うとモンキーターンが決まり、小さく速く回れます。全速のまま姿勢を入れずに回ると大きく膨らみ、伏せたまま・内へ傾けるだけの無茶な回り方は転覆の危険があります。レバーを落とすと小さく安定して回れますが、出口の速度は落ちます。速く回るコツは「起こして入り、内へ傾けたまま起こしを緩めて、伏せながら抜ける」こと。体がしっかり内に入っていれば、起こしを緩めても伏せてもグリップが残り、速度を殺さずに回れます（ずっと起こしたままだと減速が大きく、傾けずに伏せると膨らむか転覆します）。外へ傾けると流されて転覆します。</div>
     <div class="row">
       <button class="btn" id="go">スタート</button>
       <button class="btn ghost" id="goDemo">6艇デモを見る</button>
       <span style="font-size:12px;color:var(--muted)">PCでは W/S＝スロットル、A/D＝舵、矢印キー＝体重移動（↑伏せる／↓起こす）、Space＝引く（ピット離れモード）。コントローラなら 左トリガー＝スロットル、右スティック＝舵、左スティック＝体重移動、Aでスタート</span>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="calib" hidden>
+  <div class="card" style="max-width:380px;text-align:center">
+    <h1 style="font-size:22px"><small>傾きの基準</small>持ち方を決めてOK</h1>
+    <p id="calMsg">遊ぶときの持ち方で構えて、少し傾けて反応を確かめてください。OKを押したときの姿勢が「傾き0」になります。</p>
+    <div class="calbox"><i class="calx"></i><i class="caly"></i><b id="calDot"></b></div>
+    <p id="calTxt" style="font-variant-numeric:tabular-nums">左右 0°　前後 0°</p>
+    <div class="row" style="justify-content:center"><button class="btn" id="calOk">OK</button></div>
   </div>
 </div>
 
@@ -295,7 +309,8 @@ const HAZARD = 0.2;
 // turning: how much leaning in adds grip, how much sitting up amplifies that and staying crouched spoils it,
 // how far full throttle pushes a turn wide without the body in it, how much easing the lever settles the hull,
 // and how much a flat-out, full-lock, deep hang-on at top speed (無茶) adds to the load
-const TURN = { lean: 0.85, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 0.2, dropCalm: 0.3, mucha: 0.5 };
+const TURN = { lean: 1.2, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 0.2, dropCalm: 0.3, mucha: 0.5,
+  holdPose: 0.5, exitPose: 0.3, carve: 0.8, upBrake: 0.35, run: 0.7, keep: 0.7 };   // carving out: a firm inside lean keeps the bite while easing up into a crouch; a clean turn scrubs less speed
 // 引き波: a boat's wake is a thick, lasting wave — width either side of each wave line (m), how long it
 // stays rough (s), and how hard crossing it hits speed, heading and grip (1 = the old strength)
 const WAKE = { width: 1.4, life: 2.4, drag: 1.8, kick: 1.9, grip: 1.6, unsettle: 0.55 };
@@ -376,6 +391,7 @@ function applyAngles(ang) {
   if (sensor.invR) dr = -dr;
   if (sensor.invP) dp = -dp;
   sensor.deg = [dr, dp];
+  if (calib.open) showCalib(ang);
   raw.roll = dz(clamp(dr / sensor.range));
   raw.pitch = dz(clamp(dp / sensor.range));
 }
@@ -400,7 +416,34 @@ function onMot(e) {
   sensor.src = 'mot';
   applyAngles(fromUp(gs.x / n, gs.y / n, gs.z / n));
 }
-// the posture the phone is held in when a start button is pressed counts as level (傾き0)
+// 傾きの基準: after "start" the player holds the phone the way they'll play, checks the tilt responds,
+// and presses OK; that posture becomes level (傾き0) and stays fixed until they set it again.
+const calib = { open: false, ref: null, then: null };
+function openCalib(then) {
+  calib.open = true; calib.ref = sensor.last ? sensor.last.slice() : null; calib.then = then;
+  paused = true; $('calib').hidden = false;
+  $('calTxt').textContent = sensor.got ? '左右 0°　前後 0°' : '傾きを確認中…';
+  setTimeout(() => { if (calib.open && !sensor.got) $('calTxt').textContent = '傾きセンサーが見つかりません（PC・コントローラならそのままOK）'; }, 1200);
+}
+function showCalib(ang) {
+  if (!calib.ref) calib.ref = ang.slice();
+  let r = wrap(ang[0] - calib.ref[0]), p = -wrap(ang[1] - calib.ref[1]);
+  if (sensor.invR) r = -r; if (sensor.invP) p = -p;
+  const k = 60 / sensor.range;
+  $('calDot').style.transform = `translate(${clamp(r * k, -62, 62)}px, ${clamp(-p * k, -62, 62)}px)`;
+  const f = v => (v >= 0 ? '+' : '−') + Math.abs(Math.round(v));
+  $('calTxt').textContent = `左右 ${f(r)}°　前後 ${f(p)}°（OKでここが0）`;
+}
+function closeCalib() {
+  if (!calib.open) return;
+  calib.open = false; $('calib').hidden = true;
+  zeroTilt();
+  paused = false; last = performance.now();
+  const then = calib.then; calib.then = null;
+  if (then) then();
+}
+$('calOk').addEventListener('click', closeCalib);
+// the posture the phone is held in when OK is pressed counts as level (傾き0)
 function zeroTilt() { sensor.zeroing = { n: 0, r: 0, p: 0, first: null, until: performance.now() + 350 }; }
 function recalibrate(msg) {
   sensor.calib = sensor.last ? sensor.last.slice() : null;
@@ -539,13 +582,14 @@ function updateAudio() {
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { if (snd.ctx && snd.ctx.state === 'suspended') snd.ctx.resume().catch(() => {}); }, true);
 
 // Stop the phone's auto-rotate from flipping the screen mid-race: go full screen and lock the
-// landscape the phone is in now (Android Chrome etc.; iPhone browsers don't allow either, so it's skipped).
+// orientation the phone is in now (Android Chrome etc.; iPhone browsers don't allow either, so it's skipped).
 function lockLandscape() {
   try {
     const el = document.documentElement, o = screen.orientation;
     if (!o || typeof o.lock !== 'function') return;
     const lock = () => {
-      const t = (o.type || '').startsWith('landscape') ? o.type : 'landscape';
+      // keep whichever way the phone is held now (縦のまま試す stays portrait)
+      const t = o.type || (portraitOk ? 'portrait' : 'landscape');
       o.lock(t).then(() => { orient.locked = true; }).catch(() => {});
     };
     if (document.fullscreenElement) { lock(); return; }
@@ -553,7 +597,7 @@ function lockLandscape() {
   } catch (e) {}
 }
 const orient = { locked: false };
-async function start() {
+async function start(after) {
   initAudio();
   lockLandscape();          // must start inside the tap
   let ok = true;
@@ -562,12 +606,13 @@ async function start() {
   try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') reqs.push(DeviceOrientationEvent.requestPermission()); } catch (e) { ok = false; }
   try { if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') reqs.push(DeviceMotionEvent.requestPermission()); } catch (e) { ok = false; }
   try { const res = await Promise.all(reqs.map(p => p.catch(() => 'error'))); if (res.length && !res.includes('granted')) ok = false; } catch (e) { ok = false; }
-  zeroTilt();
   if (!start.listening) { start.listening = true; addEventListener('deviceorientation', onOri); addEventListener('devicemotion', onMot); }
   $('start').hidden = true;
-  running = true; last = performance.now();
   try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
-  beginStart();
+  // check the tilt and fix 傾き0, then the game begins
+  openCalib(() => { running = true; last = performance.now(); if (after) after(); else beginStart(); afterStartCheck(ok); });
+}
+function afterStartCheck(ok) {
   setTimeout(() => {
     if (sensor.got || fleet) return;
     const d = `診断：向き ${diag.ori}回（値なし ${diag.oriNull}）／加速度 ${diag.mot}回／${diag.framed ? '埋め込み表示' : '単独表示'}／${window.isSecureContext ? 'HTTPS' : '非HTTPS'}${ok ? '' : '／許可なし'}`;
@@ -577,13 +622,13 @@ async function start() {
   }, 1800);
 }
 $('go').addEventListener('click', () => { start(); });
-$('goDemo').addEventListener('click', () => { start().then(() => entryMode ? startEntry(null) : startFleet()); });
+$('goDemo').addEventListener('click', () => { start(() => entryMode ? startEntry(null) : startFleet()); });
 $('stayPortrait').addEventListener('click', () => { portraitOk = true; $('rotate').hidden = true; });
 
 /* ---------- settings ---------- */
 $('gear').addEventListener('click', () => { paused = true; $('settings').hidden = false; });
 $('close').addEventListener('click', () => { paused = false; last = performance.now(); $('settings').hidden = true; });
-$('zero').addEventListener('click', () => { recalibrate(); $('settings').hidden = true; paused = false; last = performance.now(); toast('基準リセット', '今の持ち方がまっすぐの姿勢になりました', 'info'); });
+$('zero').addEventListener('click', () => { $('settings').hidden = true; openCalib(() => toast('基準リセット', 'OKを押した持ち方が傾き0になりました', 'info')); });
 $('padRT').addEventListener('change', e => { pad.useRT = e.target.checked; });
 $('sndOn').addEventListener('change', e => { snd.on = e.target.checked; initAudio(); });
 $('sndVol').addEventListener('input', e => { snd.vol = e.target.value / 100; $('sndVolOut').textContent = e.target.value; });
@@ -609,7 +654,6 @@ function resetBoat() {
   lap.n = 0; lap.start = time; lap.visR = lap.visL = false; lap.prevX = B.x;
 }
 function beginStart() {
-  zeroTilt();
   resetBoat();
   SS.phase = 'count'; SS.t0 = time; SS.hideAt = 0;
   $('clock').hidden = false;
@@ -682,6 +726,7 @@ function pollPadButtons() {
   const down = i => !!(g.buttons[i] && g.buttons[i].pressed);
   const edge = i => down(i) && !pad.prev[i];
   if (edge(0) && !$('start').hidden) start();
+  else if (edge(0) && calib.open) closeCalib();
   else if (edge(0) && !$('rotate').hidden) { portraitOk = true; $('rotate').hidden = true; }
   if (edge(9)) { if ($('settings').hidden) { if (running) { paused = true; $('settings').hidden = false; } } else { paused = false; last = performance.now(); $('settings').hidden = true; } }
   if (edge(1)) {
@@ -845,15 +890,19 @@ function boatPhysics(b, inp, dt) {
   // Posture counts for a lot: leaning in bites, sitting up makes the lean bite harder, staying crouched fights it.
   // A full-throttle turn without the body in it (全速ターン) gets pushed wide by the prop; a proper full-throttle
   // monkey (lean in + sit up) holds it in. Easing the lever (落とす) makes the hull settle and bite.
-  const ins = Math.max(0, inside), monkey = ins * (0.4 + 0.6 * up) * (1 - 0.5 * down);
-  let grip = GRIP_BASE * (1 + 0.15 * up) * (1 + TURN.lean * ins * (1 + TURN.upBoost * up - TURN.downCut * down)) * (1 + 0.5 * Math.min(0, inside))
+  // 起こして入り、傾けたまま起こしを緩めて、伏せて抜ける: while the body is held firmly to the inside,
+  // easing out of the sit-up into a crouch keeps most of the bite (pose) instead of throwing it away
+  const ins = Math.max(0, inside), firm = clamp((ins - 0.5) / 0.4, 0, 1);
+  const pose = Math.max(up, firm * (TURN.holdPose + TURN.exitPose * down)), downG = down * (1 - TURN.carve * firm);
+  const monkey = ins * (0.4 + 0.6 * pose) * (1 - 0.5 * downG);
+  let grip = GRIP_BASE * (1 + 0.15 * pose) * (1 + TURN.lean * ins * (1 + TURN.upBoost * pose - TURN.downCut * downG)) * (1 + 0.5 * Math.min(0, inside))
     * (1 - TURN.thrWide * t * (1 - monkey)) * (1 + TURN.dropGrip * (1 - t))
     * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1);
   grip = Math.max(2, grip);
 
   const sf = clamp(b.v / 5, 0.3, 1);   // even nearly stopped, the hull can be pivoted round slowly
   const turnBase = 1.35 / (1 + b.v / 35);
-  let yawT = s * turnBase * sf * (1 + 0.7 * Math.max(0, inside) * (0.6 + 0.5 * up - 0.4 * down)) + r * 0.28 * sf;
+  let yawT = s * turnBase * sf * (1 + 0.7 * Math.max(0, inside) * (0.6 + 0.5 * pose - 0.4 * downG)) + r * 0.28 * sf;
   // the nose can only come round as fast as the grip allows at this speed: faster means a wider arc
   const yawCap = grip * YAW_OVER / Math.max(4, b.v);
   yawT = clamp(yawT, -yawCap, yawCap);
@@ -864,8 +913,9 @@ function boatPhysics(b, inp, dt) {
   if (excess > 0 && Math.abs(b.yaw) > 0.05) b.vl += -Math.sign(b.yaw) * excess * 0.9 * dt;
   b.vl *= Math.exp(-dt * 1.6 * grip / GRIP_BASE);
 
-  b.harmony = sgn ? clamp(0.5 * Math.max(0, inside) + 0.3 * up + 0.2 * t, 0, 1) : 0;
-  const turnLoss = 0.9 * (1 - 0.55 * b.harmony);   // turns bleed speed; a clean monkey turn keeps more of it
+  b.harmony = sgn ? clamp(0.5 * Math.max(0, inside) + 0.3 * pose + 0.2 * t, 0, 1) : 0;
+  // sitting up scrubs speed (it's the brake); crouching while firmly leaned in lets the hull run out of the turn
+  const turnLoss = 0.9 * (1 - TURN.keep * b.harmony) * Math.max(0.2, 1 + TURN.upBrake * up - TURN.run * firm * down);   // turns bleed speed; a clean monkey turn keeps more of it
   acc -= Math.abs(b.yaw) * b.v * turnLoss + Math.abs(b.vl) * 0.7;
   b.v = Math.max(0, b.v + acc * dt);
   b.a += b.yaw * dt;
@@ -1237,6 +1287,7 @@ const RISK = {
   TOP: { go: 0.08, ok: 0.93, acc: 0.1, hit: 0.45, fly: 0.003 },
 };
 // trait = { course, laneY, tactic: 'nige'|'sashi'|'makuri', lineOff, dump, care } (all optional for a lone boat)
+const CARVE = { TOP: 1, A1: 0.9, A2: 0.7, B1: 0.5, B2: 0.3 };   // how well a class carves out of a turn (sit-up → crouch, lean held)
 function makeDriver(prof, trait = {}) {
   const o = { thr: 0, steer: 0, roll: 0, pitch: 0 };
   const mem = { stTarget: 0, go: false, firstDone: false, dumpT: 0, dumpQ: null, dumpSeen: new Set(), wakeT: 0, wakeOff: 0, wakeOffT: 0, wakeAhead: 0, brace: 0, emergency: 0 };
@@ -1679,6 +1730,12 @@ function makeDriver(prof, trait = {}) {
         rollT = -prof.lean * clamp((b.v - 4) / 4, 0, 1);   // anticlockwise course: inside is left
         pitchT = -prof.up;
         thrT = tThr;
+        // 起こして入り、傾けたまま起こしを緩めて伏せながら抜ける — the better the rider, the cleaner the hand-over
+        if (ti.inTurn) {
+          const prog = 1 - ti.left / (Math.PI * R), skill = CARVE[prof.name] ?? 0.5;
+          const ease = clamp((prog - 0.4) / 0.5, 0, 1) * skill;
+          pitchT = -prof.up + (prof.up + 0.9) * ease;
+        }
         if (tactic === 'tsuke' && first) { rollT = -Math.max(prof.lean, 0.9) * clamp((b.v - 4) / 4, 0, 1); pitchT = -Math.max(prof.up, 0.8); }
         if (mem.push) {
           rollT = -clamp((b.v - 4) / 4, 0, 1); pitchT = -1;
@@ -2206,7 +2263,6 @@ function entryHandoff() {
 
 let entryMode = false;
 function startEntry(playerNo) {
-  zeroTilt();
   fleet = makeEntryFleet(playerNo);
   ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
   input.thr = input.steer = input.roll = input.pitch = 0;
@@ -2224,7 +2280,6 @@ const playerRow = () => fleet && fleet.playerNo ? fleet.boats.find(r => r.player
 // the player has the lever from the pits until the start line
 function playerActive() { const r = playerRow(); return !!(r && (fleet.entry || (r.st == null && !r.lateTold))); }
 function startFleet() {
-  zeroTilt();
   fleet = freshFleet(setupFleet());
   ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
   wake.length = 0; spray.length = 0;
@@ -2672,6 +2727,14 @@ function draw() {
   // turning guide rings
   ctx.setLineDash([0.8, 1.4]); ctx.strokeStyle = 'rgba(233,245,242,.14)'; ctx.lineWidth = 0.18;
   for (const m of COURSE.marks) { ctx.beginPath(); ctx.arc(m.x, m.y, 11, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.setLineDash([]);
+  // faint line across the course through each turn mark: tells you where the mark is when you're out wide
+  ctx.strokeStyle = 'rgba(233,245,242,.12)'; ctx.lineWidth = 0.2;
+  for (const m of COURSE.marks) { ctx.beginPath(); ctx.moveTo(m.x, COURSE.yMin); ctx.lineTo(m.x, COURSE.yMax); ctx.stroke(); }
+  // dashed line 20 m before each mark, across the straight that runs into it (1M: home side, 2M: back side)
+  ctx.setLineDash([1, 1]); ctx.strokeStyle = 'rgba(233,245,242,.16)';
+  ctx.beginPath(); ctx.moveTo(MK - 20, 0); ctx.lineTo(MK - 20, COURSE.yMax); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-MK + 20, COURSE.yMin); ctx.lineTo(-MK + 20, 0); ctx.stroke();
   ctx.setLineDash([]);
   ctx.fillStyle = 'rgba(233,245,242,.55)'; ctx.font = '700 1.6px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('スタート／ゴール', 0, COURSE.yMax - 2);
