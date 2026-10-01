@@ -362,6 +362,14 @@ function readAngles(beta, gamma) {
 function applyAngles(ang) {
   if (!sensor.got) { sensor.got = true; $('note').hidden = true; }
   sensor.last = ang;
+  // zeroing: for a short moment after "start", the mean of the readings becomes the level posture
+  const z = sensor.zeroing;
+  if (z) {
+    if (!z.first) z.first = ang.slice();
+    z.n++; z.r += wrap(ang[0] - z.first[0]); z.p += wrap(ang[1] - z.first[1]);
+    sensor.calib = [z.first[0] + z.r / z.n, z.first[1] + z.p / z.n];
+    if (performance.now() > z.until && z.n >= 4) sensor.zeroing = null;
+  }
   if (!sensor.calib) sensor.calib = ang.slice();
   let dr = wrap(ang[0] - sensor.calib[0]);
   let dp = -wrap(ang[1] - sensor.calib[1]);
@@ -392,6 +400,8 @@ function onMot(e) {
   sensor.src = 'mot';
   applyAngles(fromUp(gs.x / n, gs.y / n, gs.z / n));
 }
+// the posture the phone is held in when a start button is pressed counts as level (傾き0)
+function zeroTilt() { sensor.zeroing = { n: 0, r: 0, p: 0, first: null, until: performance.now() + 350 }; }
 function recalibrate(msg) {
   sensor.calib = sensor.last ? sensor.last.slice() : null;
   if (msg) toast('基準リセット', msg, 'info');
@@ -528,16 +538,32 @@ function updateAudio() {
 // browsers only allow sound after the viewer interacts: wake it up on any tap, click or key
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { if (snd.ctx && snd.ctx.state === 'suspended') snd.ctx.resume().catch(() => {}); }, true);
 
+// Stop the phone's auto-rotate from flipping the screen mid-race: go full screen and lock the
+// landscape the phone is in now (Android Chrome etc.; iPhone browsers don't allow either, so it's skipped).
+function lockLandscape() {
+  try {
+    const el = document.documentElement, o = screen.orientation;
+    if (!o || typeof o.lock !== 'function') return;
+    const lock = () => {
+      const t = (o.type || '').startsWith('landscape') ? o.type : 'landscape';
+      o.lock(t).then(() => { orient.locked = true; }).catch(() => {});
+    };
+    if (document.fullscreenElement) { lock(); return; }
+    if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(lock).catch(() => {});
+  } catch (e) {}
+}
+const orient = { locked: false };
 async function start() {
   initAudio();
+  lockLandscape();          // must start inside the tap
   let ok = true;
   // both requests fire inside the same tap so iOS still counts it as a user gesture
   const reqs = [];
   try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') reqs.push(DeviceOrientationEvent.requestPermission()); } catch (e) { ok = false; }
   try { if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') reqs.push(DeviceMotionEvent.requestPermission()); } catch (e) { ok = false; }
   try { const res = await Promise.all(reqs.map(p => p.catch(() => 'error'))); if (res.length && !res.includes('granted')) ok = false; } catch (e) { ok = false; }
-  addEventListener('deviceorientation', onOri);
-  addEventListener('devicemotion', onMot);
+  zeroTilt();
+  if (!start.listening) { start.listening = true; addEventListener('deviceorientation', onOri); addEventListener('devicemotion', onMot); }
   $('start').hidden = true;
   running = true; last = performance.now();
   try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
@@ -583,6 +609,7 @@ function resetBoat() {
   lap.n = 0; lap.start = time; lap.visR = lap.visL = false; lap.prevX = B.x;
 }
 function beginStart() {
+  zeroTilt();
   resetBoat();
   SS.phase = 'count'; SS.t0 = time; SS.hideAt = 0;
   $('clock').hidden = false;
@@ -2179,6 +2206,7 @@ function entryHandoff() {
 
 let entryMode = false;
 function startEntry(playerNo) {
+  zeroTilt();
   fleet = makeEntryFleet(playerNo);
   ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
   input.thr = input.steer = input.roll = input.pitch = 0;
@@ -2196,6 +2224,7 @@ const playerRow = () => fleet && fleet.playerNo ? fleet.boats.find(r => r.player
 // the player has the lever from the pits until the start line
 function playerActive() { const r = playerRow(); return !!(r && (fleet.entry || (r.st == null && !r.lateTold))); }
 function startFleet() {
+  zeroTilt();
   fleet = freshFleet(setupFleet());
   ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
   wake.length = 0; spray.length = 0;
