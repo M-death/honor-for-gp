@@ -111,6 +111,10 @@ table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;widt
 
 .note{position:fixed;z-index:4;top:calc(64px + var(--st));white-space:pre-line;cursor:pointer;left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 340px));min-width:220px;background:var(--hud);border:1px solid var(--warn);border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.55;pointer-events:auto}
 
+.mtab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin:6px 0 8px}
+.mtab th,.mtab td{padding:7px 8px;border-bottom:1px solid rgba(233,245,242,.15);text-align:right}
+.mtab th:first-child,.mtab td:first-child{text-align:left}
+.mtab td.best{color:var(--good)}
 .calbox{position:relative;width:150px;height:150px;margin:6px auto 4px;border-radius:50%;border:2px solid rgba(233,245,242,.35);background:rgba(5,24,31,.5)}
 .calbox .calx,.calbox .caly{position:absolute;background:rgba(233,245,242,.25)}
 .calbox .calx{left:8px;right:8px;top:50%;height:1px}.calbox .caly{top:8px;bottom:8px;left:50%;width:1px}
@@ -255,6 +259,15 @@ table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;widt
   </div>
 </div>
 
+<div class="overlay" id="meas" hidden>
+  <div class="card" style="max-width:520px">
+    <h1 style="font-size:22px"><small>スタート練習・2周</small>計測タイム</h1>
+    <table class="mtab"><thead><tr><th></th><th>1周目</th><th>2周目</th></tr></thead><tbody id="measBody"></tbody></table>
+    <p id="measNote" style="font-size:12px;color:var(--muted)"></p>
+    <div class="row"><button class="btn" id="measAgain">もう一度</button><button class="btn ghost" id="measClose">閉じる</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="card" hidden>
   <div class="card" style="max-width:560px">
     <h1 style="font-size:22px"><small>出走表</small>6艇の特性</h1>
@@ -309,7 +322,7 @@ const HAZARD = 0.2;
 // turning: how much leaning in adds grip, how much sitting up amplifies that and staying crouched spoils it,
 // how far full throttle pushes a turn wide without the body in it, how much easing the lever settles the hull,
 // and how much a flat-out, full-lock, deep hang-on at top speed (無茶) adds to the load
-const TURN = { lean: 1.2, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 0.2, dropCalm: 0.3, mucha: 0.5,
+const TURN = { lean: 0.9, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 0.2, dropCalm: 0.3, mucha: 0.5,
   holdPose: 0.5, exitPose: 0.3, carve: 0.8, upBrake: 0.35, run: 0.7, keep: 0.7 };   // carving out: a firm inside lean keeps the bite while easing up into a crouch; a clean turn scrubs less speed
 // 引き波: a boat's wake is a thick, lasting wave — width either side of each wave line (m), how long it
 // stays rough (s), and how hard crossing it hits speed, heading and grip (1 = the old strength)
@@ -317,7 +330,10 @@ const WAKE = { width: 1.4, life: 2.4, drag: 1.8, kick: 1.9, grip: 1.6, unsettle:
 // 航跡: running in line behind a boat (not crossing its wake) takes the edge off thrust — the closer, the more
 const TRAIL = { range: 60, width: 2.5, max: 0.07 };          // chance per second of going over, scaled by (load − 1)^1.5 past the danger line
 const YAW_OVER = 1.15;       // how far past the grip limit the nose may be forced round (the excess slides)       // sideways grip before a slide; lower = turns swing wider at speed
-const THRUST = 7.85;          // full-lever push: top speed ≈ 83 km/h crouched, idle ≈ 16 km/h (an A1 alone runs 3 laps in ~1'46")
+const THRUST = 7.85;          // full-lever push: top speed ≈ 82 km/h crouched, idle ≈ 16 km/h
+// 立ち上がり: the hull drives hard only once it's up on the plane; below that the same lever pulls less
+const PLANE = { low: 0.4, v: 23 };
+const thrustK = v => 1 - PLANE.low * clamp(1 - v / PLANE.v, 0, 1);
 const COURSE = { xMin: -200, xMax: 200, yMin: -50, yMax: 50, marks: [{ x: MK, y: 0, name: '1M' }, { x: -MK, y: 0, name: '2M' }] };
 // 消波装置: a float boom running 30 m in from each turn mark along the course centreline,
 // so a boat can't cut inside a mark without hitting it
@@ -647,11 +663,69 @@ $('reset').addEventListener('click', () => { $('settings').hidden = true; paused
 $('again').addEventListener('click', () => { if (!running || paused) return; if (entryMode) { paused = true; $('waku').hidden = false; } else beginStart(); });
 $('note').addEventListener('click', () => { $('note').hidden = true; });
 
+/* ---------- オリジナル展示タイム style measurement (スタート練習, 2 laps) ----------
+   展示タイム   back straight, the 150 m running into 2M (伸び)
+   直線タイム   back straight from just out of 1M to mid-straight (行き足)
+   まわり足     from 22 m before 1M on the home side, round 1M, to 23 m out on the back side (回り足)
+   一周タイム   one full lap, gate on the back straight */
+const GATES = {
+  tenji: { from: { x: 10, side: -1 }, to: { x: -140, side: -1 } },
+  choku: { from: { x: 120, side: -1 }, to: { x: -43, side: -1 } },
+  mawari: { from: { x: MK - 22, side: 1 }, to: { x: MK - 23, side: -1 } },
+};
+const LAP_GATE = { x: -43, side: -1 };
+const MEAS_LAPS = 2;
+const MEAS_JA = { tenji: '展示タイム', choku: '直線タイム', mawari: 'まわり足タイム', isshu: '一周タイム' };
+const meas = { on: false, t: {}, open: {}, lapGateAt: null, startAt: 0, st: null };
+function measReset() { Object.assign(meas, { on: false, t: { tenji: [], choku: [], mawari: [], isshu: [] }, open: {}, lapGateAt: null, startAt: 0, st: null }); }
+measReset();
+// boat moved from (px,py) to (x,y): did it cross gate g (x line on one side of the course)?
+// home side (side 1) is run toward +x, the back side (side −1) toward −x
+const crossedGate = (g, px, py, x, y) => Math.sign(y) === g.side && Math.sign(py) === g.side && (px - g.x) * (x - g.x) <= 0 && px !== x && Math.sign(x - px) === g.side;
+function measStep(px, py) {
+  if (!meas.on) return;
+  const x = B.x, y = B.y, lapNo = lap.n + 1;
+  for (const k in GATES) {
+    const g = GATES[k];
+    if (crossedGate(g.from, px, py, x, y)) meas.open[k] = time;
+    else if (meas.open[k] != null && crossedGate(g.to, px, py, x, y)) {
+      const v = time - meas.open[k]; meas.open[k] = null;
+      if (meas.t[k].length < MEAS_LAPS) { meas.t[k][lapNo - 1] = v; toast(MEAS_JA[k], `${lapNo}周目 ${v.toFixed(2)}秒`, 'info'); }
+    }
+  }
+  if (crossedGate(LAP_GATE, px, py, x, y)) {
+    if (meas.lapGateAt != null && meas.t.isshu.length < MEAS_LAPS) { const v = time - meas.lapGateAt; meas.t.isshu.push(v); toast(MEAS_JA.isshu, `${v.toFixed(2)}秒`, 'info'); }
+    meas.lapGateAt = time;
+  }
+}
+function measFinish(total) {
+  meas.on = false;
+  const tb = $('measBody'); tb.textContent = '';
+  const row = (name, a, best) => {
+    const tr = document.createElement('tr');
+    [name, ...a].forEach((v, i) => { const td = document.createElement('td'); td.textContent = v; if (i && best != null && i - 1 === best) td.className = 'best'; tr.appendChild(td); });
+    tb.appendChild(tr);
+  };
+  for (const k of ['tenji', 'choku', 'mawari']) {
+    const a = [0, 1].map(i => meas.t[k][i] != null ? meas.t[k][i].toFixed(2) : '—');
+    const vals = meas.t[k].filter(v => v != null);
+    row(MEAS_JA[k], a, vals.length === 2 ? (meas.t[k][0] <= meas.t[k][1] ? 0 : 1) : null);
+  }
+  row(MEAS_JA.isshu, [meas.t.isshu[0] != null ? meas.t.isshu[0].toFixed(2) : '—', ''], null);
+  row('ST', [meas.st == null ? '—' : meas.st < 0 ? 'F ' + fmtST(-meas.st) : fmtST(meas.st), ''], null);
+  row('2周タイム', [fmtRT(total), ''], null);
+  $('measNote').textContent = '展示＝2マーク手前150m（伸び）／直線＝1マークを出た後の行き足／まわり足＝1マーク手前22mから回って出口23mまで／一周＝バック側の計測線から1周。緑は2周のうち良い方。';
+  paused = true; $('meas').hidden = false;
+}
+$('measAgain').addEventListener('click', () => { $('meas').hidden = true; paused = false; last = performance.now(); beginStart(); });
+$('measClose').addEventListener('click', () => { $('meas').hidden = true; paused = false; last = performance.now(); });
+
 function resetBoat() {
   Object.assign(B, { x: START.x, y: START.y, a: START.a, v: 4, vl: 0, yaw: 0, porp: 0, cap: 0 });
   input.thr = 0; wake.length = 0; spray.length = 0; T.on = false;
   cam.x = B.x; cam.y = B.y;
   lap.n = 0; lap.start = time; lap.visR = lap.visL = false; lap.prevX = B.x;
+  measReset();
 }
 function beginStart() {
   resetBoat();
@@ -664,6 +738,7 @@ const fmtST = v => v >= 1 ? v.toFixed(2) : '.' + String(Math.round(v * 100)).pad
 function judgeStart(st) {
   SS.phase = 'done'; SS.hideAt = time + 2.5;
   lap.start = time;
+  meas.on = true; meas.startAt = time; meas.st = st;
   if (st < 0) toast('フライング', `F ${fmtST(-st)}　針が0になる前に越えた`, 'bad');
   else if (st <= 0.15) toast('好スタート', `ST ${fmtST(st)}`, 'good');
   else if (st <= 0.3) toast('スタート', `ST ${fmtST(st)}`, 'warn');
@@ -706,7 +781,7 @@ cv.addEventListener('pointercancel', endPtr);
 /* ---------- game controller (Gamepad API, standard layout) ----------
    LT = throttle lever (left hand, like the real boat; RT can be chosen in settings)
    right stick ←→ = rudder,  left stick ←→ = lean,  left stick ↑ = 伏せる / ↓ = 体を起こす
-   A = start,  X = start practice,  Menu = settings,  B = close */
+   A = start / OK / もう一度,  X = start practice,  Y = 引く,  Menu = settings,  B = close */
 const pad = { idx: -1, seenAt: -1, useRT: false, prev: [] };
 const padDz = v => Math.abs(v) < 0.12 ? 0 : (v - Math.sign(v) * 0.12) / 0.88;
 // Embedded views (like the in-app preview) can forbid controller access outright; then getGamepads
@@ -728,10 +803,12 @@ function pollPadButtons() {
   if (edge(0) && !$('start').hidden) start();
   else if (edge(0) && calib.open) closeCalib();
   else if (edge(0) && !$('rotate').hidden) { portraitOk = true; $('rotate').hidden = true; }
+  else if (edge(0) && !$('meas').hidden) $('measAgain').click();   // 計測結果: A = もう一度
   if (edge(9)) { if ($('settings').hidden) { if (running) { paused = true; $('settings').hidden = false; } } else { paused = false; last = performance.now(); $('settings').hidden = true; } }
   if (edge(1)) {
     if (!$('settings').hidden) { paused = false; last = performance.now(); $('settings').hidden = true; }
     else if (!$('card').hidden) { paused = false; last = performance.now(); $('card').hidden = true; }
+    else if (!$('meas').hidden) $('measClose').click();
   }
   if (edge(2) && running && !paused && !fleet) beginStart();
   if (edge(3) && running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();
@@ -876,7 +953,7 @@ function boatPhysics(b, inp, dt) {
   const te = IDLE + (1 - IDLE) * t;
   const up = Math.max(0, -p), down = Math.max(0, p);
   const drag = 0.012 * (1 + 0.25 * up - 0.1 * down);
-  let acc = te * THRUST * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0)) - drag * b.v * b.v - 0.1 * b.v;
+  let acc = te * THRUST * thrustK(b.v) * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0)) - drag * b.v * b.v - 0.1 * b.v;
   if (b.hold === 'hang') acc -= 1.5 * b.v;   // 待機: rudder hard over and sat up, bow off the line — the hull scrubs off nearly all way
   else if (b.hold) acc -= 0.35 * b.v;   // 待機: sitting nearly still with the lever shut
   acc -= b.porp * (1.2 + Math.random() * 2.2);
@@ -1096,6 +1173,7 @@ function step(dt) {
   }
   if (SS.phase === 'done' && SS.hideAt && time > SS.hideAt) { SS.phase = 'off'; $('clock').hidden = true; }
 
+  measStep(lap.prevX, lap.prevYm ?? B.y); lap.prevYm = B.y;
   // laps: cross the line at x=0 on the lower straight after rounding both marks
   if (SS.phase !== 'count' && Math.sign(lap.prevY || B.y) !== Math.sign(B.y) && Math.abs(B.x) < MK - 1) toast('内側航走', 'ターンマークの内側を通過（レースなら6着扱い）', 'bad');
   lap.prevY = B.y;
@@ -1107,6 +1185,7 @@ function step(dt) {
       lap.best = lap.best == null ? lt : Math.min(lap.best, lt);
       lap.n++;
       if (!T.on) toast(`${lap.n}周`, `ラップ ${fmt(lt)}`, 'info');
+      if (meas.on && lap.n >= MEAS_LAPS) measFinish(time - meas.startAt);
     }
     lap.start = time; lap.visR = lap.visL = false;
   }
@@ -1210,7 +1289,7 @@ function turnInfo(R, s, gap) {
 // seconds to reach a line d metres ahead from speed v with the lever wide open
 function timeToLine(d, v, crouch = 0) {
   let x = 0, t = 0;
-  while (x < d && t < 20) { const acc = THRUST - 0.012 * (1 - 0.1 * crouch) * v * v - 0.1 * v; v += acc * 0.05; x += v * 0.05; t += 0.05; }
+  while (x < d && t < 20) { const acc = THRUST * thrustK(v) - 0.012 * (1 - 0.1 * crouch) * v * v - 0.1 * v; v += acc * 0.05; x += v * 0.05; t += 0.05; }
   return t;
 }
 const wrapRad = a => Math.atan2(Math.sin(a), Math.cos(a));
@@ -1268,9 +1347,11 @@ const SASHI = {
   win:   { dropAt: 38, lever: 0.5,  regrip: 0.28, rCut: 2,   late: 3, gapAdd: 0.5 },
   place: { dropAt: 48, lever: 0.42, regrip: 0.35, rCut: 1.5, late: 5, gapAdd: 1.5 },
 };
-// 立ち上がり: after a turn, hold the exit line until the boat reaches upAt × top speed (m/s),
-// then drift toward the preferred line at this many m/s sideways, by class
-const EXIT = { vTop: 22.8, from: 0.6, upAt: 0.88, drift: { TOP: 1.2, A1: 1.1, A2: 1.0, B1: 0.85, B2: 0.7 } };
+// 立ち上がり: out of a turn the boat runs on the line it came out on and edges in toward the inside
+// along a shallow straight diagonal (sideways m per m run, by class) — never a curve back in, never back out.
+// upAt × top speed: from there on it is "up and running" (crouched).
+const EXIT = { vTop: 22.8, upAt: 0.88, settle: 12, slope: { TOP: 0.075, A1: 0.07, A2: 0.06, B1: 0.05, B2: 0.04 },
+  steerCap: 0.3, calmRun: 40 };   // coming off the turn: rudder held to this much, opening up over the first calmRun m (no swinging back in)
 // 1マーク is where boats go over — CPU riders rarely gamble there (share of their usual rate)
 const PUSH_AT_1M = 0.15;
 // 絞り: after the start, an outside boat whose bow is `lead` m or more ahead of the boat just inside it
@@ -1288,6 +1369,15 @@ const RISK = {
 };
 // trait = { course, laneY, tactic: 'nige'|'sashi'|'makuri', lineOff, dump, care } (all optional for a lone boat)
 const CARVE = { TOP: 1, A1: 0.9, A2: 0.7, B1: 0.5, B2: 0.3 };   // how well a class carves out of a turn (sit-up → crouch, lean held)
+// nobody turns perfectly every time: each turn is rolled — how deep the lean goes, how much it sits up, when it starts
+// easing out and how cleanly it hands over to the crouch. Top riders vary a little, B2 a lot.
+const TURN_SD = { TOP: 0.05, A1: 0.08, A2: 0.12, B1: 0.17, B2: 0.23 };
+const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+function turnRoll(prof) {
+  const sd = TURN_SD[prof.name] ?? 0.12;
+  return { lean: 1 - Math.min(0.5, Math.abs(gauss()) * sd * 0.8), up: 1 - Math.min(0.5, Math.abs(gauss()) * sd),
+           carve: clamp(1 - Math.abs(gauss()) * sd * 2.2, 0, 1), easeAt: clamp(0.4 + gauss() * sd * 0.8, 0.15, 0.75) };
+}
 function makeDriver(prof, trait = {}) {
   const o = { thr: 0, steer: 0, roll: 0, pitch: 0 };
   const mem = { stTarget: 0, go: false, firstDone: false, dumpT: 0, dumpQ: null, dumpSeen: new Set(), wakeT: 0, wakeOff: 0, wakeOffT: 0, wakeAhead: 0, brace: 0, emergency: 0 };
@@ -1616,20 +1706,23 @@ function makeDriver(prof, trait = {}) {
       // 立ち上がり: coming out of a turn, put the power down and run straight on the line it came out on.
       // Only once the boat is up to speed does it start drifting across to where it wants to be — slowly.
       const tiNow = turnInfo(R, s, gap);
+      // finishing a turn wide of the line: aim along the straight at the width it's at, not back in at the line —
+      // cutting back in here is what makes the boat over-rotate and swing round in a curve
+      if (tiNow.inTurn && Math.abs(tx) < MK && Math.sign(ty) === Math.sign(b.y) && Math.abs(b.y) > Math.abs(ty)) ty = Math.sign(ty) * Math.abs(b.y);
       if (tiNow.inTurn) { mem.wasInTurn = true; mem.exitHold = null; }
       else if (mem.wasInTurn) {
         mem.wasInTurn = false; mem.entryWide = 0;
-        if (Math.abs(b.x) > MK - 40) mem.exitHold = { y: Math.abs(b.y), side: Math.sign(b.y) || 1, up: false };
+        if (Math.abs(b.x) > MK - 40) mem.exitHold = { y: Math.abs(b.y), side: Math.sign(b.y) || 1, up: false, run: 0 };
       }
       const eh = mem.exitHold;
       if (eh && !env.finalStretch && tiNow.toTurn > 55 && Math.sign(b.y) === eh.side) {
-        const want = Math.abs(ty);
-        // the drift toward the ideal line fades in with speed: none just out of the turn, full once it's running
-        const kUp = clamp((b.v / EXIT.vTop - EXIT.from) / (EXIT.upAt - EXIT.from), 0, 1);
-        if (kUp >= 1) eh.up = true;
-        const rate = (EXIT.drift[prof.name] ?? 0.9) * kUp;
-        eh.y += clamp(want - eh.y, -rate * dt, rate * dt);
-        if (eh.up && Math.abs(want - eh.y) < 0.3) mem.exitHold = null;
+        // only ever in: a boat that came out tighter than its line keeps the tight line
+        const want = Math.min(Math.abs(ty), eh.y);
+        if (b.v >= EXIT.vTop * EXIT.upAt) eh.up = true;
+        // a straight diagonal: sideways in proportion to the distance run, eased in over the first few metres
+        eh.run += b.v * dt;
+        const rate = (EXIT.slope[prof.name] ?? 0.06) * b.v * clamp(eh.run / EXIT.settle, 0, 1);
+        eh.y += clamp(want - eh.y, -rate * dt, 0);
         const dir = eh.side > 0 ? 1 : -1;   // home straight runs +x, back straight −x
         look *= 1.3;
         tx = b.x + dir * look; ty = eh.side * eh.y;
@@ -1722,19 +1815,27 @@ function makeDriver(prof, trait = {}) {
       considerDump(b, env.others, dt);
       const dumping = mem.dumpT > 0;
       steerT = clamp(err * (prof.gain ?? 2.2) * (accelerating ? 0.75 : 1) + (dumping ? 0.65 : av.steerAdd) + (Math.random() * 2 - 1) * prof.wobble * (accelerating ? 0.5 : 1));
+      // ターンから直線へ: don't crank the rudder to snap onto the straight — ease onto it
+      if (mem.exitHold && !dumping && mem.exitHold.run < EXIT.calmRun) {
+        const cap = Math.max(EXIT.steerCap + (1 - EXIT.steerCap) * mem.exitHold.run / EXIT.calmRun, Math.abs(av.steerAdd));
+        steerT = clamp(steerT, -cap, cap);
+      }
       const ti = turnInfo(R, s, gap);
       // body goes in once the turn is close enough (late drivers lean later)
       const leanIn = ti.inTurn ? (ti.left > 0 && (Math.PI * R - ti.left) >= late) : ti.toTurn < pre + b.v * 0.15 - late;
+      if (leanIn && !mem.wasLean) mem.tq = turnRoll(prof);   // how this turn comes off
+      mem.wasLean = leanIn;
+      const tq = mem.tq || { lean: 1, up: 1, carve: 1, easeAt: 0.4 };
       const exiting = ti.inTurn && ti.left < (prof.exitEarly ?? 4);
       if (leanIn && !exiting) {
-        rollT = -prof.lean * clamp((b.v - 4) / 4, 0, 1);   // anticlockwise course: inside is left
-        pitchT = -prof.up;
+        rollT = -prof.lean * tq.lean * clamp((b.v - 4) / 4, 0, 1);   // anticlockwise course: inside is left
+        pitchT = -prof.up * tq.up;
         thrT = tThr;
         // 起こして入り、傾けたまま起こしを緩めて伏せながら抜ける — the better the rider, the cleaner the hand-over
         if (ti.inTurn) {
-          const prog = 1 - ti.left / (Math.PI * R), skill = CARVE[prof.name] ?? 0.5;
-          const ease = clamp((prog - 0.4) / 0.5, 0, 1) * skill;
-          pitchT = -prof.up + (prof.up + 0.9) * ease;
+          const prog = 1 - ti.left / (Math.PI * R), skill = (CARVE[prof.name] ?? 0.5) * tq.carve;
+          const ease = clamp((prog - tq.easeAt) / 0.5, 0, 1) * skill;
+          pitchT = -prof.up * tq.up + (prof.up * tq.up + 0.9) * ease;
         }
         if (tactic === 'tsuke' && first) { rollT = -Math.max(prof.lean, 0.9) * clamp((b.v - 4) / 4, 0, 1); pitchT = -Math.max(prof.up, 0.8); }
         if (mem.push) {
@@ -2121,7 +2222,7 @@ function entryStep(dt, playerInput) {
         const dy = sp.y - b.y;
         if (!en.facing) {
           const ready = rate >= ENTRY.faceRate && Math.abs(dy) < 2.5;
-          if (ready || manual || T < 16 || dy < -3 || (en.fightWith && !en.gaveUp)) en.facing = true;
+          if (ready || manual || T < 11 || dy < -3 || (en.fightWith && !en.gaveUp)) en.facing = true;
         }
         if (en.facing) { tx = b.x + 20; ty = b.y + clamp(dy, -3, 3); vT = WAIT_V; }
         else {
@@ -2250,7 +2351,7 @@ function entryHandoff() {
   });
   // each boat runs in on the line it squared up on (it can't steer across now), kept in course order
   let yPrev = 2;
-  for (const r of order) { r.trait.laneY = clamp(Math.max(r.b.y, yPrev + 3), 4, 46); yPrev = r.trait.laneY; }
+  for (const r of order) { r.trait.laneY = clamp(Math.max(r.b.y, yPrev + 4.5), 4, 46); yPrev = r.trait.laneY; }
   fleet.byCourse = {}; for (const r of fleet.boats) fleet.byCourse[r.trait.course] = r;
   fleet.rank = order;
   fleet.entryResult = { text: order.slice(0, nSlow).map(r => r.no).join('') + '/' + order.slice(nSlow).map(r => r.no).join(''), steals: E.steals, nSlow,
@@ -2740,6 +2841,15 @@ function draw() {
   ctx.fillText('スタート／ゴール', 0, COURSE.yMax - 2);
 
   ctx.lineCap = 'round';
+  if (!fleet) {
+    // 計測ライン (スタート練習): short ticks across the straight they're on
+    ctx.strokeStyle = 'rgba(255,214,120,.35)'; ctx.lineWidth = 0.25; ctx.setLineDash([0.6, 0.6]);
+    ctx.fillStyle = 'rgba(255,214,120,.6)'; ctx.font = '700 1.2px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'center';
+    const tick = (g, label, dy = 0) => { const y0 = g.side > 0 ? 4 : -4, y1 = g.side > 0 ? 40 : -40; ctx.beginPath(); ctx.moveTo(g.x, y0); ctx.lineTo(g.x, y1); ctx.stroke(); ctx.fillText(label, g.x, (g.side > 0 ? 42.5 : -41.5) + dy); };
+    tick(GATES.tenji.from, '展示 始'); tick(GATES.tenji.to, '展示 終'); tick(GATES.choku.from, '直線 始'); tick(LAP_GATE, '直線 終／一周');
+    tick(GATES.mawari.from, 'まわり足 始'); tick(GATES.mawari.to, 'まわり足 終', -2.6);
+    ctx.setLineDash([]);
+  }
   if (fleet) for (const r of fleet.boats) drawWake(r.wake); else drawWake(wake);
 
   // ピット and 小回り防止ブイ (shown in ピット離れ mode)
