@@ -139,6 +139,19 @@ table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;widt
 .set input[type=range]{flex:1;accent-color:var(--lever)}
 .set select{font:inherit;font-size:13px;background:var(--hud);color:var(--fg);border:1px solid var(--hud-line);border-radius:6px;padding:4px 6px}
 .set output{font-family:var(--f-num);min-width:3.5ch;text-align:right}
+/* Independent d42 behavior laboratory */
+.lab-surface{font-family:var(--f-body);color:#eaf6f3;touch-action:pan-y;user-select:text;-webkit-user-select:text;box-sizing:border-box}
+.lab-surface *{box-sizing:border-box}.lab-surface[hidden]{display:none!important}
+#labSetup{position:fixed;inset:0;z-index:90;overflow:auto;background:#071d27;padding:28px max(20px,calc((100vw - 1180px)/2));overscroll-behavior:contain}
+.lab-kicker{font:12px var(--f-num);letter-spacing:.18em;color:#85d9c8}.lab-surface h2{font-size:27px;margin:6px 0 12px}.lab-surface p{font-size:13px;line-height:1.8;color:#aac3c8;margin:8px 0 16px}.lab-head{display:flex;justify-content:space-between;gap:16px;align-items:start}.lab-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lab-surface button,.lab-surface select,.lab-surface input{font:inherit;font-size:13px;border:1px solid #45616b;border-radius:7px;color:#edf5f5;background:#15343f;padding:9px;min-height:38px}.lab-surface button{cursor:pointer}.lab-surface button:hover{border-color:#87dec9}.lab-surface button.primary{background:#a5eed6;color:#082b2d;border-color:#a5eed6;font-weight:700}.lab-surface button:disabled{opacity:.4;cursor:default}.lab-surface button:focus-visible,.lab-surface input:focus-visible,.lab-surface select:focus-visible{outline:2px solid #a5eed6;outline-offset:2px}
+.lab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}.lab-grid label{display:grid;gap:5px;font-size:12px;color:#adc7cc}.lab-grid input,.lab-grid select{width:100%;min-width:0}.lab-block{border:1px solid #36515b;border-radius:12px;background:#0d2934;padding:16px;margin:16px 0}.lab-boat{border-left:4px solid var(--boat);padding:16px}.lab-boat summary{cursor:pointer;font-size:16px;list-style:none;display:flex;gap:12px;align-items:center;min-height:40px}.lab-boat summary::after{content:'条件・判断 ▾';margin-left:auto;font-size:12px;color:#9fc5c9}.lab-boat summary label{display:flex;align-items:center;gap:8px}.lab-boat input[type=checkbox]{min-height:20px;width:20px;accent-color:#a5eed6}.lab-boat .lab-grid{margin-top:16px}.lab-table-wrap{overflow-x:auto;margin-top:15px}.lab-table{border-collapse:collapse;min-width:850px;width:100%;font-size:12px}.lab-table th{text-align:left;color:#9bbfc6;font-weight:500;padding:7px}.lab-table td{border-top:1px solid #294954;padding:6px}.lab-table input{width:70px}.lab-table select{max-width:152px;width:100%}.lab-table td:first-child{white-space:nowrap}.lab-note{font-size:12px!important;color:#a9c2c7}.lab-error{color:#ffb9a7;font-size:14px;min-height:22px;margin:10px 0}.lab-bottom{position:sticky;bottom:-28px;background:#071d27f5;border-top:1px solid #36515b;padding:15px 0;display:flex;justify-content:space-between;gap:12px;align-items:center}.lab-count{font-size:13px;color:#c4dbdd}
+#labRun{position:fixed;right:0;top:0;bottom:0;width:360px;z-index:60;background:#071d27;overflow:auto;padding:18px;border-left:1px solid #45616b}#labRun h2{font-size:20px}#labRun .lab-actions button{flex:1;white-space:nowrap}#labRun .lab-grid{grid-template-columns:1fr 1fr;margin:12px 0}.lab-clock{font:36px var(--f-num);margin:16px 0 4px}.lab-live-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0}.lab-live-row div{padding:9px;background:#12343e;border-radius:7px}.lab-live-row small{font-size:10px;color:#9dbdc4;display:block}.lab-live-row b{font:20px var(--f-num)}#labDetail{font-size:12px;line-height:1.9;background:#102e39;border-radius:8px;padding:12px;min-height:115px}#labEvents{font:12px/1.65 var(--f-body);padding:0;list-style:none;max-height:230px;overflow:auto}#labEvents li{border-top:1px solid #284650;padding:8px 0}#labChart{display:block;width:100%;height:130px;margin:12px 0}.lab-legend{font-size:11px;color:#a9c8cb}.lab-legend span{color:#a5eed6}.lab-legend em{color:#ffcf75;font-style:normal}#labStatus{font-size:12px;color:#a5eed6;min-height:20px}#labRun .lab-note{margin-bottom:8px}
+body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-running>#wheel,body.lab-running>#toast,body.lab-running>#clock,body.lab-running>#dashBtn,body.lab-running>#rotate{display:none!important}
+@media(max-width:760px){#labSetup{padding:18px 12px}.lab-head{flex-direction:column}.lab-bottom{bottom:-18px;align-items:stretch;flex-direction:column}#labRun{top:auto;left:0;bottom:0;width:100%;height:43vh;border-left:0;border-top:1px solid #45616b;padding:12px}#labRun h2{font-size:17px}.lab-clock{font-size:27px}.lab-boat{padding:10px}.lab-surface h2{font-size:22px}.lab-table{min-width:840px}}
+.lab-guide-label{display:flex;gap:8px;align-items:center;color:#abcbd0;font-size:12px;margin:8px 0}.lab-guide-label input{min-height:18px;accent-color:#a5eed6}.lab-surface{touch-action:pan-x pan-y}.lab-table-wrap{touch-action:pan-x pan-y}
+.lab-grid .lab-guide-label{display:flex;align-self:end;padding-bottom:8px}.lab-grid .lab-guide-label input{width:18px}
+
 </style>
 </head>
 <body>
@@ -156,6 +169,7 @@ table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;widt
 <div class="hud tr">
   <div class="pills">
     <button id="again" class="pill">スタート練習</button>
+    <button id="labLaunch" class="pill alt">挙動検証</button>
     <button id="demoBtn" class="pill">6艇デモ</button>
     <button id="entryBtn" class="pill" aria-pressed="false">進入：固定</button>
     <button id="sgBtn" class="pill" aria-pressed="false">SG：オフ</button>
@@ -225,6 +239,7 @@ table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;widt
     <div class="row">
       <button class="btn" id="go">スタート</button>
       <button class="btn ghost" id="goDemo">6艇デモを見る</button>
+      <button class="btn ghost" id="labLaunchStart">挙動検証（2〜6艇）</button>
       <span style="font-size:12px;color:var(--muted)">PCでは W/S＝スロットル、A/D＝舵、矢印キー＝体重移動（↑伏せる／↓起こす）、Space＝引く（ピット離れモード）。コントローラなら 左トリガー＝スロットル、右スティック＝舵、左スティック＝体重移動、Aでスタート</span>
     </div>
   </div>
@@ -302,8 +317,42 @@ table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;widt
   </div>
 </div>
 
+<section id="labSetup" class="lab-surface" hidden aria-label="挙動検証の条件設定">
+ <div class="lab-head"><div><div class="lab-kicker">HONOR FOR GP / d42 BEHAVIOR LAB</div><h2>第1マークを、読み解く。</h2></div><div class="lab-actions"><button id="labImport">ログから条件を読込</button><button id="labSetupClose">閉じる</button></div></div>
+ <p>2〜6艇の位置・速度・選手特性と、段階ごとの判断を設定。d42の操艇・物理処理で走らせ、判断と操作、艇の動きを記録します。スリット付近から開始し、第1マーク〜第2マークへの準備を検証します。</p>
+ <div class="lab-block lab-grid"><label>乱数シード<input id="labSeed" type="number" min="0" max="4294967295" step="1" value="42"></label><label>検証時間（秒）<input id="labDuration" type="number" min="5" max="120" step="1" value="30"></label><label>ログの記録間隔<select id="labHz"><option value="20">20 Hz / 0.05秒</option><option value="60">60 Hz / 約0.017秒</option><option value="120">120 Hz / 毎ステップ</option></select></label><label>コーナー手前の開始位置 x（m）<input id="labApproach" type="number" min="40" max="120" value="90"></label></div>
+ <div class="lab-actions"><button id="labPreset">1・4コースの2艇に戻す</button><button id="labAll">6艇すべてを選ぶ</button><button id="labAvoidAll">全艇を接触回避優先に</button></div>
+ <p class="lab-note">使用するコースにチェック。x＝前後位置（＋が1マーク方向）、y＝外への距離。スタート線 x=0、1マーク (150,0)。STは判断に渡す既知の値で、スタート計測は省略します。初期位置・速度はSTと独立です。</p>
+ <div id="labBoats"></div>
+ <p class="lab-note">戦法指定はd42にある選択肢を使用。まくり差し・「張る」専用分岐の新設は含みません。操作の空欄＝CPU判断、数値＝目標入力の指定（d42の反応遅れあり）。舵・傾きは−が左、＋が右。姿勢は−が起こす、＋が伏せる。Rとgapはd42の目標ラインの半径と外端距離（m）です。接触・引き波・事故後の徐行は有効です。「接触回避を優先」は広めの艇間余裕を見て、まくりや数値指定より回避減速・舵・姿勢の回避操作を優先します。ダンプ・従来の強引な絞り・絞りへの抵抗を抑制します。「一艇身先行したら絞る」は併用可能で、回避操作を優先しつつ内へ入ります。衝突判定を消す設定ではなく、接触ゼロは保証しません。</p>
+ <div class="lab-error" id="labError" role="alert"></div>
+ <div class="lab-bottom"><span class="lab-count" id="labCount">2艇を選択</span><div class="lab-actions"><button id="labSetupExport" disabled>前回のログを保存</button><button id="labStart" class="primary">この条件で検証開始</button></div></div>
+ <input id="labFile" type="file" accept=".json,application/json" hidden>
+</section>
+<aside id="labRun" class="lab-surface" hidden aria-label="挙動検証の操作とログ">
+ <div class="lab-kicker">d42 / BEHAVIOR LAB</div><h2>判断と操作の記録</h2>
+ <div class="lab-actions"><button id="labConfigure">条件設定</button><button id="labExit">通常モードへ</button></div>
+ <div class="lab-clock" id="labTime">0.000 s</div><div id="labStatus" aria-live="polite">準備完了</div>
+ <div class="lab-actions"><button id="labPause" class="primary">一時停止</button><button id="labStep">1ステップ</button><button id="labStop">終了</button></div>
+ <div class="lab-grid"><label>再生速度<select id="labRate"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label><label>追尾する艇<select id="labFocus"></select></label></div>
+ <div class="lab-grid"><label>視点<select id="labView"><option value="all">全艇を表示</option><option value="follow">選択艇を追尾</option><option value="mark">1マーク全景</option></select></label><label class="lab-guide-label"><input id="labGuide" type="checkbox" checked>航跡・目標点</label></div>
+ <div class="lab-live-row"><div><small>速度 km/h</small><b id="labV">—</b></div><div><small>加減速 m/s²</small><b id="labAccel">—</b></div><div><small>旋回 °/s</small><b id="labYaw">—</b></div></div>
+ <div id="labDetail"></div><canvas id="labChart" width="640" height="260" aria-label="直近10秒の速度とアクセル"></canvas><div class="lab-legend">直近10秒 / <span>速度 0〜100 km/h</span>・<em>アクセル 0〜100%</em></div>
+ <p class="lab-note">判断の変化・実際の操作</p><ol id="labEvents"></ol>
+ <div class="lab-actions"><button id="labExport" class="primary">AI用JSONログを保存</button><button id="labRestart">同条件で再実行</button></div>
+ <p class="lab-note">保存したJSONをAIへ添付してください。条件・段階・判断・操作・運動データと分析依頼文を含みます。途中でも保存できます。再実行すると今回の記録は置き換わります。</p>
+</aside>
+
 <script>
 (() => {
+const lab = {active:false,finished:false,inSim:false,rng:42,steps:0,config:null,data:null};
+function simRandom(){
+ if(lab.predicting)return .5;
+ if(!lab.inSim)return Math.random();
+ lab.rng=(lab.rng+0x6D2B79F5)>>>0;let t=lab.rng;
+ t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);
+ return ((t^(t>>>14))>>>0)/4294967296;
+}
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
@@ -366,10 +415,12 @@ let W = 0, H = 0, DPR = 1;
 function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
   W = window.innerWidth; H = window.innerHeight;
+  if(lab.active){ if(W>760)W-=360;else H=Math.floor(H*.57); }
+  cv.style.width=W+'px';cv.style.height=H+'px';
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   const r = mini.getBoundingClientRect();
   mini.width = Math.round(r.width * DPR); mini.height = Math.round(r.height * DPR);
-  $('rotate').hidden = !(H > W && !portraitOk);
+  $('rotate').hidden = lab.active || !(H > W && !portraitOk);
 }
 addEventListener('resize', resize);
 
@@ -746,7 +797,7 @@ function judgeStart(st) {
 }
 
 /* ---------- keyboard ---------- */
-addEventListener('keydown', e => { keys.add(e.code); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); if (e.code === 'Space' && !e.repeat && fleet && fleet.entry && fleet.playerNo) playerDash(); });
+addEventListener('keydown', e => { if(lab.active || !$('labSetup').hidden)return; keys.add(e.code); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); if (e.code === 'Space' && !e.repeat && fleet && fleet.entry && fleet.playerNo) playerDash(); });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
@@ -881,7 +932,7 @@ function hapticsFrame(dt, b) {
   }
   // 危険ライン超え: violent and ragged
   if (load >= 1) {
-    strong = 0.85 + 0.15 * Math.random(); weak = 0.7 + 0.3 * Math.random();
+    strong = 0.85 + 0.15 * simRandom(); weak = 0.7 + 0.3 * simRandom();
     phone = { p: [90, 25, 70, 25, 110], pri: 3, ms: 300 };
   }
   // one-shots
@@ -956,12 +1007,12 @@ function boatPhysics(b, inp, dt) {
   let acc = te * THRUST * thrustK(b.v) * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0)) - drag * b.v * b.v - 0.1 * b.v;
   if (b.hold === 'hang') acc -= 1.5 * b.v;   // 待機: rudder hard over and sat up, bow off the line — the hull scrubs off nearly all way
   else if (b.hold) acc -= 0.35 * b.v;   // 待機: sitting nearly still with the lever shut
-  acc -= b.porp * (1.2 + Math.random() * 2.2);
+  acc -= b.porp * (1.2 + simRandom() * 2.2);
   // 引き波: rough water from another boat. Riding in it drags; crossing it at an angle
   // (bump) makes the hull slam and hop, costing more speed and grip and knocking it off line.
   const wk = b.inWake || 0, bump = b.wakeBump || 0;
   acc -= (wk * (0.5 + b.v * 0.04) + bump * (0.8 + b.v * 0.07)) * WAKE.drag;
-  if (bump > 0.05) b.yaw += (Math.random() * 2 - 1) * bump * 6 * WAKE.kick * dt;
+  if (bump > 0.05) b.yaw += (simRandom() * 2 - 1) * bump * 6 * WAKE.kick * dt;
 
   // how hard the hull can be pushed sideways before it lets go: body position, then the rider's skill
   // Posture counts for a lot: leaning in bites, sitting up makes the lean bite harder, staying crouched fights it.
@@ -1014,7 +1065,7 @@ function boatPhysics(b, inp, dt) {
   let ev = null;
   if (b.load > 1 || Math.abs(b.vl) > 11) {
     const haz = Math.abs(b.vl) > 11 ? 1e3 : HAZARD * Math.pow(b.load - 1, 1.5) * (b.hazMul || 1);
-    if (Math.random() < haz * dt) {
+    if (simRandom() < haz * dt) {
       ev = 'cap:' + (lowLean * 1.1 >= Math.max(0.85 * turnLoad, slideLoad) ? '速度がないのに内へ倒れ込んだ'
         : inside < -0.2 ? '外へ体重が逃げて振られた'
         : bump > 0.3 ? '引き波に乗り上げてバランスを崩した'
@@ -1129,24 +1180,24 @@ function boatFx(b, arr, dt) {
     if (b.wakeAcc > 0.04) { b.wakeAcc = 0; arr.push({ x: b.x - fx * 2.1, y: b.y - fy * 2.1, a: b.a, t: time, v: b.v }); }
   }
   while (arr.length && time - arr[0].t > 3) arr.shift();
-  if ((b.wakeBump || 0) > 0.3 && b.v > 8 && Math.random() < 0.5) {
-    const side = Math.random() < 0.5 ? -1 : 1;
+  if ((b.wakeBump || 0) > 0.3 && b.v > 8 && simRandom() < 0.5) {
+    const side = simRandom() < 0.5 ? -1 : 1;
     spray.push({ x: b.x + fx * 1.6 + rx * side * 0.7, y: b.y + fy * 1.6 + ry * side * 0.7, vx: rx * side * 3 + fx * 2, vy: ry * side * 3 + fy * 2, t: time, life: 0.45 });
   }
   if (Math.abs(b.vl) > 1.2 || (Math.abs(b.yaw) > 0.5 && b.v > 9)) {
     const out = Math.abs(b.vl) > 0.3 ? Math.sign(b.vl) : -Math.sign(b.yaw);
     for (let i = 0; i < 2; i++) {
-      const sp = 3 + Math.random() * 4 + Math.abs(b.vl);
+      const sp = 3 + simRandom() * 4 + Math.abs(b.vl);
       spray.push({ x: b.x - fx * 1.2 + rx * out * 0.9, y: b.y - fy * 1.2 + ry * out * 0.9,
-        vx: rx * out * sp - fx * 2 + (Math.random() - .5) * 2, vy: ry * out * sp - fy * 2 + (Math.random() - .5) * 2, t: time, life: 0.5 + Math.random() * 0.4 });
+        vx: rx * out * sp - fx * 2 + (simRandom() - .5) * 2, vy: ry * out * sp - fy * 2 + (simRandom() - .5) * 2, t: time, life: 0.5 + simRandom() * 0.4 });
     }
   }
 }
 
 function splash(b) {
   for (let i = 0; i < 26; i++) {
-    const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 6;
-    spray.push({ x: b.x, y: b.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: time, life: 0.9 + Math.random() * 0.6 });
+    const a = simRandom() * Math.PI * 2, s = 2 + simRandom() * 6;
+    spray.push({ x: b.x, y: b.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: time, life: 0.9 + simRandom() * 0.6 });
   }
 }
 
@@ -1372,7 +1423,7 @@ const CARVE = { TOP: 1, A1: 0.9, A2: 0.7, B1: 0.5, B2: 0.3 };   // how well a cl
 // nobody turns perfectly every time: each turn is rolled — how deep the lean goes, how much it sits up, when it starts
 // easing out and how cleanly it hands over to the crouch. Top riders vary a little, B2 a lot.
 const TURN_SD = { TOP: 0.05, A1: 0.08, A2: 0.12, B1: 0.17, B2: 0.23 };
-const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+const gauss = () => { let u = 0, v = 0; while (!u) u = simRandom(); while (!v) v = simRandom(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 function turnRoll(prof) {
   const sd = TURN_SD[prof.name] ?? 0.12;
   return { lean: 1 - Math.min(0.5, Math.abs(gauss()) * sd * 0.8), up: 1 - Math.min(0.5, Math.abs(gauss()) * sd),
@@ -1389,10 +1440,10 @@ function makeDriver(prof, trait = {}) {
     // anywhere — and more the lower the class
     const cSpread = trait.kado ? ST_SPREAD.kado : ST_SPREAD[trait.course] ?? ST_SPREAD.def;
     const spread = ST_SPREAD[1] + Math.max(0, cSpread - ST_SPREAD[1]) * (ST_OUT[prof.name] ?? 1);
-    mem.stTarget = prof.st + ST_MARGIN * spread + (Math.random() * 2 - 1) * prof.stJit * 0.4;
-    mem.stErr = (Math.random() * 2 - 1) * spread;
+    mem.stTarget = prof.st + ST_MARGIN * spread + (simRandom() * 2 - 1) * prof.stJit * 0.4;
+    mem.stErr = (simRandom() * 2 - 1) * spread;
     mem.misread = false; mem.hou = false; mem.houed = false;
-    if (Math.random() < (trait.flyRisk || 0)) { mem.stTarget = -0.01 - Math.random() * 0.05; mem.stErr = 0; mem.misread = true; }   // reads the clock wrong and never notices
+    if (simRandom() < (trait.flyRisk || 0)) { mem.stTarget = -0.01 - simRandom() * 0.05; mem.stErr = 0; mem.misread = true; }   // reads the clock wrong and never notices
     mem.push = null; mem.pushDecided = false;
     mem.go = false; mem.firstDone = false; mem.dumpT = 0; mem.dumpQ = null; mem.dumpSeen.clear();
     mem.wakeOff = mem.wakeOffT = mem.wakeAhead = mem.brace = mem.emergency = 0; mem.sashiDrop = false; mem.exitHold = null; mem.wasInTurn = false; mem.entryWide = 0; mem.nigeDrop = false; mem.squeeze = null; mem.sqDecided = false; mem.sqResp = null; mem.sqRespT = 0; mem.resistQ = null; mem.planDecided = false; mem.plan = null; mem.tsukeDecided = false; mem.tsukeQ = null; mem.tacticNow = trait.tactic; mem.tacticLock = null; mem.tacticNow = trait.tactic;
@@ -1421,17 +1472,18 @@ function makeDriver(prof, trait = {}) {
   }
   function avoid(b, others) {
     let steerAdd = 0, thrMul = 1;
+    const priority=lab.active&&trait.contactMode==='priority', threats=[];
     if (!others) return { steerAdd, thrMul };
     const fx = Math.cos(b.a), fy = Math.sin(b.a);
     const inTurn = nearMarkAt(b.x, b.y, 22);
-    const margin = 0.5 + 0.5 * care + (inTurn ? 0.4 : 0);
+    const margin = 0.5 + 0.5 * care + (inTurn ? 0.4 : 0) + (priority ? 1.0 : 0);
     const mine = PRED_T.map(t => predictPos(b, t));
     for (const q of others) {
-      if (q === b || (mem.dumpT > 0 && q === mem.dumpQ) || q === mem.resistQ || (q === mem.squeeze && b.x < MK - 45 && b.y > 0)) continue;
+      if (q === b || (!priority && ((mem.dumpT > 0 && q === mem.dumpQ) || q === mem.resistQ || (q === mem.squeeze && b.x < MK - 45 && b.y > 0)))) continue;
       const dx = q.x - b.x, dy = q.y - b.y;
       if (dx * dx + dy * dy > 900) continue;
       const fwd = dx * fx + dy * fy, lat = -dx * fy + dy * fx;   // lat > 0: q is on my right (outside)
-      if (fwd < -2.5) continue;
+      if (fwd < (priority ? -6 : -2.5)) continue;
       let gapMin = Infinity, tc = 0, rcx = 0, rcy = 0;
       for (let k = 0; k < PRED_T.length; k++) {
         const [ax, ay, aa] = mine[k], [qx, qy, qa] = predictPos(q, PRED_T[k]);
@@ -1439,9 +1491,10 @@ function makeDriver(prof, trait = {}) {
         if (g < gapMin) { gapMin = g; tc = PRED_T[k]; rcx = qx - ax; rcy = qy - ay; }
         if (g < 0) break;
       }
-      const tsukeTgt = mem.tacticNow === 'tsuke' && q === mem.tsukeQ && !mem.firstDone;
+      const tsukeTgt = !priority && mem.tacticNow === 'tsuke' && q === mem.tsukeQ && !mem.firstDone;
       if (gapMin > (tsukeTgt ? 0.15 : margin)) continue;   // stays clear
       const urg = clamp(1 - tc / 1.8, 0, 1) * (gapMin < 0 ? 1 : 1 - 0.5 * gapMin / margin);
+      if(priority)threats.push({boat:fleet?.boats.find(r=>r.b===q)?.no??null,predictedGapM:gapMin,atSeconds:tc,clearanceM:margin});
       const cl = -rcx * fy + rcy * fx;                     // where it will be, across my bow
       if (fwd > 1.5) {
         const side = Math.abs(cl) < 0.5 ? (inTurn ? 1 : (lat >= 0 ? -1 : 1)) : (cl >= 0 ? -1 : 1);
@@ -1461,7 +1514,7 @@ function makeDriver(prof, trait = {}) {
     }
     // near a turn mark there is no room inside: only dodge outward, otherwise lift off
     if (inTurn && steerAdd < 0 && !(mem.emergency > 0)) { thrMul = Math.min(thrMul, 0.7); steerAdd = 0; }
-    return { steerAdd: clamp(steerAdd, -0.9, 0.9), thrMul };
+    return { steerAdd: clamp(steerAdd, -0.9, 0.9), thrMul, priority, threats };
   }
 
   // Wake reading: ten times a second, try a few lines to either side and take the one
@@ -1501,7 +1554,7 @@ function makeDriver(prof, trait = {}) {
       const fwd = dx * fx + dy * fy, lat = -dx * fy + dy * fx;
       if (lat > 1.2 && lat < 4.5 && fwd > -3 && fwd < 2.5 && q.v > 8) {
         mem.dumpSeen.add(q);
-        if (Math.random() < trait.dump) { mem.dumpT = 0.55; mem.dumpQ = q; return; }
+        if (simRandom() < trait.dump) { mem.dumpT = 0.55; mem.dumpQ = q; return; }
       }
     }
   }
@@ -1509,6 +1562,7 @@ function makeDriver(prof, trait = {}) {
   // env = { now, clockZero (null once racing), laneY, others: boat states, wakes: other boats' trails,
   //         cruise: { ahead } once past the finish }
   function drive(b, env, dt) {
+    if(lab.active)mem.labTrace={mode:env.retire?'retire':env.caution?'caution':env.cruise?'cruise':env.clockZero!=null?'start':'racing'};
     let thrT, steerT, rollT = 0, pitchT = 0;
     const k = 1 - Math.exp(-prof.react * dt);
     mem.emergency = Math.max(0, mem.emergency - dt);
@@ -1619,11 +1673,11 @@ function makeDriver(prof, trait = {}) {
           const outerComing = env.outer && env.outer.x - b.x > -3 && (env.outerPlan === 'makuri' || env.outerPlan === 'tsuke');
           let plan = tactic;
           if (mem.squeeze) plan = 'makuri';   // it squeezed the inside: now go over the top
-          else if (innerAhead < -2.5 && env.stAdv > 0.05 && Math.random() < 0.55 * aggr) plan = 'makuri';
-          else if (outerComing && Math.random() < 0.35) plan = 'wall';
+          else if (innerAhead < -2.5 && env.stAdv > 0.05 && simRandom() < 0.55 * aggr) plan = 'makuri';
+          else if (outerComing && simRandom() < 0.35) plan = 'wall';
           else if (plan === 'sashi') {
             const pWin = ({ TOP: 0.75, A1: 0.65, A2: 0.55, B1: 0.4, B2: 0.3 }[prof.name] ?? 0.45) + (aggr > 1.2 ? 0.15 : aggr < 0.8 ? -0.15 : 0);
-            plan = Math.random() < pWin ? 'sashiWin' : 'sashiPlace';
+            plan = simRandom() < pWin ? 'sashiWin' : 'sashiPlace';
           }
           mem.plan = plan; tactic = plan;
         }
@@ -1639,8 +1693,19 @@ function makeDriver(prof, trait = {}) {
             const dx = q.x - b.x, dy = q.y - b.y, f = dx * fx + dy * fy, l = -dx * fy + dy * fx;
             if (l < -1 && l > -12 && Math.abs(f) < 10 && -l < bestL) { bestL = -l; tgt = q; tf = f; }
           }
-          if (tgt && tf < 1.5 && tf > -6 && Math.random() < (trait.tsuke ?? 0.5)) { tactic = 'tsuke'; mem.tsukeQ = tgt; }
+          if (tgt && tf < 1.5 && tf > -6 && simRandom() < (trait.tsuke ?? 0.5)) { tactic = 'tsuke'; mem.tsukeQ = tgt; }
         }
+      }
+      if(lab.active){
+        const autoCandidate=tactic,forced=env.labDirective?.tactic;
+        if(first && forced && forced!=='auto'){
+          tactic=forced;
+          if(tactic==='tsuke'){
+            mem.tsukeQ=env.inner||null;
+            if(!mem.tsukeQ)tactic='makuri';
+          }
+        }
+        Object.assign(mem.labTrace,{autoCandidate,requestedTactic:forced||'auto',chosenTactic:first?tactic:'normalLap',forcedTactic:!!(first&&forced&&forced!=='auto'),fallback:forced==='tsuke'&&!env.inner?'noInnerBoat:makuri':null});
       }
       if (first) mem.tacticNow = tactic;
       // how close to the buoy the apex runs (A1 nearly scrapes it)
@@ -1671,8 +1736,8 @@ function makeDriver(prof, trait = {}) {
       }
       // 壁: stay on the gas and turn just outside the boat inside, so the まくり from outside can't get over
       if (first && tactic === 'wall') { R = prof.line; gap = Math.max(gap, (prof.gap ?? 5) + 4); tThr = 1; }
-      // まくり: carry full speed and go round the outside of everyone
-      if (first && tactic === 'makuri') { R = prof.line + 3 + trait.course * 1.5; tThr = 1; pre += 5; gap = Math.min(R, gap + 3 + trait.course * 1.5); }
+      // まくり: carry full speed and go over the top of the boats inside — just outside their line, not a wide sweep
+      if (first && tactic === 'makuri') { R = prof.line + 1.5 + (trait.course - 2) * 1.0; tThr = 1; pre += 5; gap = Math.min(R, gap + 2 + trait.course * 0.5); }
       // ツケマイ: ride 3 m outside the target's line, flat out, leaning in early and hard
       if (first && tactic === 'tsuke' && mem.tsukeQ) {
         const q = mem.tsukeQ, mk = COURSE.marks[0], dq = Math.hypot(q.x - mk.x, q.y - mk.y);
@@ -1694,12 +1759,17 @@ function makeDriver(prof, trait = {}) {
           mem.pushDecided = true;
           const rk = RISK[prof.name] || RISK.B1;
           const at1M = b.y > 0;   // on the home straight, the next mark is 1M
-          if (env.battle && !(first && tactic === 'sashiPlace') && Math.random() < rk.go * (trait.pushMul ?? 1) * (at1M ? PUSH_AT_1M : 1)) mem.push = { ok: Math.random() < rk.ok, applied: false, done: false };
+          if (env.battle && !(first && tactic === 'sashiPlace') && simRandom() < rk.go * (trait.pushMul ?? 1) * (at1M ? PUSH_AT_1M : 1)) mem.push = { ok: simRandom() < rk.ok, applied: false, done: false };
         }
         if (mem.push) { R = Math.max(7.5, R - 2.5); gap = Math.max(2.8, gap - 1); tThr = 1; late = 0; pre += 3; }
       }
       // still out wide when the next mark comes up: don't dive back in — take the turn wider instead
       if (mem.entryWide) gap = Math.min(R, gap + mem.entryWide);
+      if(lab.active&&env.labDirective){
+        if(env.labDirective.R!=null)R=env.labDirective.R;
+        if(env.labDirective.gap!=null)gap=env.labDirective.gap;
+        gap=Math.min(gap,R);
+      }
       const s = loopS(R, b.x, b.y, gap);
       let look = (prof.look0 ?? 7) + b.v * (prof.lookK ?? 0.55);
       let [tx, ty] = aimOnLine(b, R, s, look, gap);
@@ -1735,17 +1805,23 @@ function makeDriver(prof, trait = {}) {
       if (first && b.y > 0 && b.x < MK - 45) { const w = clamp((b.x + 20) / (MK - 25), 0, 1); ty = env.laneY + (ty - env.laneY) * w; }
       // 絞り: got the jump on the boat inside? squeeze in on it, slowly enough not to be 斜行
       let squeezing = false;
-      if (first && b.y > 0 && env.inner && b.x < MK - 45) {
+      if(lab.active && trait.squeezeMode && trait.squeezeMode!=='legacy'){
+        const sq=labSqueezeDecision(b,env,mem,trait.squeezeMode,first,look);
+        mem.labTrace.squeezeDecision=sq.detail;
+        if(sq.targetY!=null){tx=b.x+look;ty=sq.targetY;}
+        squeezing=sq.detail.active;
+        if(sq.started)o.ev='squeeze';
+      } else if (!(lab.active&&trait.contactMode==='priority') && first && b.y > 0 && env.inner && b.x < MK - 45) {
         if (!mem.sqDecided && b.x > 8) {
           mem.sqDecided = true;
           const pc = trait.kado ? SQUEEZE.p.kado : SQUEEZE.p[trait.course] ?? 0;
-          if (env.inner.x - b.x <= -SQUEEZE.lead && env.inner.cap <= 0 && Math.random() < pc * Math.min(1.3, trait.pushMul ?? 1)) { mem.squeeze = env.inner; o.ev = 'squeeze'; }
+          if (env.inner.x - b.x <= -SQUEEZE.lead && env.inner.cap <= 0 && simRandom() < pc * Math.min(1.3, trait.pushMul ?? 1)) { mem.squeeze = env.inner; o.ev = 'squeeze'; }
         }
         if (mem.squeeze && mem.squeeze.cap <= 0) { ty = Math.max(ty - 6, mem.squeeze.y + SQUEEZE.gap); squeezing = true; }
       }
       // being squeezed from outside: give way (引く — lift, tuck in behind) or, now and then, fight it (抵抗)
       if (first && b.y > 0 && env.outerSqueeze && !mem.sqResp && b.x < MK - 45) {
-        mem.sqResp = Math.random() < (SQUEEZE.resist[trait.temper] ?? 0.15) ? 'resist' : 'yield';
+        mem.sqResp = lab.active&&trait.contactMode==='priority' ? 'yield' : simRandom() < (SQUEEZE.resist[trait.temper] ?? 0.15) ? 'resist' : 'yield';
         mem.sqRespT = SQUEEZE.yieldTime;
         if (mem.sqResp === 'resist') mem.resistQ = env.outer;
         o.ev = mem.sqResp;
@@ -1807,14 +1883,15 @@ function makeDriver(prof, trait = {}) {
           const along = (q.x - b.x) * cd;
           return along > -14 && along < 4 && Math.sign(q.y - b.y) === dyDir && Math.abs(q.y - b.y) < 8;
         });
-        const maxDev = squeezing ? 0.055 : mem.resistQ ? 0.07 : crowded ? 0.03 : 0.22;
+        const maxDev = squeezing ? (lab.active&&trait.squeezeMode==='lead'?0.12:0.055) : mem.resistQ ? 0.07 : crowded ? 0.03 : 0.22;
         want = clamp(want, -maxDev, maxDev);
         tx = b.x + Math.cos(courseA + want) * look; ty = b.y + Math.sin(courseA + want) * look;
       }
+      if(lab.active)Object.assign(mem.labTrace,{target:{x:tx,y:ty},R,gap});
       const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
-      considerDump(b, env.others, dt);
+      if(lab.active&&trait.contactMode==='priority'){mem.dumpT=0;mem.dumpQ=null;}else considerDump(b, env.others, dt);
       const dumping = mem.dumpT > 0;
-      steerT = clamp(err * (prof.gain ?? 2.2) * (accelerating ? 0.75 : 1) + (dumping ? 0.65 : av.steerAdd) + (Math.random() * 2 - 1) * prof.wobble * (accelerating ? 0.5 : 1));
+      steerT = clamp(err * (prof.gain ?? 2.2) * (accelerating ? 0.75 : 1) + (dumping ? 0.65 : av.steerAdd) + (simRandom() * 2 - 1) * prof.wobble * (accelerating ? 0.5 : 1));
       // ターンから直線へ: don't crank the rudder to snap onto the straight — ease onto it
       if (mem.exitHold && !dumping && mem.exitHold.run < EXIT.calmRun) {
         const cap = Math.max(EXIT.steerCap + (1 - EXIT.steerCap) * mem.exitHold.run / EXIT.calmRun, Math.abs(av.steerAdd));
@@ -1867,9 +1944,11 @@ function makeDriver(prof, trait = {}) {
       if (!mem.push && !(first && tactic === 'makuri') && (!env.battle || near1M) && (b.load || 0) > 0.95 + 0.06 * (1 - Math.min(1, care))) { thrT *= 0.9; }
       // swerving against the lean (dodging outward mid-turn): take the body out of it too
       if (Math.abs(steerT) > 0.2 && rollT !== 0 && Math.sign(steerT) !== Math.sign(rollT)) rollT *= 0.6;
+      if(lab.active){const targets=labTraceInputs(mem,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},b,prof,o);thrT=targets.thr;steerT=targets.steer;rollT=targets.roll;pitchT=targets.pitch;}
       if (b.cap > 0) { thrT = 0; rollT = 0; pitchT = 0; }
       o.thr += (thrT - o.thr) * (1 - Math.exp(-6 * dt));
     }
+    if(lab.active && mem.labTrace.mode!=='racing')Object.assign(mem.labTrace,{cpuTargets:{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},targetInputs:{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},numericOverride:false,overrideSuppressed:!!env.labDirective});
     o.steer += (steerT - o.steer) * (1 - Math.exp(-prof.react * (mem.emergency > 0 ? 3 : 1.6) * dt));
     o.roll += (rollT - o.roll) * k;
     o.pitch += (pitchT - o.pitch) * k;
@@ -1893,7 +1972,7 @@ const KADO3_RATE = 0.08, KADO3_OKOSHI = [135, 142];
 const IDLE_V = 4.2;
 // start timing: how far off each course reads the clock (± s), the share of that it adds as a safety margin,
 // and the flat-out ST below which a boat near the line throws the lever off (放る) instead of going early
-const ST_SPREAD = { 1: 0.03, 2: 0.08, 3: 0.08, 4: 0.06, 5: 0.10, 6: 0.10, kado: 0.06, def: 0.08 };   // 4カド (and 3カド) is the easiest start after the 1
+const ST_SPREAD = { 1: 0.03, 2: 0.08, 3: 0.08, 4: 0.06, 5: 0.08, 6: 0.08, kado: 0.06, def: 0.08 };   // 4カド (and 3カド) is the easiest start after the 1
 const ST_MARGIN = 0.5, HOU_AT = 0.01;
 // by class: how much of that extra outside-start difficulty it actually suffers
 const ST_OUT = { TOP: 0.4, A1: 0.5, A2: 0.8, B1: 1.1, B2: 1.3 };
@@ -1901,7 +1980,7 @@ const ST_OUT = { TOP: 0.4, A1: 0.5, A2: 0.8, B1: 1.1, B2: 1.3 };
 const NIGE_DROP = { at: 22, regrip: 0.2, lever: { TOP: 0.76, A1: 0.72, A2: 0.68, B1: 0.62, B2: 0.58 } };   // steady speed with the lever shut (m/s)   // demo: every boat takes its own number's course, 3 slow / 3 dash
 let fleet = null, simSpeed = 1.5, sgMode = false;   // demo playback speed; the race clock always shows real race time
 
-function pickW(pairs) { let r = Math.random() * pairs.reduce((a, p) => a + p[1], 0); for (const [v, w] of pairs) { if ((r -= w) < 0) return v; } return pairs[0][0]; }
+function pickW(pairs) { let r = simRandom() * pairs.reduce((a, p) => a + p[1], 0); for (const [v, w] of pairs) { if ((r -= w) < 0) return v; } return pairs[0][0]; }
 
 // the six riders for a race: class, entry preference, temperament, motor. SG: all A1 with a few トップクラス.
 function newRows(fixedEntry) {
@@ -1909,12 +1988,12 @@ function newRows(fixedEntry) {
   for (let no = 1; no <= 6; no++) {
     const pi = sgMode ? 0 : pickW([[0, 2], [1, 3], [2, 3], [3, 2]]);   // SG: everyone is A1
     const pref = fixedEntry ? 'waku' : pickW([['waku', 8], ['in', 1.0], ['out', 1.2]]);
-    rows.push({ no, prof: DRIVERS[pi], pref, key: no + (pref === 'in' ? -2.6 : pref === 'out' ? 2.6 : 0) + Math.random() * 0.1,
-                temper: pickW([['calm', 3], ['normal', 5], ['aggr', 2]]), motor: { deashi: 0.93 + Math.random() * 0.14 }, col: LANE_COL[no - 1] });
+    rows.push({ no, prof: DRIVERS[pi], pref, key: no + (pref === 'in' ? -2.6 : pref === 'out' ? 2.6 : 0) + simRandom() * 0.1,
+                temper: pickW([['calm', 3], ['normal', 5], ['aggr', 2]]), motor: { deashi: 0.93 + simRandom() * 0.14 }, col: LANE_COL[no - 1] });
   }
   if (sgMode) {
     const n = pickW([[1, 5], [2, 4], [3, 1]]);
-    rows.slice().sort(() => Math.random() - 0.5).slice(0, n).forEach(r => { r.prof = DRIVERS.find(d => d.top); });
+    rows.slice().sort(() => simRandom() - 0.5).slice(0, n).forEach(r => { r.prof = DRIVERS.find(d => d.top); });
   }
   return rows;
 }
@@ -1926,7 +2005,7 @@ function applyCourse(r, course, slow, kado, okoshi) {
     : course === 4 && !slow ? pickW([['makuri', 7], ['sashi', 3]])
     : pickW([['sashi', 5], ['makuri', 5]]);
   const laneY = 8 + (course - 1) * 6;
-  r.trait = { course, laneY, tactic, slow, kado, okoshi, temper: r.temper, lineOff: Math.random() * 2.5, dump: TEMPER[r.temper].dump, care: TEMPER[r.temper].care,
+  r.trait = { course, laneY, tactic, slow, kado, okoshi, temper: r.temper, lineOff: simRandom() * 2.5, dump: TEMPER[r.temper].dump, care: TEMPER[r.temper].care,
               tsuke: ({ TOP: 0.8, A1: 0.7, A2: 0.55, B1: 0.35, B2: 0.2 }[r.prof.name] || 0.4) + (r.temper === 'aggr' ? 0.15 : 0),
               pushMul: { calm: 0.5, normal: 1, aggr: 1.6 }[r.temper], flyRisk: (RISK[r.prof.name] || RISK.B1).fly };
   r.drv = makeDriver(r.prof, r.trait);
@@ -1940,7 +2019,7 @@ function setupFleet() {
   // entry: boats take courses by preference, inside first
   rows.sort((a, b) => a.key - b.key);
   // 3カド: now and then the 3コース boat pulls back to dash from ~140 m, and then it's まくり or nothing
-  const kado3 = FIXED_ENTRY && Math.random() < KADO3_RATE;
+  const kado3 = FIXED_ENTRY && simRandom() < KADO3_RATE;
   const nSlow = FIXED_ENTRY ? (kado3 ? 2 : 3) : pickW([[3, 6], [2, 2], [4, 2]]);
   rows.forEach((r, i) => {
     const course = i + 1;
@@ -1949,7 +2028,7 @@ function setupFleet() {
     // 起こし: where it opens the lever, metres before the line. It idles in from further back so that it
     // reaches that point just as the clock says go (the lever itself still goes by timing, for the ST).
     const [okLo, okHi] = kado ? KADO3_OKOSHI : OKOSHI[course] || OKOSHI[6];
-    const okoshi = okLo + Math.random() * (okHi - okLo);
+    const okoshi = okLo + simRandom() * (okHi - okLo);
     const creep = Math.max(0, CLOCK - (timeToLine(okoshi, IDLE_V, r.prof.cruise) - 0.1));
     const x0 = -(okoshi + IDLE_V * creep);
     applyCourse(r, course, slow, kado, okoshi);
@@ -2014,17 +2093,17 @@ function makeEntryFleet(playerNo) {
     r.player = r.no === playerNo;
     r.b = { x: ENTRY.pitX, y: ENTRY.pitY[r.no - 1], a: 0, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0, thrMul: r.motor.deashi };
     r.inp = { thr: 0, steer: 0, roll: 0, pitch: 0 };
-    r.en = { slot: r.no, stage: 'pit', react: r.player ? null : go + Math.max(0.03, (ENTRY.react[r.prof.name] ?? 0.18) + (Math.random() - 0.5) * 0.14),
+    r.en = { slot: r.no, stage: 'pit', react: r.player ? null : go + Math.max(0.03, (ENTRY.react[r.prof.name] ?? 0.18) + (simRandom() - 0.5) * 0.14),
              dash: false, rewind: false, faced: false, facedAt: 0, resistVs: new Map(), decided: false, dashBonus: 0, gapT: 0, slowT: 0 };
     raceFieldsInit(r);
     r.entryViol = [];
   });
   // 前付け race: one CPU rider (an イン志向 one if there is) goes for a course further in
-  const mae = Math.random() < ENTRY.maeRate;
+  const mae = simRandom() < ENTRY.maeRate;
   if (mae) {
     const cand = rows.filter(r => !r.player && r.no >= 2);
     const inPref = cand.filter(r => r.pref === 'in');
-    const pick = (inPref.length ? inPref : cand)[Math.floor(Math.random() * (inPref.length || cand.length))];
+    const pick = (inPref.length ? inPref : cand)[Math.floor(simRandom() * (inPref.length || cand.length))];
     if (pick) pick.en.wantIn = true;
   }
   const f = freshFleet(rows);
@@ -2111,7 +2190,7 @@ function endFight(r, why) {
   const inner = r.en.slot < q.en.slot;
   if (!inner) { r.en.gained = 2; toast('前付け断念', `${r.no}号艇 ${why}`, 'info'); return; }
   // the inside boat lets it in: before squaring up it may pull right back to dash instead
-  if (!r.en.faced && r.en.slot >= 2 && !r.player && Math.random() < 0.55) {
+  if (!r.en.faced && r.en.slot >= 2 && !r.player && simRandom() < 0.55) {
     callDash(r); r.en.decided = true; toast('引く', `${r.no}号艇 ${why}、ダッシュへ`, 'info'); return;
   }
   // once squared up nobody can cross over: the inside boat keeps its course, it just stops pushing forward
@@ -2121,8 +2200,8 @@ function endFight(r, why) {
 function entryAnswer(r, nSlowNow) {
   const en = r.en;
   const pRes = (ENTRY.resist[r.temper] ?? 0.55) + (en.slot === 1 ? 0.25 : 0) - Math.max(0, nSlowNow - 3) * 0.15;
-  if (Math.random() < pRes) return 'resist';
-  if (en.slot >= 2 && Math.random() < (en.slot >= 3 ? 0.55 : 0.3) + Math.max(0, nSlowNow - 3) * 0.2) {
+  if (simRandom() < pRes) return 'resist';
+  if (en.slot >= 2 && simRandom() < (en.slot >= 3 ? 0.55 : 0.3) + Math.max(0, nSlowNow - 3) * 0.2) {
     callDash(r); en.decided = true; toast('引く', `${r.no}号艇 前付けを受けずダッシュへ`, 'info'); return 'hiku';
   }
   return 'yield';
@@ -2276,7 +2355,7 @@ function entryStep(dt, playerInput) {
     const en = r.en; if (!en.fightWith) continue;
     en.fightT += dt;
     const lim = (ENTRY.fightLimit[r.temper] ?? 7) + (en.slot === 1 ? 4 : 0);
-    if (en.faced && en.projOk != null && en.projOk < ENTRY.tooDeep && Math.random() < dt * (r.player ? 0 : 0.5)) endFight(r, '深くなりすぎて');
+    if (en.faced && en.projOk != null && en.projOk < ENTRY.tooDeep && simRandom() < dt * (r.player ? 0 : 0.5)) endFight(r, '深くなりすぎて');
     else if (en.fightT > lim && !r.player) endFight(r, '抵抗を諦めて');
   }
   // 待機行動違反 checks
@@ -2312,9 +2391,9 @@ function entryStep(dt, playerInput) {
 function cpuDashEarly(r) {
   // an out-minded rider, or one drawn wide with no wish to fight for the inside, calls it on the back straight
   if (r.en.decided || r.en.wantIn) return;
-  if (r.en.slot >= 3 && (r.pref === 'out' || (r.en.slot >= 4 && r.pref !== 'in' && Math.random() < 0.92))) {
+  if (r.en.slot >= 3 && (r.pref === 'out' || (r.en.slot >= 4 && r.pref !== 'in' && simRandom() < 0.92))) {
     r.en.decided = true; r.en.dash = true;
-    r.en.dashBonus = ENTRY.dashDepth * (0.55 + Math.random() * 0.45);
+    r.en.dashBonus = ENTRY.dashDepth * (0.55 + simRandom() * 0.45);
   }
 }
 function cpuDashChoice(r, nSlowNow) {
@@ -2324,7 +2403,7 @@ function cpuDashChoice(r, nSlowNow) {
   const slot = en.slot;
   if (en.wantIn && !en.gaveUp) return;   // went in for a course: stays slow
   if (slot <= 2) return;
-  if (r.pref === 'out' || (slot >= 4 && Math.random() < 0.92) || (slot === 3 && (Math.random() < KADO3_RATE || (en.lost && Math.random() < 0.5)))) { en.dash = true; en.dashBonus = ENTRY.dashDepth * Math.random() * 0.15; }
+  if (r.pref === 'out' || (slot >= 4 && simRandom() < 0.92) || (slot === 3 && (simRandom() < KADO3_RATE || (en.lost && simRandom() < 0.5)))) { en.dash = true; en.dashBonus = ENTRY.dashDepth * simRandom() * 0.15; }
 }
 function playerDash() {
   const r = fleet && fleet.entry && fleet.boats.find(q => q.player);
@@ -2440,7 +2519,9 @@ function fleetStep(dt, playerInput) {
     let o = IDLE_INPUT;
     if (!r.out) {
       const fi = r.fin != null ? fleet.finOrder.indexOf(r) : -1;
-      const inR = fleet.byCourse[r.trait.course - 1], outR = fleet.byCourse[r.trait.course + 1];
+      const occupied=lab.active?fleet.boats.filter(q=>!q.dq).sort((a,b)=>a.trait.course-b.trait.course):null;
+      const inR=lab.active?occupied.filter(q=>q.trait.course<r.trait.course).at(-1):fleet.byCourse[r.trait.course-1];
+      const outR=lab.active?occupied.find(q=>q.trait.course>r.trait.course):fleet.byCourse[r.trait.course+1];
     const env = { now: time, clockZero: (r.st == null && time < zero + 1.2) ? zero : null, laneY: r.trait.laneY, others: all, wakes: r.wakesOthers,
                   inner: inR && !inR.dq ? inR.b : null, outer: outR && !outR.dq ? outR.b : null,
                   outerPlan: outR ? (outR.drv.mem.tacticNow || outR.trait.tactic) : null,
@@ -2450,7 +2531,9 @@ function fleetStep(dt, playerInput) {
                     cruise: r.fin != null ? { ahead: fi > 0 ? fleet.finOrder[fi - 1].b : null } : null,
                     caution: fleet.caution && r.fin == null && !r.dq ? { ahead: cautionAhead(r), wrecks: fleet.wrecks } : null };
       env.finalStretch = r.laps === 2 && (r.vis & 2) && b.y > 0;   // round the last mark, heading for the line
+      if(lab.active)labBeforeDrive(r,env);
       o = r.drv.drive(b, env, dt);
+      if(lab.active)labAfterDrive(r,o,env);
       if (r.player && r.st == null && time > zero + 1 && !r.lateTold) { r.lateTold = true; toast('出遅れ', '1秒以内に越えられなかった。CPUが引き継ぎ', 'bad'); }
       if (r.player && r.st == null && !r.lateTold) {
         // the player has the lever (and posture) until the start line; steering follows the lane
@@ -2459,16 +2542,19 @@ function fleetStep(dt, playerInput) {
       } else if (r.player && r.inp !== r.drv.out) r.inp = r.drv.out;
       b.hold = fleet.pitMode && r.st == null && (r.player ? o.thr < 0.08 : !r.drv.mem.go);
       if (o.ev === 'pushFail') pushFailed(r);
-      else if (o.ev === 'squeeze') { fleet.squeezes++; toast('絞り', `${r.no}号艇が内の${fleet.byCourse[r.trait.course - 1].no}号艇を絞りにいく`, 'info'); }
+      else if (o.ev === 'squeeze') { fleet.squeezes++; toast('絞り', `${r.no}号艇が内の${inR?.no??"?"}号艇を絞りにいく`, 'info'); }
       else if (o.ev === 'resist') { fleet.resists++; toast('抵抗', `${r.no}号艇が張って抵抗`, 'warn'); }
       else if (o.ev === 'yield') fleet.yields++;
       else if (o.ev === 'pushOk') { fleet.pushTry++; toast('勝負', `${r.no}号艇が攻めのターンを決めた`, 'good'); }
     }
+    if(lab.active)r.labApplied={thr:o.thr,steer:o.steer,roll:o.roll,pitch:o.pitch};
     const ev = boatPhysics(b, o, dt);
+    if(lab.active&&ev)labEvent('physics',r.no,{label:ev});
     if (ev && ev.startsWith('cap:') && !r.out) accident(r, '転覆', ev.slice(4));
     else if (ev === 'buoy' || ev === 'boom') toast(ev === 'buoy' ? 'ターンマーク接触' : '消波装置に接触', `${r.no}号艇`, 'warn');
     // 内側航走: crossing the course centreline between the marks means a mark was cut
     if (r.st != null && !r.dq && r.fin == null && !r.relegated && r.prevY != null && Math.sign(r.prevY) !== Math.sign(b.y) && Math.abs(b.x) < MK - 1) {
+      if(lab.active)labEvent('inside_course',r.no,{label:'内側航走'});
       r.relegated = true; fleet.cutsInside++;
       toast('内側航走', `${r.no}号艇 ターンマークの内側を通過　6着扱い`, 'bad');
     }
@@ -2515,6 +2601,7 @@ function fleetStep(dt, playerInput) {
         const key = r.no * 10 + q.no;
         if ((fleet.cutCool[key] || 0) > time) continue;
         fleet.cutCool[key] = time + 3;
+        if(lab.active)labEvent('foul',r.no,{label:'斜行',other:q.no});
         r.fouls = (r.fouls || 0) + 1; r.lastCut = { q, t: time }; fleet.cuts++;
         if (r.fouls >= 2) disqualify(r, '斜行2回');
         else toast('斜行', `${r.no}号艇が${q.no}号艇の前を横切った（不良航法）`, 'bad');
@@ -2537,17 +2624,18 @@ function fleetStep(dt, playerInput) {
   // hull contact
   for (const e of boatContacts(all)) {
     const A = fleet.boats[e.i], Bt = fleet.boats[e.j];
+    if(lab.active)labEvent('contact',A.no,{label:'艇間接触',other:Bt.no,x:e.x,y:e.y,impulse:e.J});
     // fighting a squeeze side by side (抵抗): hull rubbing on hull, even gently, can put the resisting boat over
     const fighter = A.drv.mem.resistQ === Bt.b ? A : Bt.drv.mem.resistQ === A.b ? Bt : null;
     if (fighter && !fighter.out && time > (fighter.fightRollT || 0)) {
       fighter.fightRollT = time + 0.5;
       const other = fighter === A ? Bt : A;
-      if (Math.random() < SQUEEZE.fightCap * (RISK[fighter.prof.name] || RISK.B1).hit) accident(fighter, Math.random() < 0.5 ? '転覆' : '落水', `${other.no}号艇の絞りに抵抗して接触`);
+      if (simRandom() < SQUEEZE.fightCap * (RISK[fighter.prof.name] || RISK.B1).hit) accident(fighter, simRandom() < 0.5 ? '転覆' : '落水', `${other.no}号艇の絞りに抵抗して接触`);
     }
     if (e.J < 1.5) continue;
     for (let n = 0; n < Math.min(14, 4 + e.J * 2); n++) {
-      const an = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * e.J;
-      spray.push({ x: e.x, y: e.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, t: time, life: 0.4 + Math.random() * 0.4 });
+      const an = simRandom() * Math.PI * 2, sp = 1.5 + simRandom() * e.J;
+      spray.push({ x: e.x, y: e.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, t: time, life: 0.4 + simRandom() * 0.4 });
     }
     const key = Math.min(A.no, Bt.no) * 10 + Math.max(A.no, Bt.no);
     if ((fleet.touchCool[key] || 0) > time) continue;
@@ -2565,7 +2653,7 @@ function fleetStep(dt, playerInput) {
     const jLim = Math.max(3, 8 - 6 * vb);   // a boat bucking on a wave goes over far more easily
     if (e.J > jLim) {
       const p = clamp((e.J - jLim) / 12 * (1 + 2 * vb), 0, 0.5) * (RISK[vic.prof.name] || RISK.B1).hit;
-      if (!vic.out && Math.random() < p) accident(vic, Math.random() < 0.5 ? '転覆' : '落水', `${other.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : ''}`);
+      if (!vic.out && simRandom() < p) accident(vic, simRandom() < 0.5 ? '転覆' : '落水', `${other.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : ''}`);
     }
   }
   if (SS.phase === 'count' && time > zero + 1.2) {
@@ -2579,9 +2667,9 @@ function fleetStep(dt, playerInput) {
   const stillRacing = fleet.boats.filter(r => !r.dq && r.fin == null).length;
   if (!fleet.endAt && time > zero + 5 && (stillRacing === 0 || (fleet.order.length && time > fleet.order[0].fin + 30))) {
     fleet.endAt = time + 7;
-    setTimeout(() => toast('レース結果', fleet ? resultLine() : '', 'good'), 300);
+    if(!lab.active)setTimeout(() => toast('レース結果', fleet ? resultLine() : '', 'good'), 300);
   }
-  if (fleet.endAt && time > fleet.endAt) nextRace();
+  if (fleet.endAt && time > fleet.endAt) {if(lab.active)labFinish('レース終了');else nextRace();}
 }
 
 function resultLine() {
@@ -2597,6 +2685,7 @@ function cautionAhead(r) {
 }
 function accident(r, kind, why) {
   if (r.out) return;
+  if(lab.active)labEvent('accident',r.no,{label:kind,reason:why});
   r.out = kind; r.dq = true; fleet.accidents++;
   const b = r.b;
   b.cap = 1e9; b.fallen = kind === '落水'; b.v *= 0.4; b.vl *= 0.3;
@@ -2608,18 +2697,19 @@ function accident(r, kind, why) {
     fleet.caution = true;
     fleet.rank = fleet.boats.slice().sort((a, b) => b.prog - a.prog);   // fresh, not the 0.25 s-old display order
     fleet.lockOrder = fleet.rank.filter(q => !q.dq);
-    setTimeout(() => toast('事故発生', '着順固定・追い抜き禁止。事故艇の外側を徐行', 'warn'), 1800);
+    if(!lab.active)setTimeout(() => toast('事故発生', '着順固定・追い抜き禁止。事故艇の外側を徐行', 'warn'), 1800);
   }
 }
 function pushFailed(r) {
   fleet.pushTry++; fleet.pushFail++;
   const rk = RISK[r.prof.name] || RISK.B1;
-  if (Math.random() < rk.acc) accident(r, Math.random() < 0.55 ? '転覆' : '落水', '無理なターン');
+  if (simRandom() < rk.acc) accident(r, simRandom() < 0.55 ? '転覆' : '落水', '無理なターン');
   else { r.b.vl += 6; r.b.v *= 0.6; toast('ターン膨らむ', `${r.no}号艇、勝負に出たが握りきれず大きく流れた`, 'warn'); }
 }
 
 function disqualify(r, why) {
   if (r.dq) return;
+  if(lab.active)labEvent('disqualified',r.no,{label:'妨害失格',reason:why});
   r.dq = true; fleet.dqs++;
   toast('妨害失格', `${r.no}号艇（${why}）`, 'bad');
 }
@@ -2776,9 +2866,14 @@ function drawWaterSurface(S, cw, ch) {
   const minX = Math.max(COURSE.xMin, cam.x - vw / 2 - 7), maxX = Math.min(COURSE.xMax, cam.x + vw / 2 + 7);
   const minY = Math.max(COURSE.yMin, cam.y - vh / 2 - 7), maxY = Math.min(COURSE.yMax, cam.y + vh / 2 + 7);
   ctx.lineCap = 'round';
-  // Three wave scales, all tied to world coordinates; no full-screen blur or readback.
-  for (let layer = 0; layer < 3; layer++) {
-    const cell = [8, 4.4, 2.8][layer];
+  // ripples: two wave scales tied to world coordinates, each built as one path per colour and stroked
+  // once — a few strokes a frame instead of thousands, so phones keep a steady frame rate
+  const LAYERS = [
+    { cell: 8, dark: 'rgba(3,32,43,.16)', dW: .23, lite: 'rgba(186,231,222,.1)', lW: .07 },
+    { cell: 5, dark: 'rgba(3,32,43,.12)', dW: .09, lite: 'rgba(186,231,222,.12)', lW: .04 },
+  ];
+  for (let layer = 0; layer < LAYERS.length; layer++) {
+    const L = LAYERS[layer], cell = L.cell, dark = new Path2D(), lite = new Path2D();
     for (let i = Math.floor(minX / cell); i <= Math.ceil(maxX / cell); i++) {
       for (let j = Math.floor(minY / cell); j <= Math.ceil(maxY / cell); j++) {
         const h = hash(i + layer * 100, j), h2 = hash(j + 9, i);
@@ -2786,19 +2881,22 @@ function drawWaterSurface(S, cw, ch) {
         const x = i * cell + h * cell + Math.sin(phase * .32) * .12;
         const y = j * cell + h2 * cell + Math.sin(phase) * (.11 + layer * .025);
         const len = cell * (.22 + h2 * .48), wave = Math.sin(phase) * .11;
-        ctx.strokeStyle = `rgba(3,32,43,${[.16,.13,.1][layer]})`; ctx.lineWidth = [.23,.1,.055][layer];
-        ctx.beginPath(); ctx.moveTo(x - len / 2, y + .09); ctx.quadraticCurveTo(x, y + wave + .09, x + len / 2, y + .09); ctx.stroke();
-        const flash = Math.pow(Math.max(0, Math.sin(phase * .68 + h2 * 9)), 8);
-        ctx.strokeStyle = `rgba(186,231,222,${[.09,.12,.1][layer] + flash * .15})`;
-        ctx.lineWidth = [.07,.045,.025][layer];
-        ctx.beginPath(); ctx.moveTo(x - len / 2, y); ctx.quadraticCurveTo(x, y + wave, x + len / 2, y); ctx.stroke();
-        if (layer === 1 && flash > .7 && h > .55) {
-          ctx.strokeStyle = `rgba(252,255,228,${flash * .36})`; ctx.lineWidth = .035;
-          ctx.beginPath(); ctx.moveTo(x - .13, y); ctx.lineTo(x + .13, y); ctx.moveTo(x, y - .065); ctx.lineTo(x, y + .065); ctx.stroke();
-        }
+        dark.moveTo(x - len / 2, y + .09); dark.quadraticCurveTo(x, y + wave + .09, x + len / 2, y + .09);
+        lite.moveTo(x - len / 2, y); lite.quadraticCurveTo(x, y + wave, x + len / 2, y);
       }
     }
+    ctx.strokeStyle = L.dark; ctx.lineWidth = L.dW; ctx.stroke(dark);
+    ctx.strokeStyle = L.lite; ctx.lineWidth = L.lW; ctx.stroke(lite);
   }
+  // a few glints that come and go (cheap: a handful of short strokes)
+  const glint = new Path2D(), cellG = 6;
+  for (let i = Math.floor(minX / cellG); i <= Math.ceil(maxX / cellG); i++) for (let j = Math.floor(minY / cellG); j <= Math.ceil(maxY / cellG); j++) {
+    const hh = hash(i + 300, j), h2 = hash(j + 77, i), f = Math.pow(Math.max(0, Math.sin(time * 0.9 + hh * 40)), 12);
+    if (f < 0.4) continue;
+    const gx = i * cellG + hh * cellG, gy = j * cellG + h2 * cellG, len = 0.6 + h2;
+    glint.moveTo(gx - len / 2, gy); glint.quadraticCurveTo(gx, gy - 0.1, gx + len / 2, gy);
+  }
+  ctx.strokeStyle = 'rgba(214,244,236,.28)'; ctx.lineWidth = .05; ctx.stroke(glint);
   ctx.restore();
   ctx.strokeStyle = 'rgba(153,207,199,.45)'; ctx.lineWidth = .35;
   ctx.strokeRect(COURSE.xMin, COURSE.yMin, cw, ch);
@@ -2806,12 +2904,24 @@ function drawWaterSurface(S, cw, ch) {
 
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  const S = Math.min(W, H) / (fleet ? 44 : 34); // px per metre
+  let S = Math.min(W, H) / (fleet ? 44 : 34); // px per metre
   const fr = focusRow(), vb = fr ? fr.b : B;
   const look = 5 + vb.v * 0.45;
-  const k = 0.12;
-  cam.x += (vb.x + Math.cos(vb.a) * look - cam.x) * k;
-  cam.y += (vb.y + Math.sin(vb.a) * look - cam.y) * k;
+  // camera follow eased by real elapsed time, so an uneven frame doesn't make the view lurch
+  const nowD = performance.now(), fdt = Math.min(0.1, Math.max(0, (nowD - (draw.t || nowD)) / 1000)); draw.t = nowD;
+  const k = fdt > 0 ? 1 - Math.exp(-7.7 * fdt) : 0.12;
+  if(lab.active && lab.view!=='follow'){
+    const boats=fleet.boats.map(r=>r.b);
+    const xmin=lab.view==='mark'?100:Math.min(...boats.map(b=>b.x));
+    const xmax=lab.view==='mark'?185:Math.max(...boats.map(b=>b.x));
+    const ymin=lab.view==='mark'?-40:Math.min(...boats.map(b=>b.y));
+    const ymax=lab.view==='mark'?45:Math.max(...boats.map(b=>b.y));
+    S=Math.min(W/Math.max(65,xmax-xmin+35),H/Math.max(65,ymax-ymin+35));
+    cam.x=(xmin+xmax)/2;cam.y=(ymin+ymax)/2;
+  }else{
+    cam.x += (vb.x + Math.cos(vb.a) * look - cam.x) * k;
+    cam.y += (vb.y + Math.sin(vb.a) * look - cam.y) * k;
+  }
 
   ctx.fillStyle = C.bank; ctx.fillRect(0, 0, W, H);
   ctx.save();
@@ -2902,6 +3012,7 @@ function draw() {
     ctx.beginPath(); ctx.arc(s.x + s.vx * age * 0.7, s.y + s.vy * age * 0.7, 0.14 + age * 0.35, 0, Math.PI * 2); ctx.fill();
   }
 
+  if(lab.active)labDrawGuides();
   if (fleet) {
     for (const r of fleet.boats) drawBoatAt(r.b, r.inp, { hull: r.col[0], num: r.col[1], label: String(r.no), helmet: r.col[0], top: !!r.prof.top }, r === fr);
   } else drawBoatAt(B, input, PLAYER_STYLE, false);
@@ -2910,35 +3021,41 @@ function draw() {
 }
 
 function drawWake(arr) {
+  // Turbulent propeller wash: dark trough, soft aerated water, white core, and the two spreading
+  // wave lines. Drawn in age bands — one path per band and colour — so a whole field of boats costs a
+  // few hundred strokes a frame rather than thousands (the difference between smooth and juddery on a phone).
+  if (arr.length < 2) return;
   ctx.save(); ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
-  for (let i = 1; i < arr.length; i++) {
-    const p = arr[i - 1], q = arr[i], age = time - q.t;
-    if (age < 0 || age > 3) continue;
-    const al = (1 - age / 3) * Math.min(1, q.v / 10);
-    // Turbulent propeller wash: dark trough, soft aerated water, white core.
-    ctx.strokeStyle = `rgba(3,35,45,${0.23 * al})`; ctx.lineWidth = 1.25 + age * 1.55;
-    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
-    ctx.strokeStyle = `rgba(157,218,218,${0.27 * al})`; ctx.lineWidth = 0.85 + age * 1.05;
-    ctx.stroke();
-    ctx.strokeStyle = `rgba(247,255,250,${0.58 * al * Math.exp(-age * 0.65)})`;
-    ctx.lineWidth = 0.24 + age * 0.32; ctx.stroke();
-    for (const side of [-1, 1]) {
-      const sp = (time - p.t) * (1.4 + p.v * 0.12), sq = age * (1.4 + q.v * 0.12);
-      const px = p.x - Math.sin(p.a) * side * sp, py = p.y + Math.cos(p.a) * side * sp;
-      const qx = q.x - Math.sin(q.a) * side * sq, qy = q.y + Math.cos(q.a) * side * sq;
-      ctx.strokeStyle = `rgba(2,40,49,${0.3 * al})`; ctx.lineWidth = 0.36 + age * 0.1;
-      ctx.beginPath(); ctx.moveTo(px, py + 0.12); ctx.lineTo(qx, qy + 0.12); ctx.stroke();
-      ctx.strokeStyle = `rgba(227,251,241,${0.48 * al})`; ctx.lineWidth = 0.1 + age * 0.045;
-      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(qx, qy); ctx.stroke();
+  const BANDS = 6, span = 3 / BANDS;
+  for (let k = 0; k < BANDS; k++) {
+    const a0 = k * span, a1 = a0 + span, age = a0 + span / 2;
+    const core = new Path2D(), sides = new Path2D(), foam = new Path2D();
+    let open = false, vs = 0, n = 0;
+    for (let i = 1; i < arr.length; i++) {
+      const p = arr[i - 1], q = arr[i], ag = time - q.t;
+      if (ag < a0 || ag > a1 + 0.05) { open = false; continue; }
+      if (!open) { core.moveTo(p.x, p.y); open = true; }
+      core.lineTo(q.x, q.y);
+      for (const side of [-1, 1]) {
+        const sp = (time - p.t) * (1.4 + p.v * 0.12), sq = ag * (1.4 + q.v * 0.12);
+        sides.moveTo(p.x - Math.sin(p.a) * side * sp, p.y + Math.cos(p.a) * side * sp);
+        sides.lineTo(q.x - Math.sin(q.a) * side * sq, q.y + Math.cos(q.a) * side * sq);
+      }
+      if (i % 3 === 0) {
+        const h = hash(i, Math.floor(q.t * 25)), spread = 0.2 + ag * 0.48;
+        const fx = q.x + Math.sin(q.a) * (h - .5) * spread, fy = q.y - Math.cos(q.a) * (h - .5) * spread;
+        foam.moveTo(fx + 0.08 + ag * .065, fy); foam.ellipse(fx, fy, 0.08 + ag * .065, 0.045 + ag * .025, q.a, 0, Math.PI * 2);
+      }
+      vs += Math.min(1, q.v / 10); n++;
     }
-    // Deterministic foam flecks: no random calls that could change race outcomes.
-    if (i % 2 === 0) {
-      const h = hash(i, Math.floor(q.t * 25)), spread = 0.2 + age * 0.48;
-      ctx.fillStyle = `rgba(239,255,246,${0.45 * al})`;
-      ctx.beginPath(); ctx.ellipse(q.x + Math.sin(q.a) * (h - .5) * spread,
-        q.y - Math.cos(q.a) * (h - .5) * spread, 0.08 + age * .065,
-        0.045 + age * .025, q.a, 0, Math.PI * 2); ctx.fill();
-    }
+    if (!n) continue;
+    const al = (1 - age / 3) * (vs / n);
+    ctx.strokeStyle = `rgba(3,35,45,${0.23 * al})`; ctx.lineWidth = 1.25 + age * 1.55; ctx.stroke(core);
+    ctx.strokeStyle = `rgba(157,218,218,${0.27 * al})`; ctx.lineWidth = 0.85 + age * 1.05; ctx.stroke(core);
+    ctx.strokeStyle = `rgba(247,255,250,${0.58 * al * Math.exp(-age * 0.65)})`; ctx.lineWidth = 0.24 + age * 0.32; ctx.stroke(core);
+    ctx.strokeStyle = `rgba(2,40,49,${0.3 * al})`; ctx.lineWidth = 0.36 + age * 0.1; ctx.stroke(sides);
+    ctx.strokeStyle = `rgba(227,251,241,${0.48 * al})`; ctx.lineWidth = 0.1 + age * 0.045; ctx.stroke(sides);
+    ctx.fillStyle = `rgba(239,255,246,${0.45 * al})`; ctx.fill(foam);
   }
   ctx.restore();
 }
@@ -3117,6 +3234,308 @@ function updateHud() {
   }
 }
 
+/* ---------- d42 independent behavior laboratory ---------- */
+const LAB_PHASES = [
+ ['slit','スリット付近','開始から、設定した手前位置xまで'],
+ ['approach','コーナー手前','手前位置xから、x>115mかつ左旋回速度>7°/sまで'],
+ ['turn','旋回中','左旋回開始から、艇首が初期方向から左へ135°向くまで'],
+ ['exit','立ち上がり','左へ135°から、160°以上回りx<135mかつy<0まで'],
+ ['next','次マークへの準備','第1マーク出口から検証終了まで']
+];
+const LAB_TACTICS = {auto:'CPUに任せる',keep:'前段階を継続',nige:'逃げ',sashiWin:'差し（勝負）',sashiPlace:'差し（着取り）',makuri:'まくり',tsuke:'ツケマイ',wall:'壁'};
+const labEmpty = () => ({tactic:'auto',thr:null,steer:null,roll:null,pitch:null,R:null,gap:null});
+const labDefault = () => ({seed:42,duration:30,hz:20,approach:90,boats:Array.from({length:6},(_,i)=>({course:i+1,enabled:i===0||i===3,grade:'A1',temper:'normal',style:i<3?'slow':'dash',x:i===3?4:0,y:8+i*6,speed:78,st:i===3?.06:.15,motor:1,plan:'auto',contactMode:'priority',squeezeMode:'lead',stages:LAB_PHASES.map(()=>labEmpty())}))});
+function labEscape(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function labOptions(values,selected){return Object.entries(values).map(([v,t])=>`<option value="${v}"${v===selected?' selected':''}>${t}</option>`).join('');}
+function labFill(config){
+ $('labSeed').value=config.seed; $('labDuration').value=config.duration; $('labHz').value=config.hz; $('labApproach').value=config.approach;
+ $('labBoats').innerHTML=config.boats.map(b=>`<details class="lab-block lab-boat" data-course="${b.course}" style="--boat:${LANE_COL[b.course-1][0]}"${b.enabled?' open':''}><summary><label><input type="checkbox" data-f="enabled"${b.enabled?' checked':''}>${b.course}コース / ${b.course}号艇</label></summary>
+ <div class="lab-grid">
+ <label>選手能力<select data-f="grade">${labOptions({A1:'A1',A2:'A2',B1:'B1',B2:'B2',TOP:'A1 ★トップ'},b.grade)}</select></label>
+ <label>気性<select data-f="temper">${labOptions({calm:'慎重',normal:'普通',aggr:'攻撃的'},b.temper)}</select></label>
+ <label>スタート型<select data-f="style">${labOptions({slow:'スロー',dash:'ダッシュ',kado:'カド'},b.style)}</select></label>
+ <label>接触への対応<select data-f="contactMode">${labOptions({normal:'通常（d42）',priority:'接触回避を優先'},b.contactMode||'normal')}</select></label>
+ <label>一艇身先行したら絞る<select data-f="squeezeMode">${labOptions({lead:'絞る（前へ出て内へ入る）',never:'絞らない',legacy:'従来の判断（比較用）'},b.squeezeMode||'legacy')}</select></label>
+ <label>事前の作戦<select data-f="plan">${labOptions(Object.fromEntries(Object.entries(LAB_TACTICS).filter(([k])=>k!=='keep')),b.plan)}</select></label>
+ ${[['x','初期 x（m）',-40,110,.1],['y','初期 y（m）',3,46,.1],['speed','初速（km/h）',0,95,.1],['st','既知の ST（秒）',0,.99,.01],['motor','推力倍率（標準1）',.8,1.2,.01]].map(([k,n,min,max,step])=>`<label>${n}<input data-f="${k}" type="number" min="${min}" max="${max}" step="${step}" value="${b[k]}"></label>`).join('')}
+ </div><div class="lab-table-wrap"><table class="lab-table"><thead><tr><th>判断する段階</th><th>戦法</th><th>アクセル %</th><th>舵 %</th><th>傾き %</th><th>姿勢 %</th><th>R m</th><th>gap m</th></tr></thead><tbody>
+ ${LAB_PHASES.map(([p,n],i)=>`<tr data-stage="${i}"><td>${i+1}. ${n}</td><td><select data-k="tactic" aria-label="${b.course}コース ${n} 戦法"${i===4?' disabled':''}>${labOptions(i===4?{auto:'通常の周回操艇'}:LAB_TACTICS,i===4?'auto':b.stages[i].tactic)}</select></td>${['thr','steer','roll','pitch','R','gap'].map(k=>`<td><input data-k="${k}" aria-label="${b.course}コース ${n} ${k}" type="number" placeholder="自動" min="${k==='thr'?0:k==='R'?8:k==='gap'?2:-100}" max="${k==='R'?35:k==='gap'?30:100}" step="${k==='R'||k==='gap'?.1:1}" value="${b.stages[i][k]??''}"></td>`).join('')}</tr>`).join('')}
+ </tbody></table></div><p class="lab-note">絞りは第1マーク手前（x&lt;105m）で毎回判定。現在と1.2秒先の予測で一艇身（このモデルの当たり判定全長4.6m）以上のリードがあれば開始します。内の艇は直近の出走コースを対象とし、緩やかにその進路へ寄せます。舵の数値指定は絞りの自動操舵より優先します。各段階の指定は次段階まで有効。「前段階を継続」は戦法だけを引き継ぎます。数値操作は各段階で設定。5段階目は通常の周回戦法です。</p></details>`).join('');
+ labCount();
+}
+function labCount(){ $('labCount').textContent=`${$('labBoats').querySelectorAll('[data-f="enabled"]:checked').length}艇を選択（2〜6艇）`; }
+function labRead(){
+ const c={seed:Number($('labSeed').value),duration:Number($('labDuration').value),hz:Number($('labHz').value),approach:Number($('labApproach').value),boats:[]};
+ for(const el of $('labBoats').querySelectorAll('.lab-boat')){
+  const b={course:Number(el.dataset.course),stages:[]};
+  for(const e of el.querySelectorAll('[data-f]')) b[e.dataset.f]=e.type==='checkbox'?e.checked:e.type==='number'?(e.value===''?NaN:Number(e.value)):e.value;
+  for(const tr of el.querySelectorAll('[data-stage]')){const d={};for(const e of tr.querySelectorAll('[data-k]')) d[e.dataset.k]=e.tagName==='SELECT'?e.value:e.value===''?null:Number(e.value);b.stages.push(d);} c.boats.push(b);
+ }
+ return labValidate(c);
+}
+function labValidate(raw){
+ const c=JSON.parse(JSON.stringify(raw));
+ const num=(v,lo,hi,n)=>{if(typeof v!=='number'||!Number.isFinite(v)||v<lo||v>hi)throw Error(`${n} は ${lo}〜${hi} の数値で入力してください。`);return v;};
+ num(c.seed,0,4294967295,'シード');if(!Number.isInteger(c.seed))throw Error('シードは整数で入力してください。');
+ num(c.duration,5,120,'検証時間');num(c.approach,40,120,'手前位置');if(![20,60,120].includes(c.hz))throw Error('記録間隔が無効です。');
+ if(!Array.isArray(c.boats)||c.boats.length!==6)throw Error('6コース分の条件が必要です。');
+ const active=c.boats.filter(b=>b.enabled);if(active.length<2||active.length>6)throw Error('走らせるコースを2〜6艇選んでください。');
+ const courses=new Set();
+ for(const b of c.boats){
+  if(b.squeezeMode==null)b.squeezeMode='legacy'; // preserve old recordings
+  if(!['lead','never','legacy'].includes(b.squeezeMode))throw Error('絞りの設定が無効です。');
+  if(b.contactMode==null)b.contactMode='normal'; // old logs replay with original policy
+  if(!['normal','priority'].includes(b.contactMode))throw Error('接触への対応が無効です。');
+  num(b.course,1,6,'コース');if(!Number.isInteger(b.course)||courses.has(b.course))throw Error('コースが重複しています。');courses.add(b.course);
+  if(typeof b.enabled!=='boolean'||!['A1','A2','B1','B2','TOP'].includes(b.grade)||!['calm','normal','aggr'].includes(b.temper)||!['slow','dash','kado'].includes(b.style)||!Object.hasOwn(LAB_TACTICS,b.plan)||b.plan==='keep')throw Error('選手条件が無効です。');
+  for(const [k,lo,hi] of [['x',-40,110],['y',3,46],['speed',0,95],['st',0,.99],['motor',.8,1.2]])num(b[k],lo,hi,`${b.course}コース ${k}`);
+  if(!Array.isArray(b.stages)||b.stages.length!==5)throw Error('5段階分の判断が必要です。');
+  for(const [i,d] of b.stages.entries()){
+   if(!Object.hasOwn(LAB_TACTICS,d.tactic))throw Error('戦法が無効です。');if(i===4)d.tactic='auto';
+   for(const k of ['thr','steer','roll','pitch','R','gap'])if(d[k]!==null)num(d[k],k==='thr'?0:k==='R'?8:k==='gap'?2:-100,k==='R'?35:k==='gap'?30:100,`${b.course}コース 段階${i+1} ${k}`);
+   if(d.R!=null&&d.gap!=null&&d.gap>d.R)throw Error('gap は R 以下にしてください。');
+  }
+ }
+ c.boats.sort((a,b)=>a.course-b.course);return c;
+}
+function labOpen(){
+ if(lab.active){paused=true;lab.accumulator=0;}
+ else {lab.previousPaused=paused;paused=true;}
+ if(!lab.config)labFill(labDefault());
+ $('labError').textContent='';$('labSetup').hidden=false;$('labSetupExport').disabled=!lab.data;
+}
+function labCloseSetup(){ $('labSetup').hidden=true;if(!lab.active)paused=lab.previousPaused||false;last=performance.now(); }
+function labBegin(c){
+ c=labValidate(c);lab.config=c;lab.active=true;lab.finished=false;lab.accumulator=0;lab.steps=0;lab.rng=c.seed>>>0;lab.rate=Number($('labRate').value)||1;lab.view=$('labView').value||'all';lab.uiAt=-1;
+ lab.data={schema:'honor-for-gp.d42.behavior-log',version:1,engine:'d42 + behavior lab 3 (conditional squeeze)',seed:c.seed,fixedStepSeconds:1/120,sampleHz:c.hz,config:structuredClone(c),
+  aiRequest:'このログを分析してください。艇・段階ごとに、指定した戦法／CPUが選択した戦法／目標入力／実際の入力と結果を区別し、握る・落とす・切りすぎ・外へ膨らむ・内へ戻る原因を、時刻と記録値を引用して説明してください。まくりに行かない原因や速度を失う場面、修正候補を挙げてください。reasonFlagsはコードで観測した状態であり、人間の選手の心理や実際の競艇の正解を示すものではありません。未記録の意図を断定しないでください。',
+  definitions:{phases:LAB_PHASES.map(([id,label,trigger])=>({id,label,trigger})),units:{time:'s',position:'m; x=0 start, 1M=(150,0), y>0 home straight',speed:'km/h; hypot(v,vl)*3.6',forwardSpeed:'m/s (hull longitudinal)',lateralSpeed:'m/s',heading:'deg; initial 0, left negative',yaw:'deg/s; hull angular velocity',acceleration:'m/s²; derivative of ground speed, averaged over sample interval',forwardAcceleration:'m/s²; derivative of hull longitudinal speed over sample interval',angularAcceleration:'deg/s²; difference of hull yaw rate over sample interval',input:'thr 0..1; steer/roll/pitch -1..1; negative = left/upright, positive = right/crouch',target:'world point m; R and gap describe d42 trajectory, not measured turning radius'},
+   contactAvoidance:'Per-boat contactMode normal preserves d42. priority increases prediction clearance, includes attack targets in avoidance, suppresses deliberate dump/resist and legacy squeeze; explicit lead squeeze remains subject to avoidance, and evaluates desired controls and alternative throttle/steering/posture with d42 physics rollouts over 1.44 seconds, recomputed every 0.075 seconds, after tactic/manual overrides. Original response smoothing applies. Predictions hold other boats current controls and use mean random perturbation; they do not change race RNG. Contact physics is unchanged; collisions remain possible. Old logs without contactMode import as normal. trace.contactAvoidance records threats, desired inputs before priority, and whether the cap intervened.',
+   squeeze:'Per-boat squeezeMode: lead requests inward movement once current longitudinal center lead >= one modeled hull length (HULL_AFT+HULL_FWD+2*HULL_R = 4.6m) and lead projected at current ground velocities over 1.2s also >= that length. Rechecked every step on first straight until x=105m. Target is nearest occupied inner course, while physically inside. Smooth inward target, maximum intended heading deviation 0.12rad; original actuator smoothing, numeric overrides and priority avoidance still apply. never disables tactical squeeze only; legacy preserves previous logic. Missing field imports as legacy. trace.squeezeDecision and squeeze_decision events include reason, measured/projected lead and target. Predictions are estimates, not guaranteed outcomes.',
+   scope:'Slit snapshot, not pit/start simulation. ST is supplied context, not measured. Fixed d42 water, wakes, collisions and caution rules. Nearest occupied inner/outer course supplies neighboring context in reduced fleets. Overrides replace desired inputs before original response smoothing, only in active racing. Caution/out/retirement takes priority. Initial throttle=1 and cruise posture.',
+   decisions:'autoCandidate is d42 candidate at this step, conditional on previous forced history, not an independent counterfactual run. chosenTactic is tactic actually used. targetInputs are after overrides; cpuTargets are before numeric overrides but after chosen tactic. samples show actual applied controls, including IDLE on an out boat.',
+   replay:'Same config and seed on the same engine/browser reproduces fixed steps. Frame rate and playback rate do not change simulation steps. Nominal sampling interval may include extra snapshots at manual single steps and run end. State at t is after physics; decisionAt is the start of that step. Metadata such as export time is not part of determinism.'},profiles:[],events:[],samples:[],status:'running'};
+ time=0;SS.phase='off';SS.t0=-CLOCK;SS.hideAt=0;wake.length=0;spray.length=0;ptrs.clear();keys.clear();hapticsStop();
+ lab.inSim=true;
+ try{
+  const rows=c.boats.filter(b=>b.enabled).map(b=>{
+   const r={no:b.course,prof:DRIVERS.find(d=>d.name===b.grade),pref:'waku',temper:b.temper,motor:{deashi:b.motor},col:LANE_COL[b.course-1],labConfig:b,labPhase:-1};
+   applyCourse(r,b.course,b.style==='slow',b.style==='kado',100);
+   r.trait.contactMode=b.contactMode;r.trait.squeezeMode=b.squeezeMode;
+   if(b.plan!=='auto')r.trait.tactic=b.plan;
+   r.b={x:b.x,y:b.y,a:0,v:b.speed/3.6,vl:0,yaw:0,porp:0,cap:0,thrMul:b.motor};raceFieldsInit(r);r.st=b.st;r.drv.mem.go=true;Object.assign(r.inp,{thr:1,pitch:r.prof.cruise});
+   r.labApplied={...r.inp};r.labPrev={t:0,speed:b.speed/3.6,v:r.b.v,yaw:0};
+   lab.data.profiles.push({boat:r.no,profile:{...r.prof},trait:{...r.trait}});return r;
+  });
+  fleet=freshFleet(rows);fleet.focus=rows[0].no;fleet.raceStart=0;
+ }finally{lab.inSim=false;}
+ running=true;paused=false;cam.x=fleet.boats[0].b.x;cam.y=fleet.boats[0].b.y;
+ for(const id of ['start','settings','card','waku','meas','rotate','clock'])if($(id))$(id).hidden=true;
+ $('labSetup').hidden=true;$('labRun').hidden=false;document.body.classList.add('lab-running');
+ $('labFocus').innerHTML=fleet.boats.map(r=>`<option value="${r.no}">${r.no}号艇 / ${r.no}コース</option>`).join('');
+ resize();last=performance.now();labEvent('start',null,{label:'検証開始',seed:c.seed});labSample(true);labUpdate(true);
+}
+function labEvent(type,boat,data={}){
+ if(!lab.active||!lab.data||lab.finished)return;
+ lab.data.events.push({id:lab.data.events.length,t:Number(time.toFixed(6)),step:lab.steps,type,boat,...data});
+}
+function labBeforeDrive(r,env){
+ const b=r.b;let phase=r.labPhase;
+ if(phase<0)phase=0;
+ if(phase===0&&b.x>=lab.config.approach)phase=1;
+ if(phase===1&&b.x>115&&b.yaw< -7*D2R)phase=2;
+ if(phase===2&&b.a< -135*D2R)phase=3;
+ if(phase===3&&b.a< -160*D2R&&b.x<135&&b.y<0)phase=4;
+ if(phase!==r.labPhase){r.labPhase=phase;const d=r.labConfig.stages[phase];r.labTactic=d.tactic==='keep'?(r.labTactic&&r.labTactic!=='auto'?r.labTactic:r.drv.mem.tacticNow||r.trait.tactic):d.tactic;
+  labEvent('phase',r.no,{decisionAt:time-1/120,phase:LAB_PHASES[phase][0],label:LAB_PHASES[phase][1],requested:{...d},resolvedTactic:r.labTactic,position:{x:b.x,y:b.y},speedKmh:Math.hypot(b.v,b.vl)*3.6});
+ }
+ env.labDirective={...r.labConfig.stages[phase],tactic:r.labTactic};
+ r.labDecisionAt=time-1/120;
+ env.labObservations={inner:env.inner?{x:env.inner.x,y:env.inner.y,v:env.inner.v}:null,outer:env.outer?{x:env.outer.x,y:env.outer.y,v:env.outer.v}:null,stAdv:env.stAdv,outerPlan:env.outerPlan,battle:env.battle};
+}
+// Local candidate rollouts use the same d42 hull physics, without advancing the race RNG.
+function labHullClearance(a,b){
+ const ca=Math.cos(a.a),sa=Math.sin(a.a),cb=Math.cos(b.a),sb=Math.sin(b.a);
+ const [x,y,u,v]=closestSegSeg(a.x-ca*HULL_AFT,a.y-sa*HULL_AFT,a.x+ca*HULL_FWD,a.y+sa*HULL_FWD,b.x-cb*HULL_AFT,b.y-sb*HULL_AFT,b.x+cb*HULL_FWD,b.y+sb*HULL_FWD);
+ return Math.hypot(x-u,y-v)-2*HULL_R;
+}
+// A tactical request, not a collision override. Track center lead along the start straight.
+function labSqueezeDecision(b,env,mem,mode,first,look){
+ const q=env.inner,threshold=HULL_AFT+HULL_FWD+2*HULL_R,horizon=1.2;
+ const lead=q?b.x-q.x:null;
+ const vx=v=>v.v*Math.cos(v.a)-v.vl*Math.sin(v.a);
+ const predicted=q?lead+(vx(b)-vx(q))*horizon:null;
+ const within=first&&b.y>0&&b.x>=0&&b.x<MK-45;
+ const detail={mode,active:false,reason:'outside_window',innerBoat:q?(fleet?.boats.find(r=>r.b===q)?.no??null):null,leadM:lead,predictedLeadM:predicted,thresholdM:threshold,horizonSeconds:horizon,targetY:null};
+ const previous=mem.squeeze;let targetY=null;
+ mem.squeeze=null;
+ if(mode==='never')detail.reason='disabled';
+ else if(within){
+  // Hold the current straight line while waiting, instead of diving in before the threshold.
+  targetY=b.y;
+  if(!q||q.cap>0){detail.reason='no_inner_boat';targetY=null;}
+  else if(q.y<=0||q.x>=MK-45||Math.abs(q.a)>.35)detail.reason='inner_turning';
+  else if(b.y-q.y<=.4)detail.reason='line_reached';
+  else if(lead<threshold)detail.reason='lead_short';
+  else if(predicted<threshold)detail.reason='lead_closing';
+  else {
+   detail.active=true;detail.reason='lead_clear';mem.squeeze=q;
+   // Target the inner boat's line, approaching it gently from the outside.
+   targetY=Math.max(q.y,b.y-Math.tan(.12)*look);
+  }
+ }
+ detail.targetY=targetY;
+ return{targetY,detail,started:detail.active&&previous!==q};
+}
+function labPriorityPlan(b,env,desired,mem,prof,applied){
+ const nearby=fleet.boats.filter(r=>r.b!==b&&Math.hypot(r.b.x-b.x,r.b.y-b.y)<40);
+ if(!nearby.length){mem.labSafe=null;return{inputs:desired,detail:{enabled:true,intervened:false,threats:[]}};}
+ if(mem.labSafe&&time<mem.labSafe.until){
+  const plan=mem.labSafe;
+  if(plan.detail.intervened){const inputs={...plan.inputs,thr:Math.min(desired.thr,plan.inputs.thr)};return{inputs,detail:{...plan.detail,beforePriority:{...desired},throttleCeiling:inputs.thr,intervened:['thr','steer','roll','pitch'].some(k=>Math.abs(inputs[k]-desired[k])>1e-6)}};}
+  return{inputs:desired,detail:plan.detail};
+ }
+ const dt=.08,N=18,clearance=1.15;
+ const others=[];lab.predicting=true;
+ try{
+  for(const r of nearby){const q={...r.b},o=r.out?IDLE_INPUT:r.inp;const path=[];for(let j=0;j<N;j++){boatPhysics(q,o,dt);path.push({...q});}others.push({boat:r.no,path});}
+  const evaluate=(target)=>{
+   const q={...b},o={thr:applied.thr,steer:applied.steer,roll:applied.roll,pitch:applied.pitch};
+   let risk=0,minGap=Infinity,threat=null,at=0,obstacle=false;
+   for(let j=0;j<N;j++){
+    o.thr+=(target.thr-o.thr)*(1-Math.exp(-6*dt));o.steer+=(target.steer-o.steer)*(1-Math.exp(-prof.react*(mem.emergency>0?3:1.6)*dt));
+    o.roll+=(target.roll-o.roll)*(1-Math.exp(-prof.react*dt));o.pitch+=(target.pitch-o.pitch)*(1-Math.exp(-prof.react*dt));
+    const ev=boatPhysics(q,o,dt);if(ev){obstacle=true;risk+=25000;}
+    if(q.y<COURSE.yMin+3||q.y>COURSE.yMax-3)risk+=1000;
+    for(const other of others){const gap=labHullClearance(q,other.path[j]);if(gap<minGap){minGap=gap;threat=other.boat;at=(j+1)*dt;}
+     if(gap<clearance)risk+=(clearance-gap)**2*100*(1.4-j/N);
+     if(gap<.05)risk+=3000*(1.5-j/N);
+    }
+   }
+   const deviation=(target.thr-desired.thr)**2*8+(target.steer-desired.steer)**2*18+(target.roll-desired.roll)**2*3+(target.pitch-desired.pitch)**2*2;
+   return{score:risk+deviation,minGap,threat,at,obstacle,inputs:target};
+  };
+  const initial=evaluate({...desired});let best=initial;
+  if(initial.minGap<clearance){
+   const steers=[desired.steer,clamp(desired.steer+.35),clamp(desired.steer-.35),0,.6,-.6];
+   for(const thr of [desired.thr,Math.min(desired.thr,.35),0])for(const steer of steers){
+    const target={...desired,thr,steer};
+    if(Math.abs(steer-desired.steer)>.15){target.roll=Math.abs(steer)>.1?Math.sign(steer)*Math.min(.9,Math.abs(desired.roll)):desired.roll*.4;}
+    if(thr<.1)target.pitch=Math.min(target.pitch,0);
+    const cand=evaluate(target);if(cand.score<best.score)best=cand;
+   }
+  }
+  const changed=['thr','steer','roll','pitch'].some(k=>Math.abs(best.inputs[k]-desired[k])>1e-6);
+  const detail={enabled:true,evaluatedAt:time,intervened:changed,throttleCeiling:best.inputs.thr,beforePriority:{...desired},predictedGapBefore:initial.minGap,predictedGapAfter:best.minGap,horizonSeconds:N*dt,clearanceM:clearance,threats:initial.minGap<clearance?[{boat:initial.threat,predictedGapM:initial.minGap,atSeconds:initial.at}]:[],reason:changed?'predicted_hull_conflict':'clear'};
+  mem.labSafe={until:time+.075,inputs:best.inputs,detail};return{inputs:best.inputs,detail};
+ }finally{lab.predicting=false;}
+}
+
+function labTraceInputs(mem,env,targets,b,prof,applied){
+ const before={...targets},d=env.labDirective;
+ if(d)for(const k of ['thr','steer','roll','pitch'])if(d[k]!=null)targets[k]=d[k]/100;
+ const beforePriority={...targets}, av=mem.av;
+ const plan=av?.priority?labPriorityPlan(b,env,targets,mem,prof,applied):null;
+ if(plan)Object.assign(targets,plan.inputs);
+ const contactAvoidance=plan?plan.detail:{enabled:false,intervened:false,threats:[]};
+ mem.labTrace={...(mem.labTrace||{}),cpuTargets:before,targetInputs:{...targets},contactAvoidance,reasonFlags:{contactPriority:contactAvoidance.intervened,avoidThrottle:mem.av?.thrMul<.999,avoidSteer:Math.abs(mem.av?.steerAdd||0)>.001,emergency:mem.emergency>0,brace:mem.brace>0,nigeDrop:!!mem.nigeDrop,sashiDrop:!!mem.sashiDrop,push:!!mem.push,dumping:mem.dumpT>0,squeeze:!!mem.squeeze,resist:!!mem.resistQ,yield:mem.sqResp==='yield'&&mem.sqRespT>0,exitHold:!!mem.exitHold},numericOverride:!!(d&&['thr','steer','roll','pitch'].some(k=>d[k]!=null))};
+ return targets;
+}
+function labAfterDrive(r,o,env){
+ const tr=r.drv.mem.labTrace||{};r.labApplied={thr:o.thr,steer:o.steer,roll:o.roll,pitch:o.pitch};
+ const key=JSON.stringify([r.labPhase,tr.chosenTactic,tr.mode,tr.reasonFlags,tr.numericOverride]);
+ if(r.labKey!==key){r.labKey=key;labEvent('decision',r.no,{phase:LAB_PHASES[r.labPhase][0],label:tr.mode==='racing'?(TACTIC_JA[tr.chosenTactic]||'通常周回'):tr.mode,trace:structuredClone(tr),observations:env.labObservations,applied:{...r.labApplied}});}
+ const throttle=tr.targetInputs?.thr;
+ if(throttle!=null){const band=throttle>=.95?'全速で握る':throttle<=.05?'レバーを閉じる':'アクセルを落とす';if(band!==r.labThrottleBand){r.labThrottleBand=band;labEvent('throttle',r.no,{label:band,target:throttle,actual:o.thr});}}
+ const sq=tr.squeezeDecision;
+ const sqKey=sq?JSON.stringify([sq.mode,sq.reason,sq.innerBoat]):'inactive';
+ if(r.labSqueezeKey!==sqKey){
+  if(sq)labEvent('squeeze_decision',r.no,{label:({disabled:'絞らない',outside_window:'絞りの判定区間外',no_inner_boat:'対象の内艇なし',inner_turning:'内艇が旋回へ移行',line_reached:'内の進路に到達',lead_short:'一艇身のリード待ち',lead_closing:'リードを保てない予測のため見送り',lead_clear:'一艇身先行・内へ絞る'})[sq.reason],...structuredClone(sq)});
+  r.labSqueezeKey=sqKey;
+ }
+ const priority=tr.contactAvoidance;
+ const priorityKey=priority?.intervened?(priority.threats||[]).map(q=>q.boat).sort().join(','):'off';
+ if(r.labPriorityKey!==priorityKey){
+  if(priorityKey!=='off')labEvent('contact_avoidance',r.no,{label:'接触回避を優先',...structuredClone(priority)});
+  else if(r.labPriorityKey&&r.labPriorityKey!=='off')labEvent('contact_avoidance_clear',r.no,{label:'回避操作を解除'});
+  r.labPriorityKey=priorityKey;
+ }
+ if(o.ev)labEvent('driver_event',r.no,{label:o.ev});
+}
+function labSample(force=false){
+ if(!force&&lab.steps%(120/lab.config.hz)!==0)return;
+ if(lab.data.samples.length&&lab.data.samples.at(-1).step===lab.steps)return;
+ const boats=fleet.boats.map(r=>{
+  const b=r.b,sp=Math.hypot(b.v,b.vl),prev=r.labPrev,dt=time-prev.t;
+  const sample={boat:r.no,phase:LAB_PHASES[Math.max(0,r.labPhase)][0],decisionAt:r.labDecisionAt??null,x:b.x,y:b.y,heading:b.a/D2R,speed:sp*3.6,forwardSpeed:b.v,lateralSpeed:b.vl,yaw:b.yaw/D2R,acceleration:dt>0?(sp-prev.speed)/dt:0,forwardAcceleration:dt>0?(b.v-prev.v)/dt:0,angularAcceleration:dt>0?(b.yaw-prev.yaw)/D2R/dt:0,turnRadius:Math.abs(b.yaw)>.01?sp/Math.abs(b.yaw):null,applied:{...r.labApplied},trace:r.out?null:structuredClone(r.drv.mem.labTrace||null),load:b.load||0,inWake:b.inWake||0,trail:b.trail||0,status:{out:r.out||null,dq:!!r.dq,caution:!!fleet.caution,insideCourse:!!r.relegated}};
+  r.labPrev={t:time,speed:sp,v:b.v,yaw:b.yaw};r.labSample=sample;return sample;
+ });
+ lab.data.samples.push({t:Number(time.toFixed(6)),step:lab.steps,boats});
+}
+function labStep(){
+ if(!lab.active||lab.finished)return;lab.inSim=true;lab.steps++;
+ try{fleetStep(1/120,input);}catch(e){labEvent('error',null,{label:String(e)});labFinish('実行エラー');throw e;}finally{lab.inSim=false;}
+ labSample();
+ if(time+1e-8>=lab.config.duration)labFinish('設定時間に到達');
+ else if(fleet.boats.every(r=>r.out))labFinish('全艇が航走不能');
+}
+function labFinish(reason){
+ if(lab.finished)return;labSample(true);labEvent('end',null,{label:reason});lab.finished=true;paused=true;lab.data.status='finished';lab.data.endReason=reason;lab.data.elapsed=time;lab.accumulator=0;labUpdate(true);
+}
+function labExport(){
+ if(!lab.data)return;const out=structuredClone(lab.data);out.status=lab.finished?'finished':'partial';out.elapsed=out.samples.at(-1)?.t||0;
+ out.summary={samples:out.samples.length,events:out.events.length,boats:out.profiles.map(p=>{const a=out.samples.flatMap(s=>s.boats.filter(b=>b.boat===p.boat));return{boat:p.boat,maxSpeedKmh:Math.max(...a.map(b=>b.speed)),minSpeedKmh:Math.min(...a.map(b=>b.speed)),minAcceleration:Math.min(...a.map(b=>b.acceleration)),maxAbsYawDegS:Math.max(...a.map(b=>Math.abs(b.yaw))),final:a.at(-1)};})};
+ const blob=new Blob([JSON.stringify(out,(k,v)=>typeof v==='number'?Number(v.toFixed(6)):v,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=`d42-lab-seed${out.seed}-${Date.now()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function labUpdate(force=false){
+ if(!lab.active)return;const now=performance.now();if(!force&&now-lab.uiAt<100)return;lab.uiAt=now;
+ $('labTime').textContent=`${time.toFixed(3)} s`;$('labStatus').textContent=lab.finished?`終了：${lab.data.endReason}`:paused?'一時停止 / 記録を保持':'記録中 / 固定ステップ 120 Hz';
+ $('labPause').textContent=paused?'再開':'一時停止';$('labPause').disabled=lab.finished;$('labStep').disabled=!paused||lab.finished;$('labStop').disabled=lab.finished;
+ const r=focusRow(),s=r?.labSample;if(!s)return;
+ $('labV').textContent=s.speed.toFixed(1);$('labAccel').textContent=s.acceleration.toFixed(1);$('labYaw').textContent=s.yaw.toFixed(1);
+ const tr=s.trace,op=s.applied;
+ $('labDetail').innerHTML=`<b>${r.no}号艇 · ${LAB_PHASES[Math.max(0,r.labPhase)][1]}</b><br>戦法：${labEscape(tr?.chosenTactic?(TACTIC_JA[tr.chosenTactic]||tr.chosenTactic):'—')} / ${tr?.contactAvoidance?.intervened?'接触回避を優先中':tr?.numericOverride?'操作指定あり':'CPU操作'}<br>${tr?.squeezeDecision?`絞り：${tr.squeezeDecision.active?'内へ寄せる':({disabled:'しない',outside_window:'判定区間外',no_inner_boat:'対象なし',inner_turning:'内艇が旋回へ移行',line_reached:'進路到達',lead_short:'一艇身のリード待ち',lead_closing:'リード維持を見込めず見送り'})[tr.squeezeDecision.reason]}${tr.squeezeDecision.leadM!=null?` / リード ${tr.squeezeDecision.leadM.toFixed(1)}m`: ''}<br>`:''}アクセル ${(op.thr*100).toFixed(0)}% ・ 舵 ${(op.steer*100).toFixed(0)}%<br>傾き ${(op.roll*100).toFixed(0)}% ・ 姿勢 ${(op.pitch*100).toFixed(0)}%<br>${tr?.target?`狙い x=${tr.target.x.toFixed(1)}, y=${tr.target.y.toFixed(1)} m`:'目標点 —'}<br>${s.status.out||s.status.dq?'事故・失格':s.status.caution?'事故後の徐行':'航走中'} / 引き波 ${s.inWake.toFixed(2)} / 負荷 ${s.load.toFixed(2)}`;
+ const events=lab.data.events.filter(e=>e.boat===r.no||e.boat==null).slice(-16).reverse();
+ $('labEvents').innerHTML=events.map(e=>`<li><span style="color:#83caba">${e.t.toFixed(3)}s</span> ${labEscape(e.boat?`${e.boat}号艇 `:'')}${labEscape(e.label||e.type)}${e.trace?.targetInputs?` · 目標アクセル ${(e.trace.targetInputs.thr*100).toFixed(0)}%`:''}</li>`).join('');
+ const canvas=$('labChart'),g=canvas.getContext('2d'),w=canvas.width,h=canvas.height;g.clearRect(0,0,w,h);g.strokeStyle='#284650';g.lineWidth=1;for(let i=0;i<=4;i++){g.beginPath();g.moveTo(0,15+i*55);g.lineTo(w,15+i*55);g.stroke();}
+ const a=lab.data.samples.filter(s=>s.t>=time-10).map(s=>({t:s.t,b:s.boats.find(b=>b.boat===r.no)}));
+ for(const [col,get] of [['#a5eed6',b=>b.speed/100],['#ffcf75',b=>b.applied.thr]]){g.strokeStyle=col;g.lineWidth=3;g.beginPath();a.forEach((s,i)=>{const x=(s.t-Math.max(0,time-10))/10*w,y=h-15-get(s.b)*(h-30);if(i)g.lineTo(x,y);else g.moveTo(x,y);});g.stroke();}
+}
+function labDrawGuides(){
+ if(!$('labGuide').checked||!lab.data)return;
+ const a=lab.data.samples.filter(s=>s.t>=time-15);
+ for(const r of fleet.boats){
+  ctx.strokeStyle=r.col[0];ctx.globalAlpha=.65;ctx.lineWidth=.15;ctx.setLineDash([]);ctx.beginPath();
+  a.forEach((s,i)=>{const b=s.boats.find(b=>b.boat===r.no);if(i)ctx.lineTo(b.x,b.y);else ctx.moveTo(b.x,b.y);});ctx.stroke();
+  const target=r.drv.mem.labTrace?.target;
+  if(target&&!r.out){ctx.globalAlpha=.8;ctx.setLineDash([.8,.65]);ctx.beginPath();ctx.moveTo(r.b.x,r.b.y);ctx.lineTo(target.x,target.y);ctx.stroke();ctx.setLineDash([]);ctx.beginPath();ctx.arc(target.x,target.y,.9,0,Math.PI*2);ctx.stroke();}
+ }
+ ctx.globalAlpha=1;ctx.setLineDash([]);
+}
+function labExit(){
+ if(!lab.finished&&lab.active)labFinish('通常モードへ移動');lab.active=false;lab.inSim=false;fleet=null;running=false;paused=false;keys.clear();ptrs.clear();
+ $('labRun').hidden=true;$('labSetup').hidden=true;document.body.classList.remove('lab-running');$('start').hidden=false;resetBoat();refreshFleetUi();resize();last=performance.now();
+}
+$('labLaunch').addEventListener('click',labOpen);$('labLaunchStart').addEventListener('click',labOpen);
+$('labSetupClose').addEventListener('click',labCloseSetup);$('labConfigure').addEventListener('click',labOpen);
+$('labBoats').addEventListener('change',labCount);$('labBoats').addEventListener('click',e=>{if(e.target.closest('label'))e.stopPropagation();});
+$('labPreset').addEventListener('click',()=>labFill(labDefault()));
+$('labAvoidAll').addEventListener('click',()=>{for(const e of $('labBoats').querySelectorAll('[data-f="contactMode"]'))e.value='priority';});
+$('labAll').addEventListener('click',()=>{for(const e of $('labBoats').querySelectorAll('[data-f="enabled"]')){e.checked=true;e.closest('details').open=true;}labCount();});
+$('labStart').addEventListener('click',()=>{try{labBegin(labRead());}catch(e){$('labError').textContent=e.message;}});
+$('labPause').addEventListener('click',()=>{paused=!paused;lab.accumulator=0;last=performance.now();labUpdate(true);});
+$('labStep').addEventListener('click',()=>{if(paused&&!lab.finished){labStep();labSample(true);labUpdate(true);draw();}});
+$('labStop').addEventListener('click',()=>labFinish('手動終了'));$('labExit').addEventListener('click',labExit);
+$('labRate').addEventListener('change',()=>{lab.rate=Number($('labRate').value);lab.accumulator=0;});
+$('labView').addEventListener('change',()=>{lab.view=$('labView').value;});
+$('labFocus').addEventListener('change',()=>{fleet.focus=Number($('labFocus').value);labUpdate(true);});
+for(const id of ['labExport','labSetupExport'])$(id).addEventListener('click',labExport);
+$('labRestart').addEventListener('click',()=>labBegin(lab.config));
+$('labImport').addEventListener('click',()=>$('labFile').click());
+$('labFile').addEventListener('change',async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>256*1024*1024)throw Error('読込上限は256MBです。');const d=JSON.parse(await file.text());if(d.schema!=='honor-for-gp.d42.behavior-log'||d.version!==1)throw Error('対応するd42挙動検証ログを選んでください。');labFill(labValidate(d.config));$('labError').textContent='条件を読み込みました。開始ボタンで再実行できます。';}catch(err){$('labError').textContent=err.message;}finally{e.target.value='';}});
+labFill(labDefault());
+
 /* ---------- loop ---------- */
 let last = performance.now();
 function frame(now) {
@@ -3126,7 +3545,14 @@ function frame(now) {
 }
 function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  pollPadButtons();
+  if(lab.active){
+    if(!paused&&!lab.finished&&$('labSetup').hidden){
+      lab.accumulator+=dt*lab.rate;
+      while(lab.accumulator>=1/120&&!paused&&!lab.finished){labStep();lab.accumulator-=1/120;}
+    }
+    hapticsStop();updateAudio();draw();labUpdate();return;
+  }
+  if($('labSetup').hidden)pollPadButtons();
   if (running && !paused) {
     if (fleet && playerActive()) { updateInput(dt); fleetStep(dt / 2, input); fleetStep(dt / 2, input); }   // practice runs in real time
     else if (fleet) { const n = Math.ceil(simSpeed * 2); for (let i = 0; i < n; i++) fleetStep(dt * simSpeed / n, input); }
