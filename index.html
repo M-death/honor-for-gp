@@ -152,6 +152,37 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
 .lab-guide-label{display:flex;gap:8px;align-items:center;color:#abcbd0;font-size:12px;margin:8px 0}.lab-guide-label input{min-height:18px;accent-color:#a5eed6}.lab-surface{touch-action:pan-x pan-y}.lab-table-wrap{touch-action:pan-x pan-y}
 .lab-grid .lab-guide-label{display:flex;align-self:end;padding-bottom:8px}.lab-grid .lab-guide-label input{width:18px}
 
+/* Left-hand posture stick, adjacent to the throttle. */
+:root{--posture-size:min(27vw,30vh,128px)}
+.posture-stick{position:fixed;z-index:3;left:calc(88px + var(--sl));bottom:calc(16px + var(--sb));display:grid;justify-items:center;gap:6px;touch-action:none}
+.posture-zone{position:relative;width:var(--posture-size);height:var(--posture-size);border:1px solid #a5eed677;border-radius:50%;background:rgba(5,27,35,.76);touch-action:none;cursor:grab;outline:none}
+.posture-zone::before,.posture-zone::after{content:"";position:absolute;background:#a5eed633;pointer-events:none}
+.posture-zone::before{width:1px;top:14%;bottom:14%;left:50%}.posture-zone::after{height:1px;left:14%;right:14%;top:50%}
+.posture-zone span{position:absolute;color:#c4d9d4;font-size:10px;pointer-events:none}
+.posture-zone .up{top:5px;left:50%;transform:translateX(-50%)}.posture-zone .down{bottom:5px;left:50%;transform:translateX(-50%)}
+.posture-zone .left{left:6px;top:50%;transform:translateY(-50%)}.posture-zone .right{right:6px;top:50%;transform:translateY(-50%)}
+.posture-thumb{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px;border-radius:50%;border:2px solid #bcf5e2;background:#83caba99;box-shadow:0 2px 8px #0006;pointer-events:none}
+.posture-zone.active{border-color:#bcf5e2;box-shadow:0 0 0 2px #a5eed633;cursor:grabbing}.posture-zone:focus-visible{outline:2px solid var(--lever);outline-offset:3px}
+body.virtual-pad>.pad{left:calc(88px + var(--sl));bottom:calc(46px + var(--sb) + var(--posture-size));transform:none;max-width:var(--posture-size)}
+body.virtual-pad>.pad .box{display:none}body.virtual-pad>.pad .deg{white-space:normal;font-size:10px;text-align:center}
+body.virtual-pad>.wheel svg{width:min(30vw,38vh,150px);height:min(30vw,38vh,150px)}
+body.lab-running>.posture-stick{display:none!important}
+.mode-choices{border:1px solid var(--hud-line);border-radius:10px;padding:10px 14px;margin:12px 0}.mode-choices legend{font-weight:700;padding:0 6px}.mode-choices label{display:flex;gap:9px;align-items:flex-start;padding:9px 0;cursor:pointer}.mode-choices input{margin-top:4px;accent-color:var(--lever)}.mode-choices small{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+body.phone-wheel>#lever{left:auto;right:calc(16px + var(--sr))}
+body.phone-wheel>#wheel{display:none}
+body.phone-wheel>.posture-stick,body.phone-wheel>.pad{left:calc(16px + var(--sl))}
+#phoneSteerReadout{position:fixed;z-index:2;bottom:calc(18px + var(--sb));left:50%;transform:translateX(-50%);background:var(--hud);border:1px solid var(--hud-line);border-radius:8px;padding:6px 10px;font-size:12px;pointer-events:none}
+body.lab-running>#phoneSteerReadout{display:none!important}
+/* Recorded start inspection; independent of the live race camera. */
+#slitPhoto{z-index:110;padding:12px}
+#slitPhoto .card{width:min(1040px,100%);max-width:1040px;padding:18px}
+#slitPhoto h1{font-size:22px;margin:0 0 10px}
+#slitPhoto .slit-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+#slitPhoto select{max-width:100%;padding:8px;background:#132c39;color:#fff;border:1px solid #506775;border-radius:8px}
+#slitCanvas{display:block;width:100%;height:auto;border-radius:10px;background:#102a3b}
+#slitSeek{flex:1;min-width:100px;accent-color:#62debc;touch-action:auto}
+#slitPhoto p{font-size:12px;line-height:1.6;margin:8px 0}
+#slitTime{font-variant-numeric:tabular-nums;min-width:112px;text-align:center}
 </style>
 </head>
 <body>
@@ -173,6 +204,7 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
     <button id="demoBtn" class="pill">6艇デモ</button>
     <button id="entryBtn" class="pill" aria-pressed="false">進入：固定</button>
     <button id="sgBtn" class="pill" aria-pressed="false">SG：オフ</button>
+    <button id="slitBtn" class="pill alt" disabled title="レース終了後に確認できます">スリット写真</button>
     <button id="cardBtn" class="pill alt" hidden>出走表</button>
     <button id="skipBtn" class="pill alt" hidden>事故のためスキップ</button>
   </div>
@@ -202,6 +234,12 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
   <div class="lbl">スロットル</div>
 </div>
 
+<div class="posture-stick" id="postureStick" hidden>
+  <div class="posture-zone" id="postureZone" role="group" tabindex="0" aria-label="姿勢アナログパッド。左右で傾き、上で伏せる、下で起こす。指を離すと中央。矢印キーでも操作できます。">
+    <span class="up">伏せる</span><span class="down">起こす</span><span class="left">左</span><span class="right">右</span><i class="posture-thumb" id="postureThumb"></i>
+  </div><div class="lbl">姿勢パッド</div>
+</div>
+<div id="phoneSteerReadout" hidden>スマホ舵：中央</div>
 <div class="wheel" id="wheel">
   <svg viewBox="-50 -50 100 100" aria-hidden="true">
     <g id="wrot">
@@ -228,13 +266,13 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
 <div class="overlay" id="start">
   <div class="card">
     <h1><small>開発版</small>Honor for GP<span class="sub">波の向こうに</span></h1>
-    <p>スマホを横向きにして、両手で持ってください。スタートを押した瞬間の持ち方が「まっすぐ座った姿勢」の基準になります。</p>
-    <div class="ctl">
-      <div><b>左の親指</b><span>スロットルレバー。上下にスライド。指を離しても位置はそのまま。一番下でもエンジンはアイドルで回り続ける。</span></div>
-      <div><b>右の親指</b><span>舵。左右にスライド。指を離すと真ん中に戻る。</span></div>
-      <div><b>左右に傾ける</b><span>体重移動。旋回の内側へ体を入れる。</span></div>
-      <div><b>奥へ／手前へ</b><span>画面の上側を奥へ倒すと伏せる（空気抵抗が減って伸びる）、手前へ起こすと体を起こす（減速するが、左右の体重移動がよく効く）。</span></div>
-    </div>
+    <p>スマホを横向きにして、操作方法を選んでください。姿勢パッドは左右＝体の傾き、上＝伏せる、下＝起こす。指を離すと中央へ戻り、アクセルは位置を維持します。</p>
+    <fieldset class="mode-choices"><legend>最初に操作モードを選択</legend>
+      <label><input type="radio" name="startControlMode" value="tilt" checked><span><b>1．傾きあり</b><small>左：アクセル ／ 右：舵 ／ スマホの傾き：姿勢</small></span></label>
+      <label><input type="radio" name="startControlMode" value="pad"><span><b>2．傾きなし・姿勢パッドあり</b><small>左：アクセル＋姿勢パッド ／ 右：舵 ／ センサー停止</small></span></label>
+      <label><input type="radio" name="startControlMode" value="wheel"><span><b>3．姿勢パッド＋右手アクセル</b><small>左：姿勢パッドのみ ／ 右：アクセル ／ スマホ自体を回して舵</small></span></label>
+    </fieldset>
+    <p id="controlHelp" style="font-size:13px"></p>
     <div class="monkey">最初は大時計スタート。エンジンは止まらないので、針が0を指してから1秒以内にスタートラインを越えるよう、スロットルで間合いを詰めます。早すぎるとフライング。<br>コースは左回り。直線は伏せて伸ばし、ターンマークでは「体を起こす＋内へ傾ける＋舵」が揃うとモンキーターンが決まり、小さく速く回れます。全速のまま姿勢を入れずに回ると大きく膨らみ、伏せたまま・内へ傾けるだけの無茶な回り方は転覆の危険があります。レバーを落とすと小さく安定して回れますが、出口の速度は落ちます。速く回るコツは「起こして入り、内へ傾けたまま起こしを緩めて、伏せながら抜ける」こと。体がしっかり内に入っていれば、起こしを緩めても伏せてもグリップが残り、速度を殺さずに回れます（ずっと起こしたままだと減速が大きく、傾けずに伏せると膨らむか転覆します）。外へ傾けると流されて転覆します。</div>
     <div class="row">
       <button class="btn" id="go">スタート</button>
@@ -247,11 +285,11 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
 
 <div class="overlay" id="calib" hidden>
   <div class="card" style="max-width:380px;text-align:center">
-    <h1 style="font-size:22px"><small>傾きの基準</small>持ち方を決めてOK</h1>
+    <h1 id="calTitle" style="font-size:22px">持ち方を決めてOK</h1>
     <p id="calMsg">遊ぶときの持ち方で構えて、少し傾けて反応を確かめてください。OKを押したときの姿勢が「傾き0」になります。</p>
     <div class="calbox"><i class="calx"></i><i class="caly"></i><b id="calDot"></b></div>
     <p id="calTxt" style="font-variant-numeric:tabular-nums">左右 0°　前後 0°</p>
-    <div class="row" style="justify-content:center"><button class="btn" id="calOk">OK</button></div>
+    <div class="row" style="justify-content:center"><button class="btn" id="calOk">OK</button><button class="btn ghost" id="calUsePad" hidden>センサーなしのモード2へ</button></div>
   </div>
 </div>
 
@@ -274,12 +312,24 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
   </div>
 </div>
 
+<div class="overlay" id="slitPhoto" hidden role="dialog" aria-modal="true" aria-labelledby="slitTitle">
+  <div class="card">
+    <h1 id="slitTitle">スリット判定写真</h1>
+    <div class="slit-tools"><label>記録 <select id="slitRace" aria-label="確認するレース"></select></label><button class="btn ghost" id="slitClose">閉じる</button></div>
+    <canvas id="slitCanvas" width="1000" height="700" role="img" aria-label="スタート時の各艇の位置、判定点とST"></canvas>
+    <div class="slit-tools"><button class="btn ghost" id="slitPrev" aria-label="前の記録コマ">◀</button><input id="slitSeek" type="range" min="-1000" max="1500" step="1" value="0" aria-label="スタート合図からの時刻（ミリ秒）"><button class="btn ghost" id="slitNext" aria-label="次の記録コマ">▶</button><output id="slitTime" aria-live="polite">合図 +0.000秒</output></div>
+    <div class="slit-tools"><button class="btn" id="slitZero">合図の瞬間</button><button class="btn ghost" id="slitSave">画像を保存</button></div>
+    <p id="slitSummary"></p>
+    <p>ゲーム内の実測位置を記録した俯瞰画像です。記録コマの間は位置を補間します。白い点は現在のd42の判定点（舳先の最先端）で、ST・Fは実際のゲーム判定値です。直近5走を保持します（ページを閉じると消えます）。</p>
+  </div>
+</div>
+
 <div class="overlay" id="meas" hidden>
   <div class="card" style="max-width:520px">
     <h1 style="font-size:22px"><small>スタート練習・2周</small>計測タイム</h1>
     <table class="mtab"><thead><tr><th></th><th>1周目</th><th>2周目</th></tr></thead><tbody id="measBody"></tbody></table>
     <p id="measNote" style="font-size:12px;color:var(--muted)"></p>
-    <div class="row"><button class="btn" id="measAgain">もう一度</button><button class="btn ghost" id="measClose">閉じる</button></div>
+    <div class="row"><button class="btn ghost" id="measSlit" hidden>スリット写真</button><button class="btn" id="measAgain">もう一度</button><button class="btn ghost" id="measClose">閉じる</button></div>
   </div>
 </div>
 
@@ -290,7 +340,7 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
       <thead><tr><th>艇</th><th>級</th><th>進入</th><th>スタート</th><th>戦法</th><th>進入志向</th><th>気性</th><th>出足</th></tr></thead>
       <tbody id="cardBody"></tbody>
     </table></div>
-    <p>イン志向の艇は枠より内のコースを取りにいき（前付け）、アウト志向の艇は外へ回ります。スローは助走が短く内の位置を生かし、ダッシュは助走を長く取って速度を乗せてスタートします。2コース・3コースは1マーク手前で、スタートで内より前に出ていれば握り、外がまくりに来ていれば壁になり、それ以外は「勝ちにいく差し」か「着を取る差し」を選びます。まくり艇は1マーク手前で内の艇と並んでいれば、張りついて回る「ツケマイ」に切り替えることがあります（上位級・攻撃的ほど積極的）。気性が攻撃的な艇ほど、ターンで外に並ばれるとダンプ（外へ押し出す）を仕掛け、後ろから迫る艇にも道を譲りにくくなります。直線では並んだら内側の艇が優先で、後ろや横にいる艇の前を横切る「斜行」は不良航法。2回、または斜行で接触させると妨害失格です。ターンマークの内側には消波装置があり、それでも内側を通過した艇は6着扱い。ターンマークはかすめる程度ならわずかな減速で済みます。各艇の下の輪は安定度で、限界に近づくと黄、危険ラインを越えると赤く点滅します（越えても必ず転ぶわけではなく、越えた深さと技量で確率が変わります）。点線の輪は勝負に出ている艇。スタートで外の艇が内より前に出ると、内を絞りにいくことがあります（3コースが最も積極的）。絞られた内の艇はたいてい引いて後ろにつき、抵抗することはまれで、抵抗して接触すると転覆の恐れがあります。引き波は近いほど荒く、乗った艇は暴れて接触で転覆しやすくなります（腕で差が出ます）。前の艇の真後ろ（航跡）に入ると伸びが鈍るので、後続は横にずれて並びにいきます。1マークは転覆しやすいので、そこでは基本的に無理をしません。転覆・落水は失格。事故が起きたらその時点の着順で固定され、追い抜き禁止で事故艇の外側を徐行します（右上の「スキップ」で結果へ飛べます）。フライングは返還で、1マークを過ぎたらコースから離脱。先頭が十分に離れているときは無理をせず、競り合いの勝負どころでは級と気性に応じて攻めのターンに出ることがあり、決まるかどうかも級で変わります。スタートは1コースが最も読みやすく、次に4カド、2・3コース、5・6コースの順にタイミングがブレやすく、ブレる艇ほど安全マージンを取って遅めに狙います。外のスタートの難しさはA1ほど影響を受けにくく、級が下がるほど外が苦手になります。直前でフライングになると分かれば放って（レバーを戻して）合わせます。右上の「進入」を「ピット離れ」にすると、ピット離れから進入争いになります（ピットは2マーク裏のホーム側で、内から1号艇。ピットを出たら全速で小回り防止ブイ（2マークから1マーク側へ90m、センターライン上）の外を回り、2マークへ向かう間に内より前に出た艇がコースを取り、内は抵抗することも。2マークから正対までに引いた艇はダッシュで外に並び、大きく遅れた艇は回り直しで大外）。大時計はピット離れの合図から動き出し、スタートまで1分40秒（実際の待機行動と同じ）。針が回るのは最後の12秒です。「引く」はピットを出た直後から正対するまで押せて、早く引くほど助走の長いダッシュ位置に自動でつきます。エンジンは止まらないので、待機中もアクセルを放した艇はゆっくり前に流れ続けます。スタートラインに艇を向けたら（正対したら）もう舵は切れません。なので2マークを回ったら、まず自分のコースの位置まで出て、舳先を外に向けたまま（舵を切って体を起こし、ほとんど進まない状態で）待ち、そこからまっすぐ流せばちょうど起こし位置に着くタイミングで正対します。正対したあとはまっすぐ進むだけ。2マークを早く回りすぎたり、正対後にレバーを握りすぎたりすると取り返せず、深い（助走の短い）起こしになります。レバーを握ると、その場で正対して前に出ます。画面上に「起こし見込み」が出ます。前付けを受けた内の艇は、抵抗する・入れる・引いてダッシュに回るのどれかを選びます。抵抗すると2艇とも舳先を下げずに待機水面を前に出ていくので深くなり、内の艇もつられて深くなります。深くなりすぎると抵抗をやめて入れるか引きます。待機行動違反（減点）：小回り防止ブイから2マークの間で前の艇との間隔が艇2つ分より詰まる「間隔不足」、待機中の接触、大時計の針が回る前にスタートラインを越える。後から正対した艇は、先に正対した外の艇の内へは割り込めません。「固定」のときは枠なり進入です（起こし位置の目安：1コース100〜110m、2コース100〜115m、3コース110〜125m、4コース140〜150m、5・6コース150〜160m。まれに3コースが140m付近まで引く3カドになり、その時はまくり一択）。級・戦法・気性はレースごとに入れ替わります。右上の「SG」をオンにすると全艇A1のSGレースになり、赤い印のついた艇はA1の中でもトップクラスです。</p>
+    <p>イン志向の艇は枠より内のコースを取りにいき（前付け）、アウト志向の艇は外へ回ります。スローは助走が短く内の位置を生かし、ダッシュは助走を長く取って速度を乗せてスタートします。2コース・3コースは1マーク手前で、スタートで内より前に出ていれば握り、外がまくりに来ていれば壁になり、それ以外は「勝ちにいく差し」か「着を取る差し」を選びます。まくり艇は1マーク手前で内の艇と並んでいれば、張りついて回る「ツケマイ」に切り替えることがあります（上位級・攻撃的ほど積極的）。気性が攻撃的な艇ほど、ターンで外に並ばれるとダンプ（外へ押し出す）を仕掛け、後ろから迫る艇にも道を譲りにくくなります。直線では並んだら内側の艇が優先で、後ろや横にいる艇の前を横切る「斜行」は不良航法。2回、または斜行で接触させると妨害失格です。ターンマークの内側には消波装置があり、それでも内側を通過した艇は6着扱い。ターンマークはかすめる程度ならわずかな減速で済みます。各艇の下の輪は安定度で、限界に近づくと黄、危険ラインを越えると赤く点滅します（越えても必ず転ぶわけではなく、越えた深さと技量で確率が変わります）。点線の輪は勝負に出ている艇。スタートで外の艇が内より前に出ると、内を絞りにいくことがあります（3コースが最も積極的）。絞られた内の艇はたいてい引いて後ろにつき、抵抗することはまれで、抵抗して接触すると転覆の恐れがあります。引き波は近いほど荒く、乗った艇は暴れて接触で転覆しやすくなります（腕で差が出ます）。前の艇の真後ろ（航跡）に入ると伸びが鈍るので、後続は横にずれて並びにいきます。1マークは転覆しやすいので、そこでは基本的に無理をしません。転覆・落水は失格。事故が起きたらその時点の着順で固定され、追い抜き禁止で事故艇の外側を徐行します（右上の「スキップ」で結果へ飛べます）。フライングは返還で、1マークを過ぎたらコースから離脱。先頭が十分に離れているときは無理をせず、競り合いの勝負どころでは級と気性に応じて攻めのターンに出ることがあり、決まるかどうかも級で変わります。スタートは1コースが最も読みやすく、次に4カド、2・3コース、5・6コースの順にタイミングがブレやすく、ブレる艇ほど安全マージンを取って遅めに狙います。外のスタートの難しさはA1ほど影響を受けにくく、級が下がるほど外が苦手になります。直前でフライングになると分かれば放って（レバーを戻して）合わせます。右上の「進入」を「ピット離れ」にすると、ピット離れから進入争いになります（ピットは2マーク裏のホーム側で、内から1号艇。ピットを出たら全速で小回り防止ブイ（2マークから1マーク側へ90m、センターライン上）の外を回り、2マークへ向かう間に内より前に出た艇がコースを取り、内は抵抗することも。2マークから正対までに引いた艇はダッシュで外に並び、大きく遅れた艇は回り直しで大外）。大時計はピット離れの合図から動き出し、スタートまで1分40秒（実際の待機行動と同じ）。針が回るのは最後の12秒です。「引く」はピットを出た直後から正対するまで押せて、早く引くほど助走の長いダッシュ位置に自動でつきます。エンジンは止まらないので、待機中もアクセルを放した艇はゆっくり前に流れ続けます。スタートラインに艇を向けたら（正対したら）もう舵は切れません。なので2マークを回ったら、まず自分のコースの位置まで出て、舳先を外に向けたまま（舵を切って体を起こし、ほとんど進まない状態で）待ち、そこからまっすぐ流せばちょうど起こし位置に着くタイミングで正対します。正対したあとはまっすぐ進むだけ。2マークを早く回りすぎたり、正対後にレバーを握りすぎたりすると取り返せず、深い（助走の短い）起こしになります。レバーを握ると、その場で正対して前に出ます。画面上に「起こし見込み」が出ます。前付けを受けた内の艇は、抵抗する・入れる・引いてダッシュに回るのどれかを選びます。抵抗すると2艇とも舳先を下げずに待機水面を前に出ていくので深くなり、内の艇もつられて深くなります。深くなりすぎると抵抗をやめて入れるか引きます。待機行動違反（減点）：小回り防止ブイから2マークの間で前の艇との間隔が艇2つ分より詰まる「間隔不足」、待機中の接触、大時計の針が回る前にスタートラインを越える。後から正対した艇は、先に正対した外の艇の内へは割り込めません。「固定」のときは枠なり進入です（起こし位置の目安：1コース100〜110m、2コース100〜115m、3コース110〜125m、4コース140〜150m、5・6コース150〜160m。まれに3コースが140m付近まで引く3カドになります）。コース別作戦 v1では基本作戦から展開を読んで変更します。級・気性はレースごとに入れ替わります。従来のd42判断は設定から比較できます。右上の「SG」をオンにすると全艇A1のSGレースになり、赤い印のついた艇はA1の中でもトップクラスです。</p>
     <div class="row"><button class="btn ghost" id="cardClose">閉じる</button></div>
   </div>
 </div>
@@ -299,6 +349,9 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
   <div class="card" style="max-width:460px">
     <h1 style="font-size:22px">設定</h1>
     <div class="set">
+      <label>操作モード<select id="controlMode"><option value="tilt">1．傾きあり</option><option value="pad">2．傾きなし・姿勢パッドあり</option><option value="wheel">3．姿勢パッド＋右手アクセル</option></select></label>
+      <div id="wheelSettings" hidden><label>スマホ舵の最大角度 <input type="range" id="wheelRange" min="10" max="60" value="30" step="5"><output id="wheelRangeOut">30°</output></label><label><input type="checkbox" id="wheelInvert"> スマホ舵の左右を反転</label></div>
+      <p style="margin:0;font-size:12px" id="postureModeNote">オフ：傾きセンサーで姿勢を操作します。</p>
       <button class="btn" id="zero">今の持ち方を基準にする</button>
       <label><input type="checkbox" id="invR"> 左右の傾きを反転</label>
       <label><input type="checkbox" id="invP"> 前後の傾きを反転</label>
@@ -308,6 +361,7 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
       <div class="row" style="margin-top:0"><label style="flex:1"><input type="checkbox" id="hapOn" checked> 振動（コントローラ／Androidスマホ）</label><button class="btn ghost" id="hapTest">振動テスト</button></div>
       <label>傾きの幅 <input type="range" id="sens" min="8" max="35" step="1" value="18"><output id="sensOut">18°</output></label>
       <p style="margin:0">この角度まで傾けると体重移動が最大になります。小さいほど敏感です。</p>
+      <label>デモのCPU基本判断 <select id="demoCpuMode"><option value="course-v1">コース別作戦 v1</option><option value="legacy">従来のd42（比較用）</option></select></label>
       <label>6艇デモの再生速度 <select id="simSpeed"><option value="1">1倍（実時間）</option><option value="1.5" selected>1.5倍</option><option value="2">2倍</option><option value="3">3倍</option></select></label>
       <div class="row" style="margin-top:0">
         <button class="btn ghost" id="reset">スタート練習をやり直す</button>
@@ -320,11 +374,11 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
 <section id="labSetup" class="lab-surface" hidden aria-label="挙動検証の条件設定">
  <div class="lab-head"><div><div class="lab-kicker">HONOR FOR GP / d42 BEHAVIOR LAB</div><h2>第1マークを、読み解く。</h2></div><div class="lab-actions"><button id="labImport">ログから条件を読込</button><button id="labSetupClose">閉じる</button></div></div>
  <p>2〜6艇の位置・速度・選手特性と、段階ごとの判断を設定。d42の操艇・物理処理で走らせ、判断と操作、艇の動きを記録します。スリット付近から開始し、第1マーク〜第2マークへの準備を検証します。</p>
- <div class="lab-block lab-grid"><label>乱数シード<input id="labSeed" type="number" min="0" max="4294967295" step="1" value="42"></label><label>検証時間（秒）<input id="labDuration" type="number" min="5" max="120" step="1" value="30"></label><label>ログの記録間隔<select id="labHz"><option value="20">20 Hz / 0.05秒</option><option value="60">60 Hz / 約0.017秒</option><option value="120">120 Hz / 毎ステップ</option></select></label><label>コーナー手前の開始位置 x（m）<input id="labApproach" type="number" min="40" max="120" value="90"></label></div>
- <div class="lab-actions"><button id="labPreset">1・4コースの2艇に戻す</button><button id="labAll">6艇すべてを選ぶ</button><button id="labAvoidAll">全艇を接触回避優先に</button></div>
+ <div class="lab-block lab-grid"><label>CPU基本判断<select id="labCpuMode"><option value="course-v1">コース別作戦 v1（デモと共通）</option><option value="legacy">従来のd42（比較用）</option></select></label><label>乱数シード<input id="labSeed" type="number" min="0" max="4294967295" step="1" value="42"></label><label>検証時間（秒）<input id="labDuration" type="number" min="5" max="120" step="1" value="30"></label><label>ログの記録間隔<select id="labHz"><option value="20">20 Hz / 0.05秒</option><option value="60">60 Hz / 約0.017秒</option><option value="120">120 Hz / 毎ステップ</option></select></label><label>コーナー手前の開始位置 x（m）<input id="labApproach" type="number" min="40" max="120" value="90"></label></div>
+ <div class="lab-actions"><button id="labPreset">1・4コースの2艇に戻す</button><button id="labAll">6艇すべてを選ぶ</button><button id="labCoursePreset">コース別作戦で6艇テスト</button><button id="labAvoidAll">全艇を接触回避優先に</button></div>
  <p class="lab-note">使用するコースにチェック。x＝前後位置（＋が1マーク方向）、y＝外への距離。スタート線 x=0、1マーク (150,0)。STは判断に渡す既知の値で、スタート計測は省略します。初期位置・速度はSTと独立です。</p>
  <div id="labBoats"></div>
- <p class="lab-note">戦法指定はd42にある選択肢を使用。まくり差し・「張る」専用分岐の新設は含みません。操作の空欄＝CPU判断、数値＝目標入力の指定（d42の反応遅れあり）。舵・傾きは−が左、＋が右。姿勢は−が起こす、＋が伏せる。Rとgapはd42の目標ラインの半径と外端距離（m）です。接触・引き波・事故後の徐行は有効です。「接触回避を優先」は広めの艇間余裕を見て、まくりや数値指定より回避減速・舵・姿勢の回避操作を優先します。ダンプ・従来の強引な絞り・絞りへの抵抗を抑制します。「一艇身先行したら絞る」は併用可能で、回避操作を優先しつつ内へ入ります。衝突判定を消す設定ではなく、接触ゼロは保証しません。</p>
+ <p class="lab-note">コース別作戦 v1：1＝先マイ・逃げ、2＝差し、3＝まくり／まくり差し、4＝まくり、5＝まくり差し、6＝差しを基本に、先行差・伸び・艇間の開きで判断します。コース別作戦では、カドは出走艇のうちスロー以外で最も内の艇として自動判定します。まくり差しは外から入り、空いた艇間へ切り込む専用ラインです。6コースもマークの外側を通ってからバック側へ抜けます。戦法名はCPUの意図であり、決まり手の結果判定ではありません。操作の空欄＝CPU判断、数値＝目標入力の指定（d42の反応遅れあり）。舵・傾きは−が左、＋が右。姿勢は−が起こす、＋が伏せる。Rとgapはd42の目標ラインの半径と外端距離（m）です。接触・引き波・事故後の徐行は有効です。「接触回避を優先」は広めの艇間余裕を見て、まくりや数値指定より回避減速・舵・姿勢の回避操作を優先します。ダンプ・従来の強引な絞り・絞りへの抵抗を抑制します。「一艇身先行したら絞る」は併用可能で、回避操作を優先しつつ内へ入ります。衝突判定を消す設定ではなく、接触ゼロは保証しません。</p>
  <div class="lab-error" id="labError" role="alert"></div>
  <div class="lab-bottom"><span class="lab-count" id="labCount">2艇を選択</span><div class="lab-actions"><button id="labSetupExport" disabled>前回のログを保存</button><button id="labStart" class="primary">この条件で検証開始</button></div></div>
  <input id="labFile" type="file" accept=".json,application/json" hidden>
@@ -366,6 +420,29 @@ const C = { water: tok('--water'), deep: tok('--water-deep'), bank: tok('--bank'
 
 // Real course: start line midway, each turn mark 150 m from it (300 m apart), 3 laps of ~600 m.
 const MK = 150;
+// Timing uses the actual pointed bow in the deck outline, not the centre or collision capsule.
+const BOW_TIP = 2.25;
+const START_GATE = {x:0,side:1};
+const startOffset = (at,zero) => Math.abs(at-zero)<1e-9?0:at-zero;
+const boatBow = b => ({x:b.x+BOW_TIP*Math.cos(b.a),y:b.y+BOW_TIP*Math.sin(b.a)});
+const timingPose = (b,t) => ({x:b.x,y:b.y,a:b.a,t});
+function interpolatePose(p,q,u){
+  const da=Math.atan2(Math.sin(q.a-p.a),Math.cos(q.a-p.a));
+  return {...p,x:p.x+(q.x-p.x)*u,y:p.y+(q.y-p.y)*u,a:p.a+da*u};
+}
+// Half-open crossing prevents counting the same point twice. Resolve within a physics step
+// using the same position/heading interpolation as the photograph (including a turning bow).
+function gateCrossing(g,p,q){
+  const a=boatBow(p),b=boatBow(q);
+  if(!((a.x-g.x)*g.side<0 && (b.x-g.x)*g.side>=0))return null;
+  let lo=0,hi=1;
+  for(let i=0;i<42;i++){
+    const u=(lo+hi)/2,v=(boatBow(interpolatePose(p,q,u)).x-g.x)*g.side;
+    if(v<0)lo=u;else hi=u;
+  }
+  const u=(lo+hi)/2,at=boatBow(interpolatePose(p,q,u));
+  return Math.sign(at.y)===g.side?p.t+(q.t-p.t)*u:null;
+}
 const GRIP_BASE = 5;         // sideways grip; with the turn-rate cap this sets how wide a turn swings at speed
 const HAZARD = 0.2;
 // turning: how much leaning in adds grip, how much sitting up amplifies that and staying crouched spoils it,
@@ -402,14 +479,19 @@ const diag = { ori: 0, oriNull: 0, mot: 0, framed: (() => { try { return window.
 const B = { x: START.x, y: START.y, a: START.a, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0 };
 const input = { thr: 0, steer: 0, steerT: 0, roll: 0, pitch: 0 };
 const raw = { roll: 0, pitch: 0 };
+const virtualPosture={enabled:false,pointer:null,roll:0,pitch:0};
+let controlMode='tilt';
+const phoneWheel={base:null,last:null,kind:null,value:0,deg:0,range:30,invert:false};
 const sensor = { got: false, calib: null, invR: false, invP: false, range: 18, deg: [0, 0] };
 const keys = new Set();
 const cam = { x: B.x, y: B.y };
 const wake = [], spray = [];
-const lap = { n: 0, start: 0, best: null, visR: false, visL: false, prevX: B.x };
+const lap = { n: 0, start: 0, best: null, visR: false, visL: false, prevY: B.y };
 const T = { on: false, sum: 0, n: 0, maxVl: 0, minV: 99, entryV: 0, quiet: 0 };
 let running = false, paused = false, time = 0, harmony = 0, lowLeanT = 0, hitCool = 0, wakeAcc = 0, portraitOk = false;
 let W = 0, H = 0, DPR = 1;
+const slitHistory=[];
+let slitSerial=0, practiceSlit=null, slitSelected=null, slitWasPaused=false, slitReturnFocus=null;
 
 /* ---------- sizing ---------- */
 function resize() {
@@ -441,7 +523,34 @@ function readAngles(beta, gamma) {
   const b = beta * D2R, g = gamma * D2R;
   return fromUp(-Math.sin(g) * Math.cos(b), Math.sin(b), Math.cos(g) * Math.cos(b));
 }
+// DeviceOrientation uses intrinsic Z-X-Y rotations (W3C). Extract screen-normal twist
+// relative to the calibrated holding pose; clockwise as seen by the player is positive steering.
+function quatMul(a,b){return[a[0]*b[0]-a[1]*b[1]-a[2]*b[2]-a[3]*b[3],a[0]*b[1]+a[1]*b[0]+a[2]*b[3]-a[3]*b[2],a[0]*b[2]-a[1]*b[3]+a[2]*b[0]+a[3]*b[1],a[0]*b[3]+a[1]*b[2]-a[2]*b[1]+a[3]*b[0]];}
+function orientationQuat(alpha,beta,gamma){
+ const a=alpha*D2R/2,b=beta*D2R/2,g=gamma*D2R/2;
+ return quatMul(quatMul([Math.cos(a),0,0,Math.sin(a)],[Math.cos(b),Math.sin(b),0,0]),[Math.cos(g),0,Math.sin(g),0]);
+}
+function resetPhoneWheel(){phoneWheel.base=phoneWheel.last!=null?(Array.isArray(phoneWheel.last)?phoneWheel.last.slice():phoneWheel.last):null;phoneWheel.deg=phoneWheel.value=0;input.steer=input.steerT=0;}
+function recordPhoneWheel(sample,kind){
+ if(controlMode!=='wheel')return;
+ if(phoneWheel.kind!==kind){phoneWheel.kind=kind;phoneWheel.base=null;}
+ phoneWheel.last=sample;if(phoneWheel.base==null)phoneWheel.base=Array.isArray(sample)?sample.slice():sample;
+ let degrees;
+ if(kind==='quat'){
+  const a=phoneWheel.base,q=quatMul([a[0],-a[1],-a[2],-a[3]],sample);
+  degrees=Math.hypot(q[0],q[3])<1e-5?0:wrap(-2*Math.atan2(q[3],q[0])/D2R);
+ }else degrees=wrap(sample-phoneWheel.base);
+ sensor.got=true;$('note').hidden=true;phoneWheel.deg=degrees*(phoneWheel.invert?-1:1);
+ phoneWheel.value=clamp(Math.sign(phoneWheel.deg)*Math.max(0,Math.abs(phoneWheel.deg)-2)/(phoneWheel.range-2));
+ if(calib.open){$('calDot').style.transform=`translate(${phoneWheel.value*60}px,0px)`;$('calTxt').textContent=`舵 ${phoneWheel.deg.toFixed(1)}°（OKでここが中央）`;}
+}
+function wheelFromGravity(ux,uy){
+ const a=screenAngle(),sx=ux*Math.cos(a)-uy*Math.sin(a),sy=ux*Math.sin(a)+uy*Math.cos(a);
+ if(Math.hypot(sx,sy)<.15){phoneWheel.value=phoneWheel.deg=0;return;}
+ recordPhoneWheel(Math.atan2(-sx,sy)/D2R,'gravity');
+}
 function applyAngles(ang) {
+  if(virtualPosture.enabled)return;
   if (!sensor.got) { sensor.got = true; $('note').hidden = true; }
   sensor.last = ang;
   // zeroing: for a short moment after "start", the mean of the readings becomes the level posture
@@ -463,14 +572,21 @@ function applyAngles(ang) {
   raw.pitch = dz(clamp(dp / sensor.range));
 }
 function onOri(e) {
+  if(controlMode==='pad')return;
   diag.ori++;
   if (e.beta == null || e.gamma == null) { diag.oriNull++; return; }
   sensor.src = 'ori';
+  if(controlMode==='wheel'){
+    if(Number.isFinite(e.alpha)&&Number.isFinite(e.beta)&&Number.isFinite(e.gamma))recordPhoneWheel(orientationQuat(e.alpha,e.beta,e.gamma),'quat');
+    else {const b=e.beta*D2R,g=e.gamma*D2R;wheelFromGravity(-Math.sin(g)*Math.cos(b),Math.sin(b));}
+    return;
+  }
   applyAngles(readAngles(e.beta, e.gamma));
 }
 // fallback: gravity from the accelerometer when orientation events are empty
 const gs = { x: 0, y: 0, z: 0, init: false };
 function onMot(e) {
+  if(controlMode==='pad')return;
   diag.mot++;
   if (sensor.src === 'ori') return;
   const g = e.accelerationIncludingGravity;
@@ -481,16 +597,22 @@ function onMot(e) {
   gs.x += (x - gs.x) * 0.25; gs.y += (y - gs.y) * 0.25; gs.z += (z - gs.z) * 0.25;
   const n = Math.hypot(gs.x, gs.y, gs.z) || 1;
   sensor.src = 'mot';
+  if(controlMode==='wheel'){wheelFromGravity(gs.x/n,gs.y/n);return;}
   applyAngles(fromUp(gs.x / n, gs.y / n, gs.z / n));
 }
 // 傾きの基準: after "start" the player holds the phone the way they'll play, checks the tilt responds,
 // and presses OK; that posture becomes level (傾き0) and stays fixed until they set it again.
 const calib = { open: false, ref: null, then: null };
 function openCalib(then) {
+  if(controlMode==='pad'){if(then)then();return;}
+  $('calUsePad').hidden=controlMode!=='wheel';
+  if(controlMode==='wheel')resetPhoneWheel();
+  $('calTitle').textContent=controlMode==='wheel'?'スマホ舵の中央を合わせる':'姿勢の基準を合わせる';
+  $('calMsg').textContent=controlMode==='wheel'?'スマホをハンドルのように構え、左右に回して反応を確かめてください。まっすぐ進む持ち方に戻してOKを押します。':'遊ぶときの持ち方で構え、少し傾けて反応を確かめてください。OKを押した姿勢が傾き0になります。';
   calib.open = true; calib.ref = sensor.last ? sensor.last.slice() : null; calib.then = then;
   paused = true; $('calib').hidden = false;
-  $('calTxt').textContent = sensor.got ? '左右 0°　前後 0°' : '傾きを確認中…';
-  setTimeout(() => { if (calib.open && !sensor.got) $('calTxt').textContent = '傾きセンサーが見つかりません（PC・コントローラならそのままOK）'; }, 1200);
+  $('calTxt').textContent = controlMode==='wheel'?'左右に回して舵を確認…':sensor.got ? '左右 0°　前後 0°' : '傾きを確認中…';
+  setTimeout(() => { if (calib.open && !sensor.got) $('calTxt').textContent = controlMode==='wheel'?'スマホ舵を取得できません。センサーの許可を確認するか、モード2へ切り替えてください。':'傾きセンサーが見つかりません（PC・コントローラならそのままOK）'; }, 1200);
 }
 function showCalib(ang) {
   if (!calib.ref) calib.ref = ang.slice();
@@ -510,13 +632,14 @@ function closeCalib() {
   if (then) then();
 }
 $('calOk').addEventListener('click', closeCalib);
+$('calUsePad').addEventListener('click',()=>{setControlMode('pad');closeCalib();});
 // the posture the phone is held in when OK is pressed counts as level (傾き0)
-function zeroTilt() { sensor.zeroing = { n: 0, r: 0, p: 0, first: null, until: performance.now() + 350 }; }
+function zeroTilt() { if(controlMode==='pad')return;if(controlMode==='wheel'){resetPhoneWheel();return;}sensor.zeroing = { n: 0, r: 0, p: 0, first: null, until: performance.now() + 350 }; }
 function recalibrate(msg) {
   sensor.calib = sensor.last ? sensor.last.slice() : null;
   if (msg) toast('基準リセット', msg, 'info');
 }
-const onTurnScreen = () => { sensor.calib = null; if (running) setTimeout(() => toast('基準リセット', '画面の向きが変わったので、今の持ち方を基準にしました', 'info'), 300); };
+const onTurnScreen = () => { resetVirtualPosture();if(controlMode==='pad')return;if(controlMode==='wheel'){phoneWheel.last=null;resetPhoneWheel();return;} sensor.calib = null; if (running) setTimeout(() => toast('基準リセット', '画面の向きが変わったので、今の持ち方を基準にしました', 'info'), 300); };
 if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', onTurnScreen);
 else addEventListener('orientationchange', onTurnScreen);
 
@@ -664,16 +787,25 @@ function lockLandscape() {
   } catch (e) {}
 }
 const orient = { locked: false };
-async function start(after) {
-  initAudio();
-  lockLandscape();          // must start inside the tap
+async function enableTiltInput(){
   let ok = true;
   // both requests fire inside the same tap so iOS still counts it as a user gesture
   const reqs = [];
   try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') reqs.push(DeviceOrientationEvent.requestPermission()); } catch (e) { ok = false; }
   try { if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') reqs.push(DeviceMotionEvent.requestPermission()); } catch (e) { ok = false; }
   try { const res = await Promise.all(reqs.map(p => p.catch(() => 'error'))); if (res.length && !res.includes('granted')) ok = false; } catch (e) { ok = false; }
+  if(controlMode==='pad')return false;
   if (!start.listening) { start.listening = true; addEventListener('deviceorientation', onOri); addEventListener('devicemotion', onMot); }
+  return ok;
+}
+function disableTiltInput(){
+ removeEventListener('deviceorientation',onOri);removeEventListener('devicemotion',onMot);start.listening=false;
+ sensor.zeroing=null;raw.roll=raw.pitch=0;
+}
+async function start(after) {
+  initAudio();
+  lockLandscape();          // must start inside the tap
+  const ok=controlMode==='pad'?true:await enableTiltInput();
   $('start').hidden = true;
   try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
   // check the tilt and fix 傾き0, then the game begins
@@ -681,7 +813,7 @@ async function start(after) {
 }
 function afterStartCheck(ok) {
   setTimeout(() => {
-    if (sensor.got || fleet) return;
+    if (controlMode==='pad' || sensor.got || fleet) return;
     const d = `診断：向き ${diag.ori}回（値なし ${diag.oriNull}）／加速度 ${diag.mot}回／${diag.framed ? '埋め込み表示' : '単独表示'}／${window.isSecureContext ? 'HTTPS' : '非HTTPS'}${ok ? '' : '／許可なし'}`;
     showNote((diag.framed
       ? '傾きが検知できていません。アプリ内の埋め込み表示ではセンサーが止められている可能性が高いです。単独のページとして開くと動くはずです。'
@@ -693,7 +825,7 @@ $('goDemo').addEventListener('click', () => { start(() => entryMode ? startEntry
 $('stayPortrait').addEventListener('click', () => { portraitOk = true; $('rotate').hidden = true; });
 
 /* ---------- settings ---------- */
-$('gear').addEventListener('click', () => { paused = true; $('settings').hidden = false; });
+$('gear').addEventListener('click', () => { resetVirtualPosture();paused = true; $('settings').hidden = false; });
 $('close').addEventListener('click', () => { paused = false; last = performance.now(); $('settings').hidden = true; });
 $('zero').addEventListener('click', () => { $('settings').hidden = true; openCalib(() => toast('基準リセット', 'OKを押した持ち方が傾き0になりました', 'info')); });
 $('padRT').addEventListener('change', e => { pad.useRT = e.target.checked; });
@@ -730,27 +862,28 @@ const MEAS_JA = { tenji: '展示タイム', choku: '直線タイム', mawari: '�
 const meas = { on: false, t: {}, open: {}, lapGateAt: null, startAt: 0, st: null };
 function measReset() { Object.assign(meas, { on: false, t: { tenji: [], choku: [], mawari: [], isshu: [] }, open: {}, lapGateAt: null, startAt: 0, st: null }); }
 measReset();
-// boat moved from (px,py) to (x,y): did it cross gate g (x line on one side of the course)?
-// home side (side 1) is run toward +x, the back side (side −1) toward −x
-const crossedGate = (g, px, py, x, y) => Math.sign(y) === g.side && Math.sign(py) === g.side && (px - g.x) * (x - g.x) <= 0 && px !== x && Math.sign(x - px) === g.side;
-function measStep(px, py) {
+// All exhibition, straight, turning and one-lap gates use bow crossings.
+function measStep(previous,current) {
   if (!meas.on) return;
-  const x = B.x, y = B.y, lapNo = lap.n + 1;
+  const lapNo = lap.n + 1;
   for (const k in GATES) {
-    const g = GATES[k];
-    if (crossedGate(g.from, px, py, x, y)) meas.open[k] = time;
-    else if (meas.open[k] != null && crossedGate(g.to, px, py, x, y)) {
-      const v = time - meas.open[k]; meas.open[k] = null;
-      if (meas.t[k].length < MEAS_LAPS) { meas.t[k][lapNo - 1] = v; toast(MEAS_JA[k], `${lapNo}周目 ${v.toFixed(2)}秒`, 'info'); }
+    const g = GATES[k],from=gateCrossing(g.from,previous,current),to=gateCrossing(g.to,previous,current);
+    if(from!=null)meas.open[k]=from;
+    if(meas.open[k]!=null && to!=null && to>=meas.open[k]){
+      const v=to-meas.open[k];meas.open[k]=null;
+      if(meas.t[k].length<MEAS_LAPS){meas.t[k][lapNo-1]=v;toast(MEAS_JA[k],`${lapNo}周目 ${v.toFixed(2)}秒`,'info');}
     }
   }
-  if (crossedGate(LAP_GATE, px, py, x, y)) {
-    if (meas.lapGateAt != null && meas.t.isshu.length < MEAS_LAPS) { const v = time - meas.lapGateAt; meas.t.isshu.push(v); toast(MEAS_JA.isshu, `${v.toFixed(2)}秒`, 'info'); }
-    meas.lapGateAt = time;
+  const at=gateCrossing(LAP_GATE,previous,current);
+  if(at!=null){
+    if(meas.lapGateAt!=null && meas.t.isshu.length<MEAS_LAPS){const v=at-meas.lapGateAt;meas.t.isshu.push(v);toast(MEAS_JA.isshu,`${v.toFixed(2)}秒`,'info');}
+    meas.lapGateAt=at;
   }
 }
 function measFinish(total) {
   meas.on = false;
+  slitArchive(practiceSlit, [{no:1,st:meas.st}], 'スタート練習');
+  $('measSlit').hidden=!(practiceSlit && practiceSlit.archived);
   const tb = $('measBody'); tb.textContent = '';
   const row = (name, a, best) => {
     const tr = document.createElement('tr');
@@ -772,24 +905,27 @@ $('measAgain').addEventListener('click', () => { $('meas').hidden = true; paused
 $('measClose').addEventListener('click', () => { $('meas').hidden = true; paused = false; last = performance.now(); });
 
 function resetBoat() {
+  resetVirtualPosture();
   Object.assign(B, { x: START.x, y: START.y, a: START.a, v: 4, vl: 0, yaw: 0, porp: 0, cap: 0 });
   input.thr = 0; wake.length = 0; spray.length = 0; T.on = false;
   cam.x = B.x; cam.y = B.y;
-  lap.n = 0; lap.start = time; lap.visR = lap.visL = false; lap.prevX = B.x;
+  lap.n = 0; lap.start = time; lap.visR = lap.visL = false; lap.prevY = B.y;
   measReset();
 }
 function beginStart() {
   resetBoat();
   SS.phase = 'count'; SS.t0 = time; SS.hideAt = 0;
+  practiceSlit=slitCreate('スタート練習');
+  $('measSlit').hidden=true;
   $('clock').hidden = false;
   toast('大時計スタート', '針が0を指してから1秒以内にスタートラインを越える', 'info');
 }
 const fmtRT = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}'${String(Math.floor(s)).padStart(2, '0')}"${Math.floor((s % 1) * 10)}`; };
 const fmtST = v => v >= 1 ? v.toFixed(2) : '.' + String(Math.round(v * 100)).padStart(2, '0');
-function judgeStart(st) {
+function judgeStart(st,at=time) {
   SS.phase = 'done'; SS.hideAt = time + 2.5;
-  lap.start = time;
-  meas.on = true; meas.startAt = time; meas.st = st;
+  lap.start = at;
+  meas.on = true; meas.startAt = at; meas.st = st;
   if (st < 0) toast('フライング', `F ${fmtST(-st)}　針が0になる前に越えた`, 'bad');
   else if (st <= 0.15) toast('好スタート', `ST ${fmtST(st)}`, 'good');
   else if (st <= 0.3) toast('スタート', `ST ${fmtST(st)}`, 'warn');
@@ -797,7 +933,7 @@ function judgeStart(st) {
 }
 
 /* ---------- keyboard ---------- */
-addEventListener('keydown', e => { if(lab.active || !$('labSetup').hidden)return; keys.add(e.code); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); if (e.code === 'Space' && !e.repeat && fleet && fleet.entry && fleet.playerNo) playerDash(); });
+addEventListener('keydown', e => { if(lab.active || !$('labSetup').hidden || !$('slitPhoto').hidden)return; keys.add(e.code); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); if (e.code === 'Space' && !e.repeat && fleet && fleet.entry && fleet.playerNo) playerDash(); });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
@@ -809,7 +945,8 @@ function sideOn(side) { $(side === 'thr' ? 'lever' : 'wheel').classList.toggle('
 cv.addEventListener('pointerdown', e => {
   if (!running || paused || (fleet && !playerActive())) return;
   e.preventDefault();
-  const side = e.clientX < W * 0.5 ? 'thr' : 'steer';
+  if(controlMode==='wheel'&&e.clientX<W*.5)return;
+  const side = controlMode==='wheel'?'thr':e.clientX < W * 0.5 ? 'thr' : 'steer';
   ptrs.set(e.pointerId, { side, x0: e.clientX, y0: e.clientY, v0: input.thr });
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
   if (side === 'steer') { steerTouch = true; input.steerT = 0; }
@@ -829,6 +966,52 @@ function endPtr(e) {
 cv.addEventListener('pointerup', endPtr);
 cv.addEventListener('pointercancel', endPtr);
 
+/* ---------- optional left-hand virtual posture stick ---------- */
+function resetVirtualPosture(){
+ const id=virtualPosture.pointer;virtualPosture.pointer=null;virtualPosture.roll=virtualPosture.pitch=0;
+ const zone=$('postureZone');zone.classList.remove('active');$('postureThumb').style.transform='translate(0px,0px)';
+ if(id!=null)try{zone.releasePointerCapture(id);}catch(_){}
+}
+async function setControlMode(mode,persist=true){
+ if(!['tilt','pad','wheel'].includes(mode))mode='tilt';
+ controlMode=mode;virtualPosture.enabled=mode!=='tilt';resetVirtualPosture();
+ for(const id of ptrs.keys())try{cv.releasePointerCapture(id);}catch(_){}ptrs.clear();steerTouch=false;keys.clear();sideOn('thr');sideOn('steer');
+ raw.roll=raw.pitch=input.roll=input.pitch=input.steer=input.steerT=0;
+ phoneWheel.base=phoneWheel.last=null;phoneWheel.kind=null;phoneWheel.value=phoneWheel.deg=0;
+ $('controlMode').value=mode;for(const e of document.querySelectorAll('[name="startControlMode"]'))e.checked=e.value===mode;
+ $('postureStick').hidden=!virtualPosture.enabled;$('phoneSteerReadout').hidden=mode!=='wheel';$('wheelSettings').hidden=mode!=='wheel';
+ document.body.classList.toggle('virtual-pad',virtualPosture.enabled);document.body.classList.toggle('phone-wheel',mode==='wheel');
+ const help={tilt:'左手でアクセル、右手で舵。スマホの左右・前後の傾きで姿勢を操作します。',pad:'左手側にアクセルと姿勢パッド、右手側に舵。傾きセンサーは停止します。',wheel:'左手は姿勢パッド、右手はアクセル。スマホをハンドルのように時計回りで右舵、反時計回りで左舵。センサーは舵だけに使います。'};
+ $('controlHelp').textContent=$('postureModeNote').textContent=help[mode];
+ $('zero').disabled=mode==='pad';$('zero').textContent=mode==='wheel'?'今の持ち方を舵の中央にする':'今の持ち方を姿勢の基準にする';
+ for(const id of ['invR','invP','sens'])$(id).disabled=mode!=='tilt';
+ if(persist)try{localStorage.setItem('honorGP.controlMode',mode);}catch(_){}
+ disableTiltInput();sensor.got=false;sensor.calib=null;sensor.last=null;sensor.src=null;gs.init=false;
+ if(mode==='pad')$('note').hidden=true;
+ else if(running){const ok=await enableTiltInput();if(controlMode===mode)afterStartCheck(ok);}
+}
+function moveVirtualPosture(e){
+ const r=$('postureZone').getBoundingClientRect(),radius=Math.max(1,r.width/2-18);
+ let x=(e.clientX-r.left-r.width/2)/radius,y=(e.clientY-r.top-r.height/2)/radius;
+ const len=Math.hypot(x,y);if(len>1){x/=len;y/=len;}
+ const dead=.08,mag=Math.hypot(x,y),scale=mag>dead?(mag-dead)/((1-dead)*mag):0;
+ virtualPosture.roll=x*scale;virtualPosture.pitch=-y*scale;
+ $('postureThumb').style.transform=`translate(${x*radius}px,${y*radius}px)`;
+}
+$('postureZone').addEventListener('pointerdown',e=>{
+ e.preventDefault();e.stopPropagation();
+ if(!virtualPosture.enabled||!running||paused||lab.active||(fleet&&!playerActive())||virtualPosture.pointer!=null)return;
+ virtualPosture.pointer=e.pointerId;try{e.currentTarget.setPointerCapture(e.pointerId);}catch(_){}
+ e.currentTarget.classList.add('active');moveVirtualPosture(e);
+});
+$('postureZone').addEventListener('pointermove',e=>{if(e.pointerId!==virtualPosture.pointer)return;e.preventDefault();e.stopPropagation();moveVirtualPosture(e);});
+for(const name of ['pointerup','pointercancel','lostpointercapture'])$('postureZone').addEventListener(name,e=>{if(e.pointerId===virtualPosture.pointer)resetVirtualPosture();});
+for(const e of document.querySelectorAll('[name="startControlMode"]'))e.addEventListener('change',()=>{if(e.checked)setControlMode(e.value);});
+$('controlMode').addEventListener('change',e=>setControlMode(e.target.value));
+$('wheelRange').addEventListener('input',e=>{phoneWheel.range=+e.target.value;$('wheelRangeOut').textContent=e.target.value+'°';});
+$('wheelInvert').addEventListener('change',e=>{phoneWheel.invert=e.target.checked;resetPhoneWheel();});
+addEventListener('blur',resetVirtualPosture);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)resetVirtualPosture();});
 /* ---------- game controller (Gamepad API, standard layout) ----------
    LT = throttle lever (left hand, like the real boat; RT can be chosen in settings)
    right stick ←→ = rudder,  left stick ←→ = lean,  left stick ↑ = 伏せる / ↓ = 体を起こす
@@ -958,20 +1141,21 @@ function updateInput(dt) {
   if (gp) {
     // the controller is driving: it sets all four channels
     input.thr += (gp.thr - input.thr) * (1 - Math.exp(-dt * 14));
-    input.steer += (gp.steer - input.steer) * (1 - Math.exp(-dt * 12));
-    input.roll += (gp.roll - input.roll) * k;
-    input.pitch += (gp.pitch - input.pitch) * k;
+    input.steer += ((controlMode==='wheel'?phoneWheel.value:gp.steer) - input.steer) * (1 - Math.exp(-dt * 12));
+    input.roll += ((virtualPosture.enabled?virtualPosture.roll:gp.roll) - input.roll) * k;
+    input.pitch += ((virtualPosture.enabled?virtualPosture.pitch:gp.pitch) - input.pitch) * k;
     return;
   }
   if (keys.has('KeyW')) input.thr = Math.min(1, input.thr + dt * 1.2);
   if (keys.has('KeyS')) input.thr = Math.max(0, input.thr - dt * 1.2);
   const ks = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
-  const st = steerTouch ? input.steerT : ks;
+  const st = controlMode==='wheel'?phoneWheel.value:steerTouch ? input.steerT : ks;
   input.steer += (st - input.steer) * (1 - Math.exp(-dt * 9));
   const kr = (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0);
   const kp = (keys.has('ArrowUp') ? 1 : 0) - (keys.has('ArrowDown') ? 1 : 0);
   let tr = raw.roll, tp = raw.pitch;
-  if (kr || kp || !sensor.got) { tr = kr; tp = kp; }
+  if(virtualPosture.enabled){tr=virtualPosture.roll;tp=virtualPosture.pitch;if(virtualPosture.pointer==null&&(kr||kp)){tr=kr;tp=kp;}}
+  else if (kr || kp || !sensor.got) { tr = kr; tp = kp; }
   input.roll += (tr - input.roll) * k;
   input.pitch += (tp - input.pitch) * k;
 }
@@ -1202,6 +1386,7 @@ function splash(b) {
 }
 
 function step(dt) {
+  const previous=timingPose(B,time);
   time += dt;
   const ev = boatPhysics(B, input, dt);
   harmony = B.harmony || 0;
@@ -1213,18 +1398,20 @@ function step(dt) {
       if (!hitCool) { toast(ev === 'buoy' ? '接触' : ev === 'boom' ? '消波装置' : '岸壁', ev === 'buoy' ? 'ターンマークに強く当たった' : ev === 'boom' ? 'マーク内側の消波装置に当たった' : 'コースの端にぶつかった', 'bad'); hitCool = 1.5; }
     }
   }
+  slitCapture(practiceSlit,time-(SS.t0+CLOCK),[{no:1,b:B,trait:{course:1}}]);
   if (B.cap > 0) return;
   boatFx(B, wake, dt);
 
   // big-clock start: the line must be crossed 0–1.0 s after the hand hits zero
-  const crossed = lap.prevX < 0 && B.x >= 0 && B.y > 0;
+  const current=timingPose(B,time),crossAt=gateCrossing(START_GATE,previous,current);
+  const crossed=crossAt!=null;
   if (SS.phase === 'count') {
-    if (crossed) { judgeStart(time - (SS.t0 + CLOCK)); lap.prevX = B.x; lap.visR = lap.visL = false; return; }
+    if (crossed) { judgeStart(startOffset(crossAt,SS.t0+CLOCK),crossAt); lap.visR = lap.visL = false; return; }
     if (time > SS.t0 + CLOCK + 1) { SS.phase = 'done'; SS.hideAt = time + 2.5; toast('出遅れ', '1秒以内にスタートラインを越えられなかった', 'bad'); }
   }
   if (SS.phase === 'done' && SS.hideAt && time > SS.hideAt) { SS.phase = 'off'; $('clock').hidden = true; }
 
-  measStep(lap.prevX, lap.prevYm ?? B.y); lap.prevYm = B.y;
+  measStep(previous,current);
   // laps: cross the line at x=0 on the lower straight after rounding both marks
   if (SS.phase !== 'count' && Math.sign(lap.prevY || B.y) !== Math.sign(B.y) && Math.abs(B.x) < MK - 1) toast('内側航走', 'ターンマークの内側を通過（レースなら6着扱い）', 'bad');
   lap.prevY = B.y;
@@ -1232,15 +1419,14 @@ function step(dt) {
   if (B.x < -MK + 15) lap.visL = true;
   if (crossed) {
     if (lap.visR && lap.visL) {
-      const lt = time - lap.start;
+      const lt = crossAt - lap.start;
       lap.best = lap.best == null ? lt : Math.min(lap.best, lt);
       lap.n++;
       if (!T.on) toast(`${lap.n}周`, `ラップ ${fmt(lt)}`, 'info');
-      if (meas.on && lap.n >= MEAS_LAPS) measFinish(time - meas.startAt);
+      if (meas.on && lap.n >= MEAS_LAPS) measFinish(crossAt - meas.startAt);
     }
-    lap.start = time; lap.visR = lap.visL = false;
+    lap.start = crossAt; lap.visR = lap.visL = false;
   }
-  lap.prevX = B.x;
 
   // turn grading
   if (!T.on && Math.abs(B.yaw) > 0.55 && B.v > 7) Object.assign(T, { on: true, sum: 0, n: 0, maxVl: 0, minV: B.v, entryV: B.v, quiet: 0 });
@@ -1429,6 +1615,120 @@ function turnRoll(prof) {
   return { lean: 1 - Math.min(0.5, Math.abs(gauss()) * sd * 0.8), up: 1 - Math.min(0.5, Math.abs(gauss()) * sd),
            carve: clamp(1 - Math.abs(gauss()) * sd * 2.2, 0, 1), easeAt: clamp(0.4 + gauss() * sd * 0.8, 0.15, 0.75) };
 }
+/* Shared first-mark CPU: used by applyCourse/makeDriver in demo and laboratory.
+   These are game tuning values, not official racing rules or measured probabilities. */
+const COURSE_CPU = {
+ version:'course-v1', readEvery:.20, switchMargin:2.4, holdSeconds:.65,
+ predictionSeconds:1.2, attackLeadM:2.5, slotWidthM:6.0, outerMarginM:4.0,
+ courses:{
+  1:{base:'nige',label:'先マイ・逃げ',weights:{nige:12}},
+  2:{base:'sashiWin',label:'先行艇を見て差す',weights:{sashiWin:6,makuri:0,wall:0}},
+  3:{base:'makuri',label:'まくり／まくり差し',weights:{makuri:4,makurisashi:4,sashiWin:1}},
+  4:{base:'makuri',label:'伸びを生かしてまくる',weights:{makuri:6,makurisashi:2,sashiWin:1}},
+  5:{base:'makurisashi',label:'内の攻めに続いてまくり差し',weights:{makurisashi:6,sashiWin:3,makuri:0}},
+  6:{base:'sashiPlace',label:'空いた内を差す',weights:{sashiPlace:6,makurisashi:4,makuri:-1}}
+ }
+};
+const CPU_REASON_JA={base:'コースの基本作戦',lead:'伸び・先行で外から攻める',slot:'艇間の開きを狙う',follow:'内艇の攻めに続く',wait:'内が塞がり差し構えで待つ',wall:'外の攻めに対して壁を作る',inside:'先マイを優先',hold:'旋回ラインを維持',closed:'狙った間が閉じたため待つ',forced:'指定戦法を使用'};
+function cpuGroundVelocity(b){return{x:b.v*Math.cos(b.a)-b.vl*Math.sin(b.a),y:b.v*Math.sin(b.a)+b.vl*Math.cos(b.a)};}
+function cpuReadWater(b,env,trait){
+ const horizon=COURSE_CPU.predictionSeconds,vel=cpuGroundVelocity(b);
+ const rows=(env.competitors||[]).filter(r=>r.b!==b&&!r.dq&&!r.out&&r.b.cap<=0).map(r=>{
+  const v=cpuGroundVelocity(r.b),tactic=r.drv.mem.tacticNow||r.trait.tactic;
+  return{no:r.no,course:r.trait.course,x:r.b.x,y:r.b.y,a:r.b.a,v:r.b.v,px:r.b.x+v.x*horizon,py:r.b.y+v.y*horizon,tactic,lineGap:r.drv.mem.cpuLine?.gap??r.prof.gap??5};
+ });
+ const inner=rows.filter(r=>r.course<trait.course).sort((a,b)=>a.course-b.course),near=inner.at(-1);
+ const ownX=b.x+vel.x*horizon;
+ const lead=near?b.x-near.x:99,projectedLead=near?ownX-near.px:99;
+ const frontLead=inner.length?Math.min(...inner.map(q=>ownX-q.px)):99;
+ const attack=near&&['makuri','tsuke'].includes(near.tactic)&&near.x>b.x-3;
+ const outer=rows.find(r=>r.course===trait.course+1);
+ const outerAttack=!!(outer&&['makuri','tsuke'].includes(outer.tactic)&&outer.x>b.x-3);
+ let slot=null;
+ // Openings are inferred from both fore/aft separation and available width; a lane number alone is not a gap.
+ for(let i=1;i<inner.length;i++){
+  const a=inner[i-1],z=inner[i];
+  const width=Math.hypot(a.px-z.px,a.py-z.py);
+  const stagger=a.px-z.px;
+  const following=['makuri','tsuke'].includes(z.tactic)&&z.px-ownX>1.5&&z.lineGap-a.lineGap>=3;
+  if(width<COURSE_CPU.slotWidthM||(!following&&stagger<3.5))continue;
+  if(Math.max(a.px,z.px)-ownX>28||Math.min(a.px,z.px)-ownX < -35)continue;
+  const candidate={innerBoat:a.no,outerBoat:z.no,widthM:width,staggerM:stagger,following,
+   gap:clamp((a.lineGap+z.lineGap)/2,5,18),score:width-(following?0:Math.abs(stagger-8)*.3)};
+  if(!slot||candidate.score>slot.score)slot=candidate;
+ }
+ // 1M's outside must be passed before aiming toward the back straight.
+ const innerOpen=inner.some(q=>q.a<-.35&&Math.hypot(q.x-MK,q.y)>9&&q.x>b.x-12);
+ return{leadM:lead,predictedLeadM:projectedLead,frontLeadM:frontLead,speedAdvMps:near?vel.x-cpuGroundVelocity(env.inner||b).x:0,
+  stAdv:env.stAdv||0,innerAttack:!!attack,outerAttack,slot,innerOpen,innerCount:inner.length,
+  innerMaxY:inner.length?Math.max(...inner.filter(q=>Math.abs(q.x-b.x)<35).map(q=>q.y),0):0,observedAt:env.now};
+}
+function cpuChooseFirstMark(b,env,trait,mem){
+ const rule=COURSE_CPU.courses[trait.course]||COURSE_CPU.courses[6];
+ const phases=['slit','approach','turn','exit'];
+ const observedPhase=b.a< -2.35?'exit':b.x>115&&b.a<-.18?'turn':b.x>=60?'approach':'slit';
+ const phase=phases[Math.max(phases.indexOf(observedPhase),phases.indexOf(mem.cpuDecision?.phase))];
+ if(mem.cpuDecision&&env.now<mem.cpuReadAt&&mem.cpuDecision.phase===phase)return mem.cpuDecision.tactic;
+ const obs=cpuReadWater(b,env,trait);mem.cpuReadAt=env.now+COURSE_CPU.readEvery;
+ const scores={...rule.weights};
+ const aggressive=trait.temper==='aggr'?1.4:trait.temper==='calm'?-1:0;
+ if(scores.makuri!=null){
+  scores.makuri+=clamp(obs.predictedLeadM,-6,6)*1.3+aggressive+(trait.kado?1.5:0)+(obs.stAdv>.04?.6:0);
+  if(obs.innerCount&&obs.frontLeadM< -3)scores.makuri-=4;
+  if(obs.innerCount&&obs.predictedLeadM<COURSE_CPU.attackLeadM)scores.makuri-=4;
+ }
+ if(scores.makurisashi!=null)scores.makurisashi+=obs.slot?(obs.slot.following?6:5):-9;
+ if(scores.sashiWin!=null)scores.sashiWin+=(obs.predictedLeadM<1?2:0)+(obs.innerOpen?3:0);
+ if(scores.sashiPlace!=null)scores.sashiPlace+=(obs.slot?-1:2)+(obs.innerOpen?2:0);
+ if(scores.wall!=null)scores.wall+=obs.outerAttack&&obs.leadM> -3?7:-6;
+ let candidate=Object.keys(scores).sort((a,z)=>scores[z]-scores[a])[0];
+ // Slit is a provisional intention; attacking requires a lead or a plausible opening by the approach.
+ if(phase==='slit'&&!mem.cpuDecision)candidate=rule.base;
+ let reason=trait.course===1?'inside':candidate==='makuri'?'lead':candidate==='makurisashi'?(obs.slot?.following?'follow':'slot'):candidate==='wall'?'wall':'wait';
+ if(phase==='slit'&&!mem.cpuDecision)reason='base';
+ const prev=mem.cpuDecision;
+ if(prev&&candidate!==prev.tactic){
+  const committed=phase==='turn'||phase==='exit';
+  const collapse=prev.tactic==='makurisashi'&&!obs.slot&&b.a> -1.25;
+  if(committed){candidate=prev.tactic;reason=collapse?'closed':'hold';}
+  else if(env.now-(mem.cpuChangedAt||0)<COURSE_CPU.holdSeconds||(scores[candidate]??-99)<(scores[prev.tactic]??-99)+COURSE_CPU.switchMargin){candidate=prev.tactic;reason='hold';}
+ }
+ if(!prev||candidate!==prev.tactic)mem.cpuChangedAt=env.now;
+ const d={course:trait.course,base:rule.base,baseLabel:rule.label,tactic:candidate,reason,phase,observations:obs,scores,committed:phase==='turn'||phase==='exit'};
+ mem.cpuDecision=d;return candidate;
+}
+function cpuFirstLine(b,env,trait,mem,tactic,R,gap,dt){
+ const obs=mem.cpuDecision?.observations||cpuReadWater(b,env,trait);
+ let targetR=R,targetGap=gap,stage='normal',waiting=false;
+ if(tactic==='makuri'){
+  // Preserve outside water and speed: do not drag the outside boat back to the buoy.
+  const outside=clamp(Math.max(b.y,Math.min(obs.innerMaxY,b.y)+COURSE_CPU.outerMarginM),16,32);
+  if(!mem.cpuWide||b.x<105)mem.cpuWide=outside;
+  targetR=Math.max(R,mem.cpuWide);targetGap=clamp(Math.max(gap,mem.cpuWide*.55),8,21);stage='outside';
+ }else if(tactic==='makurisashi'){
+  if(!mem.cpuWide||b.x<100)mem.cpuWide=clamp(b.y,19,29);
+  // Carry speed outside the lagging boats first, then cut into an observed opening.
+  if(b.x>MK-8&&b.a<-.45)mem.cpuThreaded=true;
+  const threaded=mem.cpuThreaded,exiting=b.a< -2.1;
+  if(threaded&&obs.slot&&mem.cpuSlotGap==null)mem.cpuSlotGap=obs.slot.gap;
+  stage=exiting?'exit':threaded?'thread':'outside_entry';
+  waiting=threaded&&!exiting&&b.a> -1.4&&!obs.slot;
+  targetR=threaded&&!waiting?16:mem.cpuWide;
+  targetGap=threaded&&!waiting?(mem.cpuSlotGap??6):Math.max(10,mem.cpuWide*.5);
+  if(waiting)stage='opening_closed';
+ }else if(['sashi','sashiWin','sashiPlace'].includes(tactic)){
+  stage=obs.innerOpen?'inside_open':'wait_inside';
+  // Keep enough room to turn from outer courses, reducing radius only as the bow comes around.
+  if(trait.course>=5&&b.a>-.5){targetR=Math.max(R,Math.min(25,b.y));targetGap=Math.max(gap,8);}
+  waiting=!!env.inner&&!obs.innerOpen&&b.x>112&&b.a>-.7&&obs.leadM<2;
+ }
+ const prev=mem.cpuLine;
+ if(!prev||b.x<55)mem.cpuLine={R:targetR,gap:targetGap};
+ else {prev.R+=clamp(targetR-prev.R,-5*dt,5*dt);prev.gap+=clamp(targetGap-prev.gap,-4*dt,4*dt);}
+ Object.assign(mem.cpuLine,{tactic,stage,waiting,targetR,targetGap});
+ return mem.cpuLine;
+}
+
 function makeDriver(prof, trait = {}) {
   const o = { thr: 0, steer: 0, roll: 0, pitch: 0 };
   const mem = { stTarget: 0, go: false, firstDone: false, dumpT: 0, dumpQ: null, dumpSeen: new Set(), wakeT: 0, wakeOff: 0, wakeOffT: 0, wakeAhead: 0, brace: 0, emergency: 0 };
@@ -1444,6 +1744,7 @@ function makeDriver(prof, trait = {}) {
     mem.stErr = (simRandom() * 2 - 1) * spread;
     mem.misread = false; mem.hou = false; mem.houed = false;
     if (simRandom() < (trait.flyRisk || 0)) { mem.stTarget = -0.01 - simRandom() * 0.05; mem.stErr = 0; mem.misread = true; }   // reads the clock wrong and never notices
+    mem.cpuDecision=null;mem.cpuLine=null;mem.cpuWide=null;mem.cpuThreaded=false;mem.cpuSlotGap=null;mem.cpuReadAt=0;mem.cpuChangedAt=0;
     mem.push = null; mem.pushDecided = false;
     mem.go = false; mem.firstDone = false; mem.dumpT = 0; mem.dumpQ = null; mem.dumpSeen.clear();
     mem.wakeOff = mem.wakeOffT = mem.wakeAhead = mem.brace = mem.emergency = 0; mem.sashiDrop = false; mem.exitHold = null; mem.wasInTurn = false; mem.entryWide = 0; mem.nigeDrop = false; mem.squeeze = null; mem.sqDecided = false; mem.sqResp = null; mem.sqRespT = 0; mem.resistQ = null; mem.planDecided = false; mem.plan = null; mem.tsukeDecided = false; mem.tsukeQ = null; mem.tacticNow = trait.tactic; mem.tacticLock = null; mem.tacticNow = trait.tactic;
@@ -1472,7 +1773,7 @@ function makeDriver(prof, trait = {}) {
   }
   function avoid(b, others) {
     let steerAdd = 0, thrMul = 1;
-    const priority=lab.active&&trait.contactMode==='priority', threats=[];
+    const priority=trait.contactMode==='priority', threats=[];
     if (!others) return { steerAdd, thrMul };
     const fx = Math.cos(b.a), fy = Math.sin(b.a);
     const inTurn = nearMarkAt(b.x, b.y, 22);
@@ -1634,7 +1935,7 @@ function makeDriver(prof, trait = {}) {
       o.thr += (thrT - o.thr) * (1 - Math.exp(-3 * dt));
     } else if (env.clockZero != null) {
       // flying start: idle along the waiting lane, open up when the timing works out
-      const d = -b.x, rem = env.clockZero - env.now;
+      const d = -boatBow(b).x, rem = env.clockZero - env.now;
       const tFull = timeToLine(Math.max(0, d), b.v, prof.cruise);
       // it goes by its own read of the clock, which is off by stErr
       // lever lag makes it arrive a touch late; from a standstill (待機水面で止まっていた) the hull has to climb onto the plane too
@@ -1658,13 +1959,14 @@ function makeDriver(prof, trait = {}) {
       // ツケマイ: on the run to 1M, a まくり boat whose bow is level with (or just ahead of) the boat
       // directly inside it turns tight on that boat's side instead of going round wide, so its wake
       // lands on the inside boat. Decided once on the approach and kept through the turn.
+      const courseCpu=trait.cpuMode===COURSE_CPU.version;
       let tactic = trait.tactic;
       // 2コース・3コース read the run-in to 1M (60 m out) and pick a plan:
       //   握る   got the jump on the boat inside (better start and the bow in front) → grip and go over it
       //   壁     the boat outside is coming with a まくり → hold speed and line, and shut it out
       //   差し   otherwise: 勝ちにいく差し (drop late and light, cut in tight, grip early) or
       //          着を取る差し (drop early and deep, a safer line behind, no gambles) — by class and temper
-      if (first && (trait.course === 2 || trait.course === 3) && !trait.kado && env.inner) {
+      if (!courseCpu && first && (trait.course === 2 || trait.course === 3) && !trait.kado && env.inner) {
         if (mem.planDecided) tactic = mem.plan;
         else if (b.x > MK - 60) {
           mem.planDecided = true;
@@ -1682,7 +1984,7 @@ function makeDriver(prof, trait = {}) {
           mem.plan = plan; tactic = plan;
         }
       }
-      if (first && tactic === 'makuri' && !trait.kado && !mem.squeeze && env.others) {
+      if (!courseCpu && first && tactic === 'makuri' && !trait.kado && !mem.squeeze && env.others) {
         if (mem.tsukeDecided) tactic = mem.tacticNow;
         else if (b.x > MK - 55) {
           mem.tsukeDecided = true;
@@ -1696,6 +1998,10 @@ function makeDriver(prof, trait = {}) {
           if (tgt && tf < 1.5 && tf > -6 && simRandom() < (trait.tsuke ?? 0.5)) { tactic = 'tsuke'; mem.tsukeQ = tgt; }
         }
       }
+      if(courseCpu&&first){
+        tactic=cpuChooseFirstMark(b,env,trait,mem);
+        if(trait.preferredTactic&&trait.preferredTactic!=='auto')tactic=trait.preferredTactic;
+      }
       if(lab.active){
         const autoCandidate=tactic,forced=env.labDirective?.tactic;
         if(first && forced && forced!=='auto'){
@@ -1707,7 +2013,9 @@ function makeDriver(prof, trait = {}) {
         }
         Object.assign(mem.labTrace,{autoCandidate,requestedTactic:forced||'auto',chosenTactic:first?tactic:'normalLap',forcedTactic:!!(first&&forced&&forced!=='auto'),fallback:forced==='tsuke'&&!env.inner?'noInnerBoat:makuri':null});
       }
+      if(courseCpu&&first&&mem.cpuAppliedTactic!==tactic){mem.sashiDrop=false;mem.nigeDrop=false;mem.cpuAppliedTactic=tactic;mem.cpuThreaded=false;mem.cpuSlotGap=null;}
       if (first) mem.tacticNow = tactic;
+      if(lab.active&&courseCpu&&first)mem.labTrace.courseDecision={...mem.cpuDecision,actualTactic:tactic,forced:!!(trait.preferredTactic&&trait.preferredTactic!=='auto'||env.labDirective?.tactic&&env.labDirective.tactic!=='auto')};
       // how close to the buoy the apex runs (A1 nearly scrapes it)
       let gap = (prof.gap ?? 5) + (first ? 0 : (trait.lineOff || 0) * 0.5);
       // 逃げ: hug the mark and turn first
@@ -1738,6 +2046,7 @@ function makeDriver(prof, trait = {}) {
       if (first && tactic === 'wall') { R = prof.line; gap = Math.max(gap, (prof.gap ?? 5) + 4); tThr = 1; }
       // まくり: carry full speed and go over the top of the boats inside — just outside their line, not a wide sweep
       if (first && tactic === 'makuri') { R = prof.line + 1.5 + (trait.course - 2) * 1.0; tThr = 1; pre += 5; gap = Math.min(R, gap + 2 + trait.course * 0.5); }
+      if(first&&tactic==='makurisashi'){R=Math.max(prof.line,21);gap=Math.max(gap,9);pre+=3;tThr=.92;}
       // ツケマイ: ride 3 m outside the target's line, flat out, leaning in early and hard
       if (first && tactic === 'tsuke' && mem.tsukeQ) {
         const q = mem.tsukeQ, mk = COURSE.marks[0], dq = Math.hypot(q.x - mk.x, q.y - mk.y);
@@ -1770,8 +2079,16 @@ function makeDriver(prof, trait = {}) {
         if(env.labDirective.gap!=null)gap=env.labDirective.gap;
         gap=Math.min(gap,R);
       }
+      if(first&&(courseCpu||tactic==='makurisashi')){
+        const line=cpuFirstLine(b,env,trait,mem,tactic,R,gap,dt);
+        R=line.R;gap=Math.min(line.gap,R);
+        if(lab.active&&env.labDirective){if(env.labDirective.R!=null)R=env.labDirective.R;if(env.labDirective.gap!=null)gap=Math.min(env.labDirective.gap,R);}
+        if(lab.active)mem.labTrace.courseLine={...line,R,gap};
+      }
       const s = loopS(R, b.x, b.y, gap);
       let look = (prof.look0 ?? 7) + b.v * (prof.lookK ?? 0.55);
+      // A long look-ahead cuts the chord across an outside arc. Follow the intended wide turn.
+      if(first&&courseCpu&&(tactic==='makuri'||tactic==='makurisashi'&&mem.cpuLine?.stage==='outside_entry'))look=Math.min(look,R*.75+6);
       let [tx, ty] = aimOnLine(b, R, s, look, gap);
       // 立ち上がり: coming out of a turn, put the power down and run straight on the line it came out on.
       // Only once the boat is up to speed does it start drifting across to where it wants to be — slowly.
@@ -1805,13 +2122,13 @@ function makeDriver(prof, trait = {}) {
       if (first && b.y > 0 && b.x < MK - 45) { const w = clamp((b.x + 20) / (MK - 25), 0, 1); ty = env.laneY + (ty - env.laneY) * w; }
       // 絞り: got the jump on the boat inside? squeeze in on it, slowly enough not to be 斜行
       let squeezing = false;
-      if(lab.active && trait.squeezeMode && trait.squeezeMode!=='legacy'){
+      if((lab.active||courseCpu) && trait.squeezeMode && trait.squeezeMode!=='legacy'){
         const sq=labSqueezeDecision(b,env,mem,trait.squeezeMode,first,look);
-        mem.labTrace.squeezeDecision=sq.detail;
+        if(lab.active)mem.labTrace.squeezeDecision=sq.detail;
         if(sq.targetY!=null){tx=b.x+look;ty=sq.targetY;}
         squeezing=sq.detail.active;
         if(sq.started)o.ev='squeeze';
-      } else if (!(lab.active&&trait.contactMode==='priority') && first && b.y > 0 && env.inner && b.x < MK - 45) {
+      } else if (!(trait.contactMode==='priority') && first && b.y > 0 && env.inner && b.x < MK - 45) {
         if (!mem.sqDecided && b.x > 8) {
           mem.sqDecided = true;
           const pc = trait.kado ? SQUEEZE.p.kado : SQUEEZE.p[trait.course] ?? 0;
@@ -1821,7 +2138,7 @@ function makeDriver(prof, trait = {}) {
       }
       // being squeezed from outside: give way (引く — lift, tuck in behind) or, now and then, fight it (抵抗)
       if (first && b.y > 0 && env.outerSqueeze && !mem.sqResp && b.x < MK - 45) {
-        mem.sqResp = lab.active&&trait.contactMode==='priority' ? 'yield' : simRandom() < (SQUEEZE.resist[trait.temper] ?? 0.15) ? 'resist' : 'yield';
+        mem.sqResp = trait.contactMode==='priority' ? 'yield' : simRandom() < (SQUEEZE.resist[trait.temper] ?? 0.15) ? 'resist' : 'yield';
         mem.sqRespT = SQUEEZE.yieldTime;
         if (mem.sqResp === 'resist') mem.resistQ = env.outer;
         o.ev = mem.sqResp;
@@ -1883,13 +2200,13 @@ function makeDriver(prof, trait = {}) {
           const along = (q.x - b.x) * cd;
           return along > -14 && along < 4 && Math.sign(q.y - b.y) === dyDir && Math.abs(q.y - b.y) < 8;
         });
-        const maxDev = squeezing ? (lab.active&&trait.squeezeMode==='lead'?0.12:0.055) : mem.resistQ ? 0.07 : crowded ? 0.03 : 0.22;
+        const maxDev = squeezing ? ((lab.active||courseCpu)&&trait.squeezeMode==='lead'?0.12:0.055) : mem.resistQ ? 0.07 : crowded ? 0.03 : 0.22;
         want = clamp(want, -maxDev, maxDev);
         tx = b.x + Math.cos(courseA + want) * look; ty = b.y + Math.sin(courseA + want) * look;
       }
       if(lab.active)Object.assign(mem.labTrace,{target:{x:tx,y:ty},R,gap});
       const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
-      if(lab.active&&trait.contactMode==='priority'){mem.dumpT=0;mem.dumpQ=null;}else considerDump(b, env.others, dt);
+      if(trait.contactMode==='priority'){mem.dumpT=0;mem.dumpQ=null;}else considerDump(b, env.others, dt);
       const dumping = mem.dumpT > 0;
       steerT = clamp(err * (prof.gain ?? 2.2) * (accelerating ? 0.75 : 1) + (dumping ? 0.65 : av.steerAdd) + (simRandom() * 2 - 1) * prof.wobble * (accelerating ? 0.5 : 1));
       // ターンから直線へ: don't crank the rudder to snap onto the straight — ease onto it
@@ -1938,6 +2255,13 @@ function makeDriver(prof, trait = {}) {
       if (first && tactic === 'wall' && !(mem.emergency > 0)) thrT = Math.max(thrT, 0.95);
       if (first && tactic === 'nige' && mem.nigeDrop) thrT = Math.min(thrT, NIGE_DROP.lever[prof.name] ?? 0.7);
       if (first && tactic === 'makuri' && !(mem.emergency > 0)) thrT = 1;   // まくり: flat out all the way round
+      if(first&&(courseCpu||tactic==='makurisashi')){
+        if(tactic==='makurisashi'){
+          thrT=Math.min(thrT,mem.cpuLine?.stage==='thread'?.90:1);
+          if(mem.cpuLine?.waiting)thrT=Math.min(thrT,.45);
+        }
+        if(mem.cpuLine?.waiting){thrT=Math.min(thrT,.50);pitchT=Math.min(pitchT,0);}
+      }
       // near the danger line with nobody to fight: back off a touch (no point risking it).
       // In a close fight it holds on; only a deliberate 勝負 goes past the line. Cautious riders ease earlier.
       const near1M = Math.hypot(b.x - MK, b.y) < 40;
@@ -1945,6 +2269,10 @@ function makeDriver(prof, trait = {}) {
       // swerving against the lean (dodging outward mid-turn): take the body out of it too
       if (Math.abs(steerT) > 0.2 && rollT !== 0 && Math.sign(steerT) !== Math.sign(rollT)) rollT *= 0.6;
       if(lab.active){const targets=labTraceInputs(mem,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},b,prof,o);thrT=targets.thr;steerT=targets.steer;rollT=targets.roll;pitchT=targets.pitch;}
+      if(!lab.active&&trait.contactMode==='priority'){
+        const safe=labPriorityPlan(b,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},mem,prof,o);
+        ({thr:thrT,steer:steerT,roll:rollT,pitch:pitchT}=safe.inputs);mem.cpuSafety=safe.detail;
+      }
       if (b.cap > 0) { thrT = 0; rollT = 0; pitchT = 0; }
       o.thr += (thrT - o.thr) * (1 - Math.exp(-6 * dt));
     }
@@ -1961,7 +2289,7 @@ function makeDriver(prof, trait = {}) {
    Each boat: class (A1–B2 driver profile), entry preference, course, slow/dash start, first-turn tactic. */
 const LANE_COL = [['#f4f7f6', '#0a2c38'], ['#1f2629', '#f4f7f6'], ['#e0453c', '#ffffff'], ['#2f6fe0', '#ffffff'], ['#f2cf2e', '#1c1300'], ['#2fa35a', '#ffffff']];
 const STRAIGHT_X = MK - 23;   // |x| below this is straight water
-const TACTIC_JA = { tsuke: 'ツケマイ', wall: '壁', sashiWin: '差し（勝負）', sashiPlace: '差し（着取り）', nige: '逃げ', sashi: '差し', makuri: 'まくり' };
+const TACTIC_JA = { makurisashi:'まくり差し', tsuke: 'ツケマイ', wall: '壁', sashiWin: '差し（勝負）', sashiPlace: '差し（着取り）', nige: '逃げ', sashi: '差し', makuri: 'まくり' };
 const PREF_JA = { in: 'イン志向', waku: '枠なり', out: 'アウト志向' };
 const TEMPER = { calm: { ja: '慎重', dump: 0.05, care: 1.25 }, normal: { ja: '普通', dump: 0.3, care: 0.9 }, aggr: { ja: '攻撃的', dump: 0.75, care: 0.55 } };
 const LREF = loopLen(13);
@@ -1978,6 +2306,7 @@ const ST_MARGIN = 0.5, HOU_AT = 0.01;
 const ST_OUT = { TOP: 0.4, A1: 0.5, A2: 0.8, B1: 1.1, B2: 1.3 };
 // 1コース逃げ: how far before 1M it eases the lever, to what (by class), and when it grips again (share of the arc)
 const NIGE_DROP = { at: 22, regrip: 0.2, lever: { TOP: 0.76, A1: 0.72, A2: 0.68, B1: 0.62, B2: 0.58 } };   // steady speed with the lever shut (m/s)   // demo: every boat takes its own number's course, 3 slow / 3 dash
+let demoCpuMode=COURSE_CPU.version;
 let fleet = null, simSpeed = 1.5, sgMode = false;   // demo playback speed; the race clock always shows real race time
 
 function pickW(pairs) { let r = simRandom() * pairs.reduce((a, p) => a + p[1], 0); for (const [v, w] of pairs) { if ((r -= w) < 0) return v; } return pairs[0][0]; }
@@ -1999,20 +2328,22 @@ function newRows(fixedEntry) {
 }
 // give a boat its course for the race: lane, start style, first-turn plan, and a fresh CPU driver
 function applyCourse(r, course, slow, kado, okoshi) {
-  const tactic = course === 1 ? 'nige'
+  const mode=lab.active?(lab.config?.cpuMode||'legacy'):demoCpuMode;
+  let tactic = course === 1 ? 'nige'
     : kado ? 'makuri'
     : course === 2 ? 'sashi'   // 2コース goes in 差し構え; on the run-in it may grip or wall instead
     : course === 4 && !slow ? pickW([['makuri', 7], ['sashi', 3]])
     : pickW([['sashi', 5], ['makuri', 5]]);
+  if(mode===COURSE_CPU.version)tactic=COURSE_CPU.courses[course].base;
   const laneY = 8 + (course - 1) * 6;
-  r.trait = { course, laneY, tactic, slow, kado, okoshi, temper: r.temper, lineOff: simRandom() * 2.5, dump: TEMPER[r.temper].dump, care: TEMPER[r.temper].care,
+  r.trait = { cpuMode:mode,contactMode:mode===COURSE_CPU.version?'priority':'normal',squeezeMode:mode===COURSE_CPU.version?'lead':'legacy',course, laneY, tactic, slow, kado, okoshi, temper: r.temper, lineOff: simRandom() * 2.5, dump: TEMPER[r.temper].dump, care: TEMPER[r.temper].care,
               tsuke: ({ TOP: 0.8, A1: 0.7, A2: 0.55, B1: 0.35, B2: 0.2 }[r.prof.name] || 0.4) + (r.temper === 'aggr' ? 0.15 : 0),
               pushMul: { calm: 0.5, normal: 1, aggr: 1.6 }[r.temper], flyRisk: (RISK[r.prof.name] || RISK.B1).fly };
   r.drv = makeDriver(r.prof, r.trait);
   if (!r.player) r.inp = r.drv.out;
 }
 function raceFieldsInit(r) {
-  r.wake = r.wake || []; r.prevX = r.b.x; r.vis = 0; r.st = null; r.laps = 0; r.fin = null; r.prog = r.b.x - 1000; r.flying = false;
+  r.wake = r.wake || []; r.prevY = r.b.y; r.vis = 0; r.st = null; r.laps = 0; r.fin = null; r.prog = boatBow(r.b).x - 1000; r.flying = false;
 }
 function setupFleet() {
   const rows = newRows(FIXED_ENTRY);
@@ -2024,13 +2355,13 @@ function setupFleet() {
   rows.forEach((r, i) => {
     const course = i + 1;
     const slow = course <= nSlow;
-    const kado = kado3 && course === 3;
+    const kado = demoCpuMode===COURSE_CPU.version?course===nSlow+1:kado3 && course === 3;
     // 起こし: where it opens the lever, metres before the line. It idles in from further back so that it
     // reaches that point just as the clock says go (the lever itself still goes by timing, for the ST).
     const [okLo, okHi] = kado ? KADO3_OKOSHI : OKOSHI[course] || OKOSHI[6];
     const okoshi = okLo + simRandom() * (okHi - okLo);
     const creep = Math.max(0, CLOCK - (timeToLine(okoshi, IDLE_V, r.prof.cruise) - 0.1));
-    const x0 = -(okoshi + IDLE_V * creep);
+    const x0 = -(okoshi + IDLE_V * creep) - BOW_TIP;
     applyCourse(r, course, slow, kado, okoshi);
     r.b = { x: x0, y: r.trait.laneY, a: 0, v: IDLE_V, vl: 0, yaw: 0, porp: 0, cap: 0 };
     raceFieldsInit(r);
@@ -2375,7 +2706,7 @@ function entryStep(dt, playerInput) {
       if (en.gapT > ENTRY.gapT) entryFoul(r, '間隔不足');
     }
     // over the start line before the hand has started
-    if ((en.stage === 'approach' || en.stage === 'wait') && b.x > 0.5 && b.y > 0) entryFoul(r, '大時計前にスタートライン越え');
+    if ((en.stage === 'approach' || en.stage === 'wait') && boatBow(b).x >= 0 && boatBow(b).y > 0) entryFoul(r, '大時計前にスタートライン越え');
   }
   for (const e of boatContacts(all)) {
     if (e.J < 0.8) continue;
@@ -2425,7 +2756,7 @@ function entryHandoff() {
   order.forEach((r, i) => {
     r.en.course = i + 1;
     const course = i + 1, slow = !r.en.dash && !r.en.rewind, kado = !slow && course === 3;
-    applyCourse(r, course, slow, kado, Math.round(-r.b.x - creepAfter(Math.max(20, -r.b.x))));
+    applyCourse(r, course, slow, kado, Math.round(-boatBow(r.b).x - creepAfter(Math.max(20, -boatBow(r.b).x))));
     r.b.thrMul = 1; r.b.hold = true;
   });
   // each boat runs in on the line it squared up on (it can't steer across now), kept in course order
@@ -2465,8 +2796,8 @@ function startFleet() {
   wake.length = 0; spray.length = 0;
   SS.phase = 'count'; SS.t0 = time; SS.hideAt = 0; $('clock').hidden = false;
   buildOrderStrip(); buildCard();
-  const k3 = fleet.boats.some(r => r.trait.kado);
-  toast(k3 ? '3カド' : sgMode ? 'SG' : '6艇レース', k3 ? '3コースがダッシュに引いてカド。まくり一択' : '枠なり進入・スロー3艇／ダッシュ3艇。出走表で各艇の特性を確認できます', 'info');
+  const k3 = fleet.boats.some(r => r.trait.kado&&r.trait.course===3);
+  toast(k3 ? '3カド' : sgMode ? 'SG' : '6艇レース', k3 ? '3コースがカド。伸びと内艇の動きから攻め方を判断' : '枠なり進入・スロー3艇／ダッシュ3艇。出走表で各艇の特性を確認できます', 'info');
   refreshFleetUi();
 }
 function stopFleet() {
@@ -2487,8 +2818,10 @@ function refreshFleetUi() {
 const IDLE_INPUT = { thr: 0, steer: 0, roll: 0, pitch: 0 };
 function fleetStep(dt, playerInput) {
   if (fleet.entry) { entryStep(dt, playerInput); return; }
+  const timingBefore=fleet.boats.map(r=>timingPose(r.b,time));
   time += dt;
   const zero = SS.t0 + CLOCK;
+  if(!lab.active && !fleet.slit)fleet.slit=slitCreate(fleet.playerNo?'レース練習':'6艇デモ');
   const all = fleet.boats.map(r => r.b);
   // 引き波: how much wake is under each hull, and how square it is crossing it
   for (const r of fleet.boats) {
@@ -2523,7 +2856,7 @@ function fleetStep(dt, playerInput) {
       const inR=lab.active?occupied.filter(q=>q.trait.course<r.trait.course).at(-1):fleet.byCourse[r.trait.course-1];
       const outR=lab.active?occupied.find(q=>q.trait.course>r.trait.course):fleet.byCourse[r.trait.course+1];
     const env = { now: time, clockZero: (r.st == null && time < zero + 1.2) ? zero : null, laneY: r.trait.laneY, others: all, wakes: r.wakesOthers,
-                  inner: inR && !inR.dq ? inR.b : null, outer: outR && !outR.dq ? outR.b : null,
+                  competitors:fleet.boats, inner: inR && !inR.dq ? inR.b : null, outer: outR && !outR.dq ? outR.b : null,
                   outerPlan: outR ? (outR.drv.mem.tacticNow || outR.trait.tactic) : null,
                   outerSqueeze: !!(outR && !outR.dq && outR.drv.mem.squeeze === r.b),
                   stAdv: inR && inR.st != null && r.st != null ? inR.st - r.st : 0,
@@ -2534,7 +2867,7 @@ function fleetStep(dt, playerInput) {
       if(lab.active)labBeforeDrive(r,env);
       o = r.drv.drive(b, env, dt);
       if(lab.active)labAfterDrive(r,o,env);
-      if (r.player && r.st == null && time > zero + 1 && !r.lateTold) { r.lateTold = true; toast('出遅れ', '1秒以内に越えられなかった。CPUが引き継ぎ', 'bad'); }
+      if (r.player && r.st == null && time - dt > zero + 1 && !r.lateTold) { r.lateTold = true; toast('出遅れ', '1秒以内に越えられなかった。CPUが引き継ぎ', 'bad'); }
       if (r.player && r.st == null && !r.lateTold) {
         // the player has the lever (and posture) until the start line; steering follows the lane
         o = { thr: playerInput ? playerInput.thr : 0, steer: o.steer, roll: 0, pitch: playerInput ? playerInput.pitch : 0, ev: null };
@@ -2563,29 +2896,8 @@ function fleetStep(dt, playerInput) {
     if (r.flying && !r.passed1M && b.y < -5 && b.x < MK - 10) r.passed1M = true;
     if (b.x > MK - 15) r.vis |= 1;
     if (b.x < -MK + 15) r.vis |= 2;
-    if (r.prevX < 0 && b.x >= 0 && b.y > 0 && !r.out) {
-      if (r.st == null) {
-        r.st = time - zero; r.vis = 0;
-        if (r.st < 0) { r.flying = true; r.dq = true; toast('フライング', `${r.no}号艇 F${fmtST(-r.st)}　返還、1マークを過ぎたら離脱`, 'bad'); }
-        else if (r.player && !r.lateTold) toast(r.st <= 0.15 ? '好スタート' : r.st <= 0.3 ? 'スタート' : '遅れ気味', `ST ${fmtST(r.st)}　ここからCPUが引き継ぎ`, r.st <= 0.15 ? 'good' : r.st <= 0.3 ? 'warn' : 'bad');
-      } else if (r.vis === 3 && r.fin == null && !r.flying) {
-        r.laps++; r.vis = 0;
-        if (r.laps >= 3) {
-          r.fin = time; fleet.finOrder.push(r);
-          if (!r.dq) fleet.order.push(r);
-          if (!r.dq && fleet.order.length === 1) toast('ゴール', `1着 ${r.no}号艇 ${fmtRT(time - zero)}（${r.trait.course}コース・${TACTIC_JA[r.drv.mem.tacticNow || r.trait.tactic]}）`, 'good');
-        }
-      }
-    }
-    r.prevX = b.x;
-    const li = fleet.caution ? fleet.lockOrder.indexOf(r) : -1;
-    const pg = r.fin != null ? 1e6 - fleet.order.indexOf(r)
-      : li >= 0 ? 5e5 - li
-      : r.st == null ? b.x - 1000
-      : r.laps * LREF + ((loopS(13, b.x, b.y) - MK + LREF) % LREF);
-    // tiers: racing order, then boats placed last for cutting a mark, then disqualified
-    r.prog = r.dq ? -3e6 + (r.out ? 0 : 1) : r.relegated ? -2e6 + pg / 1e3 : pg;
   }
+
   // 斜行: on a straight, a boat sliding sideways across one that is behind or alongside it
   if (time > zero + 1.5 && !fleet.caution) for (const r of fleet.boats) {
     const b = r.b;
@@ -2656,6 +2968,8 @@ function fleetStep(dt, playerInput) {
       if (!vic.out && simRandom() < p) accident(vic, simRandom() < 0.5 ? '転覆' : '落水', `${other.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : ''}`);
     }
   }
+  fleetTimingStep(timingBefore,zero);
+  if(!lab.active)slitCapture(fleet.slit,time-zero,fleet.boats);
   if (SS.phase === 'count' && time > zero + 1.2) {
     SS.phase = 'done'; SS.hideAt = time + 2.5; fleet.raceStart = zero;
     const started = fleet.boats.filter(r => r.st != null && r.st >= 0).sort((a, b) => a.st - b.st);
@@ -2667,9 +2981,37 @@ function fleetStep(dt, playerInput) {
   const stillRacing = fleet.boats.filter(r => !r.dq && r.fin == null).length;
   if (!fleet.endAt && time > zero + 5 && (stillRacing === 0 || (fleet.order.length && time > fleet.order[0].fin + 30))) {
     fleet.endAt = time + 7;
+    if(!lab.active)slitArchive(fleet.slit,fleet.boats,resultLine());
     if(!lab.active)setTimeout(() => toast('レース結果', fleet ? resultLine() : '', 'good'), 300);
   }
   if (fleet.endAt && time > fleet.endAt) {if(lab.active)labFinish('レース終了');else nextRace();}
+}
+
+// Judge all boats before sorting: a faster crossing within the same step wins,
+// regardless of boat number, array order or render frame rate.
+function fleetTimingStep(previous,zero){
+  const hadWinner=fleet.order.length>0;
+  let finishedNow=false;
+  for(let i=0;i<fleet.boats.length;i++){
+    const r=fleet.boats[i],at=gateCrossing(START_GATE,previous[i],timingPose(r.b,time));
+    if(at==null || r.out)continue;
+    if(r.st==null){
+      r.st=startOffset(at,zero);r.vis=0;
+      if(r.st<0){r.flying=true;r.dq=true;toast('フライング',`${r.no}号艇 F${fmtST(-r.st)}　返還、1マークを過ぎたら離脱`,'bad');}
+      else if(r.player&&!r.lateTold)toast(r.st<=.15?'好スタート':r.st<=.3?'スタート':'遅れ気味',`ST ${fmtST(r.st)}　ここからCPUが引き継ぎ`,r.st<=.15?'good':r.st<=.3?'warn':'bad');
+    }else if(r.vis===3&&r.fin==null&&!r.flying){
+      r.laps++;r.vis=0;
+      if(r.laps>=3){r.fin=at;finishedNow=true;fleet.finOrder.push(r);if(!r.dq)fleet.order.push(r);}
+    }
+  }
+  fleet.finOrder.sort((a,b)=>a.fin-b.fin);fleet.order.sort((a,b)=>a.fin-b.fin);
+  if(!hadWinner&&fleet.order.length){const r=fleet.order[0];toast('ゴール',`1着 ${r.no}号艇 ${fmtRT(r.fin-zero)}（${r.trait.course}コース・${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}）`,'good');}
+  for(const r of fleet.boats){
+    const b=r.b,bow=boatBow(b),li=fleet.caution?fleet.lockOrder.indexOf(r):-1;
+    const pg=r.fin!=null?1e6-fleet.order.indexOf(r):li>=0?5e5-li:r.st==null?bow.x-1000:r.laps*LREF+((loopS(13,bow.x,bow.y)-MK+LREF)%LREF);
+    r.prog=r.dq?-3e6+(r.out?0:1):r.relegated?-2e6+pg/1e3:pg;
+  }
+  if(finishedNow)fleet.rank=fleet.boats.slice().sort((a,b)=>b.prog-a.prog);
 }
 
 function resultLine() {
@@ -2746,7 +3088,7 @@ function buildCard() {
   for (const r of fleet.boats) {
     const tr = document.createElement('tr');
     const dsh = !r.motor ? '—' : r.motor.deashi >= 1.04 ? '◎' : r.motor.deashi >= 0.98 ? '○' : '△';
-    const cells = [r.no, r.prof.top ? 'A1 ★トップ' : r.prof.name, (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? TACTIC_JA[r.trait.tactic] : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh];
+    const cells = [r.no, r.prof.top ? 'A1 ★トップ' : r.prof.name, (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh];
     cells.forEach((v, i) => {
       const td = document.createElement('td'); td.textContent = v;
       if (i === 0) { td.className = 'no'; td.style.background = r.col[0]; td.style.color = r.col[1]; }
@@ -2756,6 +3098,7 @@ function buildCard() {
     tb.appendChild(tr);
   }
 }
+$('demoCpuMode').addEventListener('change',e=>{demoCpuMode=e.target.value;if(fleet&&!lab.active)nextRace();});
 $('simSpeed').addEventListener('change', e => { simSpeed = +e.target.value; });
 $('sgBtn').addEventListener('click', () => {
   sgMode = !sgMode;
@@ -2791,10 +3134,128 @@ function skipRace() {
   for (const r of fleet.boats) if (r.fin != null && !r.dq) r.prog = r.relegated ? -2e6 + (1e6 - fleet.order.indexOf(r)) / 1e3 : 1e6 - fleet.order.indexOf(r);
   fleet.rank = fleet.boats.slice().sort((a, b) => b.prog - a.prog);
   fleet.endAt = time + 4;
+  if(!lab.active)slitArchive(fleet.slit,fleet.boats,resultLine());
   toast('レース結果', resultLine(), 'good');
 }
-$('cardBtn').addEventListener('click', () => { if (!fleet) return; paused = true; $('card').hidden = false; });
+$('cardBtn').addEventListener('click', () => { if (!fleet) return; paused = true; buildCard(); $('card').hidden = false; });
 $('cardClose').addEventListener('click', () => { paused = false; last = performance.now(); $('card').hidden = true; });
+
+/* ---------- recorded slit photographs ---------- */
+function slitCreate(label){return {label,frames:[],boats:[],archived:false};}
+function slitCapture(rec,t,rows){
+  if(!rec || rec.archived || t < -1.1 || t > 1.6)return;
+  const prev=rec.frames[rec.frames.length-1];
+  if(prev && t<=prev.t)return;
+  rec.frames.push({t,boats:rows.map(r=>({no:r.no,course:r.trait?r.trait.course:r.no,x:r.b.x,y:r.b.y,a:r.b.a,cap:r.b.cap||0}))});
+}
+function slitArchive(rec,rows,result){
+  if(!rec || rec.archived || !rec.frames.length)return;
+  // A start-signal photo requires actual samples on BOTH sides of zero.
+  if(rec.frames[0].t>0 || rec.frames[rec.frames.length-1].t<0)return;
+  rec.archived=true;rec.id=++slitSerial;rec.result=result;
+  const first=rec.frames[0];
+  rec.boats=rows.map(r=>({no:r.no,course:(first.boats.find(b=>b.no===r.no)||{}).course||r.no,st:r.st==null?null:r.st}));
+  slitHistory.unshift(rec);if(slitHistory.length>5)slitHistory.pop();
+  $('slitBtn').disabled=false;$('slitBtn').title='直近5走のスタート判定を見る';
+}
+function slitFrameAt(rec,t){
+  const frames=rec.frames;t=clamp(t,frames[0].t,frames[frames.length-1].t);
+  const hi=frames.findIndex(f=>f.t>=t);
+  const b=frames[hi<0?frames.length-1:hi],a=frames[Math.max(0,hi-1)];
+  const u=b.t===a.t?0:(t-a.t)/(b.t-a.t);
+  return {t,boats:a.boats.map(p=>{const q=b.boats.find(q=>q.no===p.no)||p;return interpolatePose(p,q,u);})};
+}
+function slitST(r){return r.st==null?'未通過':r.st<0?'F '+(-r.st).toFixed(3):'ST '+r.st.toFixed(3);}
+function slitOpen(rec){
+  if(!slitHistory.length || !$('slitPhoto').hidden)return;
+  slitWasPaused=paused;paused=true;keys.clear();
+  for(const id of ptrs.keys())try{cv.releasePointerCapture(id);}catch(_){}
+  ptrs.clear();steerTouch=false;sideOn('thr');sideOn('steer');resetVirtualPosture();hapticsStop();
+  slitReturnFocus=document.activeElement;
+  const sel=$('slitRace');sel.textContent='';
+  for(const r of slitHistory){const opt=document.createElement('option');opt.value=String(r.id);opt.textContent=`第${r.id}走 · ${r.label}`;sel.appendChild(opt);}
+  sel.value=String((rec && slitHistory.includes(rec)?rec:slitHistory[0]).id);
+  $('slitPhoto').hidden=false;slitChoose();$('slitClose').focus();
+}
+function slitChoose(){
+  slitSelected=slitHistory.find(r=>r.id===Number($('slitRace').value))||slitHistory[0];
+  if(!slitSelected)return;
+  $('slitSeek').min=String(Math.ceil(Math.max(-1,slitSelected.frames[0].t)*1000));
+  $('slitSeek').max=String(Math.floor(Math.min(1.5,slitSelected.frames[slitSelected.frames.length-1].t)*1000));
+  $('slitSeek').value='0';slitRender();
+}
+function slitRender(exactTime){
+  const rec=slitSelected;if(!rec)return;
+  const t=exactTime==null?Number($('slitSeek').value)/1000:exactTime;
+  const frame=slitFrameAt(rec,t),g=$('slitCanvas').getContext('2d');
+  rec.viewTime=frame.t;
+  const when=`合図 ${frame.t>=0?'+':''}${frame.t.toFixed(3)}秒`;
+  $('slitTime').textContent=when;
+  $('slitSummary').textContent=rec.boats.map(r=>`${r.no}号艇（${r.course}コース） ${slitST(r)}`).join(' ／ ');
+  $('slitCanvas').setAttribute('aria-label',when+'。'+$('slitSummary').textContent);
+  g.clearRect(0,0,1000,700);g.fillStyle='#0b1c29';g.fillRect(0,0,1000,700);
+  g.textAlign='left';g.font='bold 26px sans-serif';g.fillStyle='#e9f6fa';g.fillText(`SLIT PHOTO  /  第${rec.id}走`,32,40);
+  g.font='18px sans-serif';g.fillStyle='#99b6c6';g.fillText(rec.label+' · ゲーム内判定画像',32,69);
+  g.textAlign='right';g.font='bold 25px monospace';g.fillStyle=Math.abs(frame.t)<.00001?'#64eac1':'#e9f6fa';g.fillText(when,968,44);
+  // Fixed view across all frames; include even unusually displaced boats.
+  const positions=rec.frames.flatMap(f=>f.boats);
+  const minX=Math.min(-35,...positions.map(b=>b.x-5)),maxX=Math.max(35,...positions.map(b=>b.x+5));
+  const minY=Math.min(0,...positions.map(b=>b.y-4)),maxY=Math.max(50,...positions.map(b=>b.y+4));
+  const scale=Math.min(928/(maxX-minX),420/(maxY-minY));
+  const sx=x=>500+(x-(minX+maxX)/2)*scale,sy=y=>326+(y-(minY+maxY)/2)*scale;
+  g.save();g.beginPath();g.rect(32,94,936,458);g.clip();
+  const water=g.createLinearGradient(0,94,0,552);water.addColorStop(0,'#164858');water.addColorStop(1,'#0d2c41');g.fillStyle=water;g.fillRect(32,94,936,458);
+  for(let x=Math.ceil(minX/10)*10;x<=maxX;x+=10){g.strokeStyle='rgba(170,220,230,.16)';g.lineWidth=1;g.beginPath();g.moveTo(sx(x),94);g.lineTo(sx(x),552);g.stroke();g.textAlign='center';g.font='13px sans-serif';g.fillStyle='#8badbe';g.fillText((x>0?'+':'')+x+'m',sx(x),543);}
+  g.strokeStyle='#64eac1';g.lineWidth=2;g.beginPath();g.moveTo(sx(0),94);g.lineTo(sx(0),552);g.stroke();
+  g.textAlign='left';g.font='bold 16px sans-serif';g.fillStyle='#89ffda';g.fillText('START',sx(0)+7,115);
+  g.textAlign='right';g.fillStyle='#a3c8d8';g.fillText('進行方向 →',950,115);
+  for(const b of frame.boats){
+    const col=LANE_COL[b.no-1]||LANE_COL[0],r=rec.boats.find(r=>r.no===b.no);
+    const x=sx(b.x),y=sy(b.y);
+    g.save();g.translate(x,y);g.rotate(b.a);g.scale(scale,scale);
+    g.drawImage(boatSprite({hull:col[0],num:col[1],label:String(b.no),helmet:col[0]},b.cap>0),-2.65,-1.1,5.3,2.2);g.restore();
+    g.beginPath();g.arc(sx(boatBow(b).x),sy(boatBow(b).y),3.2,0,Math.PI*2);g.fillStyle='#fff';g.fill();g.lineWidth=1.5;g.strokeStyle='#071824';g.stroke();
+    g.textAlign='center';g.font='bold 15px sans-serif';g.fillStyle=r&&r.st<0?'#ffb0a6':'#fff';g.fillText(`${b.no}号艇`,x,y-14);
+  }
+  g.restore();
+  for(let i=0;i<rec.boats.length;i++){
+    const r=rec.boats[i],x=32+i*(936/rec.boats.length),w=936/rec.boats.length-6,col=LANE_COL[r.no-1]||LANE_COL[0];
+    g.fillStyle='#152f40';g.fillRect(x,568,w,78);g.fillStyle=col[0];g.fillRect(x,568,5,78);
+    g.textAlign='left';g.font='bold 16px sans-serif';g.fillStyle='#dcecf3';g.fillText(`${r.no}号艇 · ${r.course}コース`,x+12,593);
+    g.font='bold 21px monospace';g.fillStyle=r.st!=null&&r.st<0?'#ff9b8e':'#70e8c3';g.fillText(slitST(r),x+12,627);
+  }
+  g.font='15px sans-serif';g.textAlign='left';g.fillStyle='#91adbf';g.fillText('白点＝舳先の判定点  /  ST・F＝ゲーム判定値  /  記録コマ間は補間表示',32,678);
+}
+function slitMove(dir){
+  if(!slitSelected)return;const t=slitSelected.viewTime||0;
+  const frames=slitSelected.frames.filter(f=>f.t>=Number($('slitSeek').min)/1000&&f.t<=Number($('slitSeek').max)/1000);
+  const f=dir>0?frames.find(f=>f.t>t+.000001):frames.slice().reverse().find(f=>f.t<t-.000001);
+  if(f){$('slitSeek').value=String(Math.round(f.t*1000));slitRender(f.t);}
+}
+function slitClose(){
+  $('slitPhoto').hidden=true;paused=slitWasPaused;keys.clear();last=performance.now();
+  if(slitReturnFocus && slitReturnFocus.focus)slitReturnFocus.focus();
+}
+$('slitBtn').addEventListener('click',()=>slitOpen());
+$('measSlit').addEventListener('click',()=>slitOpen(practiceSlit));
+$('slitClose').addEventListener('click',slitClose);
+$('slitRace').addEventListener('change',slitChoose);
+$('slitSeek').addEventListener('input',()=>slitRender());
+$('slitPrev').addEventListener('click',()=>slitMove(-1));$('slitNext').addEventListener('click',()=>slitMove(1));
+$('slitZero').addEventListener('click',()=>{$('slitSeek').value='0';slitRender();});
+$('slitSave').addEventListener('click',()=>{
+  if(!slitSelected)return;
+  const a=document.createElement('a');a.download=`d42-slit-${slitSelected.id}-${Math.round(slitSelected.viewTime*1000)}ms.png`;a.href=$('slitCanvas').toDataURL('image/png');a.click();
+});
+$('slitPhoto').addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();slitClose();}
+  if(e.key==='Tab'){
+    const nodes=Array.from($('slitPhoto').querySelectorAll('button,select,input')).filter(n=>!n.disabled);
+    const first=nodes[0],last=nodes[nodes.length-1];
+    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+  }
+});
 
 /* ---------- drawing ---------- */
 const hash = (i, j) => { const h = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return h - Math.floor(h); };
@@ -2807,10 +3268,10 @@ function boatSprite(sty, overturned) {
   const cvb = document.createElement('canvas'); cvb.width = 424; cvb.height = 176;
   const c = cvb.getContext('2d'); c.scale(80, 80); c.translate(2.65, 1.1);
   const outline = () => {
-    c.beginPath(); c.moveTo(2.25, 0); c.bezierCurveTo(1.94, -.3, 1.49, -.71, 1.05, -.83);
+    c.beginPath(); c.moveTo(BOW_TIP, 0); c.bezierCurveTo(1.94, -.3, 1.49, -.71, 1.05, -.83);
     c.lineTo(-1.94, -.83); c.quadraticCurveTo(-2.04, -.81, -2.04, -.67);
     c.lineTo(-2.04, .67); c.quadraticCurveTo(-2.04, .81, -1.94, .83);
-    c.lineTo(1.05, .83); c.bezierCurveTo(1.49, .71, 1.94, .3, 2.25, 0); c.closePath();
+    c.lineTo(1.05, .83); c.bezierCurveTo(1.49, .71, 1.94, .3, BOW_TIP, 0); c.closePath();
   };
   outline(); c.fillStyle = overturned ? '#65747b' : '#d0ba86'; c.fill();
   c.save(); c.clip();
@@ -3177,6 +3638,7 @@ const el = { stab: $('stab'), stabFill: $('stabFill'), demoTag: $('demoTag'), sp
 let lastTxt = {};
 const setTxt = (k, v) => { if (lastTxt[k] !== v) { lastTxt[k] = v; el[k].textContent = v; } };
 function updateHud() {
+  if(controlMode==='wheel')$('phoneSteerReadout').textContent=phoneWheel.value<-.03?`スマホ舵：左 ${Math.round(-phoneWheel.value*100)}%`:phoneWheel.value>.03?`スマホ舵：右 ${Math.round(phoneWheel.value*100)}%`:'スマホ舵：中央';
   const fr = focusRow();
   const vb = fr ? fr.b : B, vi = fr ? fr.inp : input, vh = fr ? (fr.b.harmony || 0) : harmony;
   setTxt('spd', String(kmh(vb.v)));
@@ -3195,7 +3657,7 @@ function updateHud() {
     const lead = fleet.rank[0];
     setTxt('lap', SS.phase === 'count' ? '待機行動' : `${Math.min(3, lead.laps + 1)}周目  ${fmtRT(Math.max(0, (lead.fin ?? time) - fleet.raceStart))}`);
     el.best.classList.toggle('top', !!fr.prof.top);
-    setTxt('best', `${fr.prof.top ? 'A1★トップ' : fr.prof.name + '級'}・${fr.trait.course}コース・${fr.trait.kado ? '3カド' : fr.trait.slow ? 'スロー' : 'ダッシュ'}・${TACTIC_JA[fr.drv.mem.tacticNow || fr.trait.tactic]}`);
+    setTxt('best', `${fr.prof.top ? 'A1★トップ' : fr.prof.name + '級'}・${fr.trait.course}コース・${fr.trait.kado ? `${fr.trait.course}カド` : fr.trait.slow ? 'スロー' : 'ダッシュ'}・${TACTIC_JA[fr.drv.mem.tacticNow || fr.trait.tactic]}`);
     setTxt('demoTag', fr.player ? `自分 ${fr.no}号艇${fr.st == null ? '' : '（CPU操縦中）'}` : `追尾 ${fr.no}号艇${fleet.focus == null ? '（先頭を自動追尾）' : ''}`);
     updateOrderStrip();
     $('skipBtn').hidden = !(fleet.caution && !fleet.endAt);
@@ -3217,7 +3679,7 @@ function updateHud() {
   el.stab.classList.toggle('over', ld >= 1 && vb.cap <= 0);
   const stabWord = vb.cap > 0 ? '転覆' : ld >= 1 ? '危険ライン超え' : ld >= 0.85 ? '限界ぎりぎり' : ld >= 0.55 ? '攻め' : '余裕';
   el.stab.title = stabWord;
-  setTxt('pdeg', (vb.pushing ? '勝負中・' : '') + stabWord + '　' + (!fr && pad.seenAt > 0 && performance.now() - pad.seenAt < 3000 ? `パッド 左右 ${f(input.roll * 100)}%  前後 ${f(input.pitch * 100)}%` : fr ? `想定 左右 ${f(vi.roll * sensor.range)}°  前後 ${f(vi.pitch * sensor.range)}°` : sensor.got ? `左右 ${f(sensor.deg[0])}°  前後 ${f(sensor.deg[1])}°` : (running ? '傾き入力なし' : '体重移動')));
+  setTxt('pdeg', (vb.pushing ? '勝負中・' : '') + stabWord + '　' + (!fr && pad.seenAt > 0 && performance.now() - pad.seenAt < 3000 ? `パッド 左右 ${f(input.roll * 100)}%  前後 ${f(input.pitch * 100)}%` : !fr&&virtualPosture.enabled ? `仮想 左右 ${f(input.roll*100)}% 前後 ${f(input.pitch*100)}%` : fr ? `想定 左右 ${f(vi.roll * sensor.range)}°  前後 ${f(vi.pitch * sensor.range)}°` : sensor.got ? `左右 ${f(sensor.deg[0])}°  前後 ${f(sensor.deg[1])}°` : (running ? '傾き入力なし' : '体重移動')));
   const turning = Math.abs(vi.steer) > 0.3 && vb.cap <= 0;
   el.pbox.style.setProperty('--h', !turning ? C.line : vh > 0.68 ? C.good : vh > 0.42 ? C.warn : C.bad);
   if (SS.phase === 'entry' && fleet && fleet.entry) {
@@ -3242,13 +3704,13 @@ const LAB_PHASES = [
  ['exit','立ち上がり','左へ135°から、160°以上回りx<135mかつy<0まで'],
  ['next','次マークへの準備','第1マーク出口から検証終了まで']
 ];
-const LAB_TACTICS = {auto:'CPUに任せる',keep:'前段階を継続',nige:'逃げ',sashiWin:'差し（勝負）',sashiPlace:'差し（着取り）',makuri:'まくり',tsuke:'ツケマイ',wall:'壁'};
+const LAB_TACTICS = {makurisashi:'まくり差し',auto:'CPUに任せる',keep:'前段階を継続',nige:'逃げ',sashiWin:'差し（勝負）',sashiPlace:'差し（着取り）',makuri:'まくり',tsuke:'ツケマイ',wall:'壁'};
 const labEmpty = () => ({tactic:'auto',thr:null,steer:null,roll:null,pitch:null,R:null,gap:null});
-const labDefault = () => ({seed:42,duration:30,hz:20,approach:90,boats:Array.from({length:6},(_,i)=>({course:i+1,enabled:i===0||i===3,grade:'A1',temper:'normal',style:i<3?'slow':'dash',x:i===3?4:0,y:8+i*6,speed:78,st:i===3?.06:.15,motor:1,plan:'auto',contactMode:'priority',squeezeMode:'lead',stages:LAB_PHASES.map(()=>labEmpty())}))});
+const labDefault = () => ({cpuMode:COURSE_CPU.version,seed:42,duration:30,hz:20,approach:90,boats:Array.from({length:6},(_,i)=>({course:i+1,enabled:i===0||i===3,grade:'A1',temper:'normal',style:i<3?'slow':'dash',x:i===3?4:0,y:8+i*6,speed:78,st:i===3?.06:.15,motor:1,plan:'auto',contactMode:'priority',squeezeMode:'lead',stages:LAB_PHASES.map(()=>labEmpty())}))});
 function labEscape(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function labOptions(values,selected){return Object.entries(values).map(([v,t])=>`<option value="${v}"${v===selected?' selected':''}>${t}</option>`).join('');}
 function labFill(config){
- $('labSeed').value=config.seed; $('labDuration').value=config.duration; $('labHz').value=config.hz; $('labApproach').value=config.approach;
+ $('labCpuMode').value=config.cpuMode||'legacy';$('labSeed').value=config.seed; $('labDuration').value=config.duration; $('labHz').value=config.hz; $('labApproach').value=config.approach;
  $('labBoats').innerHTML=config.boats.map(b=>`<details class="lab-block lab-boat" data-course="${b.course}" style="--boat:${LANE_COL[b.course-1][0]}"${b.enabled?' open':''}><summary><label><input type="checkbox" data-f="enabled"${b.enabled?' checked':''}>${b.course}コース / ${b.course}号艇</label></summary>
  <div class="lab-grid">
  <label>選手能力<select data-f="grade">${labOptions({A1:'A1',A2:'A2',B1:'B1',B2:'B2',TOP:'A1 ★トップ'},b.grade)}</select></label>
@@ -3265,7 +3727,7 @@ function labFill(config){
 }
 function labCount(){ $('labCount').textContent=`${$('labBoats').querySelectorAll('[data-f="enabled"]:checked').length}艇を選択（2〜6艇）`; }
 function labRead(){
- const c={seed:Number($('labSeed').value),duration:Number($('labDuration').value),hz:Number($('labHz').value),approach:Number($('labApproach').value),boats:[]};
+ const c={cpuMode:$('labCpuMode').value,seed:Number($('labSeed').value),duration:Number($('labDuration').value),hz:Number($('labHz').value),approach:Number($('labApproach').value),boats:[]};
  for(const el of $('labBoats').querySelectorAll('.lab-boat')){
   const b={course:Number(el.dataset.course),stages:[]};
   for(const e of el.querySelectorAll('[data-f]')) b[e.dataset.f]=e.type==='checkbox'?e.checked:e.type==='number'?(e.value===''?NaN:Number(e.value)):e.value;
@@ -3275,6 +3737,8 @@ function labRead(){
 }
 function labValidate(raw){
  const c=JSON.parse(JSON.stringify(raw));
+ if(c.cpuMode==null)c.cpuMode='legacy';
+ if(!['legacy',COURSE_CPU.version].includes(c.cpuMode))throw Error('CPU基本判断の設定が無効です。');
  const num=(v,lo,hi,n)=>{if(typeof v!=='number'||!Number.isFinite(v)||v<lo||v>hi)throw Error(`${n} は ${lo}〜${hi} の数値で入力してください。`);return v;};
  num(c.seed,0,4294967295,'シード');if(!Number.isInteger(c.seed))throw Error('シードは整数で入力してください。');
  num(c.duration,5,120,'検証時間');num(c.approach,40,120,'手前位置');if(![20,60,120].includes(c.hz))throw Error('記録間隔が無効です。');
@@ -3307,22 +3771,24 @@ function labOpen(){
 function labCloseSetup(){ $('labSetup').hidden=true;if(!lab.active)paused=lab.previousPaused||false;last=performance.now(); }
 function labBegin(c){
  c=labValidate(c);lab.config=c;lab.active=true;lab.finished=false;lab.accumulator=0;lab.steps=0;lab.rng=c.seed>>>0;lab.rate=Number($('labRate').value)||1;lab.view=$('labView').value||'all';lab.uiAt=-1;
- lab.data={schema:'honor-for-gp.d42.behavior-log',version:1,engine:'d42 + behavior lab 3 (conditional squeeze)',seed:c.seed,fixedStepSeconds:1/120,sampleHz:c.hz,config:structuredClone(c),
+ lab.data={schema:'honor-for-gp.d42.behavior-log',version:1,engine:'d42 + shared course CPU v1 + bow timing v1',seed:c.seed,fixedStepSeconds:1/120,sampleHz:c.hz,config:structuredClone(c),
   aiRequest:'このログを分析してください。艇・段階ごとに、指定した戦法／CPUが選択した戦法／目標入力／実際の入力と結果を区別し、握る・落とす・切りすぎ・外へ膨らむ・内へ戻る原因を、時刻と記録値を引用して説明してください。まくりに行かない原因や速度を失う場面、修正候補を挙げてください。reasonFlagsはコードで観測した状態であり、人間の選手の心理や実際の競艇の正解を示すものではありません。未記録の意図を断定しないでください。',
-  definitions:{phases:LAB_PHASES.map(([id,label,trigger])=>({id,label,trigger})),units:{time:'s',position:'m; x=0 start, 1M=(150,0), y>0 home straight',speed:'km/h; hypot(v,vl)*3.6',forwardSpeed:'m/s (hull longitudinal)',lateralSpeed:'m/s',heading:'deg; initial 0, left negative',yaw:'deg/s; hull angular velocity',acceleration:'m/s²; derivative of ground speed, averaged over sample interval',forwardAcceleration:'m/s²; derivative of hull longitudinal speed over sample interval',angularAcceleration:'deg/s²; difference of hull yaw rate over sample interval',input:'thr 0..1; steer/roll/pitch -1..1; negative = left/upright, positive = right/crouch',target:'world point m; R and gap describe d42 trajectory, not measured turning radius'},
+  definitions:{timing:'All measured gate crossings use the deck bow tip (local x=2.25m), with position and heading interpolated within each physics step. Finishers are sorted by crossing time. Configured lab ST remains supplied, not measured.',phases:LAB_PHASES.map(([id,label,trigger])=>({id,label,trigger})),units:{time:'s',position:'m; x=0 start, 1M=(150,0), y>0 home straight',speed:'km/h; hypot(v,vl)*3.6',forwardSpeed:'m/s (hull longitudinal)',lateralSpeed:'m/s',heading:'deg; initial 0, left negative',yaw:'deg/s; hull angular velocity',acceleration:'m/s²; derivative of ground speed, averaged over sample interval',forwardAcceleration:'m/s²; derivative of hull longitudinal speed over sample interval',angularAcceleration:'deg/s²; difference of hull yaw rate over sample interval',input:'thr 0..1; steer/roll/pitch -1..1; negative = left/upright, positive = right/crouch',target:'world point m; R and gap describe d42 trajectory, not measured turning radius'},
+   courseCpu:'course-v1 uses common demo/lab course priors, 0.20s observations, 1.2s constant-velocity prediction, score hysteresis and turn commitment. Trajectories change smoothly. makurisashi has outside-entry then observed-slot threading, closed slots cause throttle reduction. Desired controls still pass original actuator smoothing and contact avoidance. CPU tactics are intentions, not official result classifications. Rules are heuristic tuning values, not measured racer probabilities. cpuMode missing imports as legacy. courseDecision includes base/actual/forced, scores and observations; courseLine includes R/gap and stage.',
    contactAvoidance:'Per-boat contactMode normal preserves d42. priority increases prediction clearance, includes attack targets in avoidance, suppresses deliberate dump/resist and legacy squeeze; explicit lead squeeze remains subject to avoidance, and evaluates desired controls and alternative throttle/steering/posture with d42 physics rollouts over 1.44 seconds, recomputed every 0.075 seconds, after tactic/manual overrides. Original response smoothing applies. Predictions hold other boats current controls and use mean random perturbation; they do not change race RNG. Contact physics is unchanged; collisions remain possible. Old logs without contactMode import as normal. trace.contactAvoidance records threats, desired inputs before priority, and whether the cap intervened.',
    squeeze:'Per-boat squeezeMode: lead requests inward movement once current longitudinal center lead >= one modeled hull length (HULL_AFT+HULL_FWD+2*HULL_R = 4.6m) and lead projected at current ground velocities over 1.2s also >= that length. Rechecked every step on first straight until x=105m. Target is nearest occupied inner course, while physically inside. Smooth inward target, maximum intended heading deviation 0.12rad; original actuator smoothing, numeric overrides and priority avoidance still apply. never disables tactical squeeze only; legacy preserves previous logic. Missing field imports as legacy. trace.squeezeDecision and squeeze_decision events include reason, measured/projected lead and target. Predictions are estimates, not guaranteed outcomes.',
    scope:'Slit snapshot, not pit/start simulation. ST is supplied context, not measured. Fixed d42 water, wakes, collisions and caution rules. Nearest occupied inner/outer course supplies neighboring context in reduced fleets. Overrides replace desired inputs before original response smoothing, only in active racing. Caution/out/retirement takes priority. Initial throttle=1 and cruise posture.',
    decisions:'autoCandidate is d42 candidate at this step, conditional on previous forced history, not an independent counterfactual run. chosenTactic is tactic actually used. targetInputs are after overrides; cpuTargets are before numeric overrides but after chosen tactic. samples show actual applied controls, including IDLE on an out boat.',
-   replay:'Same config and seed on the same engine/browser reproduces fixed steps. Frame rate and playback rate do not change simulation steps. Nominal sampling interval may include extra snapshots at manual single steps and run end. State at t is after physics; decisionAt is the start of that step. Metadata such as export time is not part of determinism.'},profiles:[],events:[],samples:[],status:'running'};
+   replay:'Same config and seed on the same engine/browser reproduces fixed steps. Frame rate and playback rate do not change simulation steps. Nominal sampling interval may include extra snapshots at manual single steps and run end. State at t is after physics; decisionAt is the start of that step. Metadata such as export time is not part of determinism.'},cpuRules:structuredClone(COURSE_CPU),profiles:[],events:[],samples:[],status:'running'};
  time=0;SS.phase='off';SS.t0=-CLOCK;SS.hideAt=0;wake.length=0;spray.length=0;ptrs.clear();keys.clear();hapticsStop();
  lab.inSim=true;
  try{
+  const firstDash=c.boats.filter(b=>b.enabled&&b.style!=='slow').map(b=>b.course).sort((a,b)=>a-b)[0];
   const rows=c.boats.filter(b=>b.enabled).map(b=>{
    const r={no:b.course,prof:DRIVERS.find(d=>d.name===b.grade),pref:'waku',temper:b.temper,motor:{deashi:b.motor},col:LANE_COL[b.course-1],labConfig:b,labPhase:-1};
-   applyCourse(r,b.course,b.style==='slow',b.style==='kado',100);
+   applyCourse(r,b.course,b.style==='slow',c.cpuMode===COURSE_CPU.version?b.course===firstDash:b.style==='kado',100);
    r.trait.contactMode=b.contactMode;r.trait.squeezeMode=b.squeezeMode;
-   if(b.plan!=='auto')r.trait.tactic=b.plan;
+   if(b.plan!=='auto'){r.trait.tactic=b.plan;r.trait.preferredTactic=b.plan;}
    r.b={x:b.x,y:b.y,a:0,v:b.speed/3.6,vl:0,yaw:0,porp:0,cap:0,thrMul:b.motor};raceFieldsInit(r);r.st=b.st;r.drv.mem.go=true;Object.assign(r.inp,{thr:1,pitch:r.prof.cruise});
    r.labApplied={...r.inp};r.labPrev={t:0,speed:b.speed/3.6,v:r.b.v,yaw:0};
    lab.data.profiles.push({boat:r.no,profile:{...r.prof},trait:{...r.trait}});return r;
@@ -3447,6 +3913,9 @@ function labAfterDrive(r,o,env){
  if(r.labKey!==key){r.labKey=key;labEvent('decision',r.no,{phase:LAB_PHASES[r.labPhase][0],label:tr.mode==='racing'?(TACTIC_JA[tr.chosenTactic]||'通常周回'):tr.mode,trace:structuredClone(tr),observations:env.labObservations,applied:{...r.labApplied}});}
  const throttle=tr.targetInputs?.thr;
  if(throttle!=null){const band=throttle>=.95?'全速で握る':throttle<=.05?'レバーを閉じる':'アクセルを落とす';if(band!==r.labThrottleBand){r.labThrottleBand=band;labEvent('throttle',r.no,{label:band,target:throttle,actual:o.thr});}}
+ const cd=tr.courseDecision;
+ const cdKey=cd?JSON.stringify([cd.phase,cd.actualTactic,cd.reason,cd.forced,tr.courseLine?.stage]):'inactive';
+ if(cd&&r.labCourseKey!==cdKey){r.labCourseKey=cdKey;labEvent('course_decision',r.no,{label:`${cd.course}コース ${TACTIC_JA[cd.actualTactic]}：${cd.forced?'指定戦法':CPU_REASON_JA[cd.reason]||cd.reason}`,decision:structuredClone(cd),line:structuredClone(tr.courseLine||null)});}
  const sq=tr.squeezeDecision;
  const sqKey=sq?JSON.stringify([sq.mode,sq.reason,sq.innerBoat]):'inactive';
  if(r.labSqueezeKey!==sqKey){
@@ -3495,7 +3964,7 @@ function labUpdate(force=false){
  const r=focusRow(),s=r?.labSample;if(!s)return;
  $('labV').textContent=s.speed.toFixed(1);$('labAccel').textContent=s.acceleration.toFixed(1);$('labYaw').textContent=s.yaw.toFixed(1);
  const tr=s.trace,op=s.applied;
- $('labDetail').innerHTML=`<b>${r.no}号艇 · ${LAB_PHASES[Math.max(0,r.labPhase)][1]}</b><br>戦法：${labEscape(tr?.chosenTactic?(TACTIC_JA[tr.chosenTactic]||tr.chosenTactic):'—')} / ${tr?.contactAvoidance?.intervened?'接触回避を優先中':tr?.numericOverride?'操作指定あり':'CPU操作'}<br>${tr?.squeezeDecision?`絞り：${tr.squeezeDecision.active?'内へ寄せる':({disabled:'しない',outside_window:'判定区間外',no_inner_boat:'対象なし',inner_turning:'内艇が旋回へ移行',line_reached:'進路到達',lead_short:'一艇身のリード待ち',lead_closing:'リード維持を見込めず見送り'})[tr.squeezeDecision.reason]}${tr.squeezeDecision.leadM!=null?` / リード ${tr.squeezeDecision.leadM.toFixed(1)}m`: ''}<br>`:''}アクセル ${(op.thr*100).toFixed(0)}% ・ 舵 ${(op.steer*100).toFixed(0)}%<br>傾き ${(op.roll*100).toFixed(0)}% ・ 姿勢 ${(op.pitch*100).toFixed(0)}%<br>${tr?.target?`狙い x=${tr.target.x.toFixed(1)}, y=${tr.target.y.toFixed(1)} m`:'目標点 —'}<br>${s.status.out||s.status.dq?'事故・失格':s.status.caution?'事故後の徐行':'航走中'} / 引き波 ${s.inWake.toFixed(2)} / 負荷 ${s.load.toFixed(2)}`;
+ $('labDetail').innerHTML=`<b>${r.no}号艇 · ${LAB_PHASES[Math.max(0,r.labPhase)][1]}</b><br>戦法：${labEscape(tr?.chosenTactic?(TACTIC_JA[tr.chosenTactic]||tr.chosenTactic):'—')} / ${tr?.contactAvoidance?.intervened?'接触回避を優先中':tr?.numericOverride?'操作指定あり':'CPU操作'}<br>${tr?.courseDecision?`基本：${labEscape(tr.courseDecision.baseLabel)} / ${labEscape(CPU_REASON_JA[tr.courseDecision.reason]||tr.courseDecision.reason)}<br>`:''}${tr?.squeezeDecision?`絞り：${tr.squeezeDecision.active?'内へ寄せる':({disabled:'しない',outside_window:'判定区間外',no_inner_boat:'対象なし',inner_turning:'内艇が旋回へ移行',line_reached:'進路到達',lead_short:'一艇身のリード待ち',lead_closing:'リード維持を見込めず見送り'})[tr.squeezeDecision.reason]}${tr.squeezeDecision.leadM!=null?` / リード ${tr.squeezeDecision.leadM.toFixed(1)}m`: ''}<br>`:''}アクセル ${(op.thr*100).toFixed(0)}% ・ 舵 ${(op.steer*100).toFixed(0)}%<br>傾き ${(op.roll*100).toFixed(0)}% ・ 姿勢 ${(op.pitch*100).toFixed(0)}%<br>${tr?.target?`狙い x=${tr.target.x.toFixed(1)}, y=${tr.target.y.toFixed(1)} m`:'目標点 —'}<br>${s.status.out||s.status.dq?'事故・失格':s.status.caution?'事故後の徐行':'航走中'} / 引き波 ${s.inWake.toFixed(2)} / 負荷 ${s.load.toFixed(2)}`;
  const events=lab.data.events.filter(e=>e.boat===r.no||e.boat==null).slice(-16).reverse();
  $('labEvents').innerHTML=events.map(e=>`<li><span style="color:#83caba">${e.t.toFixed(3)}s</span> ${labEscape(e.boat?`${e.boat}号艇 `:'')}${labEscape(e.label||e.type)}${e.trace?.targetInputs?` · 目標アクセル ${(e.trace.targetInputs.thr*100).toFixed(0)}%`:''}</li>`).join('');
  const canvas=$('labChart'),g=canvas.getContext('2d'),w=canvas.width,h=canvas.height;g.clearRect(0,0,w,h);g.strokeStyle='#284650';g.lineWidth=1;for(let i=0;i<=4;i++){g.beginPath();g.moveTo(0,15+i*55);g.lineTo(w,15+i*55);g.stroke();}
@@ -3520,6 +3989,7 @@ function labExit(){
 $('labLaunch').addEventListener('click',labOpen);$('labLaunchStart').addEventListener('click',labOpen);
 $('labSetupClose').addEventListener('click',labCloseSetup);$('labConfigure').addEventListener('click',labOpen);
 $('labBoats').addEventListener('change',labCount);$('labBoats').addEventListener('click',e=>{if(e.target.closest('label'))e.stopPropagation();});
+$('labCoursePreset').addEventListener('click',()=>{const c=labDefault();for(const b of c.boats){b.enabled=true;b.x=0;b.st=.12;}c.boats[3].style='kado';labFill(c);});
 $('labPreset').addEventListener('click',()=>labFill(labDefault()));
 $('labAvoidAll').addEventListener('click',()=>{for(const e of $('labBoats').querySelectorAll('[data-f="contactMode"]'))e.value='priority';});
 $('labAll').addEventListener('click',()=>{for(const e of $('labBoats').querySelectorAll('[data-f="enabled"]')){e.checked=true;e.closest('details').open=true;}labCount();});
@@ -3535,6 +4005,7 @@ $('labRestart').addEventListener('click',()=>labBegin(lab.config));
 $('labImport').addEventListener('click',()=>$('labFile').click());
 $('labFile').addEventListener('change',async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>256*1024*1024)throw Error('読込上限は256MBです。');const d=JSON.parse(await file.text());if(d.schema!=='honor-for-gp.d42.behavior-log'||d.version!==1)throw Error('対応するd42挙動検証ログを選んでください。');labFill(labValidate(d.config));$('labError').textContent='条件を読み込みました。開始ボタンで再実行できます。';}catch(err){$('labError').textContent=err.message;}finally{e.target.value='';}});
 labFill(labDefault());
+try{setControlMode(localStorage.getItem('honorGP.controlMode')||(localStorage.getItem('honorGP.virtualPosture')==='1'?'pad':'tilt'),false);}catch(_){setControlMode('tilt',false);}
 
 /* ---------- loop ---------- */
 let last = performance.now();
@@ -3552,7 +4023,7 @@ function tick(now) {
     }
     hapticsStop();updateAudio();draw();labUpdate();return;
   }
-  if($('labSetup').hidden)pollPadButtons();
+  if($('labSetup').hidden && $('slitPhoto').hidden)pollPadButtons();
   if (running && !paused) {
     if (fleet && playerActive()) { updateInput(dt); fleetStep(dt / 2, input); fleetStep(dt / 2, input); }   // practice runs in real time
     else if (fleet) { const n = Math.ceil(simSpeed * 2); for (let i = 0; i < n; i++) fleetStep(dt * simSpeed / n, input); }
