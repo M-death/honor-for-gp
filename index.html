@@ -318,7 +318,7 @@ body.lab-running>#phoneSteerReadout{display:none!important}
     <div class="slit-tools"><label>記録 <select id="slitRace" aria-label="確認するレース"></select></label><button class="btn ghost" id="slitClose">閉じる</button></div>
     <canvas id="slitCanvas" width="1000" height="700" role="img" aria-label="スタート時の各艇の位置、判定点とST"></canvas>
     <div class="slit-tools"><button class="btn ghost" id="slitPrev" aria-label="前の記録コマ">◀</button><input id="slitSeek" type="range" min="-1000" max="1500" step="1" value="0" aria-label="スタート合図からの時刻（ミリ秒）"><button class="btn ghost" id="slitNext" aria-label="次の記録コマ">▶</button><output id="slitTime" aria-live="polite">合図 +0.000秒</output></div>
-    <div class="slit-tools"><button class="btn" id="slitZero">合図の瞬間</button><button class="btn ghost" id="slitSave">画像を保存</button></div>
+    <div class="slit-tools"><button class="btn ghost" id="slitMode" aria-pressed="false">スリットカメラで見る</button><button class="btn" id="slitZero">合図の瞬間</button><button class="btn ghost" id="slitSave">画像を保存</button></div>
     <p id="slitSummary"></p>
     <p>ゲーム内の実測位置を記録した俯瞰画像です。記録コマの間は位置を補間します。白い点は現在のd42の判定点（舳先の最先端）で、ST・Fは実際のゲーム判定値です。直近5走を保持します（ページを閉じると消えます）。</p>
   </div>
@@ -519,7 +519,7 @@ const T = { on: false, sum: 0, n: 0, maxVl: 0, minV: 99, entryV: 0, quiet: 0 };
 let running = false, paused = false, time = 0, harmony = 0, lowLeanT = 0, hitCool = 0, wakeAcc = 0, portraitOk = false;
 let W = 0, H = 0, DPR = 1;
 const slitHistory=[];
-let slitSerial=0, practiceSlit=null, slitSelected=null, slitWasPaused=false, slitReturnFocus=null;
+let slitCam=false, slitSerial=0, practiceSlit=null, slitSelected=null, slitWasPaused=false, slitReturnFocus=null;
 
 /* ---------- sizing ---------- */
 function resize() {
@@ -3381,10 +3381,10 @@ $('cardClose').addEventListener('click', () => { paused = false; last = performa
 /* ---------- recorded slit photographs ---------- */
 function slitCreate(label){return {label,frames:[],boats:[],archived:false};}
 function slitCapture(rec,t,rows){
-  if(!rec || rec.archived || t < -1.1 || t > 1.6)return;
+  if(!rec || rec.archived || t < -2.2 || t > 1.6)return;
   const prev=rec.frames[rec.frames.length-1];
   if(prev && t<=prev.t)return;
-  rec.frames.push({t,boats:rows.map(r=>({no:r.no,course:r.trait?r.trait.course:r.no,x:r.b.x,y:r.b.y,a:r.b.a,cap:r.b.cap||0}))});
+  rec.frames.push({t,boats:rows.map(r=>({no:r.no,course:r.trait?r.trait.course:r.no,x:r.b.x,y:r.b.y,a:r.b.a,v:r.b.v,cap:r.b.cap||0}))});
 }
 function slitArchive(rec,rows,result){
   if(!rec || rec.archived || !rec.frames.length)return;
@@ -3431,6 +3431,7 @@ function slitRender(exactTime){
   $('slitTime').textContent=when;
   $('slitSummary').textContent=rec.boats.map(r=>`${r.no}号艇（${r.course}コース） ${slitST(r)}`).join(' ／ ');
   $('slitCanvas').setAttribute('aria-label',when+'。'+$('slitSummary').textContent);
+  if(slitCam){slitRenderCam(rec,frame,g,when);return;}
   g.clearRect(0,0,1000,700);g.fillStyle='#0b1c29';g.fillRect(0,0,1000,700);
   g.textAlign='left';g.font='bold 26px sans-serif';g.fillStyle='#e9f6fa';g.fillText(`SLIT PHOTO  /  第${rec.id}走`,32,40);
   g.font='18px sans-serif';g.fillStyle='#99b6c6';g.fillText(rec.label+' · ゲーム内判定画像',32,69);
@@ -3447,13 +3448,22 @@ function slitRender(exactTime){
   g.strokeStyle='#64eac1';g.lineWidth=2;g.beginPath();g.moveTo(sx(0),94);g.lineTo(sx(0),552);g.stroke();
   g.textAlign='left';g.font='bold 16px sans-serif';g.fillStyle='#89ffda';g.fillText('START',sx(0)+7,115);
   g.textAlign='right';g.fillStyle='#a3c8d8';g.fillText('進行方向 →',950,115);
+  // 航跡: where each boat ran over the last second — its length is the speed (1 s at 80 km/h ≈ 22 m)
+  for(const b of frame.boats){
+    const path=rec.frames.filter(f=>f.t<=frame.t&&f.t>=frame.t-1).map(f=>f.boats.find(q=>q.no===b.no)).filter(Boolean);
+    if(path.length<2)continue;
+    const aft=p=>({x:p.x-2.1*Math.cos(p.a),y:p.y-2.1*Math.sin(p.a)}),pts=[...path.map(aft),aft(b)];
+    for(const [w,c] of [[9,'rgba(2,30,40,.35)'],[5,'rgba(190,240,232,.35)'],[1.8,'rgba(255,255,255,.75)']]){
+      g.lineWidth=w;g.strokeStyle=c;g.lineCap='round';g.beginPath();pts.forEach((p,i)=>i?g.lineTo(sx(p.x),sy(p.y)):g.moveTo(sx(p.x),sy(p.y)));g.stroke();
+    }
+  }
   for(const b of frame.boats){
     const col=LANE_COL[b.no-1]||LANE_COL[0],r=rec.boats.find(r=>r.no===b.no);
     const x=sx(b.x),y=sy(b.y);
     g.save();g.translate(x,y);g.rotate(b.a);g.scale(scale,scale);
     g.drawImage(boatSprite({hull:col[0],num:col[1],label:String(b.no),helmet:col[0]},b.cap>0),-2.65,-1.1,5.3,2.2);g.restore();
     g.beginPath();g.arc(sx(boatBow(b).x),sy(boatBow(b).y),3.2,0,Math.PI*2);g.fillStyle='#fff';g.fill();g.lineWidth=1.5;g.strokeStyle='#071824';g.stroke();
-    g.textAlign='center';g.font='bold 15px sans-serif';g.fillStyle=r&&r.st<0?'#ffb0a6':'#fff';g.fillText(`${b.no}号艇`,x,y-14);
+    g.textAlign='center';g.font='bold 15px sans-serif';g.fillStyle=r&&r.st<0?'#ffb0a6':'#fff';g.fillText(`${b.no}号艇${b.v!=null?'  '+Math.round(b.v*3.6)+'km/h':''}`,x,y-14);
   }
   g.restore();
   for(let i=0;i<rec.boats.length;i++){
@@ -3463,6 +3473,58 @@ function slitRender(exactTime){
     g.font='bold 21px monospace';g.fillStyle=r.st!=null&&r.st<0?'#ff9b8e':'#70e8c3';g.fillText(slitST(r),x+12,627);
   }
   g.font='15px sans-serif';g.textAlign='left';g.fillStyle='#91adbf';g.fillText('白点＝舳先の判定点  /  ST・F＝ゲーム判定値  /  記録コマ間は補間表示',32,678);
+}
+// スリットカメラ: like the real slit photograph, a line camera on the start line — the picture's horizontal axis is
+// TIME (later to the left), so a boat shows up as long as it takes to pass the line: fast boats short, slow boats long.
+// The 合図 (0.00) line marks the signal; a bow right of it is a フライング, the distance left of it is the ST.
+function slitCrossing(rec,no,off){
+  // time the point `off` m along the hull (2.25 = bow, -2.04 = stern) crosses x=0, interpolated between frames
+  const P=f=>{const b=f.boats.find(q=>q.no===no);return b&&{x:b.x+off*Math.cos(b.a),v:b.v,y:b.y};};
+  for(let i=1;i<rec.frames.length;i++){
+    const a=P(rec.frames[i-1]),c=P(rec.frames[i]);
+    if(a&&c&&a.x<0&&c.x>=0){const u=-a.x/(c.x-a.x);return{t:rec.frames[i-1].t+(rec.frames[i].t-rec.frames[i-1].t)*u,v:a.v+(c.v-a.v)*u,y:a.y+(c.y-a.y)*u};}
+  }
+  return null;
+}
+function slitRenderCam(rec,frame,g,when){
+  g.clearRect(0,0,1000,700);g.fillStyle='#0b1c29';g.fillRect(0,0,1000,700);
+  g.textAlign='left';g.font='bold 26px sans-serif';g.fillStyle='#e9f6fa';g.fillText(`SLIT CAMERA  /  第${rec.id}走`,32,40);
+  g.font='18px sans-serif';g.fillStyle='#99b6c6';g.fillText(rec.label+' · スタートライン上の定点撮影（横軸は時間）',32,69);
+  const t0=-0.35,t1=1.25,X0=968,K=936/(t1-t0),tx=t=>X0-(t-t0)*K;
+  const ys=frame.boats.map(b=>b.y),minY=Math.min(0,...ys)-3,maxY=Math.max(50,...ys)+3,sy=y=>110+(y-minY)/(maxY-minY)*430;
+  g.save();g.beginPath();g.rect(32,94,936,458);g.clip();
+  const water=g.createLinearGradient(0,94,0,552);water.addColorStop(0,'#164858');water.addColorStop(1,'#0d2c41');g.fillStyle=water;g.fillRect(32,94,936,458);
+  for(let t=Math.ceil(t0*10)/10;t<=t1;t+=0.1){const x=tx(t);g.strokeStyle=Math.abs(t)<1e-6?'#64eac1':'rgba(170,220,230,.16)';g.lineWidth=Math.abs(t)<1e-6?2:1;g.beginPath();g.moveTo(x,94);g.lineTo(x,552);g.stroke();
+    g.textAlign='center';g.font='13px sans-serif';g.fillStyle='#8badbe';g.fillText((t<0?'F':'')+(Math.abs(t)<1e-6?'0.00':Math.abs(t).toFixed(1)),x,543);}
+  g.textAlign='left';g.font='bold 16px sans-serif';g.fillStyle='#89ffda';g.fillText('合図',tx(0)+6,115);
+  g.textAlign='left';g.fillStyle='#a3c8d8';g.fillText('← 遅れて通過',40,115);
+  // cursor at the selected time
+  g.strokeStyle='rgba(255,207,117,.7)';g.setLineDash([6,5]);g.beginPath();g.moveTo(tx(frame.t),94);g.lineTo(tx(frame.t),552);g.stroke();g.setLineDash([]);
+  const rows=[];
+  for(const r of rec.boats){
+    const bow=slitCrossing(rec,r.no,BOW_TIP);if(!bow)continue;
+    const st=slitCrossing(rec,r.no,-2.04),v=Math.max(0.5,bow.v),tEnd=st?st.t:bow.t+4.29/v;
+    rows.push({r,bow,tEnd,v});
+  }
+  for(const q of rows){
+    const col=LANE_COL[q.r.no-1]||LANE_COL[0],x1=tx(q.bow.t),x2=tx(q.tEnd),y=sy(q.bow.y),h=(2.2/(maxY-minY))*430;
+    // wake: churned water passing the line after the stern, fading
+    const wl=Math.min(220,0.45*K),wg=g.createLinearGradient(x2,0,x2-wl,0);wg.addColorStop(0,'rgba(240,255,250,.75)');wg.addColorStop(1,'rgba(240,255,250,0)');
+    g.fillStyle=wg;g.fillRect(x2-wl,y-h*0.32,wl,h*0.64);
+    g.save();g.translate((x1+x2)/2,y);g.drawImage(boatSprite({hull:col[0],num:col[1],label:String(q.r.no),helmet:col[0]},false),-(x1-x2)/2,-h/2,x1-x2,h);g.restore();
+    g.beginPath();g.arc(x1,y,3.2,0,Math.PI*2);g.fillStyle='#fff';g.fill();
+    g.textAlign='left';g.font='bold 15px sans-serif';g.fillStyle=q.r.st!=null&&q.r.st<0?'#ffb0a6':'#fff';
+    g.fillText(`${q.r.no}号艇 ${Math.round(q.v*3.6)}km/h`,x1+8,y-h/2-2);
+  }
+  g.restore();
+  for(let i=0;i<rec.boats.length;i++){
+    const r=rec.boats[i],x=32+i*(936/rec.boats.length),w=936/rec.boats.length-6,col=LANE_COL[r.no-1]||LANE_COL[0],q=rows.find(q=>q.r===r);
+    g.fillStyle='#152f40';g.fillRect(x,568,w,78);g.fillStyle=col[0];g.fillRect(x,568,5,78);
+    g.textAlign='left';g.font='bold 16px sans-serif';g.fillStyle='#dcecf3';g.fillText(`${r.no}号艇 · ${r.course}コース`,x+12,593);
+    g.font='bold 21px monospace';g.fillStyle=r.st!=null&&r.st<0?'#ff9b8e':'#70e8c3';g.fillText(slitST(r),x+12,627);
+    if(q){g.font='13px sans-serif';g.fillStyle='#9fc0cf';g.fillText(`${Math.round(q.v*3.6)}km/h`,x+12,643);}
+  }
+  g.font='15px sans-serif';g.textAlign='left';g.fillStyle='#91adbf';g.fillText('横軸＝時間（右ほど早く通過）／速い艇ほど短く、遅い艇ほど長く写る／破線＝選択中の時刻',32,678);
 }
 function slitMove(dir){
   if(!slitSelected)return;const t=slitSelected.viewTime||0;
@@ -3481,6 +3543,7 @@ $('slitRace').addEventListener('change',slitChoose);
 $('slitSeek').addEventListener('input',()=>slitRender());
 $('slitPrev').addEventListener('click',()=>slitMove(-1));$('slitNext').addEventListener('click',()=>slitMove(1));
 $('slitZero').addEventListener('click',()=>{$('slitSeek').value='0';slitRender();});
+$('slitMode').addEventListener('click',()=>{slitCam=!slitCam;$('slitMode').textContent=slitCam?'俯瞰で見る':'スリットカメラで見る';$('slitMode').setAttribute('aria-pressed',String(slitCam));slitRender();});
 $('slitSave').addEventListener('click',()=>{
   if(!slitSelected)return;
   const a=document.createElement('a');a.download=`d42-slit-${slitSelected.id}-${Math.round(slitSelected.viewTime*1000)}ms.png`;a.href=$('slitCanvas').toDataURL('image/png');a.click();
@@ -3876,6 +3939,12 @@ const el = { stab: $('stab'), stabFill: $('stabFill'), demoTag: $('demoTag'), sp
 let lastTxt = {};
 const setTxt = (k, v) => { if (lastTxt[k] !== v) { lastTxt[k] = v; el[k].textContent = v; } };
 function updateHud() {
+  // the on-screen posture pad mirrors the controller's left stick (or keys) when no finger is on it
+  if (virtualPosture.enabled && virtualPosture.pointer == null) {
+    const zr = $('postureZone').getBoundingClientRect(), rad = Math.max(1, zr.width / 2 - 18);
+    const px = clamp(input.roll), py = clamp(-input.pitch), len = Math.hypot(px, py), k = len > 1 ? 1 / len : 1;
+    $('postureThumb').style.transform = `translate(${px * k * rad}px,${py * k * rad}px)`;
+  }
   if(controlMode==='wheel')$('phoneSteerReadout').textContent=phoneWheel.value<-.03?`スマホ舵：左 ${Math.round(-phoneWheel.value*100)}%`:phoneWheel.value>.03?`スマホ舵：右 ${Math.round(phoneWheel.value*100)}%`:'スマホ舵：中央';
   const fr = focusRow();
   const vb = fr ? fr.b : B, vi = fr ? fr.inp : input, vh = fr ? (fr.b.harmony || 0) : harmony;
