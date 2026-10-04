@@ -312,7 +312,7 @@ body.lab-running>#phoneSteerReadout{display:none!important}
       <button class="btn ghost" id="pmTenji">展示航走（1艇・タイム計測）</button>
       <p style="margin:0 0 6px">バックストレッチから2マークを回り、スリットから2周。展示・直線・まわり足・一周タイムを計測。</p>
       <button class="btn ghost" id="pmClock">大時計スタート（1艇）</button>
-      <button class="btn ghost" id="pmRace">レース練習（6艇・ピット離れから3周）</button>
+      <button class="btn ghost" id="pmRace">レース練習（6艇・ピット離れから3周・全部自分で操作）</button>
       <button class="btn ghost" id="pmClose">やめる</button>
     </div>
   </div>
@@ -891,7 +891,7 @@ $('again').addEventListener('click', () => { if (!running || paused) return; pau
 let practiceKind = 'race', soloKind = 'clock';
 const WAKU_NOTE = {
   p6: 'ランプの数字が消えて「ピット離れ」でアクセル。舵は自動で、アクセルだけで待機位置まで運びます（前付けなし）。2マークを回る前でも後でも、正対する前なら「引く」でダッシュ（引いた順に外のコース）。大時計が回り始めたらスタート。スリットを越えたら自動で1マークを回り、スリット写真で終了します。',
-  race: document.getElementById('wakuNote') ? document.getElementById('wakuNote').textContent : ''
+  race: 'ランプの数字が消えて「ピット離れ」でアクセル。バック側で内の艇より前に出ればコースを奪えますが、内も抵抗してきます（前付けあり）。正対するまでに「引く」でダッシュ。待機中の舵は自動。スタート後は舵・体重移動・アクセルすべて自分で操作して3周（ゴールしたら自動で流します）。'
 };
 function closeMenu() { $('pmenu').hidden = true; paused = false; last = performance.now(); }
 function openWaku(kind) { practiceKind = kind; $('wakuNote').textContent = WAKU_NOTE[kind]; $('pmenu').hidden = true; paused = true; $('waku').hidden = false; }
@@ -1164,7 +1164,7 @@ function hapticsStop() {
   try { navigator.vibrate && navigator.vibrate(0); } catch (e) {}
 }
 function hapticsFrame(dt, b) {
-  if (!hap.on || !running || paused || fleet) { hapticsStop(); return; }
+  if (!hap.on || !running || paused || (fleet && !playerRacing(playerRow()))) { hapticsStop(); return; }
   hap.active = true;
   const load = b.cap > 0 ? 0 : (b.load || 0), turn = b.cap > 0 ? 0 : (b.turnLoadV || 0), bump = b.wakeBump || 0;
   let strong = 0, weak = 0, phone = null;
@@ -3016,6 +3016,8 @@ function entryHandoff() {
   fleet.entry = null;
   SS.phase = 'count'; SS.t0 = time + PRE_RUN; SS.hideAt = 0;
   toast('進入', fleet.entryResult.text + (E.steals ? '　前付けあり' : '') + (E.pitSteals ? '　ピット離れでコース取り' : ''), 'info');
+  // the player's own boat: its (shadow) CPU must not plan attacks that other boats would react to
+  for (const r of fleet.boats) if (r.player && fleet.fullControl) Object.assign(r.trait, { pushMul: 0, dump: 0, tsuke: 0 });
   // 6艇スタート練習: after the slit everyone just takes 1M in turn with room between them (no attacks, squeezes or dumps)
   if (fleet.practice6) for (const r of fleet.boats) {
     Object.assign(r.trait, { pushMul: 0, dump: 0, tsuke: 0 });
@@ -3027,7 +3029,7 @@ function entryHandoff() {
 let entryMode = false;
 function startEntry(playerNo, kind = 'race') {
   fleet = makeEntryFleet(playerNo, { noMae: kind === 'p6' });
-  fleet.practice6 = kind === 'p6'; fleet.noMae = kind === 'p6';
+  fleet.practice6 = kind === 'p6'; fleet.noMae = kind === 'p6'; fleet.fullControl = !!playerNo && kind === 'race';
   ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
   input.thr = input.steer = input.roll = input.pitch = 0;
   wake.length = 0; spray.length = 0;
@@ -3042,7 +3044,9 @@ function nextRace() {
 }
 const playerRow = () => fleet && fleet.playerNo ? fleet.boats.find(r => r.player) : null;
 // the player has the lever from the pits until the start line
-function playerActive() { const r = playerRow(); return !!(r && (fleet.entry || (r.st == null && !r.lateTold))); }
+// レース練習: the player keeps the boat for the whole race (until the finish, an accident or a フライング retirement)
+const playerRacing = r => !!(r && fleet && fleet.fullControl && r.fin == null && !r.out && !(r.flying && r.passed1M));
+function playerActive() { const r = playerRow(); return !!(r && (fleet.entry || (r.st == null && !r.lateTold) || playerRacing(r))); }
 function startFleet() {
   fleet = freshFleet(setupFleet());
   ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
@@ -3120,13 +3124,18 @@ function fleetStep(dt, playerInput) {
       if(lab.active)labBeforeDrive(r,env);
       o = r.drv.drive(b, env, dt);
       if(lab.active)labAfterDrive(r,o,env);
-      if (r.player && r.st == null && time - dt > zero + 1 && !r.lateTold) { r.lateTold = true; toast('出遅れ', '1秒以内に越えられなかった。CPUが引き継ぎ', 'bad'); }
+      if (r.player && r.st == null && time - dt > zero + 1 && !r.lateTold) { r.lateTold = true; toast('出遅れ', fleet.fullControl ? '1秒以内に越えられなかった' : '1秒以内に越えられなかった。CPUが引き継ぎ', 'bad'); }
       if (r.player && r.st == null && !r.lateTold) {
         // the player has the lever (and posture) until the start line; steering follows the lane
         const ps = playerInput ? playerInput.steer : 0;
         if (SS.phase === 'count') zigCheck(b, ps, r);
         o = { thr: playerInput ? playerInput.thr : 0, steer: clamp(ps, -PRE_SLIT.steer, PRE_SLIT.steer), roll: 0, pitch: playerInput ? playerInput.pitch : 0, ev: null };   // スリットまでは舵は微調整だけ、傾きなし
         r.inp = o;
+      } else if (r.player && playerRacing(r)) {
+        // past the slit: rudder, lean, posture and lever are all the player's
+        const pi = playerInput || IDLE_INPUT;
+        o = { thr: pi.thr, steer: pi.steer, roll: pi.roll, pitch: pi.pitch, ev: null };
+        r.inp = o; b.gripBoost = 1; b.pushing = false;
       } else if (r.player && r.inp !== r.drv.out) r.inp = r.drv.out;
       b.hold = fleet.pitMode && r.st == null && (r.player ? o.thr < 0.08 : !r.drv.mem.go);
       if (o.ev === 'pushFail') pushFailed(r);
@@ -3283,7 +3292,7 @@ function fleetTimingStep(previous,zero){
     if(r.st==null){
       r.st=startOffset(at,zero);r.vis=0;
       if(r.st<0){r.flying=true;r.dq=true;toast('フライング',`${r.no}号艇 F${fmtST(-r.st)}　返還、1マークを過ぎたら離脱`,'bad');}
-      else if(r.player&&!r.lateTold)toast(r.st<=.15?'好スタート':r.st<=.3?'スタート':'遅れ気味',`ST ${fmtST(r.st)}　ここからCPUが引き継ぎ`,r.st<=.15?'good':r.st<=.3?'warn':'bad');
+      else if(r.player&&!r.lateTold)toast(r.st<=.15?'好スタート':r.st<=.3?'スタート':'遅れ気味',`ST ${fmtST(r.st)}${fleet.fullControl?'':'　ここからCPUが引き継ぎ'}`,r.st<=.15?'good':r.st<=.3?'warn':'bad');
     }else if(r.vis===3&&r.fin==null&&!r.flying){
       r.laps++;r.vis=0;
       if(r.laps>=3){r.fin=at;finishedNow=true;fleet.finOrder.push(r);if(!r.dq)fleet.order.push(r);}
@@ -4046,7 +4055,7 @@ function updateHud() {
     setTxt('lap', SS.phase === 'count' ? '待機行動' : `${Math.min(3, lead.laps + 1)}周目  ${fmtRT(Math.max(0, (lead.fin ?? time) - fleet.raceStart))}`);
     el.best.classList.toggle('top', !!fr.prof.top);
     setTxt('best', `${fr.prof.top ? 'A1★トップ' : fr.prof.name + '級'}・${fr.trait.course}コース・${fr.trait.kado ? `${fr.trait.course}カド` : fr.trait.slow ? 'スロー' : 'ダッシュ'}・${TACTIC_JA[fr.drv.mem.tacticNow || fr.trait.tactic]}`);
-    setTxt('demoTag', fr.player ? `自分 ${fr.no}号艇${fr.st == null ? '' : '（CPU操縦中）'}` : `追尾 ${fr.no}号艇${fleet.focus == null ? '（先頭を自動追尾）' : ''}`);
+    setTxt('demoTag', fr.player ? `自分 ${fr.no}号艇${fr.st == null || playerRacing(fr) ? '' : '（CPU操縦中）'}` : `追尾 ${fr.no}号艇${fleet.focus == null ? '（先頭を自動追尾）' : ''}`);
     updateOrderStrip();
     $('skipBtn').hidden = !(fleet.caution && !fleet.endAt);
   } else {
@@ -4413,11 +4422,11 @@ function tick(now) {
   }
   if($('labSetup').hidden && $('slitPhoto').hidden)pollPadButtons();
   if (running && !paused) {
-    if (fleet && playerActive()) { updateInput(dt); fleetStep(dt / 2, input); fleetStep(dt / 2, input); }   // practice runs in real time
+    if (fleet && playerActive()) { updateInput(dt); fleetStep(dt / 2, input); fleetStep(dt / 2, input); const pr = playerRow(); if (pr && playerRacing(pr)) hapticsFrame(dt, pr.b); }   // practice runs in real time
     else if (fleet) { const n = Math.ceil(simSpeed * 2); for (let i = 0; i < n; i++) fleetStep(dt * simSpeed / n, input); }
     else { updateInput(dt); step(dt / 2); step(dt / 2); hapticsFrame(dt, B); }
   }
-  if (!running || paused || fleet) hapticsStop();
+  if (!running || paused || (fleet && !playerRacing(playerRow()))) hapticsStop();
   updateAudio();
   draw(); updateHud();
 }
