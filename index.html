@@ -381,7 +381,7 @@ body.lab-running>#phoneSteerReadout{display:none!important}
       <p style="margin:0;font-size:12px">チルトを上げるほど直線の伸びが出て外のコース向き。代わりに出足が鈍り、ターンで流れやすくなります。</p>
       <label>6艇デモの再生速度 <select id="simSpeed"><option value="1">1倍（実時間）</option><option value="1.5" selected>1.5倍</option><option value="2">2倍</option><option value="3">3倍</option></select></label>
       <div class="row" style="margin-top:0">
-        <button class="btn ghost" id="reset">スタート練習をやり直す</button>
+        <button class="btn ghost" id="reset">練習をやり直す</button>
         <button class="btn ghost" id="close">閉じる</button>
       </div>
     </div>
@@ -885,7 +885,7 @@ $('hapTest').addEventListener('click', () => {
 $('invR').addEventListener('change', e => { sensor.invR = e.target.checked; });
 $('invP').addEventListener('change', e => { sensor.invP = e.target.checked; });
 $('sens').addEventListener('input', e => { sensor.range = +e.target.value; $('sensOut').textContent = e.target.value + '°'; });
-$('reset').addEventListener('click', () => { $('settings').hidden = true; paused = false; last = performance.now(); soloRestart(); });
+$('reset').addEventListener('click', () => { $('settings').hidden = true; paused = false; last = performance.now(); restartPractice(); });
 $('again').addEventListener('click', () => { if (!running || paused) return; paused = true; $('pmenu').hidden = false; });
 // 練習の種類: 'p6' 6艇スタート練習 / 'race' レース練習（3周）; solo: 'tenji' 展示航走 / 'clock' 大時計スタート
 let practiceKind = 'race', soloKind = 'clock';
@@ -896,6 +896,15 @@ const WAKU_NOTE = {
 function closeMenu() { $('pmenu').hidden = true; paused = false; last = performance.now(); }
 function openWaku(kind) { practiceKind = kind; $('wakuNote').textContent = WAKU_NOTE[kind]; $('pmenu').hidden = true; paused = true; $('waku').hidden = false; }
 function soloRestart() { soloKind === 'tenji' ? beginTenji() : beginStart(); }
+// 練習をやり直す (settings / controller X): start the practice in progress again from the beginning
+function restartPractice() {
+  for (const id of ['meas', 'pmenu', 'waku']) $(id).hidden = true;
+  if (!$('slitPhoto').hidden) $('slitPhoto').hidden = true;
+  paused = false; last = performance.now();
+  if (fleet && fleet.playerNo) startEntry(fleet.playerNo, fleet.practice6 ? 'p6' : 'race');
+  else if (fleet) nextRace();
+  else soloRestart();
+}
 $('pm6').addEventListener('click', () => openWaku('p6'));
 $('pmRace').addEventListener('click', () => openWaku('race'));
 $('pmTenji').addEventListener('click', () => { closeMenu(); if (fleet) quitFleet(); beginTenji(); });
@@ -1083,7 +1092,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)resetVirtua
 /* ---------- game controller (Gamepad API, standard layout) ----------
    LT = throttle lever (left hand, like the real boat; RT can be chosen in settings)
    right stick ←→ = rudder,  left stick ←→ = lean,  left stick ↑ = 伏せる / ↓ = 体を起こす
-   A = start / OK / もう一度,  X = start practice,  Y = 引く,  Menu = settings,  B = close */
+   A = start / OK / もう一度,  X = 練習をやり直す,  Y = 引く,  Menu = settings,  B = close */
 const pad = { idx: -1, seenAt: -1, useRT: false, prev: [] };
 const padDz = v => Math.abs(v) < 0.12 ? 0 : (v - Math.sign(v) * 0.12) / 0.88;
 // Embedded views (like the in-app preview) can forbid controller access outright; then getGamepads
@@ -1112,7 +1121,7 @@ function pollPadButtons() {
     else if (!$('card').hidden) { paused = false; last = performance.now(); $('card').hidden = true; }
     else if (!$('meas').hidden) $('measClose').click();
   }
-  if (edge(2) && running && !paused && !fleet) beginStart();
+  if (edge(2) && running && $('settings').hidden && $('card').hidden) restartPractice();   // X = 練習をやり直す
   if (edge(3) && running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();
   pad.prev = g.buttons.map(b => b.pressed);
 }
@@ -2888,6 +2897,9 @@ function entryStep(dt, playerInput) {
       if (q.en.stealFrom !== r || en.stage !== 'out' || b.x > SMALL_TURN_BUOY.x - 20) en.block = null;
       else vT = Math.max(vT, q.b.v + (q.b.x > b.x - 2 ? 2 : 0.5));
     }
+    // 6艇スタート練習: the outside CPU boats pull early, on the way to 2M (outermost first)
+    if (fleet.practice6 && !r.player && !en.dash && (en.stage === 'back' || en.stage === 'turn') && en.slot >= 4 && r.pref !== 'in'
+        && boats.every(q => q.en.slot <= en.slot || q.en.dash || q.player)) { callDash(r); toast('引く', `${r.no}号艇がダッシュへ`, 'info'); }
     if (en.rewind && en.stage === 'back') vT = Math.max(vT, ENTRY.vBack);
     // keep 艇2つ分 off the stern of a boat ahead in the same lane (the rule between the buoy and 2M)
     if (!r.player && en.stage !== 'wait') {
