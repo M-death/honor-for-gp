@@ -199,7 +199,7 @@ body.lab-running>#phoneSteerReadout{display:none!important}
 
 <div class="hud tr">
   <div class="pills">
-    <button id="again" class="pill">スタート練習</button>
+    <button id="again" class="pill">練習メニュー</button>
     <button id="labLaunch" class="pill alt">挙動検証</button>
     <button id="demoBtn" class="pill">6艇デモ</button>
     <button id="entryBtn" class="pill" aria-pressed="false">進入：固定</button>
@@ -303,10 +303,25 @@ body.lab-running>#phoneSteerReadout{display:none!important}
 
 <button class="dashbtn" id="dashBtn" hidden><b>引く</b><span>ダッシュ</span></button>
 
+<div class="overlay" id="pmenu" hidden>
+  <div class="card" style="max-width:480px">
+    <h1 style="font-size:22px"><small>練習</small>モードを選ぶ</h1>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
+      <button class="btn" id="pm6">6艇スタート練習</button>
+      <p style="margin:0 0 6px">ピット離れから。舵は自動でアクセルだけ調整して待機位置へ。「引く」でダッシュ。スタートしたら自動で1マークを回り、スリット写真で終了（前付けなし）。</p>
+      <button class="btn ghost" id="pmTenji">展示航走（1艇・タイム計測）</button>
+      <p style="margin:0 0 6px">バックストレッチから2マークを回り、スリットから2周。展示・直線・まわり足・一周タイムを計測。</p>
+      <button class="btn ghost" id="pmClock">大時計スタート（1艇）</button>
+      <button class="btn ghost" id="pmRace">レース練習（6艇・ピット離れから3周）</button>
+      <button class="btn ghost" id="pmClose">やめる</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="waku" hidden>
   <div class="card" style="max-width:460px">
     <h1 style="font-size:22px"><small>スタート練習（ピット離れ）</small>枠を選ぶ</h1>
-    <p>ランプの数字が消えて「ピット離れ」でアクセル。早すぎるとエンスト、遅いと出遅れます（モーターの出足でも差が出ます）。バック側で内の艇より前に出ればコースを奪えますが、内も抵抗してきます。2マークを過ぎてから正対するまでに「引く」を押すとダッシュ。舵は自動、スタートラインを越えたらCPUが引き継ぎます。</p>
+    <p id="wakuNote">ランプの数字が消えて「ピット離れ」でアクセル。早すぎるとエンスト、遅いと出遅れます（モーターの出足でも差が出ます）。バック側で内の艇より前に出ればコースを奪えますが、内も抵抗してきます。2マークを過ぎてから正対するまでに「引く」を押すとダッシュ。舵は自動、スタートラインを越えたらCPUが引き継ぎます。</p>
     <div class="wakus" id="wakuBtns"></div>
     <div class="row"><button class="btn ghost" id="wakuClose">やめる</button></div>
   </div>
@@ -870,8 +885,22 @@ $('hapTest').addEventListener('click', () => {
 $('invR').addEventListener('change', e => { sensor.invR = e.target.checked; });
 $('invP').addEventListener('change', e => { sensor.invP = e.target.checked; });
 $('sens').addEventListener('input', e => { sensor.range = +e.target.value; $('sensOut').textContent = e.target.value + '°'; });
-$('reset').addEventListener('click', () => { $('settings').hidden = true; paused = false; last = performance.now(); beginStart(); });
-$('again').addEventListener('click', () => { if (!running || paused) return; if (entryMode) { paused = true; $('waku').hidden = false; } else beginStart(); });
+$('reset').addEventListener('click', () => { $('settings').hidden = true; paused = false; last = performance.now(); soloRestart(); });
+$('again').addEventListener('click', () => { if (!running || paused) return; paused = true; $('pmenu').hidden = false; });
+// 練習の種類: 'p6' 6艇スタート練習 / 'race' レース練習（3周）; solo: 'tenji' 展示航走 / 'clock' 大時計スタート
+let practiceKind = 'race', soloKind = 'clock';
+const WAKU_NOTE = {
+  p6: 'ランプの数字が消えて「ピット離れ」でアクセル。舵は自動で、アクセルだけで待機位置まで運びます（前付けなし）。2マークを回る前でも後でも、正対する前なら「引く」でダッシュ（引いた順に外のコース）。大時計が回り始めたらスタート。スリットを越えたら自動で1マークを回り、スリット写真で終了します。',
+  race: document.getElementById('wakuNote') ? document.getElementById('wakuNote').textContent : ''
+};
+function closeMenu() { $('pmenu').hidden = true; paused = false; last = performance.now(); }
+function openWaku(kind) { practiceKind = kind; $('wakuNote').textContent = WAKU_NOTE[kind]; $('pmenu').hidden = true; paused = true; $('waku').hidden = false; }
+function soloRestart() { soloKind === 'tenji' ? beginTenji() : beginStart(); }
+$('pm6').addEventListener('click', () => openWaku('p6'));
+$('pmRace').addEventListener('click', () => openWaku('race'));
+$('pmTenji').addEventListener('click', () => { closeMenu(); if (fleet) quitFleet(); beginTenji(); });
+$('pmClock').addEventListener('click', () => { closeMenu(); if (fleet) quitFleet(); beginStart(); });
+$('pmClose').addEventListener('click', closeMenu);
 $('note').addEventListener('click', () => { $('note').hidden = true; });
 
 /* ---------- オリジナル展示タイム style measurement (スタート練習, 2 laps) ----------
@@ -929,7 +958,7 @@ function measFinish(total) {
   $('measNote').textContent = '展示＝2マーク手前150m（伸び）／直線＝1マークを出た後の行き足／まわり足＝1マーク手前22mから回って出口23mまで／一周＝バック側の計測線から1周。緑は2周のうち良い方。';
   paused = true; $('meas').hidden = false;
 }
-$('measAgain').addEventListener('click', () => { $('meas').hidden = true; paused = false; last = performance.now(); beginStart(); });
+$('measAgain').addEventListener('click', () => { $('meas').hidden = true; paused = false; last = performance.now(); soloRestart(); });
 $('measClose').addEventListener('click', () => { $('meas').hidden = true; paused = false; last = performance.now(); });
 
 function resetBoat() {
@@ -940,7 +969,18 @@ function resetBoat() {
   lap.n = 0; lap.start = time; lap.visR = lap.visL = false; lap.prevY = B.y;
   measReset();
 }
+// 展示航走: one boat, from the back straight round 2M; the timing starts when it crosses the slit, then 2 laps
+function beginTenji() {
+  soloKind = 'tenji';
+  resetBoat();
+  Object.assign(B, { x: 70, y: -24, a: Math.PI, v: 14 });
+  cam.x = B.x; cam.y = B.y; lap.prevY = B.y;
+  SS.phase = 'tenji'; SS.hideAt = 0; practiceSlit = null;
+  $('measSlit').hidden = true; $('clock').hidden = true;
+  toast('展示航走', '2マークを回ってスリットを越えたら計測開始（2周）', 'info');
+}
 function beginStart() {
+  soloKind = 'clock';
   resetBoat();
   SS.phase = 'count'; SS.t0 = time; SS.hideAt = 0;
   practiceSlit=slitCreate('スタート練習');
@@ -1418,7 +1458,7 @@ function splash(b) {
 function step(dt) {
   const previous=timingPose(B,time);
   time += dt;
-  B.preStart = SS.phase === 'count' ? 1 : (lap.n === 0 && B.y > 0 && B.x > -5 ? preStartAfter(boatBow(B).x) : 0);
+  B.preStart = SS.phase === 'count' ? 1 : (soloKind === 'clock' && lap.n === 0 && B.y > 0 && B.x > -5 ? preStartAfter(boatBow(B).x) : 0);
   // 起こし〜スリット: 舵と体の左右の傾きは固定（真っ直ぐだけ）。通過してから入力を受け付ける
   if (SS.phase === 'count') zigCheck(B, input.steer, null);
   const ev = boatPhysics(B, SS.phase === 'count' ? { thr: input.thr, steer: clamp(input.steer, -PRE_SLIT.steer, PRE_SLIT.steer), roll: 0, pitch: input.pitch } : input, dt);
@@ -1438,6 +1478,13 @@ function step(dt) {
   // big-clock start: the line must be crossed 0–1.0 s after the hand hits zero
   const current=timingPose(B,time),crossAt=gateCrossing(START_GATE,previous,current);
   const crossed=crossAt!=null;
+  if (SS.phase === 'tenji') {
+    if (crossed) {
+      SS.phase = 'off'; lap.start = crossAt; lap.n = 0; lap.visR = lap.visL = false;
+      meas.on = true; meas.startAt = crossAt; meas.st = null;
+      toast('計測開始', 'スリットから2周', 'good'); return;
+    }
+  }
   if (SS.phase === 'count') {
     if (crossed) { judgeStart(startOffset(crossAt,SS.t0+CLOCK),crossAt); lap.visR = lap.visL = false; return; }
     if (time > SS.t0 + CLOCK + 1) { SS.phase = 'done'; SS.hideAt = time + 2.5; toast('出遅れ', '1秒以内にスタートラインを越えられなかった', 'bad'); }
@@ -2485,7 +2532,7 @@ const ENTRY = {
 const SMALL_TURN_BUOY = { x: -MK + 20, y: 0 };      // 小回り防止ブイ: 20 m from 2M toward the centre (its real place); boats leaving the pits go round outside it
 let onEntryHandoff = null;                          // UI hook
 
-function makeEntryFleet(playerNo) {
+function makeEntryFleet(playerNo, opts = {}) {
   const rows = newRows(false);
   const go = time + ENTRY.lamp;
   rows.forEach(r => {
@@ -2499,7 +2546,7 @@ function makeEntryFleet(playerNo) {
     r.entryViol = [];
   });
   // 前付け race: one CPU rider (an イン志向 one if there is) goes for a course further in
-  const mae = simRandom() < ENTRY.maeRate;
+  const mae = !opts.noMae && simRandom() < ENTRY.maeRate;
   if (mae) {
     const cand = rows.filter(r => !r.player && r.no >= 2);
     const inPref = cand.filter(r => r.pref === 'in');
@@ -2621,6 +2668,7 @@ function laneProg(r) {
 // If the late boat comes back at it, the attempt is dropped. Then it may go again for the next boat in.
 // Returns the speed it must keep (0 = no constraint).
 function pitOutSteal(r, boats) {
+  if (fleet.noMae) return 0;
   const en = r.en, E = fleet.entry;
   let vMin = 0;
   if (en.passing) {   // turned in: keep ahead until across the passed boat's line
@@ -2697,7 +2745,7 @@ function entryStep(dt, playerInput) {
   // (once per neighbour; at most one course gained this way, so the slow group doesn't get pushed too deep)
   for (let k = 1; k < inLanes.length; k++) {
     const o = inLanes[k], i = inLanes[k - 1];
-    if (o.player || o.en.wantIn || o.en.dash || o.en.gaveUp || o.pref === 'out' || (o.en.gained || 0) >= 1) continue;
+    if (fleet.noMae || o.player || o.en.wantIn || o.en.dash || o.en.gaveUp || o.pref === 'out' || (o.en.gained || 0) >= 1) continue;
     if (o.en.slot !== i.en.slot + 1 || o.en.stage !== i.en.stage || o.en.oppSeen.has(i.no)) continue;
     if (laneProg(o) - laneProg(i) < ENTRY.opp.gap || i.b.v > o.b.v) continue;   // a real gap: the inside boat is behind and not closing
     o.en.oppSeen.add(i.no);
@@ -2707,7 +2755,7 @@ function entryStep(dt, playerInput) {
   for (let k = 1; k < inLanes.length; k++) {
     const o = inLanes[k], i = inLanes[k - 1];
     if (o.en.slot !== i.en.slot + 1 || o.en.stage !== i.en.stage) continue;
-    if (!o.en.dash && laneProg(o) - laneProg(i) >= ENTRY.steal && (o.player || (o.en.wantIn && (o.en.gained || 0) < (o.en.mae ? 2 : 1) && !o.en.gaveUp))) {       // running −x: smaller x is further along; only if it wants in
+    if (!o.en.dash && laneProg(o) - laneProg(i) >= ENTRY.steal && ((o.player && !fleet.noMae) || (o.en.wantIn && (o.en.gained || 0) < (o.en.mae ? 2 : 1) && !o.en.gaveUp))) {       // running −x: smaller x is further along; only if it wants in
       o.en.slot--; i.en.slot++; E.steals++; o.en.stole = true; i.en.lost = true; o.en.gained = (o.en.gained || 0) + 1;
       if (o.en.fightWith === i) { o.en.fightWith = null; i.en.fightWith = null; }
       toast('前付け', `${o.no}号艇が${i.no}号艇の内に入った`, 'warn');
@@ -2769,7 +2817,7 @@ function entryStep(dt, playerInput) {
         if (!r.player && en.wantIn && inner && (en.gained || 0) < (en.mae ? 2 : 1) && !en.gaveUp && !en.dash) vT += ENTRY.vPush;
         // being challenged from outside: fight it off, let it in, or pull back to dash
         const outer = boats.find(q => q.en.stage === en.stage && laneProg(q) != null && q.en.slot === en.slot + 1);
-        if (!r.player && !en.dash && outer && laneProg(r) != null && (outer.player || (outer.en.wantIn && !outer.en.gaveUp)) && !outer.en.dash && laneProg(outer) - laneProg(r) > -8 && outer.b.v > b.v + 0.3) {
+        if (!r.player && !en.dash && outer && laneProg(r) != null && ((outer.player && !fleet.noMae) || (outer.en.wantIn && !outer.en.gaveUp)) && !outer.en.dash && laneProg(outer) - laneProg(r) > -8 && outer.b.v > b.v + 0.3) {
           if (!en.resistVs.has(outer)) en.resistVs.set(outer, entryAnswer(r, nSlow));
           if (en.resistVs.get(outer) === 'resist' && !en.gaveUp) { vT = Math.max(vT, outer.b.v + 2); startFight(r, outer); }
         }
@@ -2956,12 +3004,18 @@ function entryHandoff() {
   fleet.entry = null;
   SS.phase = 'count'; SS.t0 = time + PRE_RUN; SS.hideAt = 0;
   toast('進入', fleet.entryResult.text + (E.steals ? '　前付けあり' : '') + (E.pitSteals ? '　ピット離れでコース取り' : ''), 'info');
+  // 6艇スタート練習: after the slit everyone just takes 1M in turn with room between them (no attacks, squeezes or dumps)
+  if (fleet.practice6) for (const r of fleet.boats) {
+    Object.assign(r.trait, { pushMul: 0, dump: 0, tsuke: 0 });
+    if (r.trait.course > 1) { r.trait.tactic = 'sashiPlace'; r.trait.lineOff = (r.trait.course - 1) * 1.2; Object.assign(r.drv.mem, { planDecided: true, plan: 'sashiPlace', tacticNow: 'sashiPlace' }); }
+  }
   if (onEntryHandoff) onEntryHandoff();
 }
 
 let entryMode = false;
-function startEntry(playerNo) {
-  fleet = makeEntryFleet(playerNo);
+function startEntry(playerNo, kind = 'race') {
+  fleet = makeEntryFleet(playerNo, { noMae: kind === 'p6' });
+  fleet.practice6 = kind === 'p6'; fleet.noMae = kind === 'p6';
   ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
   input.thr = input.steer = input.roll = input.pitch = 0;
   wake.length = 0; spray.length = 0;
@@ -3184,6 +3238,10 @@ function fleetStep(dt, playerInput) {
     }
   }
   fleetTimingStep(timingBefore,zero);
+  if (fleet.practice6 && !fleet.p6Done && SS.phase !== 'count') {
+    const live = fleet.boats.filter(r => !r.dq && !r.out);
+    if (live.every(r => r.drv.mem.firstDone) || time > zero + 30) finishP6();
+  }
   if(!lab.active)slitCapture(fleet.slit,time-zero,fleet.boats);
   if (SS.phase === 'count' && time > zero + 1.2) {
     SS.phase = 'done'; SS.hideAt = time + 2.5; fleet.raceStart = zero;
@@ -3357,7 +3415,7 @@ for (let no = 1; no <= 6; no++) {
   const bt = document.createElement('button');
   bt.textContent = no; bt.style.background = LANE_COL[no - 1][0]; bt.style.color = LANE_COL[no - 1][1];
   bt.setAttribute('aria-label', `${no}号艇で練習`);
-  bt.addEventListener('click', () => { $('waku').hidden = true; paused = false; last = performance.now(); initAudio(); startEntry(no); });
+  bt.addEventListener('click', () => { $('waku').hidden = true; paused = false; last = performance.now(); initAudio(); startEntry(no, practiceKind); });
   $('wakuBtns').appendChild(bt);
 }
 $('wakuClose').addEventListener('click', () => { $('waku').hidden = true; paused = false; last = performance.now(); });
@@ -3532,8 +3590,19 @@ function slitMove(dir){
   const f=dir>0?frames.find(f=>f.t>t+.000001):frames.slice().reverse().find(f=>f.t<t-.000001);
   if(f){$('slitSeek').value=String(Math.round(f.t*1000));slitRender(f.t);}
 }
+function finishP6() {
+  fleet.p6Done = true;
+  slitArchive(fleet.slit, fleet.boats, 'スタート練習');
+  const me = playerRow();
+  if (me) toast('スタート練習', `${me.no}号艇 ${me.trait.course}コース ${me.st == null ? '未通過' : me.st < 0 ? 'F' + fmtST(-me.st) : 'ST ' + fmtST(me.st)}`, me.st != null && me.st >= 0 && me.st <= 0.15 ? 'good' : 'info');
+  paused = true;
+  setTimeout(() => slitOpen(fleet && fleet.slit), 600);
+}
+function quitFleet() { fleet = null; input.thr = input.steer = input.roll = input.pitch = 0; $('order').hidden = true; refreshFleetUi(); }
 function slitClose(){
   $('slitPhoto').hidden=true;paused=slitWasPaused;keys.clear();last=performance.now();
+  // 6艇スタート練習 ends with the photograph: back to the practice menu
+  if (fleet && fleet.p6Done) { quitFleet(); soloRestart(); paused = true; $('pmenu').hidden = false; }
   if(slitReturnFocus && slitReturnFocus.focus)slitReturnFocus.focus();
 }
 $('slitBtn').addEventListener('click',()=>slitOpen());
