@@ -273,7 +273,7 @@ body.lab-running>#phoneSteerReadout{display:none!important}
       <label><input type="radio" name="startControlMode" value="wheel"><span><b>3．姿勢パッド＋右手アクセル</b><small>左：姿勢パッドのみ ／ 右：アクセル ／ スマホ自体を回して舵</small></span></label>
     </fieldset>
     <p id="controlHelp" style="font-size:13px"></p>
-    <div class="monkey">最初は大時計スタート。エンジンは止まらないので、針が0を指してから1秒以内にスタートラインを越えるよう、スロットルで間合いを詰めます。早すぎるとフライング。<br>コースは左回り。直線は伏せて伸ばし、ターンマークでは「体を起こす＋内へ傾ける＋舵」が揃うとモンキーターンが決まり、小さく速く回れます。全速のまま姿勢を入れずに回ると大きく膨らみ、伏せたまま・内へ傾けるだけの無茶な回り方は転覆の危険があります。レバーを落とすと小さく安定して回れますが、出口の速度は落ちます。速く回るコツは「起こして入り、内へ傾けたまま起こしを緩めて、伏せながら抜ける」こと。体がしっかり内に入っていれば、起こしを緩めても伏せてもグリップが残り、速度を殺さずに回れます（ずっと起こしたままだと減速が大きく、傾けずに伏せると膨らむか転覆します）。外へ傾けると流されて転覆します。</div>
+    <div class="monkey">最初は大時計スタート。エンジンは止まらないので、針が0を指してから1秒以内にスタートラインを越えるよう、スロットルで間合いを詰めます。スリットを通過するまでは舵は微調整程度しか効かず（体の左右の傾きはなし）、真っ直ぐ進みます。左右に切り返すと「蛇行」、隣の艇へ寄せると「スタート前の斜行」で待機行動違反。スリットを越えたら舵も傾きも全開です。早すぎるとフライング。<br>コースは左回り。直線は伏せて伸ばし、ターンマークでは「体を起こす＋内へ傾ける＋舵」が揃うとモンキーターンが決まり、小さく速く回れます。全速のまま姿勢を入れずに回ると大きく膨らみ、伏せたまま・内へ傾けるだけの無茶な回り方は転覆の危険があります。レバーを落とすと小さく安定して回れますが、出口の速度は落ちます。速く回るコツは「起こして入り、内へ傾けたまま起こしを緩めて、伏せながら抜ける」こと。体がしっかり内に入っていれば、起こしを緩めても伏せてもグリップが残り、速度を殺さずに回れます（ずっと起こしたままだと減速が大きく、傾けずに伏せると膨らむか転覆します）。外へ傾けると流されて転覆します。</div>
     <div class="row">
       <button class="btn" id="go">スタート</button>
       <button class="btn ghost" id="goDemo">6艇デモを見る</button>
@@ -337,10 +337,10 @@ body.lab-running>#phoneSteerReadout{display:none!important}
   <div class="card" style="max-width:560px">
     <h1 style="font-size:22px"><small>出走表</small>6艇の特性</h1>
     <div class="tablewrap"><table class="race">
-      <thead><tr><th>艇</th><th>級</th><th>進入</th><th>スタート</th><th>戦法</th><th>進入志向</th><th>気性</th><th>出足</th></tr></thead>
+      <thead><tr><th>艇</th><th>級</th><th>進入</th><th>スタート</th><th>戦法</th><th>進入志向</th><th>気性</th><th>出足</th><th>伸び</th><th>チルト</th></tr></thead>
       <tbody id="cardBody"></tbody>
     </table></div>
-    <p>イン志向の艇は枠より内のコースを取りにいき（前付け）、アウト志向の艇は外へ回ります。スローは助走が短く内の位置を生かし、ダッシュは助走を長く取って速度を乗せてスタートします。2コース・3コースは1マーク手前で、スタートで内より前に出ていれば握り、外がまくりに来ていれば壁になり、それ以外は「勝ちにいく差し」か「着を取る差し」を選びます。まくり艇は1マーク手前で内の艇と並んでいれば、張りついて回る「ツケマイ」に切り替えることがあります（上位級・攻撃的ほど積極的）。気性が攻撃的な艇ほど、ターンで外に並ばれるとダンプ（外へ押し出す）を仕掛け、後ろから迫る艇にも道を譲りにくくなります。直線では並んだら内側の艇が優先で、後ろや横にいる艇の前を横切る「斜行」は不良航法。2回、または斜行で接触させると妨害失格です。ターンマークの内側には消波装置があり、それでも内側を通過した艇は6着扱い。ターンマークはかすめる程度ならわずかな減速で済みます。各艇の下の輪は安定度で、限界に近づくと黄、危険ラインを越えると赤く点滅します（越えても必ず転ぶわけではなく、越えた深さと技量で確率が変わります）。点線の輪は勝負に出ている艇。スタートで外の艇が内より前に出ると、内を絞りにいくことがあります（3コースが最も積極的）。絞られた内の艇はたいてい引いて後ろにつき、抵抗することはまれで、抵抗して接触すると転覆の恐れがあります。引き波は近いほど荒く、乗った艇は暴れて接触で転覆しやすくなります（腕で差が出ます）。前の艇の真後ろ（航跡）に入ると伸びが鈍るので、後続は横にずれて並びにいきます。1マークは転覆しやすいので、そこでは基本的に無理をしません。転覆・落水は失格。事故が起きたらその時点の着順で固定され、追い抜き禁止で事故艇の外側を徐行します（右上の「スキップ」で結果へ飛べます）。フライングは返還で、1マークを過ぎたらコースから離脱。先頭が十分に離れているときは無理をせず、競り合いの勝負どころでは級と気性に応じて攻めのターンに出ることがあり、決まるかどうかも級で変わります。スタートは1コースが最も読みやすく、次に4カド、2・3コース、5・6コースの順にタイミングがブレやすく、ブレる艇ほど安全マージンを取って遅めに狙います。外のスタートの難しさはA1ほど影響を受けにくく、級が下がるほど外が苦手になります。直前でフライングになると分かれば放って（レバーを戻して）合わせます。右上の「進入」を「ピット離れ」にすると、ピット離れから進入争いになります（ピットは2マーク裏のホーム側で、内から1号艇。ピットを出たら全速で小回り防止ブイ（2マークから1マーク側へ90m、センターライン上）の外を回り、2マークへ向かう間に内より前に出た艇がコースを取り、内は抵抗することも。2マークから正対までに引いた艇はダッシュで外に並び、大きく遅れた艇は回り直しで大外）。大時計はピット離れの合図から動き出し、スタートまで1分40秒（実際の待機行動と同じ）。針が回るのは最後の12秒です。「引く」はピットを出た直後から正対するまで押せて、早く引くほど助走の長いダッシュ位置に自動でつきます。エンジンは止まらないので、待機中もアクセルを放した艇はゆっくり前に流れ続けます。スタートラインに艇を向けたら（正対したら）もう舵は切れません。なので2マークを回ったら、まず自分のコースの位置まで出て、舳先を外に向けたまま（舵を切って体を起こし、ほとんど進まない状態で）待ち、そこからまっすぐ流せばちょうど起こし位置に着くタイミングで正対します。正対したあとはまっすぐ進むだけ。2マークを早く回りすぎたり、正対後にレバーを握りすぎたりすると取り返せず、深い（助走の短い）起こしになります。レバーを握ると、その場で正対して前に出ます。画面上に「起こし見込み」が出ます。前付けを受けた内の艇は、抵抗する・入れる・引いてダッシュに回るのどれかを選びます。抵抗すると2艇とも舳先を下げずに待機水面を前に出ていくので深くなり、内の艇もつられて深くなります。深くなりすぎると抵抗をやめて入れるか引きます。待機行動違反（減点）：小回り防止ブイから2マークの間で前の艇との間隔が艇2つ分より詰まる「間隔不足」、待機中の接触、大時計の針が回る前にスタートラインを越える。後から正対した艇は、先に正対した外の艇の内へは割り込めません。「固定」のときは枠なり進入です（起こし位置の目安：1コース100〜110m、2コース100〜115m、3コース110〜125m、4コース140〜150m、5・6コース150〜160m。まれに3コースが140m付近まで引く3カドになります）。コース別作戦 v1では基本作戦から展開を読んで変更します。級・気性はレースごとに入れ替わります。従来のd42判断は設定から比較できます。右上の「SG」をオンにすると全艇A1のSGレースになり、赤い印のついた艇はA1の中でもトップクラスです。</p>
+    <p>イン志向の艇は枠より内のコースを取りにいき（前付け）、アウト志向の艇は外へ回ります。スローは助走が短く内の位置を生かし、ダッシュは助走を長く取って速度を乗せてスタートします。2コース・3コースは1マーク手前で、スタートで内より前に出ていれば握り、外がまくりに来ていれば壁になり、それ以外は「勝ちにいく差し」か「着を取る差し」を選びます。まくり艇は1マーク手前で内の艇と並んでいれば、張りついて回る「ツケマイ」に切り替えることがあります（上位級・攻撃的ほど積極的）。気性が攻撃的な艇ほど、ターンで外に並ばれるとダンプ（外へ押し出す）を仕掛け、後ろから迫る艇にも道を譲りにくくなります。モーター・ペラの仕上がりで「出足」と「伸び」に差があり、チルトを上げるほど伸びが出る代わりに出足とターンが甘くなります（CPUは内が−0.5中心、ダッシュ勢は0〜+0.5、まれに大きく跳ねる）。伸びは基本的に外が有利で、スロー勢はスリットを越えてもしばらく加速の途中、助走を取ったダッシュ勢はスリット後に伸びて内を叩きにいけます。スリットまでは真っ直ぐが原則で、内の艇より完全に前に出た（舳先もかかっていない）ダッシュ艇だけがスリット手前から内へ寄せられます。スリットを越えると一気に勝負の舵を切り、絞りは内の艇より完全に前に出てから。並走中（舳先がかかった状態）に相手の方へ舵を切るのは第19条違反の不良航法です。直線では並んだら内側の艇が優先で、後ろや横にいる艇の前を横切る「斜行」は不良航法。2回、または斜行で接触させると妨害失格です。ターンマークの内側には消波装置があり、それでも内側を通過した艇は6着扱い。ターンマークはかすめる程度ならわずかな減速で済みます。各艇の下の輪は安定度で、限界に近づくと黄、危険ラインを越えると赤く点滅します（越えても必ず転ぶわけではなく、越えた深さと技量で確率が変わります）。点線の輪は勝負に出ている艇。スタートで外の艇が内より前に出ると、内を絞りにいくことがあります（3コースが最も積極的）。絞られた内の艇はたいてい引いて後ろにつき、抵抗することはまれで、抵抗して接触すると転覆の恐れがあります。引き波は近いほど荒く、乗った艇は暴れて接触で転覆しやすくなります（腕で差が出ます）。前の艇の真後ろ（航跡）に入ると伸びが鈍るので、後続は横にずれて並びにいきます。1マークは転覆しやすいので、そこでは基本的に無理をしません。転覆・落水は失格。事故が起きたらその時点の着順で固定され、追い抜き禁止で事故艇の外側を徐行します（右上の「スキップ」で結果へ飛べます）。フライングは返還で、1マークを過ぎたらコースから離脱。先頭が十分に離れているときは無理をせず、競り合いの勝負どころでは級と気性に応じて攻めのターンに出ることがあり、決まるかどうかも級で変わります。スタートは1コースが最も読みやすく、次に4カド、2・3コース、5・6コースの順にタイミングがブレやすく、ブレる艇ほど安全マージンを取って遅めに狙います。外のスタートの難しさはA1ほど影響を受けにくく、級が下がるほど外が苦手になります。直前でフライングになると分かれば放って（レバーを戻して）合わせます。右上の「進入」を「ピット離れ」にすると、ピット離れから進入争いになります（ピットは2マーク裏のホーム側で、内から1号艇。ピットを出たら80〜100m（外の艇ほど長く）まっすぐ全速で加速し、外の艇ほど大きく回ります。そこで舵を切って速度を合わせながら小回り防止ブイ（2マークから20mセンター寄り、実際の位置）の外を回ります。この直線の終わりで内の艇より大きく前に出ていれば、ピット離れで遅れた内の艇を抜きにいき、はっきり前に出てから（8m）内へ切り込んでコースを取ります（後ろを回って入ることはありません。追い返されたら諦めます）。内の艇はそれを見て前に出てブロックすることもあります。その後も内に隙があれば、外の艇がコースを取りにいくことがあります（気性次第。1コースを狙うのはイン志向の艇だけで、深くなりすぎないよう取れるのは1つまで）。そのあと2マークへ向かう間に内より前に出た艇がコースを取り、内は抵抗することも。2マークから正対までに引いた艇はダッシュで外に並び、大きく遅れた艇は回り直しで大外）。大時計はピット離れの合図から動き出し、スタートまで1分40秒（実際の待機行動と同じ）。針が回るのは最後の12秒です。「引く」はピットを出た直後から正対するまで押せます。2マーク手前で引くと2マークを大回りしてダッシュ位置へ、2マークを回った後に引くとスリットに背を向けて後ろへ下がり、回り直してダッシュ位置につきます。ダッシュのコースは引いた順に外から（6・5・4…）決まります。CPUは6号艇が早めに引くことがあり、5号艇がそれに続き、4コースは内がダッシュについて来られないようギリギリまで待って引きます。外が時間に余裕を残して引いたときだけ、3カド（ごくまれに2カド）になります。内のコースを狙う艇は引きません。エンジンは止まらないので、待機中もアクセルを放した艇はゆっくり前に流れ続けます。スタートラインに艇を向けたら（正対したら）もう舵は切れません。なので2マークを回ったら、まず自分のコースの位置まで出て、舳先を外に向けたまま（舵を切って体を起こし、ほとんど進まない状態で）待ち、そこからまっすぐ流せばちょうど起こし位置に着くタイミングで正対します。正対したあとはまっすぐ進むだけ。2マークを早く回りすぎたり、正対後にレバーを握りすぎたりすると取り返せず、深い（助走の短い）起こしになります。レバーを握ると、その場で正対して前に出ます。画面上に「起こし見込み」が出ます。前付けを受けた内の艇は、抵抗する・入れる・引いてダッシュに回るのどれかを選びます。抵抗すると2艇とも舳先を下げずに待機水面を前に出ていくので深くなり、内の艇もつられて深くなります。深くなりすぎると抵抗をやめて入れるか引きます。待機行動違反（減点）：小回り防止ブイから2マークの間で前の艇との間隔が艇2つ分より詰まる「間隔不足」、待機中の接触、大時計の針が回る前にスタートラインを越える。後から正対した艇は、先に正対した外の艇の内へは割り込めません。「固定」のときは枠なり進入です（起こし位置の目安：1コース95〜105m、2コース100〜115m、3コース110〜125m、4コース185〜200m、5・6コース195〜210m。まれに3コースが170m付近まで引く3カドになります）。CPUの判断は標準（d42までの調整）。設定で「コース別作戦 v1（試験中）」に切り替えると、基本作戦から展開を読んで作戦を変えるCPUになります。級・気性はレースごとに入れ替わります。右上の「SG」をオンにすると全艇A1のSGレースになり、赤い印のついた艇はA1の中でもトップクラスです。</p>
     <div class="row"><button class="btn ghost" id="cardClose">閉じる</button></div>
   </div>
 </div>
@@ -361,7 +361,9 @@ body.lab-running>#phoneSteerReadout{display:none!important}
       <div class="row" style="margin-top:0"><label style="flex:1"><input type="checkbox" id="hapOn" checked> 振動（コントローラ／Androidスマホ）</label><button class="btn ghost" id="hapTest">振動テスト</button></div>
       <label>傾きの幅 <input type="range" id="sens" min="8" max="35" step="1" value="18"><output id="sensOut">18°</output></label>
       <p style="margin:0">この角度まで傾けると体重移動が最大になります。小さいほど敏感です。</p>
-      <label>デモのCPU基本判断 <select id="demoCpuMode"><option value="course-v1">コース別作戦 v1</option><option value="legacy">従来のd42（比較用）</option></select></label>
+      <label>デモのCPU基本判断 <select id="demoCpuMode"><option value="legacy">標準（d42までの調整）</option><option value="course-v1">コース別作戦 v1（試験中）</option></select></label>
+      <label>自艇のチルト <select id="tiltSel"><option value="-0.5" selected>−0.5（出足・回り足）</option><option value="0">0</option><option value="0.5">+0.5</option><option value="1">+1.0</option><option value="1.5">+1.5</option><option value="2">+2.0</option><option value="3">+3.0（伸び）</option></select></label>
+      <p style="margin:0;font-size:12px">チルトを上げるほど直線の伸びが出て外のコース向き。代わりに出足が鈍り、ターンで流れやすくなります。</p>
       <label>6艇デモの再生速度 <select id="simSpeed"><option value="1">1倍（実時間）</option><option value="1.5" selected>1.5倍</option><option value="2">2倍</option><option value="3">3倍</option></select></label>
       <div class="row" style="margin-top:0">
         <button class="btn ghost" id="reset">スタート練習をやり直す</button>
@@ -374,7 +376,7 @@ body.lab-running>#phoneSteerReadout{display:none!important}
 <section id="labSetup" class="lab-surface" hidden aria-label="挙動検証の条件設定">
  <div class="lab-head"><div><div class="lab-kicker">HONOR FOR GP / d42 BEHAVIOR LAB</div><h2>第1マークを、読み解く。</h2></div><div class="lab-actions"><button id="labImport">ログから条件を読込</button><button id="labSetupClose">閉じる</button></div></div>
  <p>2〜6艇の位置・速度・選手特性と、段階ごとの判断を設定。d42の操艇・物理処理で走らせ、判断と操作、艇の動きを記録します。スリット付近から開始し、第1マーク〜第2マークへの準備を検証します。</p>
- <div class="lab-block lab-grid"><label>CPU基本判断<select id="labCpuMode"><option value="course-v1">コース別作戦 v1（デモと共通）</option><option value="legacy">従来のd42（比較用）</option></select></label><label>乱数シード<input id="labSeed" type="number" min="0" max="4294967295" step="1" value="42"></label><label>検証時間（秒）<input id="labDuration" type="number" min="5" max="120" step="1" value="30"></label><label>ログの記録間隔<select id="labHz"><option value="20">20 Hz / 0.05秒</option><option value="60">60 Hz / 約0.017秒</option><option value="120">120 Hz / 毎ステップ</option></select></label><label>コーナー手前の開始位置 x（m）<input id="labApproach" type="number" min="40" max="120" value="90"></label></div>
+ <div class="lab-block lab-grid"><label>CPU基本判断<select id="labCpuMode"><option value="legacy">標準（d42までの調整）</option><option value="course-v1">コース別作戦 v1（試験中）</option></select></label><label>乱数シード<input id="labSeed" type="number" min="0" max="4294967295" step="1" value="42"></label><label>検証時間（秒）<input id="labDuration" type="number" min="5" max="120" step="1" value="30"></label><label>ログの記録間隔<select id="labHz"><option value="20">20 Hz / 0.05秒</option><option value="60">60 Hz / 約0.017秒</option><option value="120">120 Hz / 毎ステップ</option></select></label><label>コーナー手前の開始位置 x（m）<input id="labApproach" type="number" min="40" max="120" value="90"></label></div>
  <div class="lab-actions"><button id="labPreset">1・4コースの2艇に戻す</button><button id="labAll">6艇すべてを選ぶ</button><button id="labCoursePreset">コース別作戦で6艇テスト</button><button id="labAvoidAll">全艇を接触回避優先に</button></div>
  <p class="lab-note">使用するコースにチェック。x＝前後位置（＋が1マーク方向）、y＝外への距離。スタート線 x=0、1マーク (150,0)。STは判断に渡す既知の値で、スタート計測は省略します。初期位置・速度はSTと独立です。</p>
  <div id="labBoats"></div>
@@ -460,7 +462,22 @@ const THRUST = 7.85;          // full-lever push: top speed ≈ 82 km/h crouched
 // 立ち上がり: the hull drives hard only once it's up on the plane; below that the same lever pulls less
 const PLANE = { low: 0.4, v: 23 };
 const thrustK = v => 1 - PLANE.low * clamp(1 - v / PLANE.v, 0, 1);
-const COURSE = { xMin: -200, xMax: 200, yMin: -50, yMax: 50, marks: [{ x: MK, y: 0, name: '1M' }, { x: -MK, y: 0, name: '2M' }] };
+// スタート（起こし→スリット）だけは加速が鈍い: 助走100mでスリット時に全速の85%前後、200mで95%前後。
+// 周回中のターン立ち上がりには掛からない（preStart は大時計の針が回っている間、スタートラインを越えるまで）
+const START_ACC = { cut: 0.5, v: 22.5, fade: 40 };   // fade: m past the slit over which the start's dull pull wears off (the dash boats' 伸び tells there)
+const startK = (v, pre) => pre ? 1 - START_ACC.cut * (+pre) * clamp(1 - v / START_ACC.v, 0, 1) : 1;
+// after the slit the slow boats are still climbing: the dull pull fades out over the first fade m of the straight
+const preStartAfter = bowX => clamp(1 - bowX / START_ACC.fade, 0, 1);
+// モーター・ペラ・チルト: 出足 (deashi) shapes the pull at low speed, 伸び (nobi) the top end. Tilt up (+) buys 伸び and
+// costs 出足 and grip in the turns; tilt down (−0.5) the other way round.
+const TILT = { nobi: 0.012, deashi: 0.01, grip: 0.035, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };
+function motorK(b, v = b.v) {
+  if (!b || b.nobi == null) return 1;
+  const t = b.tilt || 0, w = clamp((v - 14) / 8, 0, 1);
+  return (b.deashi - TILT.deashi * t) * (1 - w) + (b.nobi + TILT.nobi * t) * w;
+}
+const tiltGrip = b => 1 - TILT.grip * Math.max(0, b.tilt || 0) + 0.02 * Math.max(0, -(b.tilt || 0));
+const COURSE = { xMin: -310, xMax: 200, yMin: -50, yMax: 50, marks: [{ x: MK, y: 0, name: '1M' }, { x: -MK, y: 0, name: '2M' }] };
 // 消波装置: a float boom running 30 m in from each turn mark along the course centreline,
 // so a boat can't cut inside a mark without hitting it
 const BOOM_LEN = 30;
@@ -472,11 +489,22 @@ const OBSTACLES = [
 const START = { x: -95, y: 30, a: 0 };
 const IDLE = 0.08;          // idle thrust share with the lever fully closed
 const CLOCK = 12;           // big-clock countdown seconds
+// 6艇レース: 針が回り出す PRE_RUN 秒前から待機行動の艇が動ける（スタートの加速が鈍いので、ダッシュの助走200mに12秒では足りない）
+const PRE_RUN = 3, RUNUP = CLOCK + PRE_RUN;
+// 起こし〜スリット: only a small rudder correction is possible (no lean) — enough to keep straight, not to swerve.
+// 蛇行 (switching the rudder side to side) is a 待機行動違反. Free again from the slit.
+const PRE_SLIT = { steer: 0.06, zigFlips: 3, zigWindow: 4 };
+// 並走中に相手側へ転舵 (第19条): while hulls overlap fore and aft, moving across toward the other boat faster than this (m/s)
+const RULE19 = { vy: 1.3, overlap: 4.6, gap: 4.5 };
+// a boat is clear ahead (no overlap at all) when its stern is this far past the other's bow
+const CLEAR_AHEAD = 0.5;
+const clearAhead = (b, q) => (b.x - 2.2) - (q.x + BOW_TIP) >= CLEAR_AHEAD;
 const SS = { phase: 'off', t0: 0, hideAt: 0 };
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const diag = { ori: 0, oriNull: 0, mot: 0, framed: (() => { try { return window.self !== window.top; } catch (e) { return true; } })() };
 
-const B = { x: START.x, y: START.y, a: START.a, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0 };
+let playerTilt = -0.5;   // the player's own tilt (settings)
+const B = { x: START.x, y: START.y, a: START.a, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0, deashi: 1, nobi: 1, tilt: playerTilt };
 const input = { thr: 0, steer: 0, steerT: 0, roll: 0, pitch: 0 };
 const raw = { roll: 0, pitch: 0 };
 const virtualPosture={enabled:false,pointer:null,roll:0,pitch:0};
@@ -906,7 +934,7 @@ $('measClose').addEventListener('click', () => { $('meas').hidden = true; paused
 
 function resetBoat() {
   resetVirtualPosture();
-  Object.assign(B, { x: START.x, y: START.y, a: START.a, v: 4, vl: 0, yaw: 0, porp: 0, cap: 0 });
+  Object.assign(B, { x: START.x, y: START.y, a: START.a, v: 4, vl: 0, yaw: 0, porp: 0, cap: 0, zig: null, zigTold: false, deashi: 1, nobi: 1, tilt: playerTilt });
   input.thr = 0; wake.length = 0; spray.length = 0; T.on = false;
   cam.x = B.x; cam.y = B.y;
   lap.n = 0; lap.start = time; lap.visR = lap.visL = false; lap.prevY = B.y;
@@ -1142,8 +1170,10 @@ function updateInput(dt) {
     // the controller is driving: it sets all four channels
     input.thr += (gp.thr - input.thr) * (1 - Math.exp(-dt * 14));
     input.steer += ((controlMode==='wheel'?phoneWheel.value:gp.steer) - input.steer) * (1 - Math.exp(-dt * 12));
-    input.roll += ((virtualPosture.enabled?virtualPosture.roll:gp.roll) - input.roll) * k;
-    input.pitch += ((virtualPosture.enabled?virtualPosture.pitch:gp.pitch) - input.pitch) * k;
+    // left stick = posture; the on-screen posture pad only takes over while a finger is actually on it
+    const vp = virtualPosture.enabled && virtualPosture.pointer != null;
+    input.roll += ((vp ? virtualPosture.roll : gp.roll) - input.roll) * k;
+    input.pitch += ((vp ? virtualPosture.pitch : gp.pitch) - input.pitch) * k;
     return;
   }
   if (keys.has('KeyW')) input.thr = Math.min(1, input.thr + dt * 1.2);
@@ -1188,7 +1218,7 @@ function boatPhysics(b, inp, dt) {
   const te = IDLE + (1 - IDLE) * t;
   const up = Math.max(0, -p), down = Math.max(0, p);
   const drag = 0.012 * (1 + 0.25 * up - 0.1 * down);
-  let acc = te * THRUST * thrustK(b.v) * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0)) - drag * b.v * b.v - 0.1 * b.v;
+  let acc = te * THRUST * thrustK(b.v) * startK(b.v, b.preStart) * motorK(b) * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0)) - drag * b.v * b.v - 0.1 * b.v;
   if (b.hold === 'hang') acc -= 1.5 * b.v;   // 待機: rudder hard over and sat up, bow off the line — the hull scrubs off nearly all way
   else if (b.hold) acc -= 0.35 * b.v;   // 待機: sitting nearly still with the lever shut
   acc -= b.porp * (1.2 + simRandom() * 2.2);
@@ -1209,7 +1239,7 @@ function boatPhysics(b, inp, dt) {
   const monkey = ins * (0.4 + 0.6 * pose) * (1 - 0.5 * downG);
   let grip = GRIP_BASE * (1 + 0.15 * pose) * (1 + TURN.lean * ins * (1 + TURN.upBoost * pose - TURN.downCut * downG)) * (1 + 0.5 * Math.min(0, inside))
     * (1 - TURN.thrWide * t * (1 - monkey)) * (1 + TURN.dropGrip * (1 - t))
-    * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1);
+    * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1) * tiltGrip(b);
   grip = Math.max(2, grip);
 
   const sf = clamp(b.v / 5, 0.3, 1);   // even nearly stopped, the hull can be pivoted round slowly
@@ -1388,7 +1418,10 @@ function splash(b) {
 function step(dt) {
   const previous=timingPose(B,time);
   time += dt;
-  const ev = boatPhysics(B, input, dt);
+  B.preStart = SS.phase === 'count' ? 1 : (lap.n === 0 && B.y > 0 && B.x > -5 ? preStartAfter(boatBow(B).x) : 0);
+  // 起こし〜スリット: 舵と体の左右の傾きは固定（真っ直ぐだけ）。通過してから入力を受け付ける
+  if (SS.phase === 'count') zigCheck(B, input.steer, null);
+  const ev = boatPhysics(B, SS.phase === 'count' ? { thr: input.thr, steer: clamp(input.steer, -PRE_SLIT.steer, PRE_SLIT.steer), roll: 0, pitch: input.pitch } : input, dt);
   harmony = B.harmony || 0;
   hitCool = Math.max(0, hitCool - dt);
   if (ev) {
@@ -1524,9 +1557,9 @@ function turnInfo(R, s, gap) {
   return { inTurn: false, toTurn: next - s, left: 0 };
 }
 // seconds to reach a line d metres ahead from speed v with the lever wide open
-function timeToLine(d, v, crouch = 0) {
+function timeToLine(d, v, crouch = 0, pre = true, boat = null) {
   let x = 0, t = 0;
-  while (x < d && t < 20) { const acc = THRUST * thrustK(v) - 0.012 * (1 - 0.1 * crouch) * v * v - 0.1 * v; v += acc * 0.05; x += v * 0.05; t += 0.05; }
+  while (x < d && t < 20) { const acc = THRUST * thrustK(v) * startK(v, pre) * motorK(boat, v) - 0.012 * (1 - 0.1 * crouch) * v * v - 0.1 * v; v += acc * 0.05; x += v * 0.05; t += 0.05; }
   return t;
 }
 const wrapRad = a => Math.atan2(Math.sin(a), Math.cos(a));
@@ -1936,7 +1969,7 @@ function makeDriver(prof, trait = {}) {
     } else if (env.clockZero != null) {
       // flying start: idle along the waiting lane, open up when the timing works out
       const d = -boatBow(b).x, rem = env.clockZero - env.now;
-      const tFull = timeToLine(Math.max(0, d), b.v, prof.cruise);
+      const tFull = timeToLine(Math.max(0, d), b.v, prof.cruise, true, b);   // its own motor's pull, as the rider knows it
       // it goes by its own read of the clock, which is off by stErr
       // lever lag makes it arrive a touch late; from a standstill (待機水面で止まっていた) the hull has to climb onto the plane too
       const aim = rem + mem.stErr + mem.stTarget - 0.05 - (!trait.slow && b.v < 3 ? 0.08 : 0);
@@ -1949,8 +1982,20 @@ function makeDriver(prof, trait = {}) {
       if (mem.hou && stNow > HOU_AT + 0.03) mem.hou = false;
       thrT = mem.go && !mem.hou ? 1 : 0;
       const err = wrapRad(Math.atan2(env.laneY - b.y, 25) - b.a);
-      steerT = clamp(err * 2.2 + av.steerAdd * 0.3);
-      pitchT = mem.go && b.v > 12 ? prof.cruise : 0;
+      // 起こしたらスリットまでは真っ直ぐ: 舵も体の左右の傾きも入れない
+      if (!mem.go) steerT = clamp(err * 2.2 + av.steerAdd * 0.3);
+      else {
+        // straight on, a touch of rudder only to hold the heading; a boat that is clear ahead of the boat inside it
+        // (not even overlapping) near the slit may already edge in toward it (スリット前の絞り)
+        let want = 0;
+        const q = env.inner;
+        if (q && b.x > -60 && b.y - q.y > SQUEEZE.gap + 1.5 && clearAhead(b, q)) {
+          if (mem.preSq == null) mem.preSq = simRandom() < ((trait.kado ? SQUEEZE.p.kado : SQUEEZE.p[trait.course] ?? 0) * 0.6 * Math.min(1.3, trait.pushMul ?? 1));
+          if (mem.preSq) { want = -0.05; mem.preSqOn = true; }
+        }
+        steerT = clamp((want - wrapRad(b.a)) * 2, -PRE_SLIT.steer, PRE_SLIT.steer);
+      }
+      pitchT = mem.go ? prof.cruise : 0;   // 起こしたらすぐ伏せる（timeToLine と同じ前提で読む）
       o.thr += (thrT - o.thr) * (1 - Math.exp(-12 * dt));
     } else {
       if (!mem.firstDone && b.y < -4 && b.x < MK - 5) mem.firstDone = true;
@@ -2129,11 +2174,14 @@ function makeDriver(prof, trait = {}) {
         squeezing=sq.detail.active;
         if(sq.started)o.ev='squeeze';
       } else if (!(trait.contactMode==='priority') && first && b.y > 0 && env.inner && b.x < MK - 45) {
-        if (!mem.sqDecided && b.x > 8) {
+        // スリットを越えたら一気に勝負: the intent is set at the slit, and it squeezes the moment it is clear ahead of
+        // the boat inside (turning toward a boat it still overlaps would be 第19条)
+        if (!mem.sqDecided && b.x > 0) {
           mem.sqDecided = true;
           const pc = trait.kado ? SQUEEZE.p.kado : SQUEEZE.p[trait.course] ?? 0;
-          if (env.inner.x - b.x <= -SQUEEZE.lead && env.inner.cap <= 0 && simRandom() < pc * Math.min(1.3, trait.pushMul ?? 1)) { mem.squeeze = env.inner; o.ev = 'squeeze'; }
+          mem.sqIntent = mem.preSqOn || simRandom() < pc * Math.min(1.3, trait.pushMul ?? 1);
         }
+        if (mem.sqIntent && !mem.squeeze && env.inner.cap <= 0 && clearAhead(b, env.inner)) { mem.squeeze = env.inner; o.ev = 'squeeze'; }
         if (mem.squeeze && mem.squeeze.cap <= 0) { ty = Math.max(ty - 6, mem.squeeze.y + SQUEEZE.gap); squeezing = true; }
       }
       // being squeezed from outside: give way (引く — lift, tuck in behind) or, now and then, fight it (抵抗)
@@ -2295,18 +2343,18 @@ const TEMPER = { calm: { ja: '慎重', dump: 0.05, care: 1.25 }, normal: { ja: '
 const LREF = loopLen(13);
 const FIXED_ENTRY = true;
 // 起こし positions (m before the start line) by course, and the rare 3カド
-const OKOSHI = { 1: [100, 110], 2: [100, 115], 3: [110, 125], 4: [140, 150], 5: [150, 160], 6: [150, 160] };
-const KADO3_RATE = 0.08, KADO3_OKOSHI = [135, 142];
+const OKOSHI = { 1: [95, 105], 2: [100, 115], 3: [110, 125], 4: [185, 200], 5: [195, 210], 6: [195, 210] };
+const KADO3_RATE = 0.08, KADO3_OKOSHI = [165, 180];
 const IDLE_V = 4.2;
 // start timing: how far off each course reads the clock (± s), the share of that it adds as a safety margin,
 // and the flat-out ST below which a boat near the line throws the lever off (放る) instead of going early
-const ST_SPREAD = { 1: 0.03, 2: 0.08, 3: 0.08, 4: 0.06, 5: 0.08, 6: 0.08, kado: 0.06, def: 0.08 };   // 4カド (and 3カド) is the easiest start after the 1
+const ST_SPREAD = { 1: 0.05, 2: 0.11, 3: 0.11, 4: 0.08, 5: 0.10, 6: 0.10, kado: 0.08, def: 0.10 };   // 4カド (and 3カド) is the easiest start after the 1
 const ST_MARGIN = 0.5, HOU_AT = 0.01;
 // by class: how much of that extra outside-start difficulty it actually suffers
 const ST_OUT = { TOP: 0.4, A1: 0.5, A2: 0.8, B1: 1.1, B2: 1.3 };
 // 1コース逃げ: how far before 1M it eases the lever, to what (by class), and when it grips again (share of the arc)
 const NIGE_DROP = { at: 22, regrip: 0.2, lever: { TOP: 0.76, A1: 0.72, A2: 0.68, B1: 0.62, B2: 0.58 } };   // steady speed with the lever shut (m/s)   // demo: every boat takes its own number's course, 3 slow / 3 dash
-let demoCpuMode=COURSE_CPU.version;
+let demoCpuMode='legacy';   // 標準はd42までで調整したCPU。コース別作戦 v1 は試験中（設定で切替）
 let fleet = null, simSpeed = 1.5, sgMode = false;   // demo playback speed; the race clock always shows real race time
 
 function pickW(pairs) { let r = simRandom() * pairs.reduce((a, p) => a + p[1], 0); for (const [v, w] of pairs) { if ((r -= w) < 0) return v; } return pairs[0][0]; }
@@ -2318,7 +2366,7 @@ function newRows(fixedEntry) {
     const pi = sgMode ? 0 : pickW([[0, 2], [1, 3], [2, 3], [3, 2]]);   // SG: everyone is A1
     const pref = fixedEntry ? 'waku' : pickW([['waku', 8], ['in', 1.0], ['out', 1.2]]);
     rows.push({ no, prof: DRIVERS[pi], pref, key: no + (pref === 'in' ? -2.6 : pref === 'out' ? 2.6 : 0) + simRandom() * 0.1,
-                temper: pickW([['calm', 3], ['normal', 5], ['aggr', 2]]), motor: { deashi: 0.93 + simRandom() * 0.14 }, col: LANE_COL[no - 1] });
+                temper: pickW([['calm', 3], ['normal', 5], ['aggr', 2]]), motor: { deashi: 0.95 + simRandom() * 0.1, nobi: 0.96 + simRandom() * 0.06 }, col: LANE_COL[no - 1] });
   }
   if (sgMode) {
     const n = pickW([[1, 5], [2, 4], [3, 1]]);
@@ -2345,6 +2393,18 @@ function applyCourse(r, course, slow, kado, okoshi) {
 function raceFieldsInit(r) {
   r.wake = r.wake || []; r.prevY = r.b.y; r.vis = 0; r.st = null; r.laps = 0; r.fin = null; r.prog = boatBow(r.b).x - 1000; r.flying = false;
 }
+// チルト: CPU riders mostly sit at −0.5 inside; the dash courses go 0 / +0.5 for 伸び, and now and then a rider
+// gambles on a big tilt (はね). The player picks their own in the settings. Called again once the course is known.
+function fitMotor(r, course, again) {
+  const b = r.b;
+  b.deashi = r.motor.deashi; b.nobi = r.motor.nobi;
+  if (r.player) { b.tilt = playerTilt; return; }
+  if (again && !r.tiltAuto) return;
+  r.tiltAuto = true;
+  const out = course >= 4 || (r.trait && r.trait.kado);
+  b.tilt = out ? pickW([[-0.5, 2], [0, 4], [0.5, 3], [1, 1], [2, 0.3], [3, 0.15]]) : pickW([[-0.5, 8], [0, 2], [0.5, 0.4]]);
+  r.tilt = b.tilt;
+}
 function setupFleet() {
   const rows = newRows(FIXED_ENTRY);
   // entry: boats take courses by preference, inside first
@@ -2360,10 +2420,11 @@ function setupFleet() {
     // reaches that point just as the clock says go (the lever itself still goes by timing, for the ST).
     const [okLo, okHi] = kado ? KADO3_OKOSHI : OKOSHI[course] || OKOSHI[6];
     const okoshi = okLo + simRandom() * (okHi - okLo);
-    const creep = Math.max(0, CLOCK - (timeToLine(okoshi, IDLE_V, r.prof.cruise) - 0.1));
+    const creep = Math.max(0, RUNUP - (timeToLine(okoshi, IDLE_V, r.prof.cruise) - 0.1));
     const x0 = -(okoshi + IDLE_V * creep) - BOW_TIP;
     applyCourse(r, course, slow, kado, okoshi);
     r.b = { x: x0, y: r.trait.laneY, a: 0, v: IDLE_V, vl: 0, yaw: 0, porp: 0, cap: 0 };
+    fitMotor(r, course);
     raceFieldsInit(r);
   });
   rows.sort((a, b) => a.no - b.no);
@@ -2393,9 +2454,14 @@ function freshFleet(boats) {
                   before the hand starts. Squaring up later than a boat outside you means
                   going outside it: no 割り込み. */
 const ENTRY = {
-  pitX: -186, pitY: [24, 28.5, 33, 37.5, 42, 46.5], // ピット: behind 2M on the home side, bows toward 1M; 1号艇 innermost
+  pitX: -280, pitY: [24, 28.5, 33, 37.5, 42, 46.5], // ピット: well behind 2M on the home side (130 m), bows toward 1M; 1号艇 innermost
   lamp: 3,                                          // s of lamp countdown before the release
-  runR: k => 12 + 3.5 * k,                          // lane radius for slot k on the way round (clear of the far bank)
+  runR: k => 11 + 4.2 * k,                          // lane radius for slot k on the way round: outer boats swing round wide (clear of the far bank)
+  vPull: 4.5,                                       // m/s backing away to the dash spot (引く: bow away from the slit)
+  pullTurn: 8,                                      // s to swing round to face the line again, settle and square up
+  kado: { early4: 0.15, k3: 0.4, k2: 0.1, ample: 4 },  // 4コース pulls early (by mistake) / 3カド and 2カド when that leaves time to spare
+  pitRunOut: 6,                                     // m longer straight run per pit further out
+  opp: { gap: 3, p: { calm: 0.12, normal: 0.3, aggr: 0.55 } },   // 隙: an outer boat this far ahead of the boat inside may go for its course (chance by temper)
   vBack: 9.5, vPush: 3, vTurn: 4.5, vBuoy: 8,                 // (fallback cruise) / extra m/s pushing for a course / rounding 2M / rounding the buoy (m/s)
   steal: 5,                                         // m ahead of the inside neighbour to take its course
   maeRate: 0.09,                                    // share of races where a CPU rider goes for 前付け (≈10% of races end with one; later a rider trait)
@@ -2408,13 +2474,15 @@ const ENTRY = {
   total: 100,                                       // s from the pit release to the start (実際の待機行動 ≈ 1分40秒)
   rewindAfter: 16,                                  // s after the 3rd boat squares up: still not facing → 回り直し
   rewindBy: 30,                                     // s before the start: still not round 2M → 回り直し
-  dashSwing: 10,                                    // m further back than 2M a dash boat rounds
+  pitRun: [80, 100],                                // m run straight out of the pits flat out before turning for the buoy
+  pitSteal: 9,                                      // m ahead of the inside boat at the end of that run: a late boat loses its course there
+  dashSwing: 40,                                    // m further back than 2M a dash boat rounds (to come out ~200 m from the line)
   dashDepth: 16,                                    // m of extra run-up for a dash called the moment the boat leaves the pits
   gap: 6, gapT: 1.2,                                // 艇2つ分: closer than this behind a boat for this long = 間隔不足
-  slowX: -107, dashX: -150,                         // waiting spots (m before the line); a dash called early sits deeper
+  slowX: -107, dashX: -190,                         // waiting spots (m before the line); a dash called early sits deeper
   react: { TOP: 0.08, A1: 0.1, A2: 0.14, B1: 0.2, B2: 0.28 },   // pit reaction (s) by class
 };
-const SMALL_TURN_BUOY = { x: -MK + 90, y: 0 };      // 小回り防止ブイ: on the centre line, 90 m in from 2M (placed well out so the pit-out loop uses up the waiting time); boats leaving the pits go round outside it
+const SMALL_TURN_BUOY = { x: -MK + 20, y: 0 };      // 小回り防止ブイ: 20 m from 2M toward the centre (its real place); boats leaving the pits go round outside it
 let onEntryHandoff = null;                          // UI hook
 
 function makeEntryFleet(playerNo) {
@@ -2422,10 +2490,11 @@ function makeEntryFleet(playerNo) {
   const go = time + ENTRY.lamp;
   rows.forEach(r => {
     r.player = r.no === playerNo;
-    r.b = { x: ENTRY.pitX, y: ENTRY.pitY[r.no - 1], a: 0, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0, thrMul: r.motor.deashi };
+    r.b = { x: ENTRY.pitX, y: ENTRY.pitY[r.no - 1], a: 0, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0 };
+    fitMotor(r, r.no);
     r.inp = { thr: 0, steer: 0, roll: 0, pitch: 0 };
     r.en = { slot: r.no, stage: 'pit', react: r.player ? null : go + Math.max(0.03, (ENTRY.react[r.prof.name] ?? 0.18) + (simRandom() - 0.5) * 0.14),
-             dash: false, rewind: false, faced: false, facedAt: 0, resistVs: new Map(), decided: false, dashBonus: 0, gapT: 0, slowT: 0 };
+             dash: false, rewind: false, faced: false, facedAt: 0, resistVs: new Map(), runLen: ENTRY.pitRun[0] + (r.no - 1) * ENTRY.pitRunOut + simRandom() * (ENTRY.pitRun[1] - ENTRY.pitRun[0]), oppSeen: new Set(), straightDone: false, decided: false, dashBonus: 0, gapT: 0, slowT: 0 };
     raceFieldsInit(r);
     r.entryViol = [];
   });
@@ -2435,7 +2504,7 @@ function makeEntryFleet(playerNo) {
     const cand = rows.filter(r => !r.player && r.no >= 2);
     const inPref = cand.filter(r => r.pref === 'in');
     const pick = (inPref.length ? inPref : cand)[Math.floor(simRandom() * (inPref.length || cand.length))];
-    if (pick) pick.en.wantIn = true;
+    if (pick) { pick.en.wantIn = true; pick.en.mae = true; }
   }
   const f = freshFleet(rows);
   f.entry = { t0: time, go, zero: go + ENTRY.total, mae, lampStep: -1, faced: [], steals: 0, stealLog: [], lastFacedAt: 0, done: false, viol: [] };
@@ -2447,7 +2516,8 @@ const laneYOf = course => 8 + (course - 1) * 6;
 // provisional courses from the current lane order: slow boats inside first, then dash boats, then 回り直し
 function entryOrder(E, boats) {
   const bySlot = boats.slice().sort((a, b) => a.en.slot - b.en.slot);
-  const slow = bySlot.filter(r => !r.en.dash && !r.en.rewind), dash = bySlot.filter(r => r.en.dash && !r.en.rewind), rew = bySlot.filter(r => r.en.rewind);
+  // dash courses go by the order of pulling: the first to pull takes the outermost
+  const slow = bySlot.filter(r => !r.en.dash && !r.en.rewind), dash = bySlot.filter(r => r.en.dash && !r.en.rewind).sort((a, b) => (b.en.pullSeq || 0) - (a.en.pullSeq || 0)), rew = bySlot.filter(r => r.en.rewind);
   const order = [...slow, ...dash, ...rew];
   order.forEach((r, i) => { r.en.course = i + 1; });
   return { order, nSlow: slow.length };
@@ -2457,7 +2527,7 @@ function entrySpot(r, nSlow, contested) {
   if (!r.en.dash && !r.en.rewind) {
     // more boats going slow, or a course taken by force, leaves the inside less room: shallower run-up (深イン)
     const deep = Math.max(0, nSlow - 3) * 7 + (contested ? 8 : 0);
-    return { x: ENTRY.slowX - (c - 1) * 2.5 + deep * (1 - (c - 1) * 0.2), y: laneYOf(c) };
+    return { x: ENTRY.slowX - (c - 1) * 2.5 + (c === 1 ? 5 : 0) + deep * (1 - (c - 1) * 0.2), y: laneYOf(c) };   // イン sits 5 m deeper
   }
   // dash: the earlier the call, the deeper (longer run-up) the spot it takes
   return { x: Math.max(COURSE.xMin + 10, ENTRY.dashX - Math.max(0, c - nSlow - 1) * 3 - (r.en.dashBonus || 0)), y: laneYOf(c) };
@@ -2472,8 +2542,38 @@ function entryProgress(r) {
   return en.faced ? 1 : 0.95;
 }
 function callDash(r) {
-  r.en.dash = true;
-  r.en.dashBonus = ENTRY.dashDepth * clamp((0.95 - entryProgress(r)) / 0.85, 0, 1);
+  const en = r.en, E = fleet.entry;
+  en.dash = true; en.decided = true; en.pullSeq = E.pullSeq = (E.pullSeq || 0) + 1;
+  en.dashBonus = ENTRY.dashDepth * clamp((0.95 - entryProgress(r)) / 0.85, 0, 1);
+  // already round 2M: turn the bow away from the slit and back off to the dash spot (引く)
+  if (en.stage === 'approach' && !en.faced) { en.pulling = 'back'; en.dashBonus = 0; en.facing = false; en.hang = false; }
+}
+// 引く (CPU), decided every step while hanging after 2M. Courses outside go to whoever pulls first (6, 5, 4…),
+// so a boat only pulls once every boat outside it has pulled (or is staying slow). The 6 often goes early and
+// the 5 follows; the 4 waits till the last moment it can still make the dash spot, so nobody inside can follow
+// (3カド — and very rarely 2カド — happen only when the boat outside left time to spare). Boats going for an
+// inside course never pull.
+function cpuPullDecide(r, boats, sp, T) {
+  const en = r.en;
+  if (en.dash || en.faced || en.pulling || r.player || (en.wantIn && !en.gaveUp) || en.slot <= 1) return;
+  const staySlow = q => (q.en.wantIn && !q.en.gaveUp) || q.pref === 'in' || (q.player && !q.en.dash) || q.en.noPull;
+  if (!boats.every(q => q.en.slot <= en.slot || q.en.dash || q.en.rewind || staySlow(q))) return;
+  const need = Math.max(0, r.b.x - (-190)) / ENTRY.vPull + ENTRY.pullTurn;
+  if (en.pullAt == null) {
+    if (r.pref === 'in') { en.noPull = true; return; }
+    if (en.slot >= 4) {
+      const last = en.slot === 4 || !boats.some(q => q.en.slot === en.slot - 1 && !q.en.dash && q.en.slot >= 4);
+      en.pullAt = en.slot >= 5 || r.pref === 'out' ? 3 + simRandom() * 10          // 6 (and 5 after it): early, unhurried
+        : simRandom() < ENTRY.kado.early4 ? 5 + simRandom() * 8 : 0.4 + simRandom() * 1.2;   // 4: at the last moment
+      if (!last && en.slot === 4) en.pullAt = 0.4 + simRandom() * 1.2;
+    } else {
+      // 3 (or 2): only if the boat outside pulled with time to spare
+      const p = (en.slot === 3 ? ENTRY.kado.k3 + (en.lost ? 0.3 : 0) : ENTRY.kado.k2) * (r.pref === 'out' ? 2 : 1);
+      if (T - need > ENTRY.kado.ample && simRandom() < p) en.pullAt = 1 + simRandom() * 3;
+      else { en.noPull = true; return; }
+    }
+  }
+  if (T <= need + en.pullAt) { callDash(r); toast('引く', `${r.no}号艇がダッシュへ`, 'info'); }
 }
 // 待機行動違反: 減点 (shown, recorded), not a disqualification. Once per kind per boat.
 function entryFoul(r, kind) {
@@ -2487,7 +2587,7 @@ const thrFor = (v, vT) => clamp(0.25 + (vT - v) * 0.35, 0, 1);
 // timing — the only way to kill time is to swing the bow off the line (it then moves slower toward it),
 // and only so far. Arrive too early, or hold the lever too long, and the boat ends up deep (起こし short).
 const WAIT_V = 1.4;
-const creepAfter = ok => WAIT_V * Math.max(0, CLOCK - timeToLine(ok, WAIT_V) - 0.2) + 2;   // m still crept after the hand starts (till the lever opens)
+const creepAfter = ok => WAIT_V * Math.max(0, RUNUP - timeToLine(ok, WAIT_V) - 0.2) + 2;   // m still crept after the hand starts (till the lever opens)
 // steering for the pit-out loop: along the home side to the 小回り防止ブイ, round it (outside), back to 2M, round 2M
 function entryAim(b, R, stage, look, A = -MK) {
   const Bx = SMALL_TURN_BUOY.x;
@@ -2501,13 +2601,54 @@ function entryAim(b, R, stage, look, A = -MK) {
 }
 // pace from the buoy to 2M: come round 2M so that, after squaring up, the drift at idle carries the boat
 // onto its 起こし mark as the hand starts. Slow boats round earlier, dash boats later (with a little spare).
-function entryPace(r, R, nSlow, contested) {
+function entryPace(r, R, nSlow, contested, leftOverride) {
   const E = fleet.entry, b = r.b, en = r.en;
   const sp = entrySpot(r, nSlow, contested), xh = sp.x - creepAfter(-sp.x);
   const drift = Math.max(0, xh - (-MK + 2)) / 1.35;                 // s of idling from squaring up to the mark
-  const tA = E.zero - CLOCK - Math.PI * R / ENTRY.vTurn - drift - (en.dash ? 14 : 3);
-  const left = Math.max(0, b.x - (-MK - (en.dash ? ENTRY.dashSwing : 0) + 3));
+  const tA = E.zero - RUNUP - Math.PI * R / ENTRY.vTurn - drift - (en.dash ? 14 : 3);
+  const left = leftOverride ?? Math.max(0, b.x - (-MK - (en.dash ? ENTRY.dashSwing : 0) + 3));
   return clamp(left / Math.max(0.5, tA - time), 1.8, 10);
+}
+function laneProg(r) {
+  const b = r.b, st = r.en.stage;
+  if (st === 'out' && r.en.straightDone && b.y > 5 && b.x < SMALL_TURN_BUOY.x - 8) return b.x;
+  if (st === 'back') return -b.x;
+  return null;
+}
+// ピット離れのコース取り: at the end of its straight run, a boat that is pitSteal m ahead of the boat inside it
+// (late out of the pits) goes for that course. It has to really pass it first: it keeps its own line and enough
+// speed to stay in front, and takes the course (turns in) only once it is a clear 8 m ahead — never behind it.
+// If the late boat comes back at it, the attempt is dropped. Then it may go again for the next boat in.
+// Returns the speed it must keep (0 = no constraint).
+function pitOutSteal(r, boats) {
+  const en = r.en, E = fleet.entry;
+  let vMin = 0;
+  if (en.passing) {   // turned in: keep ahead until across the passed boat's line
+    const q = en.passing;
+    if (en.stage === 'out' && Math.abs(r.b.y) > Math.abs(q.b.y) - 1.5) vMin = q.b.v + 1;
+    else en.passing = null;
+  }
+  if (en.stage !== 'out' || r.b.x > SMALL_TURN_BUOY.x - 20 || (!r.player && r.pref === 'out')) { en.stealFrom = null; return vMin; }
+  if (!en.stealFrom) {
+    const i = boats.find(q => q.en.slot === en.slot - 1);
+    if (i && (i.en.stage === 'pit' || (i.en.stage === 'out' && !i.en.straightDone)) && r.b.x - i.b.x >= ENTRY.pitSteal) en.stealFrom = i;
+  }
+  const i = en.stealFrom;
+  if (!i) return vMin;
+  // the boat being passed sees it coming: it may open up and run alongside to shut the door (ブロック)
+  if (i.en.stage === 'out' && !i.player && i.en.blockVs !== r) {
+    i.en.blockVs = r;
+    i.en.block = simRandom() < (ENTRY.resist[i.temper] ?? 0.55) + (i.en.slot === 1 ? 0.15 : 0) ? r : null;
+    if (i.en.block) toast('ブロック', `${i.no}号艇が前に出て${r.no}号艇を入れさせない`, 'warn');
+  }
+  if (i.en.slot !== en.slot - 1 || r.b.x - i.b.x < 0) { en.stealFrom = null; return vMin; }   // it came back at me: no
+  vMin = Math.max(vMin, i.en.stage === 'pit' ? 0 : i.b.v + 1.5);
+  if (r.b.x - i.b.x >= ENTRY.pitSteal + 3) {
+    en.slot--; i.en.slot++; E.pitSteals = (E.pitSteals || 0) + 1; i.en.lost = true;
+    en.stealFrom = null; en.passing = i;
+    toast('ピット離れ', `${r.no}号艇が出遅れた${i.no}号艇を抜いて内へ`, 'warn');
+  }
+  return vMin;
 }
 function startFight(a, c) {
   if (a.en.fightWith || c.en.fightWith) return;
@@ -2532,7 +2673,7 @@ function entryAnswer(r, nSlowNow) {
   const en = r.en;
   const pRes = (ENTRY.resist[r.temper] ?? 0.55) + (en.slot === 1 ? 0.25 : 0) - Math.max(0, nSlowNow - 3) * 0.15;
   if (simRandom() < pRes) return 'resist';
-  if (en.slot >= 2 && simRandom() < (en.slot >= 3 ? 0.55 : 0.3) + Math.max(0, nSlowNow - 3) * 0.2) {
+  if (en.slot >= 2 && simRandom() < (en.slot >= 3 ? 0.55 : 0.12) + Math.max(0, nSlowNow - 3) * 0.2) {
     callDash(r); en.decided = true; toast('引く', `${r.no}号艇 前付けを受けずダッシュへ`, 'info'); return 'hiku';
   }
   return 'yield';
@@ -2550,11 +2691,23 @@ function entryStep(dt, playerInput) {
   const contested = E.steals > 0;
 
   // 前付け: on the back straight, a boat far enough ahead of the boat inside it takes its lane
-  const inLanes = boats.filter(r => r.en.stage === 'back').sort((a, b) => a.en.slot - b.en.slot);
+  // (out to the buoy along the home side, or back from it to 2M — wherever both are running their lanes)
+  const inLanes = boats.filter(r => laneProg(r) != null).sort((a, b) => a.en.slot - b.en.slot);
+  // 隙があれば: an outer CPU boat that finds itself ahead of the boat inside it may go for that course
+  // (once per neighbour; at most one course gained this way, so the slow group doesn't get pushed too deep)
   for (let k = 1; k < inLanes.length; k++) {
     const o = inLanes[k], i = inLanes[k - 1];
-    if (o.en.slot !== i.en.slot + 1) continue;
-    if (!o.en.dash && i.b.x - o.b.x >= ENTRY.steal && (o.player || (o.en.wantIn && (o.en.gained || 0) < 2 && !o.en.gaveUp))) {       // running −x: smaller x is further along; only if it wants in
+    if (o.player || o.en.wantIn || o.en.dash || o.en.gaveUp || o.pref === 'out' || (o.en.gained || 0) >= 1) continue;
+    if (o.en.slot !== i.en.slot + 1 || o.en.stage !== i.en.stage || o.en.oppSeen.has(i.no)) continue;
+    if (laneProg(o) - laneProg(i) < ENTRY.opp.gap || i.b.v > o.b.v) continue;   // a real gap: the inside boat is behind and not closing
+    o.en.oppSeen.add(i.no);
+    if ((o.en.slot > 3 || i.en.slot === 1) && o.pref !== 'in') continue;   // the 1コース is only gone for by イン志向; dash-minded outside boats leave the slow courses alone   // the dash-minded outside boats don't fight for the slow courses
+    if (simRandom() < (ENTRY.opp.p[o.temper] ?? 0.4)) { o.en.wantIn = true; o.en.opp = true; }
+  }
+  for (let k = 1; k < inLanes.length; k++) {
+    const o = inLanes[k], i = inLanes[k - 1];
+    if (o.en.slot !== i.en.slot + 1 || o.en.stage !== i.en.stage) continue;
+    if (!o.en.dash && laneProg(o) - laneProg(i) >= ENTRY.steal && (o.player || (o.en.wantIn && (o.en.gained || 0) < (o.en.mae ? 2 : 1) && !o.en.gaveUp))) {       // running −x: smaller x is further along; only if it wants in
       o.en.slot--; i.en.slot++; E.steals++; o.en.stole = true; i.en.lost = true; o.en.gained = (o.en.gained || 0) + 1;
       if (o.en.fightWith === i) { o.en.fightWith = null; i.en.fightWith = null; }
       toast('前付け', `${o.no}号艇が${i.no}号艇の内に入った`, 'warn');
@@ -2577,7 +2730,7 @@ function entryStep(dt, playerInput) {
     }
     if (en.stage === 'out' && b.y < -5 && Math.cos(b.a) < -0.3 && b.x < SMALL_TURN_BUOY.x + 3) { en.stage = 'back'; if (!r.player) cpuDashEarly(r); }
     if (en.stage === 'back' && b.x < -MK - (en.dash ? ENTRY.dashSwing : 0) + 3) en.stage = 'turn';
-    if (en.stage === 'turn' && b.x < -MK - 4 && b.y > 0.55 * ENTRY.runR(en.slot)) { en.stage = 'approach'; if (!r.player) cpuDashChoice(r, nSlow); }
+    if (en.stage === 'turn' && b.x < -MK - 4 && b.y > 0.55 * ENTRY.runR(en.slot)) { en.stage = 'approach'; }
     if (en.stage === 'approach' && en.facing && Math.cos(b.a) > 0.97 && b.y > 2) {
       en.stage = 'wait'; en.faced = true; en.facedAt = time; E.faced.push(r); E.lastFacedAt = time;
       // 見透し線 priority: a slow boat squaring up after a boat outside it has already squared up
@@ -2602,18 +2755,21 @@ function entryStep(dt, playerInput) {
     if (en.stage === 'out' || en.stage === 'back' || en.stage === 'turn') {
       // a dash boat swings wide round 2M (further back) to come out with a long run-up
       [tx, ty] = entryAim(b, R, en.stage, 5 + b.v * 0.5, -MK - (en.dash ? ENTRY.dashSwing : 0));
-      if (en.stage === 'out') vT = b.x < SMALL_TURN_BUOY.x - 22 && b.y > 0 ? 30 : ENTRY.vBuoy;   // flat out, then round the buoy under control
-      else if (en.stage === 'turn') vT = en.rewind ? 7 : ENTRY.vTurn;
+      const Bx = SMALL_TURN_BUOY.x, Aeff = -MK - (en.dash ? ENTRY.dashSwing : 0);
+      if (en.stage === 'turn') vT = en.rewind ? 7 : ENTRY.vTurn;
+      else if (en.stage === 'out' && b.y < 5) vT = ENTRY.vBuoy;   // round the buoy under control
       else {
-        // buoy → 2M: idle along, timed to come round 2M when it's right for its course
-        vT = entryPace(r, R, nSlow, contested);
+        // pits → buoy → 2M: run along, timed to come round 2M when it's right for its course
+        const left = en.stage === 'out' ? Math.max(0, Bx - b.x) + Math.PI * R + Math.max(0, Bx - (Aeff + 3)) : Math.max(0, b.x - (Aeff + 3));
+        vT = entryPace(r, R, nSlow, contested, left);
+        if (en.stage === 'out' && b.x > Bx - 22) vT = Math.min(vT, ENTRY.vBuoy);
         en.pace = vT;
         // wants a course further in (イン志向, or the player's own call): push
-        const inner = boats.find(q => q.en.stage === 'back' && q.en.slot === en.slot - 1);
-        if (!r.player && en.wantIn && inner && (en.gained || 0) < 2 && !en.gaveUp && !en.dash) vT += ENTRY.vPush;
+        const inner = boats.find(q => q.en.stage === en.stage && laneProg(q) != null && q.en.slot === en.slot - 1);
+        if (!r.player && en.wantIn && inner && (en.gained || 0) < (en.mae ? 2 : 1) && !en.gaveUp && !en.dash) vT += ENTRY.vPush;
         // being challenged from outside: fight it off, let it in, or pull back to dash
-        const outer = boats.find(q => q.en.stage === 'back' && q.en.slot === en.slot + 1);
-        if (!r.player && !en.dash && outer && (outer.player || (outer.en.wantIn && !outer.en.gaveUp)) && !outer.en.dash && b.x - outer.b.x > -8 && outer.b.v > b.v + 0.3) {
+        const outer = boats.find(q => q.en.stage === en.stage && laneProg(q) != null && q.en.slot === en.slot + 1);
+        if (!r.player && !en.dash && outer && laneProg(r) != null && (outer.player || (outer.en.wantIn && !outer.en.gaveUp)) && !outer.en.dash && laneProg(outer) - laneProg(r) > -8 && outer.b.v > b.v + 0.3) {
           if (!en.resistVs.has(outer)) en.resistVs.set(outer, entryAnswer(r, nSlow));
           if (en.resistVs.get(outer) === 'resist' && !en.gaveUp) { vT = Math.max(vT, outer.b.v + 2); startFight(r, outer); }
         }
@@ -2625,14 +2781,28 @@ function entryStep(dt, playerInput) {
       // edging to its lane, and turns to face only when a straight idle from there lands it on its 起こし
       // mark as the hand starts. Face too soon (or come round 2M too early) and there's no undoing it: deep.
       const sp = entrySpot(r, nSlow, contested), ok = -sp.x, xh = sp.x - creepAfter(ok);
-      const T = Math.max(0.5, E.zero - CLOCK - time), D = xh - b.x;
-      const manual = r.player && playerInput && playerInput.thr >= 0.08;
+      const T = Math.max(0.5, E.zero - RUNUP - time), D = xh - b.x;
+      cpuPullDecide(r, boats, sp, T);
+      const manual = r.player && playerInput && playerInput.thr >= 0.08 && !en.pulling;
+      if (en.pulling === 'back') {
+        // bow round to the outside and away from the slit, then back off toward the dash spot
+        if (b.x <= sp.x + 6 && Math.cos(b.a) < -0.5) en.pulling = 'round';
+        tx = b.x - 25; ty = Math.cos(b.a) > -0.5 ? b.y + 6 : sp.y - 7; vT = Math.cos(b.a) > -0.5 ? 2 : ENTRY.vPull;   // backing off a little inside its lane: the swing round comes out on it
+      } else if (en.pulling === 'round') {
+        // swing round again through the outside to face the line
+        tx = b.x + 12; ty = b.y + 10; vT = 1.8;
+        if (Math.cos(b.a) > 0.5) en.pulling = null;
+      }
+      if (en.pulling) { en.hang = false; en.projOk = null; }
+      else {
       let rate = D > 0 ? D / T : 0;
       if (!en.faced) {
         const dy = sp.y - b.y;
         if (!en.facing) {
           const ready = rate >= ENTRY.faceRate && Math.abs(dy) < 2.5;
-          if (ready || manual || T < 11 || dy < -3 || (en.fightWith && !en.gaveUp)) en.facing = true;
+          // an outside boat that means to pull keeps its bow off the line until it does (it can't pull once squared up)
+          const willPull = !r.player && !en.dash && !en.noPull && en.slot >= 4 && r.pref !== 'in' && !(en.wantIn && !en.gaveUp);
+          if (!willPull && (ready || manual || T < 11 || dy < -3 || (en.fightWith && !en.gaveUp))) en.facing = true;
         }
         if (en.facing) { tx = b.x + 20; ty = b.y + clamp(dy, -3, 3); vT = WAIT_V; }
         else {
@@ -2656,6 +2826,19 @@ function entryStep(dt, playerInput) {
         en.projOk = Math.max(0, -xProj - creepAfter(Math.max(20, -xProj)));
       }
       en.waitRate = rate;
+      }
+    }
+    // ピット離れ: straight out of the pit lane flat out for 80–100 m, then turn for the buoy and pace it
+    if (en.stage === 'out' && !en.straightDone) {
+      if (b.x >= ENTRY.pitX + en.runLen) en.straightDone = true;
+      else { tx = b.x + 20; ty = ENTRY.pitY[r.no - 1]; vT = 30; }
+    }
+    if (en.straightDone || en.passing) { const vMin = pitOutSteal(r, boats); if (vMin > vT) vT = vMin; }
+    // ブロック: keep level with (a little ahead of) the boat trying to get past, until it gives up or the buoy
+    if (en.block) {
+      const q = en.block;
+      if (q.en.stealFrom !== r || en.stage !== 'out' || b.x > SMALL_TURN_BUOY.x - 20) en.block = null;
+      else vT = Math.max(vT, q.b.v + (q.b.x > b.x - 2 ? 2 : 0.5));
     }
     if (en.rewind && en.stage === 'back') vT = Math.max(vT, ENTRY.vBack);
     // keep 艇2つ分 off the stern of a boat ahead in the same lane (the rule between the buoy and 2M)
@@ -2670,7 +2853,7 @@ function entryStep(dt, playerInput) {
     const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
     const steer = en.faced ? clamp(err * 2.2, -0.12, 0.12) : clamp(err * 2.2);   // squared up: no more rudder
     // the player's lever rules until 2M; after that, lever shut = the boat settles itself onto its spot
-    const auto = !r.player || ((en.stage === 'approach' || en.stage === 'wait') && !(playerInput && playerInput.thr >= 0.08));
+    const auto = !r.player || en.pulling || ((en.stage === 'approach' || en.stage === 'wait') && !(playerInput && playerInput.thr >= 0.08));
     if (!auto) thr = playerInput ? playerInput.thr : 0;
     else thr = thrFor(b.v, vT);
     if (auto && en.hang) { holdIt = 'hang'; thr = 0; }   // rudder over, sat up: all but stopped (the engine still turns)
@@ -2717,13 +2900,16 @@ function entryStep(dt, playerInput) {
     entryFoul(who, '待機中の接触');
   }
   // the hand starts 12 s out: hand over to the race's own start
-  if (time >= E.zero - CLOCK) entryHandoff();
+  if (time >= E.zero - RUNUP) entryHandoff();
 }
 function cpuDashEarly(r) {
-  // an out-minded rider, or one drawn wide with no wish to fight for the inside, calls it on the back straight
-  if (r.en.decided || r.en.wantIn) return;
-  if (r.en.slot >= 3 && (r.pref === 'out' || (r.en.slot >= 4 && r.pref !== 'in' && simRandom() < 0.92))) {
-    r.en.decided = true; r.en.dash = true;
+  // early 引き on the back straight (it then swings wide round 2M): the 6 now and then, the 5 more likely once
+  // the 6 has gone, an out-minded rider anywhere from the 3 out. The 4 doesn't — it waits.
+  if (r.en.decided || r.en.wantIn || r.pref === 'in') return;
+  const boats = fleet.boats, slot = r.en.slot, outerDash = boats.some(q => q.en.slot === slot + 1 && q.en.dash);
+  const p = r.pref === 'out' && slot >= 3 ? 0.6 : slot === 6 ? 0.35 : slot === 5 ? (outerDash ? 0.5 : 0) : 0;
+  if (p && boats.every(q => q.en.slot <= slot || q.en.dash) && simRandom() < p) {
+    callDash(r);
     r.en.dashBonus = ENTRY.dashDepth * (0.55 + simRandom() * 0.45);
   }
 }
@@ -2743,7 +2929,7 @@ function playerDash() {
   if (en.dash) return;
   if (en.stage !== 'pit' && !en.faced) {
     callDash(r);
-    toast('ダッシュ', `後ろに引く。外から配置・助走 +${Math.round(en.dashBonus)}m`, 'info');
+    toast('ダッシュ', en.pulling ? 'スリットに背を向けて後ろへ引く。引いた順に外のコース' : `後ろに引く。外から配置・助走 +${Math.round(en.dashBonus)}m`, 'info');
   } else toast('今は引けない', en.stage === 'pit' ? 'ピットを出てから' : '正対したあとは引けない', 'warn');
 }
 function entryHandoff() {
@@ -2758,17 +2944,18 @@ function entryHandoff() {
     const course = i + 1, slow = !r.en.dash && !r.en.rewind, kado = !slow && course === 3;
     applyCourse(r, course, slow, kado, Math.round(-boatBow(r.b).x - creepAfter(Math.max(20, -boatBow(r.b).x))));
     r.b.thrMul = 1; r.b.hold = true;
+    if (!r.player && r.tiltAuto) fitMotor(r, course, true);
   });
   // each boat runs in on the line it squared up on (it can't steer across now), kept in course order
   let yPrev = 2;
-  for (const r of order) { r.trait.laneY = clamp(Math.max(r.b.y, yPrev + 4.5), 4, 46); yPrev = r.trait.laneY; }
+  for (const r of order) { r.trait.laneY = clamp(Math.max(r.b.y, yPrev + 4.5), 4, 46); yPrev = r.trait.laneY; r.b.y = r.trait.laneY; r.b.a = wrapRad(r.b.a) * 0.3; }   // settle each boat on its line, bow straight: from the 起こし on there's no rudder
   fleet.byCourse = {}; for (const r of fleet.boats) fleet.byCourse[r.trait.course] = r;
   fleet.rank = order;
   fleet.entryResult = { text: order.slice(0, nSlow).map(r => r.no).join('') + '/' + order.slice(nSlow).map(r => r.no).join(''), steals: E.steals, nSlow,
                         rewinds: fleet.boats.filter(r => r.en.rewind).length, viol: E.viol.slice() };
   fleet.entry = null;
-  SS.phase = 'count'; SS.t0 = time; SS.hideAt = 0;
-  toast('進入', fleet.entryResult.text + (E.steals ? '　前付けあり' : ''), 'info');
+  SS.phase = 'count'; SS.t0 = time + PRE_RUN; SS.hideAt = 0;
+  toast('進入', fleet.entryResult.text + (E.steals ? '　前付けあり' : '') + (E.pitSteals ? '　ピット離れでコース取り' : ''), 'info');
   if (onEntryHandoff) onEntryHandoff();
 }
 
@@ -2794,7 +2981,7 @@ function startFleet() {
   fleet = freshFleet(setupFleet());
   ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
   wake.length = 0; spray.length = 0;
-  SS.phase = 'count'; SS.t0 = time; SS.hideAt = 0; $('clock').hidden = false;
+  SS.phase = 'count'; SS.t0 = time + PRE_RUN; SS.hideAt = 0; $('clock').hidden = false;
   buildOrderStrip(); buildCard();
   const k3 = fleet.boats.some(r => r.trait.kado&&r.trait.course===3);
   toast(k3 ? '3カド' : sgMode ? 'SG' : '6艇レース', k3 ? '3コースがカド。伸びと内艇の動きから攻め方を判断' : '枠なり進入・スロー3艇／ダッシュ3艇。出走表で各艇の特性を確認できます', 'info');
@@ -2870,7 +3057,9 @@ function fleetStep(dt, playerInput) {
       if (r.player && r.st == null && time - dt > zero + 1 && !r.lateTold) { r.lateTold = true; toast('出遅れ', '1秒以内に越えられなかった。CPUが引き継ぎ', 'bad'); }
       if (r.player && r.st == null && !r.lateTold) {
         // the player has the lever (and posture) until the start line; steering follows the lane
-        o = { thr: playerInput ? playerInput.thr : 0, steer: o.steer, roll: 0, pitch: playerInput ? playerInput.pitch : 0, ev: null };
+        const ps = playerInput ? playerInput.steer : 0;
+        if (SS.phase === 'count') zigCheck(b, ps, r);
+        o = { thr: playerInput ? playerInput.thr : 0, steer: clamp(ps, -PRE_SLIT.steer, PRE_SLIT.steer), roll: 0, pitch: playerInput ? playerInput.pitch : 0, ev: null };   // スリットまでは舵は微調整だけ、傾きなし
         r.inp = o;
       } else if (r.player && r.inp !== r.drv.out) r.inp = r.drv.out;
       b.hold = fleet.pitMode && r.st == null && (r.player ? o.thr < 0.08 : !r.drv.mem.go);
@@ -2881,6 +3070,7 @@ function fleetStep(dt, playerInput) {
       else if (o.ev === 'pushOk') { fleet.pushTry++; toast('勝負', `${r.no}号艇が攻めのターンを決めた`, 'good'); }
     }
     if(lab.active)r.labApplied={thr:o.thr,steer:o.steer,roll:o.roll,pitch:o.pitch};
+    b.preStart = lab.active ? 0 : r.st == null ? (SS.phase === 'count' ? 1 : 0) : (!r.drv.mem.firstDone && b.y > 0 && r.laps === 0 ? preStartAfter(boatBow(b).x) : 0);
     const ev = boatPhysics(b, o, dt);
     if(lab.active&&ev)labEvent('physics',r.no,{label:ev});
     if (ev && ev.startsWith('cap:') && !r.out) accident(r, '転覆', ev.slice(4));
@@ -2919,6 +3109,31 @@ function fleetStep(dt, playerInput) {
         else toast('斜行', `${r.no}号艇が${q.no}号艇の前を横切った（不良航法）`, 'bad');
         break;
       }
+    }
+  }
+  // 第19条: on a straight, moving across toward a boat it overlaps fore and aft (並走中に相手側へ転舵) is 不良航法.
+  // Before the slit the same sudden 斜行 into a neighbour is a 待機行動違反 instead.
+  if (!fleet.caution && !lab.active) for (const r of fleet.boats) {
+    const b = r.b;
+    if (r.fin != null || r.dq || r.out || b.cap > 0 || b.y <= 0 && r.st == null || Math.abs(b.x) > STRAIGHT_X - 12) continue;
+    const pre = r.st == null;
+    if (pre && SS.phase !== 'count') continue;
+    const vy = Math.sin(b.a) * b.v + Math.cos(b.a) * b.vl;
+    if (Math.abs(vy) < (pre ? 0.9 : RULE19.vy)) continue;
+    const cd = b.y > 0 ? 1 : -1;
+    for (const q of fleet.boats) {
+      if (q === r || q.b.cap > 0 || q.dq || (pre !== (q.st == null))) continue;
+      const along = (q.b.x - b.x) * cd, gap = q.b.y - b.y;
+      if (Math.abs(along) >= RULE19.overlap || Math.sign(gap) !== Math.sign(vy) || Math.abs(gap) > RULE19.gap) continue;
+      const key = r.no * 10 + q.no + 100;
+      if ((fleet.cutCool[key] || 0) > time) continue;
+      fleet.cutCool[key] = time + 3;
+      if (pre) { startFoul(r, 'スタート前の斜行'); break; }
+      if(lab.active)labEvent('foul',r.no,{label:'第19条',other:q.no});
+      r.fouls = (r.fouls || 0) + 1; r.lastCut = { q, t: time }; fleet.cuts++; fleet.r19 = (fleet.r19 || 0) + 1;
+      if (r.fouls >= 2) disqualify(r, '不良航法2回');
+      else toast('不良航法', `${r.no}号艇 並走中に${q.no}号艇の方へ舵（第19条）`, 'bad');
+      break;
     }
   }
   // ツケマイ result: once both are round 1M, is the attacker in front of its target?
@@ -3049,6 +3264,26 @@ function pushFailed(r) {
   else { r.b.vl += 6; r.b.v *= 0.6; toast('ターン膨らむ', `${r.no}号艇、勝負に出たが握りきれず大きく流れた`, 'warn'); }
 }
 
+// 蛇行: the rudder flicked from one side to the other zigFlips times within zigWindow s before the slit
+function zigCheck(b, steer, r) {
+  const sg = Math.abs(steer) > 0.03 ? Math.sign(steer) : 0;
+  if (!sg) return;
+  b.zig = b.zig || { last: 0, flips: [] };
+  if (b.zig.last && sg !== b.zig.last) {
+    b.zig.flips.push(time); b.zig.flips = b.zig.flips.filter(t => time - t < PRE_SLIT.zigWindow);
+    if (b.zig.flips.length >= PRE_SLIT.zigFlips) { b.zig.flips = []; if (r) startFoul(r, '蛇行'); else if (!b.zigTold) { b.zigTold = true; toast('待機行動違反', '蛇行（スリットまでは真っ直ぐ）', 'bad'); } }
+  }
+  b.zig.last = sg;
+}
+// 待機行動違反 (減点) during the run to the slit; once per kind per boat
+function startFoul(r, kind) {
+  r.entryViol = r.entryViol || [];
+  if (r.entryViol.includes(kind)) return;
+  r.entryViol.push(kind);
+  if(lab.active)labEvent('foul',r.no,{label:kind});
+  toast('待機行動違反', `${r.no}号艇 ${kind}（減点）`, 'bad');
+  if (typeof document !== 'undefined' && document.getElementById('cardBody') && fleet) buildCard();
+}
 function disqualify(r, why) {
   if (r.dq) return;
   if(lab.active)labEvent('disqualified',r.no,{label:'妨害失格',reason:why});
@@ -3087,8 +3322,10 @@ function buildCard() {
   const tb = $('cardBody'); tb.textContent = '';
   for (const r of fleet.boats) {
     const tr = document.createElement('tr');
-    const dsh = !r.motor ? '—' : r.motor.deashi >= 1.04 ? '◎' : r.motor.deashi >= 0.98 ? '○' : '△';
-    const cells = [r.no, r.prof.top ? 'A1 ★トップ' : r.prof.name, (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh];
+    const dsh = !r.motor ? '—' : r.motor.deashi >= 1.03 ? '◎' : r.motor.deashi >= 0.98 ? '○' : '△';
+    const nb = !r.motor || r.motor.nobi == null ? '—' : r.motor.nobi >= 1.015 ? '◎' : r.motor.nobi >= 0.985 ? '○' : '△';
+    const tl = r.b && r.b.tilt != null ? (r.b.tilt > 0 ? '+' : '') + r.b.tilt.toFixed(1) : '—';
+    const cells = [r.no, r.prof.top ? 'A1 ★トップ' : r.prof.name, (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh, nb, tl];
     cells.forEach((v, i) => {
       const td = document.createElement('td'); td.textContent = v;
       if (i === 0) { td.className = 'no'; td.style.background = r.col[0]; td.style.color = r.col[1]; }
@@ -3100,6 +3337,7 @@ function buildCard() {
 }
 $('demoCpuMode').addEventListener('change',e=>{demoCpuMode=e.target.value;if(fleet&&!lab.active)nextRace();});
 $('simSpeed').addEventListener('change', e => { simSpeed = +e.target.value; });
+$('tiltSel').addEventListener('change', e => { playerTilt = +e.target.value; B.tilt = playerTilt; B.deashi = B.nobi = 1; const pr = playerRow(); if (pr) pr.b.tilt = playerTilt; });
 $('sgBtn').addEventListener('click', () => {
   sgMode = !sgMode;
   $('sgBtn').textContent = sgMode ? 'SG：オン' : 'SG：オフ';
@@ -3690,7 +3928,7 @@ function updateHud() {
     el.clock.classList.remove('live');
   } else if (SS.phase !== 'off' && SS.phase !== 'entry') {
     const el2 = time - SS.t0, rem = CLOCK - el2;
-    el.hand.setAttribute('transform', `rotate(${(el2 / CLOCK) * 360})`);
+    el.hand.setAttribute('transform', `rotate(${(Math.max(0, el2) / CLOCK) * 360})`);
     setTxt('clockTxt', SS.phase === 'count' ? (rem > 0 ? rem.toFixed(1) : '+' + (-rem).toFixed(2)) : el.clockTxt.textContent);
     el.clock.classList.toggle('live', SS.phase === 'count' && rem <= 0);
   }
@@ -3706,7 +3944,7 @@ const LAB_PHASES = [
 ];
 const LAB_TACTICS = {makurisashi:'まくり差し',auto:'CPUに任せる',keep:'前段階を継続',nige:'逃げ',sashiWin:'差し（勝負）',sashiPlace:'差し（着取り）',makuri:'まくり',tsuke:'ツケマイ',wall:'壁'};
 const labEmpty = () => ({tactic:'auto',thr:null,steer:null,roll:null,pitch:null,R:null,gap:null});
-const labDefault = () => ({cpuMode:COURSE_CPU.version,seed:42,duration:30,hz:20,approach:90,boats:Array.from({length:6},(_,i)=>({course:i+1,enabled:i===0||i===3,grade:'A1',temper:'normal',style:i<3?'slow':'dash',x:i===3?4:0,y:8+i*6,speed:78,st:i===3?.06:.15,motor:1,plan:'auto',contactMode:'priority',squeezeMode:'lead',stages:LAB_PHASES.map(()=>labEmpty())}))});
+const labDefault = () => ({cpuMode:'legacy',seed:42,duration:30,hz:20,approach:90,boats:Array.from({length:6},(_,i)=>({course:i+1,enabled:i===0||i===3,grade:'A1',temper:'normal',style:i<3?'slow':'dash',x:i===3?4:0,y:8+i*6,speed:78,st:i===3?.06:.15,motor:1,plan:'auto',contactMode:'priority',squeezeMode:'lead',stages:LAB_PHASES.map(()=>labEmpty())}))});
 function labEscape(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function labOptions(values,selected){return Object.entries(values).map(([v,t])=>`<option value="${v}"${v===selected?' selected':''}>${t}</option>`).join('');}
 function labFill(config){
