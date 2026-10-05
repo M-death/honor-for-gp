@@ -1869,6 +1869,19 @@ function makeDriver(prof, trait = {}) {
                                            bx - cb * HULL_AFT, by - sb * HULL_AFT, bx + cb * HULL_FWD, by + sb * HULL_FWD);
     return Math.hypot(qx - px, qy - py) - 2 * HULL_R;
   }
+  // 回りしろ: is there water to my inside (the course runs anticlockwise) — clear of the buoy, the boom and other hulls?
+  function insideRoom(b, others, except) {
+    const sx = Math.sin(b.a), sy = -Math.cos(b.a);   // unit vector to the inside
+    const px = b.x + sx * 2.8, py = b.y + sy * 2.8, fx = px + Math.cos(b.a) * 6, fy = py + Math.sin(b.a) * 6;
+    for (const m of COURSE.marks) if (Math.hypot(px - m.x, py - m.y) < 3.5 || Math.hypot(fx - m.x, fy - m.y) < 3.5) return false;
+    if (Math.abs(px) < MK + 1 && Math.abs(py) < 1.5) return false;   // the boom inside the marks
+    for (const q of others) {
+      if (q === b || q === except || q.cap > 0) continue;
+      const dx = q.x - b.x, dy = q.y - b.y, f = dx * Math.cos(b.a) + dy * Math.sin(b.a), l = dx * sx + dy * sy;
+      if (l > 0.5 && l < 5 && f > -6 && f < 8) return false;
+    }
+    return true;
+  }
   function avoid(b, others) {
     let steerAdd = 0, thrMul = 1;
     const priority=trait.contactMode==='priority', threats=[];
@@ -1895,7 +1908,16 @@ function makeDriver(prof, trait = {}) {
       const urg = clamp(1 - tc / 1.8, 0, 1) * (gapMin < 0 ? 1 : 1 - 0.5 * gapMin / margin);
       if(priority)threats.push({boat:fleet?.boats.find(r=>r.b===q)?.no??null,predictedGapM:gapMin,atSeconds:tc,clearanceM:margin});
       const cl = -rcx * fy + rcy * fx;                     // where it will be, across my bow
-      if (fwd > 1.5) {
+      const sameWay = Math.abs(wrapRad(q.a - b.a)) < 0.8 && q.v > b.v - 6;
+      if (fwd > 1.5 && sameWay && !priority) {
+        // running up behind a boat going the same way (a 差し that couldn't get its bow in): it doesn't throw the rudder
+        // over to get out. With water to the inside (回りしろ) it stays in on the inside line; without, it eases out a
+        // little. The lever comes off only as much as it takes not to run into it.
+        const room = insideRoom(b, others, q);
+        steerAdd += room ? -0.12 * urg : (0.12 + 0.2 * urg);
+        if (b.v > q.v - 1.5) thrMul = Math.min(thrMul, 1 - urg);
+        if (gapMin < 0.2 && tc < 0.6) mem.emergency = 0.3;
+      } else if (fwd > 1.5) {
         const side = Math.abs(cl) < 0.5 ? (inTurn ? 1 : (lat >= 0 ? -1 : 1)) : (cl >= 0 ? -1 : 1);
         steerAdd += side * (0.35 + 0.65 * urg);
         if (b.v > q.v - 1) thrMul = Math.min(thrMul, 1 - 0.95 * urg);
@@ -2282,7 +2304,9 @@ function makeDriver(prof, trait = {}) {
             mem.sideLead = lead; mem.sideY = null;
             // try inside first, then outside — but while still accelerating out of a turn, only the side I'm
             // already on relative to it (no cutting across its bow)
-            const sides = accelerating ? [Math.sign(b.y - lead.y) || Math.sign(b.y)] : [-Math.sign(b.y), Math.sign(b.y)];
+            // coming off a turn behind a boat (a 差し that didn't get its bow in): stay in on the inside line if there is
+            // water there; only otherwise ease out to its outside — the side it is already on, no cutting across its bow
+            const sides = accelerating ? (b.y * Math.sign(b.y) <= lead.y * Math.sign(b.y) + 1 ? [-Math.sign(b.y)] : [-Math.sign(b.y), Math.sign(b.y)]) : [-Math.sign(b.y), Math.sign(b.y)];
             for (const sd of sides) {
               const y2 = lead.y + sd * gapSide;
               if (Math.abs(y2) < 5 || Math.abs(y2) > 44 || Math.sign(y2) !== Math.sign(b.y)) continue;
