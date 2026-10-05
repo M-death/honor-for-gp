@@ -470,6 +470,10 @@ function gateCrossing(g,p,q){
 }
 const GRIP_BASE = 5;         // sideways grip; with the turn-rate cap this sets how wide a turn swings at speed
 const HAZARD = 0.2;
+const WAIT_DRAG = 0.1;   // extra drag sat up with the lever shut while waiting
+// 接触による転覆: impulse threshold (j0, never below jMin), how much an unsettled hull lowers it, the impulse range to
+// the full chance, how much instability raises it, and the share of that chance the boat that did the hitting faces
+const CAPSIZE = { j0: 7.6, jMin: 2.6, unstJ: 3.5, span: 10, unstP: 2, hitter: 0.3 };
 // turning: how much leaning in adds grip, how much sitting up amplifies that and staying crouched spoils it,
 // how far full throttle pushes a turn wide without the body in it, how much easing the lever settles the hull,
 // and how much a flat-out, full-lock, deep hang-on at top speed (無茶) adds to the load
@@ -480,6 +484,8 @@ const TURN = { lean: 0.9, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 
 const WAKE = { width: 1.4, life: 2.4, drag: 1.8, kick: 1.9, grip: 1.6, unsettle: 0.55 };
 // 航跡: running in line behind a boat (not crossing its wake) takes the edge off thrust — the closer, the more
 const TRAIL = { range: 60, width: 2.5, max: 0.07 };          // chance per second of going over, scaled by (load − 1)^1.5 past the danger line
+// 直線: lean up to `free` steers the hull a touch at no cost; past `ok` the posture itself drags (per m/s of speed)
+const STRAIGHT_LEAN = { free: 0.35, ok: 0.5, drag: 0.035 };
 const YAW_OVER = 1.15;       // how far past the grip limit the nose may be forced round (the excess slides)       // sideways grip before a slide; lower = turns swing wider at speed
 const THRUST = 7.85;          // full-lever push: top speed ≈ 82 km/h crouched, idle ≈ 16 km/h
 // 立ち上がり: the hull drives hard only once it's up on the plane; below that the same lever pulls less
@@ -1278,7 +1284,7 @@ function boatPhysics(b, inp, dt) {
   const drag = 0.012 * (1 + 0.25 * up - 0.1 * down);
   let acc = te * THRUST * thrustK(b.v) * startK(b.v, b.preStart) * motorK(b) * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0)) - drag * b.v * b.v - 0.1 * b.v;
   if (b.hold === 'hang') acc -= 1.5 * b.v;   // 待機: rudder hard over and sat up, bow off the line — the hull scrubs off nearly all way
-  else if (b.hold) acc -= 0.35 * b.v;   // 待機: sitting nearly still with the lever shut
+  else if (b.hold) acc -= WAIT_DRAG * b.v;   // 待機: lever shut and sat up — it still drifts on at a slow walk (~7 km/h)
   acc -= b.porp * (1.2 + simRandom() * 2.2);
   // 引き波: rough water from another boat. Riding in it drags; crossing it at an angle
   // (bump) makes the hull slam and hop, costing more speed and grip and knocking it off line.
@@ -1316,7 +1322,11 @@ function boatPhysics(b, inp, dt) {
   b.harmony = sgn ? clamp(0.5 * Math.max(0, inside) + 0.3 * pose + 0.2 * t, 0, 1) : 0;
   // sitting up scrubs speed (it's the brake); crouching while firmly leaned in lets the hull run out of the turn
   const turnLoss = 0.9 * (1 - TURN.keep * b.harmony) * Math.max(0.2, 1 + TURN.upBrake * up - TURN.run * firm * down);   // turns bleed speed; a clean monkey turn keeps more of it
-  acc -= Math.abs(b.yaw) * b.v * turnLoss + Math.abs(b.vl) * 0.7;
+  // a slight lean (no rudder) only nudges the heading and costs nothing; turning on the rudder scrubs speed
+  const freeYaw = Math.abs(s) < 0.08 ? Math.min(Math.abs(r), STRAIGHT_LEAN.free) * 0.28 * sf : 0;
+  acc -= Math.max(0, Math.abs(b.yaw) - freeYaw) * b.v * turnLoss + Math.abs(b.vl) * 0.7;
+  // an extreme hang-off without turning (or sat bolt upright at speed) drags on a straight
+  if (Math.abs(s) < 0.08 && Math.abs(b.yaw) < 0.12) acc -= STRAIGHT_LEAN.drag * b.v * Math.max(0, Math.abs(r) - STRAIGHT_LEAN.ok) / (1 - STRAIGHT_LEAN.ok);
   b.v = Math.max(0, b.v + acc * dt);
   b.a += b.yaw * dt;
   b.x += (fx * b.v + rx * b.vl) * dt;
@@ -1927,10 +1937,15 @@ function makeDriver(prof, trait = {}) {
         steerAdd += (0.4 + 0.6 * urg) * Math.max(0.8, care);
         thrMul = Math.min(thrMul, 1 - 0.6 * urg);
       } else {
-        // I'm the inside boat: keep my line; if I'm sliding out toward it, lift to tighten up
+        // I'm the inside boat: keep my line and keep the drive on (I have the water); only if I'm sliding out into it,
+        // lift a little to tighten up. Coming off a turn alongside, a rider with the stomach for it leans on it instead (ダンプ)
         steerAdd -= 0.2 * urg;
-        thrMul = Math.min(thrMul, 1 - (b.vl > 0.5 ? 0.6 : 0.2) * urg);
+        thrMul = Math.min(thrMul, 1 - (b.vl > 0.5 ? 0.5 : 0.12) * urg);
         if (b.vl > 0.5) mem.tighten = 0.4;
+        if (!priority && nearMarkAt(b.x, b.y, 30) && fwd > -1.5 && !mem.dumpSeen.has(q) && trait.dump > 0) {
+          mem.dumpSeen.add(q);
+          if (simRandom() < trait.dump * 0.6) { mem.dumpT = 0.55; mem.dumpQ = q; }
+        }
       }
     }
     // near a turn mark there is no room inside: only dodge outward, otherwise lift off
@@ -1966,7 +1981,7 @@ function makeDriver(prof, trait = {}) {
   // Decided once per boat per turn; how often depends on temperament.
   function considerDump(b, others, dt) {
     mem.dumpT = Math.max(0, mem.dumpT - dt);
-    if (!nearMarkAt(b.x, b.y, 24)) { mem.dumpSeen.clear(); return; }
+    if (!nearMarkAt(b.x, b.y, 30)) { mem.dumpSeen.clear(); return; }
     if (mem.dumpT > 0 || !others || !(trait.dump > 0) || b.v < 8) return;
     const fx = Math.cos(b.a), fy = Math.sin(b.a);
     for (const q of others) {
@@ -2569,7 +2584,7 @@ const ENTRY = {
   dashSwing: 40,                                    // m further back than 2M a dash boat rounds (to come out ~200 m from the line)
   dashDepth: 16,                                    // m of extra run-up for a dash called the moment the boat leaves the pits
   gap: 6, gapT: 1.2,                                // 艇2つ分: closer than this behind a boat for this long = 間隔不足
-  slowX: -107, dashX: -190,                         // waiting spots (m before the line); a dash called early sits deeper
+  slowX: -117, dashX: -196,                         // waiting spots (m before the line); a dash called early sits deeper
   react: { TOP: 0.08, A1: 0.1, A2: 0.14, B1: 0.2, B2: 0.28 },   // pit reaction (s) by class
 };
 const SMALL_TURN_BUOY = { x: -MK + 20, y: 0 };      // 小回り防止ブイ: 20 m from 2M toward the centre (its real place); boats leaving the pits go round outside it
@@ -2683,7 +2698,7 @@ const thrFor = (v, vT) => clamp(0.25 + (vT - v) * 0.35, 0, 1);
 // The engine never stops: lever shut and sat up, a boat still runs on at about WAIT_V. So waiting is
 // timing — the only way to kill time is to swing the bow off the line (it then moves slower toward it),
 // and only so far. Arrive too early, or hold the lever too long, and the boat ends up deep (起こし short).
-const WAIT_V = 1.4;
+const WAIT_V = 1.8;   // m/s the hull settles at, lever shut and sat up (≈7 km/h)
 const creepAfter = ok => WAIT_V * Math.max(0, RUNUP - timeToLine(ok, WAIT_V) - 0.2) + 2;   // m still crept after the hand starts (till the lever opens)
 // steering for the pit-out loop: along the home side to the 小回り防止ブイ, round it (outside), back to 2M, round 2M
 function entryAim(b, R, stage, look, A = -MK) {
@@ -3322,11 +3337,16 @@ function fleetStep(dt, playerInput) {
     else if (e.rear >= 0 && e.J > 3) { const hit = fleet.boats[e.rear], vic = hit === A ? Bt : A; fleet.rears++; toast('追突', `${hit.no}号艇が${vic.no}号艇に後ろから接触`, 'bad'); }
     else if (e.J > 2.5) toast('接触', `${A.no}号艇と${Bt.no}号艇`, 'warn');
     // a heavy hit can put the boat that took the brunt of it over, or its rider in the water
-    const vic = e.JA >= e.JC ? A : Bt, other = vic === A ? Bt : A, vb = vic.b.wakeBump || 0;
-    const jLim = Math.max(3, 8 - 6 * vb);   // a boat bucking on a wave goes over far more easily
-    if (e.J > jLim) {
-      const p = clamp((e.J - jLim) / 12 * (1 + 2 * vb), 0, 0.5) * (RISK[vic.prof.name] || RISK.B1).hit;
-      if (!vic.out && simRandom() < p) accident(vic, simRandom() < 0.5 ? '転覆' : '落水', `${other.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : ''}`);
+    // a heavy hit can put either boat over — the one that took the brunt more likely, the one that hit it too —
+    // and far more easily when the hull was already unsettled (bucking on a wake, near its grip limit, sliding)
+    const vic = e.JA >= e.JC ? A : Bt, other = vic === A ? Bt : A;
+    for (const [x, y, share] of [[vic, other, 1], [other, vic, CAPSIZE.hitter]]) {
+      if (x.out) continue;
+      const xb = x.b, vb = xb.wakeBump || 0, unst = Math.max(0, (xb.load || 0) - 0.7) + Math.max(0, Math.abs(xb.vl) - 1.5) * 0.15;
+      const jLim = Math.max(CAPSIZE.jMin, CAPSIZE.j0 - 6 * vb - CAPSIZE.unstJ * unst);
+      if (e.J <= jLim) continue;
+      const p = clamp((e.J - jLim) / CAPSIZE.span * (1 + 2 * vb + CAPSIZE.unstP * unst), 0, 0.6) * share * (RISK[x.prof.name] || RISK.B1).hit;
+      if (simRandom() < p) { accident(x, simRandom() < 0.5 ? '転覆' : '落水', `${y.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : unst > 0.2 ? '（姿勢が乱れていた）' : x === other ? '（当てた側）' : ''}`); break; }
     }
   }
   fleetTimingStep(timingBefore,zero);
