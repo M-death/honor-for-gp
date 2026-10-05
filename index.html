@@ -2625,11 +2625,18 @@ function cpuPullDecide(r, boats, sp, T) {
   const staySlow = q => (q.en.wantIn && !q.en.gaveUp) || q.pref === 'in' || (q.player && !q.en.dash) || q.en.noPull;
   if (!boats.every(q => q.en.slot <= en.slot || q.en.dash || q.en.rewind || staySlow(q))) return;
   const need = Math.max(0, r.b.x - (-190)) / ENTRY.vPull + ENTRY.pullTurn;
+  // an outside boat (5, 6) that has already run out ahead of the 4 stays slow — the 4 can then pull
+  if (en.slot >= 5 && !en.pullAt) {
+    const four = boats.find(q => q.en.slot === 4 && !q.en.dash);
+    const needFour = four ? Math.max(0, four.b.x + 190) / ENTRY.vPull + ENTRY.pullTurn : 0;
+    // still not pulled when the 4 is down to its last moment, and out in front of it: too late — it stays slow and the 4 can go
+    if (four && !four.en.faced && T <= needFour + 4 && r.b.x > four.b.x + 3) { en.noPull = true; toast('スロー', `${r.no}号艇は引かずにスローへ`, 'info'); return; }
+  }
   if (en.pullAt == null) {
     if (r.pref === 'in') { en.noPull = true; return; }
     if (en.slot >= 4) {
       const last = en.slot === 4 || !boats.some(q => q.en.slot === en.slot - 1 && !q.en.dash && q.en.slot >= 4);
-      en.pullAt = en.slot >= 5 || r.pref === 'out' ? 3 + simRandom() * 10          // 6 (and 5 after it): early, unhurried
+      en.pullAt = en.slot >= 5 || r.pref === 'out' ? 10 + simRandom() * 12          // 6 (and 5 after it): early, with time to spare for the 4
         : simRandom() < ENTRY.kado.early4 ? 5 + simRandom() * 8 : 0.4 + simRandom() * 1.2;   // 4: at the last moment
       if (!last && en.slot === 4) en.pullAt = 0.4 + simRandom() * 1.2;
     } else {
@@ -2937,7 +2944,9 @@ function entryStep(dt, playerInput) {
     if (!auto) thr = playerInput ? playerInput.thr : 0;
     else thr = thrFor(b.v, vT);
     if (auto && en.hang) { holdIt = 'hang'; thr = 0; }   // rudder over, sat up: all but stopped (the engine still turns)
-    else if (auto && en.stage === 'wait') { if (vT < b.v + 0.1 || vT <= WAIT_V) { holdIt = true; thr = 0; } else thr = clamp(0.1 + (vT - b.v) * 0.5, 0, 0.6); }   // lever shut and sat up: it still runs on
+    // the player's own boat, once squared up: no pacing toward the line or keeping level with the boat outside —
+    // lever shut means sat up and drifting (the engine never stops), the rest is the player's lever
+    else if (auto && en.stage === 'wait') { if (r.player || vT < b.v + 0.1 || vT <= WAIT_V) { holdIt = true; thr = 0; } else thr = clamp(0.1 + (vT - b.v) * 0.5, 0, 0.6); }   // lever shut and sat up: it still runs on
     else if (auto && (vT <= 2 || vT < b.v - 0.8)) { holdIt = true; thr = 0; }   // settle: lever shut, sit up and let it die
     b.hold = holdIt;
     r.inp = { thr, steer, roll: 0, pitch: 0 };
@@ -2993,7 +3002,7 @@ function cpuDashEarly(r) {
   // the 6 has gone, an out-minded rider anywhere from the 3 out. The 4 doesn't — it waits.
   if (r.en.decided || r.en.wantIn || r.pref === 'in') return;
   const boats = fleet.boats, slot = r.en.slot, outerDash = boats.some(q => q.en.slot === slot + 1 && q.en.dash);
-  const p = r.pref === 'out' && slot >= 3 ? 0.6 : slot === 6 ? 0.35 : slot === 5 ? (outerDash ? 0.5 : 0) : 0;
+  const p = r.pref === 'out' && slot >= 3 ? 0.6 : slot === 6 ? 0.6 : slot === 5 ? (outerDash ? 0.7 : 0) : 0;
   if (p && boats.every(q => q.en.slot <= slot || q.en.dash) && simRandom() < p) {
     callDash(r);
     r.en.dashBonus = ENTRY.dashDepth * (0.55 + simRandom() * 0.45);
