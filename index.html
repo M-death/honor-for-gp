@@ -352,6 +352,13 @@ body.lab-running>#phoneSteerReadout{display:none!important}
   </div>
 </div>
 
+<div class="overlay" id="askBox" hidden style="z-index:9">
+  <div class="card" style="max-width:380px">
+    <p id="askMsg" style="color:var(--fg);font-size:15px"></p>
+    <div class="row"><button class="btn" id="askYes">はい</button><button class="btn ghost" id="askNo">いいえ</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="setsuNewBox" hidden>
   <div class="card" style="max-width:440px">
     <h1 style="font-size:22px"><small>節間モード</small>6日間の開催に参加</h1>
@@ -898,11 +905,11 @@ function lockLandscape() {
       const t = o.type || (portraitOk ? 'portrait' : 'landscape');
       o.lock(t).then(() => { orient.locked = true; }).catch(() => {});
     };
-    if (document.fullscreenElement) { lock(); return; }
-    if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(lock).catch(() => {});
+    if (document.fullscreenElement) { orient.full = true; lock(); return; }
+    if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { orient.full = true; lock(); }).catch(() => {});
   } catch (e) {}
 }
-const orient = { locked: false };
+const orient = { locked: false, full: false };   // full: the player had full screen (taken back on the next tap if lost)
 async function enableTiltInput(){
   let ok = true;
   // both requests fire inside the same tap so iOS still counts it as a user gesture
@@ -1793,11 +1800,11 @@ const SQUEEZE = { lead: 2, gap: 3.0, p: { 2: 0.4, 3: 0.85, 4: 0.6, 5: 0.45, 6: 0
                   resist: { calm: 0.06, normal: 0.15, aggr: 0.3 }, yieldLever: 0.55, yieldTime: 1.1,
                   fightCap: 0.08 };   // chance of going over per half-second of rubbing hulls while resisting (× class)
 const RISK = {
-  A1: { go: 0.06, ok: 0.85, acc: 0.15, hit: 0.6, fly: 0.004 },
-  A2: { go: 0.05, ok: 0.72, acc: 0.2,  hit: 0.8, fly: 0.006 },
-  B1: { go: 0.04, ok: 0.58, acc: 0.27, hit: 1.0, fly: 0.008 },
-  B2: { go: 0.035, ok: 0.42, acc: 0.34, hit: 1.2, fly: 0.012 },
-  TOP: { go: 0.08, ok: 0.93, acc: 0.1, hit: 0.45, fly: 0.003 },
+  A1: { go: 0.06, ok: 0.85, acc: 0.15, hit: 0.6, fly: 0.002 },
+  A2: { go: 0.05, ok: 0.72, acc: 0.2,  hit: 0.8, fly: 0.003 },
+  B1: { go: 0.04, ok: 0.58, acc: 0.27, hit: 1.0, fly: 0.004 },
+  B2: { go: 0.035, ok: 0.42, acc: 0.34, hit: 1.2, fly: 0.006 },
+  TOP: { go: 0.08, ok: 0.93, acc: 0.1, hit: 0.45, fly: 0.0015 },
 };
 // trait = { course, laneY, tactic: 'nige'|'sashi'|'makuri', lineOff, dump, care } (all optional for a lone boat)
 const CARVE = { TOP: 1, A1: 0.9, A2: 0.7, B1: 0.5, B2: 0.3 };   // how well a class carves out of a turn (sit-up → crouch, lean held)
@@ -1937,6 +1944,11 @@ function makeDriver(prof, trait = {}) {
     const spread = ST_SPREAD[1] + Math.max(0, cSpread - ST_SPREAD[1]) * (ST_OUT[prof.name] ?? 1);
     mem.stTarget = prof.st + ST_MARGIN * spread + (simRandom() * 2 - 1) * prof.stJit * 0.4;
     mem.stErr = (simRandom() * 2 - 1) * spread;
+    // the feel on the day: on top of the read of the clock, every start has its own error (class-dependent),
+    // and now and then a rider simply gets it wrong and is late (凹む)
+    const sf = START_FEEL[prof.name] || START_FEEL.B1;
+    const ge = gauss() * sf.sd; mem.stErr += (ge < 0 ? ge * 0.6 : ge) + sf.bias;   // early misses are caught more (放る) than late ones
+    if (simRandom() < sf.dent) mem.stErr += 0.08 + simRandom() * 0.17;
     mem.misread = false; mem.hou = false; mem.houed = false;
     if (simRandom() < (trait.flyRisk || 0)) { mem.stTarget = -0.01 - simRandom() * 0.05; mem.stErr = 0; mem.misread = true; }   // reads the clock wrong and never notices
     mem.cpuDecision=null;mem.cpuLine=null;mem.cpuWide=null;mem.cpuThreaded=false;mem.cpuSlotGap=null;mem.cpuReadAt=0;mem.cpuChangedAt=0;
@@ -2616,6 +2628,8 @@ const IDLE_V = 4.2;
 // and the flat-out ST below which a boat near the line throws the lever off (放る) instead of going early
 const ST_SPREAD = { 1: 0.05, 2: 0.11, 3: 0.11, 4: 0.08, 5: 0.10, 6: 0.10, kado: 0.08, def: 0.10 };   // 4カド (and 3カド) is the easiest start after the 1
 const ST_MARGIN = 0.5, HOU_AT = 0.01;
+// per-start error: sd (s), a bias added to the read, and the chance of a late one (凹み, +0.08〜0.25 s)
+const START_FEEL = { TOP: { sd: 0.03, bias: 0, dent: 0.02 }, A1: { sd: 0.035, bias: 0, dent: 0.035 }, A2: { sd: 0.045, bias: 0, dent: 0.05 }, B1: { sd: 0.05, bias: 0, dent: 0.07 }, B2: { sd: 0.06, bias: 0, dent: 0.1 } };
 // by class: how much of that extra outside-start difficulty it actually suffers
 const ST_OUT = { TOP: 0.4, A1: 0.5, A2: 0.8, B1: 1.1, B2: 1.3 };
 // 1コース逃げ: how far before 1M it eases the lever, to what (by class), and when it grips again (share of the arc)
@@ -3741,7 +3755,7 @@ $('dashBtn').addEventListener('click', () => playerDash());
 $('claimBtn').addEventListener('click', () => playerClaim());
 onEntryHandoff = () => { $('clock').hidden = false; buildCard(); };
 $('demoBtn').addEventListener('click', () => { initAudio(); if (!running || paused) return;
-  if (fleet && fleet.setsu) { if (!fleet.playerNo) setsuSkipWatch(); else if (confirm('このレースを棄権しますか？（欠場扱い・0点）')) setsuRaceDone(true); return; }
+  if (fleet && fleet.setsu) { if (!fleet.playerNo) setsuSkipWatch(); else { const was = paused; paused = true; askConfirm('このレースを棄権しますか？（欠場扱い・0点）', () => { paused = was; setsuRaceDone(true); }, () => { paused = was; last = performance.now(); }); } return; }
   fleet ? stopFleet() : entryMode ? startEntry(null) : startFleet(); });
 $('skipBtn').addEventListener('click', skipRace);
 // after an accident the order is frozen anyway, so jump straight to the result
@@ -4759,6 +4773,11 @@ const SETSU = {
   key: 'hfgp-setsu-v1',
   dayJa: ['前検日', '初日', '2日目', '3日目', '4日目', '5日目（準優勝戦）', '最終日（優勝戦）'],
 };
+// in-page yes/no (the browser's confirm() drops full screen on phones)
+let askCb = null;
+function askConfirm(msg, yes, no) { $('askMsg').textContent = msg; askCb = { yes, no }; $('askBox').hidden = false; }
+function askClose(ok) { $('askBox').hidden = true; const c = askCb; askCb = null; if (orient.full && !document.fullscreenElement) lockLandscape(); if (c) (ok ? c.yes : c.no)?.(); }
+if (typeof document !== 'undefined' && document.getElementById('askBox')) { $('askYes').addEventListener('click', () => askClose(true)); $('askNo').addEventListener('click', () => askClose(false)); }
 const SETSU_SEI = ['佐藤','鈴木','高橋','田中','渡辺','伊藤','山本','中村','小林','加藤','吉田','山田','佐々木','山口','松本','井上','木村','林','清水','山崎','森','池田','橋本','阿部','石川','前田','藤田','小川','岡田','後藤','長谷川','村上','近藤','石井','坂本','遠藤','青木','西村','福田','太田','三浦','藤原','岡本','松田','中川','中島','原田','小野','竹内','金子','和田','中山','石田','上田','森田','柴田','酒井','宮崎','横山','宮本'];
 const SETSU_MEI = ['大輔','拓也','翔太','健太','直樹','和也','達也','亮','誠','剛','哲也','雄一','隆之','浩二','慎吾','勇気','颯太','蓮','悠斗','陸','海斗','匠','航','聡','智也','学','修','純一','雅人','秀樹','大樹','祐介','俊介','武','龍之介','翼','優','光','真司','啓太','美咲','彩','愛','舞','遥','結衣','真由','千尋'];
 let setsu = null;
@@ -5048,6 +5067,8 @@ if (typeof document !== 'undefined' && document.getElementById('setsu')) {
   $('setsuGo').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsuNew($('setsuName').value.trim().slice(0, 12), $('setsuCls').value); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
   $('setsuResume').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsu = setsuLoad(); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
   $('setsuNewClose').addEventListener('click', () => { $('setsuNewBox').hidden = true; paused = false; last = performance.now(); });
+  // a tap is a user gesture: if full screen was lost somewhere, take it back
+  for (const id of ['setsuNext', 'setsuDay', 'setsuAll', 'setsuQuit', 'setsuGo', 'setsuResume']) $(id).addEventListener('click', () => { if (orient.full && !document.fullscreenElement) lockLandscape(); });
   $('setsuNext').addEventListener('click', () => {
     const done = setsu.day > 0 && setsuToday().every(r => r.result);
     if (setsu.day === 0 || (done && setsu.day < SETSU.days)) setsuNextDay();
@@ -5055,7 +5076,7 @@ if (typeof document !== 'undefined' && document.getElementById('setsu')) {
     else setsuAdvance('step');
   });
   $('setsuDay').addEventListener('click', () => setsuAdvance('day'));
-  $('setsuAll').addEventListener('click', () => { if (confirm('節の最後までおまかせで進めますか？（自分のレースもおまかせ）')) setsuAdvance('setsu'); });
+  $('setsuAll').addEventListener('click', () => askConfirm('節の最後までおまかせで進めますか？（自分のレースもおまかせ）', () => setsuAdvance('setsu')));
   $('setsuQuit').addEventListener('click', () => { setsuSave(); setsuHide(); paused = false; last = performance.now(); toast('節間モード', '中断しました。練習メニューの「節間モード」から続きができます', 'info'); });
   for (const b of document.querySelectorAll('#setsuTabs button')) b.addEventListener('click', () => { setsuPre = null; setsuTab = b.dataset.t; setsuRender(); });
 }
