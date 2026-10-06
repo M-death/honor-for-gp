@@ -309,7 +309,7 @@ body.lab-running>#phoneSteerReadout{display:none!important}
       <button class="btn" id="go">スタート</button>
       <button class="btn ghost" id="goDemo">6艇デモを見る</button>
       <button class="btn ghost" id="labLaunchStart">挙動検証（2〜6艇）</button>
-      <span style="font-size:12px;color:var(--muted)">PCでは W/S＝スロットル、A/D＝舵、矢印キー＝体重移動（↑伏せる／↓起こす）、Space＝引く（ピット離れモード）。コントローラなら 左トリガー＝スロットル、右スティック＝舵、左スティック＝体重移動、Aでスタート</span>
+      <span style="font-size:12px;color:var(--muted)">PCでは W/S＝スロットル、A/D＝舵、矢印キー＝体重移動（↑伏せる／↓起こす）、Space＝引く（ピット離れモード）。コントローラなら 左トリガー＝スロットル、右スティック＝舵、左スティック＝体重移動、Aでスタート／コース主張、Bで引く（ダッシュ）、Xで練習やり直し</span>
     </div>
   </div>
 </div>
@@ -964,7 +964,7 @@ $('again').addEventListener('click', () => { if (!running || paused) return; pau
 let practiceKind = 'race', soloKind = 'clock';
 const WAKU_NOTE = {
   p6: 'ランプの数字が消えて「ピット離れ」でアクセル。舵は自動で、アクセルだけで待機位置まで運びます（前付けなし）。2マークを回る前でも後でも、正対する前なら「引く」でダッシュ（引いた順に外のコース）。大時計が回り始めたらスタート。スリットを越えたら自動で1マークを回り、スリット写真で終了します。',
-  race: 'ランプの数字が消えて「ピット離れ」でアクセル。「主張」ボタン（コントローラはA）を押すたびに一つ内のコースを狙います（押さない限りコースは取りにいきません。主張中は白く点滅）。内の艇より2艇身前に出れば入れ替わり、内の艇は抵抗して前に出させまいとすることがあります。主張できるのは2マークまで。正対するまでに「引く」でダッシュ。待機中の舵は自動。スタート後は舵・体重移動・アクセルすべて自分で操作して3周（ゴールしたら自動で流します）。'
+  race: 'ランプの数字が消えて「ピット離れ」でアクセル。「主張」ボタン（コントローラはA）を押すたびに一つ内のコースを狙います（押さない限りコースは取りにいきません。主張中は白く点滅）。内の艇より2艇身前に出れば入れ替わり、内の艇は抵抗して前に出させまいとすることがあります。主張できるのは2マークまで。正対するまでに「引く」（コントローラはB）でダッシュ。待機中の舵は自動。スタート後は舵・体重移動・アクセルすべて自分で操作して3周（ゴールしたら自動で流します）。'
 };
 function closeMenu() { $('pmenu').hidden = true; paused = false; last = performance.now(); }
 function openWaku(kind) { practiceKind = kind; $('wakuNote').textContent = WAKU_NOTE[kind]; $('pmenu').hidden = true; paused = true; $('waku').hidden = false; }
@@ -1167,7 +1167,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)resetVirtua
 /* ---------- game controller (Gamepad API, standard layout) ----------
    LT = throttle lever (left hand, like the real boat; RT can be chosen in settings)
    right stick ←→ = rudder,  left stick ←→ = lean,  left stick ↑ = 伏せる / ↓ = 体を起こす
-   A = start / OK / もう一度,  X = 練習をやり直す,  Y = 引く,  Menu = settings,  B = close */
+   A = start / OK / もう一度 / コース主張,  X = 練習をやり直す,  B = 引く（待機行動中。画面が開いていれば閉じる）,  Y = 引く,  Menu = settings */
 const pad = { idx: -1, seenAt: -1, useRT: false, prev: [] };
 const padDz = v => Math.abs(v) < 0.12 ? 0 : (v - Math.sign(v) * 0.12) / 0.88;
 // Embedded views (like the in-app preview) can forbid controller access outright; then getGamepads
@@ -1196,6 +1196,7 @@ function pollPadButtons() {
     if (!$('settings').hidden) { paused = false; last = performance.now(); $('settings').hidden = true; }
     else if (!$('card').hidden) { paused = false; last = performance.now(); $('card').hidden = true; }
     else if (!$('meas').hidden) $('measClose').click();
+    else if (running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();   // 待機行動中: B = 引く（ダッシュ）
   }
   if (edge(2) && running && $('settings').hidden && $('card').hidden) restartPractice();   // X = 練習をやり直す
   if (edge(3) && running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();
@@ -2131,12 +2132,13 @@ function makeDriver(prof, trait = {}) {
       }
       const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
       steerT = clamp(err * 2 + av.steerAdd * 0.6);
-      let vT = clamp(8 + (nearWreck - 30) * 0.15, 8, 16);
+      let vT = clamp(CAUTION_V.near + (nearWreck - 30) * CAUTION_V.k, CAUTION_V.near - 1, CAUTION_V.far);   // 徐行 only near the wreck
       const q = env.caution.ahead;
       if (q) {
         const gap = Math.hypot(q.x - b.x, q.y - b.y);
         if (gap < 25) vT = Math.min(vT, q.v - (25 - gap) * 0.4);
-        if (gap < 12) vT = Math.min(vT, 3);
+        if (gap < 12) vT = Math.min(vT, q.v);
+        if (gap < 6) vT = Math.min(vT, 3);
       }
       thrT = clamp(0.3 + (vT - b.v) * 0.3, 0, 1);
       rollT = turnInfo(R, s).inTurn ? -0.4 : 0;
@@ -2231,6 +2233,21 @@ function makeDriver(prof, trait = {}) {
           if (tgt && tf < 1.5 && tf > -6 && simRandom() < (trait.tsuke ?? 0.5)) { tactic = 'tsuke'; mem.tsukeQ = tgt; }
         }
       }
+      // まくり見切り: just before 1M, a まくり that hasn't got clear of the boats inside (about a length in front)
+      // doesn't force it over the top of them — it switches to まくり差し (if it is close enough and has the nerve) or drops in behind
+      if (!courseCpu && first && env.others && !mem.squeeze) {
+        if (mem.makuriAbort) tactic = mem.makuriAbort;
+        else if (tactic === 'makuri' && b.x > MK - MAKURI_CHECK.at) {
+          mem.makuriAbort = null;
+          let lead = Infinity;
+          for (const q of env.others) { if (q === b || q.cap > 0 || q.y < 0 || q.y >= b.y - 0.5) continue; lead = Math.min(lead, b.x - q.x); }
+          if (lead < MAKURI_CHECK.lead) {
+            const aggr = trait.pushMul ?? 1;
+            mem.makuriAbort = lead > -MAKURI_CHECK.behind && simRandom() < MAKURI_CHECK.pMs * aggr ? 'makurisashi' : 'sashiPlace';
+            tactic = mem.makuriAbort;
+          } else mem.makuriAbort = 'makuri';
+        }
+      }
       if(courseCpu&&first){
         tactic=cpuChooseFirstMark(b,env,trait,mem);
         if(trait.preferredTactic&&trait.preferredTactic!=='auto')tactic=trait.preferredTactic;
@@ -2254,6 +2271,13 @@ function makeDriver(prof, trait = {}) {
       // 逃げ: hug the mark and turn first
       if (first && tactic === 'nige') {
         R = Math.max(8, prof.line - 3.5); pre += 2; gap -= 0.5;
+        // 流れる: decided once on the run-in — a 逃げ that swings wide off the buoy leaves the door open for the 差し
+        if (mem.nagare == null && b.x > MK - 40 && env.others) {
+          const outerAlong = env.others.some(q => q !== b && q.cap <= 0 && q.y > b.y && q.y - b.y < 6 && q.x - b.x > -3);
+          const p = (NIGE_NAGARE.p[prof.name] ?? 0.25) + (outerAlong ? NIGE_NAGARE.press : 0) + (env.others.some(q => q !== b && q.cap <= 0 && q.y > b.y && q.y - b.y < 12 && q.x - b.x > 2) ? NIGE_NAGARE.late : 0);   // an outside boat already in front (beaten at the start)
+          mem.nagare = simRandom() < p;
+        }
+        if (mem.nagare) { R += NIGE_NAGARE.R; gap += NIGE_NAGARE.gap; }
         // coming in hot off a 100 m run-up: blip the lever down just before the mark so it can turn tight
         // and shut the door on the 差し, then grip again as soon as it's pointing round
         const tiN = turnInfo(R, loopS(R, b.x, b.y, gap), gap);
@@ -2276,9 +2300,18 @@ function makeDriver(prof, trait = {}) {
         tThr = mem.sashiDrop ? k.lever : 1;
       }
       // 壁: stay on the gas and turn just outside the boat inside, so the まくり from outside can't get over
-      if (first && tactic === 'wall') { R = prof.line; gap = Math.max(gap, (prof.gap ?? 5) + 4); tThr = 1; }
+      // まくり・壁 don't aim at the buoy: they aim at the boat inside (the one they are going over / shutting out)
+      // and run just outside its line — the turn is taken round that boat, not round the mark
+      const tgt = first && (tactic === 'wall' || tactic === 'makuri') ? innerTarget(b, env) : null;
+      const tgtGap = q => { const mk = COURSE.marks[0]; return q.x < mk.x ? Math.abs(q.y - mk.y) : Math.hypot(q.x - mk.x, q.y - mk.y); };   // running in: how far off the buoy's line it is; going round: its radius
+      if (first && tactic === 'wall') { R = prof.line; gap = tgt ? clamp(tgtGap(tgt) + MAKURI_LINE.wall, prof.gap ?? 5, R) : Math.max(gap, (prof.gap ?? 5) + 4); tThr = 1; }
       // まくり: carry full speed and go over the top of the boats inside — just outside their line, not a wide sweep
-      if (first && tactic === 'makuri') { R = prof.line + 1.5 + (trait.course - 2) * 1.0; tThr = 1; pre += 5; gap = Math.min(R, gap + 2 + trait.course * 0.5); }
+      if (first && tactic === 'makuri') {
+        R = prof.line + 1.5 + (trait.course - 2) * 1.0; tThr = 1; pre += 5;
+        if (tgt) { const off = MAKURI_LINE.off - (MAKURI_LINE.off - MAKURI_LINE.offAhead) * clamp((b.x - tgt.x) / 3, 0, 1); gap = clamp(tgtGap(tgt) + off, (prof.gap ?? 5) + 1, MAKURI_LINE.maxGap); R = Math.max(R, gap); }   // the further in front, the closer over its bow
+        else gap = Math.min(R, gap + 2 + trait.course * 0.5);
+        mem.makuriTgt = tgt;
+      }
       if(first&&tactic==='makurisashi'){R=Math.max(prof.line,21);gap=Math.max(gap,9);pre+=3;tThr=.92;}
       // ツケマイ: ride 3 m outside the target's line, flat out, leaning in early and hard
       if (first && tactic === 'tsuke' && mem.tsukeQ) {
@@ -2511,6 +2544,15 @@ function makeDriver(prof, trait = {}) {
       if (first && tactic === 'wall' && !(mem.emergency > 0)) thrT = Math.max(thrT, 0.95);
       if (first && tactic === 'nige' && mem.nigeDrop) thrT = Math.min(thrT, NIGE_DROP.lever[prof.name] ?? 0.7);
       if (first && tactic === 'makuri' && !(mem.emergency > 0)) thrT = 1;   // まくり: flat out all the way round
+      // 差し順: on a 差し or 壁 line, a boat alongside on my inside turns first. Rather than turning side by side
+      // with it (and into it), lift and drop in about a length behind it — this is what strings the field out at 1M.
+      if (first && SASHI_ORDER.tactics.includes(tactic) && env.others && b.y > 0 && b.x > MK - (tactic === 'wall' ? SASHI_ORDER.atWall : SASHI_ORDER.at)) {
+        let q = null;
+        const win = tactic === 'sashiWin', clr = win ? SASHI_ORDER.win.clear : SASHI_ORDER.clear;
+        for (const o of env.others) { if (o === b || o.cap > 0 || o.y < 0 || o.y >= b.y - 0.5) continue; const d = o.x - b.x; if (d > -SASHI_ORDER.alongside && d < clr) { q = o; break; } }
+        mem.sashiYield = q;
+        if (q) { thrT = Math.min(thrT, win ? SASHI_ORDER.win.thr : SASHI_ORDER.thr); pitchT = Math.min(pitchT, 0); }
+      }
       if(first&&(courseCpu||tactic==='makurisashi')){
         if(tactic==='makurisashi'){
           thrT=Math.min(thrT,mem.cpuLine?.stage==='thread'?.90:1);
@@ -2545,6 +2587,22 @@ function makeDriver(prof, trait = {}) {
    Each boat: class (A1–B2 driver profile), entry preference, course, slow/dash start, first-turn tactic. */
 const LANE_COL = [['#f4f7f6', '#0a2c38'], ['#1f2629', '#f4f7f6'], ['#e0453c', '#ffffff'], ['#2f6fe0', '#ffffff'], ['#f2cf2e', '#1c1300'], ['#2fa35a', '#ffffff']];
 const STRAIGHT_X = MK - 23;   // |x| below this is straight water
+const SASHI_ORDER = { tactics: ['sashi', 'sashiWin', 'sashiPlace', 'wall'], at: 30, atWall: 18, alongside: 2.5, clear: 4, thr: 0.55, win: { clear: 2.5, thr: 0.72 } };
+const CAUTION_V = { near: 10, k: 0.25, far: 21 };   // m/s at the wreck, gain per m away, cap away from it
+// 流れ: how often the 逃げ swings wide off 1M (by class), and how much more under pressure / after a poor start
+const NIGE_NAGARE = { p: { TOP: 0.15, A1: 0.2, A2: 0.26, B1: 0.33, B2: 0.4 }, press: 0.15, late: 0.15, R: 3.5, gap: 2 };   // m before 1M; overlap window (m behind / ahead of the inside boat); lever while yielding
+const MAKURI_LINE = { off: 4, offAhead: 2.2, wall: 3, maxGap: 26, behind: 8 };   // m outside the target boat's line (まくり / 壁); ignore inside boats this far behind
+// the boat a まくり goes over: the nearest one inside me (on the home side) that isn't already well beaten
+function innerTarget(b, env) {
+  if (!env.others) return null;
+  let best = null;
+  for (const q of env.others) {
+    if (q === b || q.cap > 0 || q.y < 0 || q.y >= b.y - 0.5 || b.x - q.x > MAKURI_LINE.behind) continue;
+    if (!best || q.y > best.y) best = q;
+  }
+  return best;
+}
+const MAKURI_CHECK = { at: 35, lead: 1.5, behind: 4, pMs: 0.5 };   // m before 1M it decides; m in front it needs; within m behind it may still まくり差し
 const TACTIC_JA = { makurisashi:'まくり差し', tsuke: 'ツケマイ', wall: '壁', sashiWin: '差し（勝負）', sashiPlace: '差し（着取り）', nige: '逃げ', sashi: '差し', makuri: 'まくり' };
 const PREF_JA = { in: 'イン志向', waku: '枠なり', out: 'アウト志向' };
 const TEMPER = { calm: { ja: '慎重', dump: 0.05, care: 1.25 }, normal: { ja: '普通', dump: 0.3, care: 0.9 }, aggr: { ja: '攻撃的', dump: 0.75, care: 0.55 } };
@@ -3440,6 +3498,7 @@ function fleetStep(dt, playerInput) {
     if ((fleet.touchCool[key] || 0) > time) continue;
     fleet.touchCool[key] = time + 2;
     fleet.touches++;
+    (fleet.touchLog || (fleet.touchLog = [])).push({ t: time, a: A, b: Bt, J: e.J, x: e.x, y: e.y });
     sfxHit(e.x, e.y, e.J);
     // contact right after cutting across the victim's path is interference
     for (const [x, y] of [[A, Bt], [Bt, A]]) if (x.lastCut && x.lastCut.q === y && time - x.lastCut.t < 2.5 && !x.dq) disqualify(x, `斜行で${y.no}号艇と接触`);
