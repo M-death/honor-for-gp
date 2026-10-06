@@ -72,6 +72,29 @@ table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;widt
 #gear{pointer-events:auto;width:40px;height:40px;border-radius:50%;border:1px solid var(--hud-line);background:var(--hud);color:var(--fg);display:grid;place-items:center;cursor:pointer}
 #gear:focus-visible,.btn:focus-visible,.pill:focus-visible{outline:2px solid var(--lever);outline-offset:2px}
 [hidden]{display:none!important}
+#setsu .card{max-width:720px;padding:14px 14px}
+#setsuTabs{display:flex;gap:6px;margin:8px 0 4px;flex-wrap:wrap}
+#setsuTabs button.on{border-color:var(--lever);color:var(--lever)}
+.setsu-me{font-family:var(--f-num);font-size:13px;color:var(--fg);margin:2px 0 6px;word-break:break-all}
+.setsu-h{color:var(--fg)!important;font-weight:700;font-size:15px!important}
+.setsu-r{margin:8px 0;border:1px solid var(--hud-line);border-radius:10px;padding:6px 6px 2px}
+.setsu-r.mine{border-color:var(--lever)}
+.setsu-r.done{opacity:.82}
+.setsu-rh{display:flex;gap:8px;align-items:center;font-size:13px;padding:0 4px 4px}
+.setsu-rh .tag{font-size:11px;color:#1c1300;background:var(--lever);border-radius:4px;padding:1px 6px}
+.setsu-rh .wt{margin-left:auto;font-size:12px;color:var(--muted);display:flex;gap:4px;align-items:center}
+table.race.st{font-size:12px}
+table.race.st td,table.race.st th{padding:4px 5px}
+table.race.st td.nm{white-space:nowrap;max-width:9em;overflow:hidden;text-overflow:ellipsis}
+table.race.st td.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+table.race.st td.pl{font-weight:700;color:var(--lever)}
+table.race.st td.runs{white-space:normal;min-width:7em}
+table.race.st small{color:var(--muted);margin-left:2px}
+table.race.st tr.me td{background:rgba(255,180,46,.14)}
+.sw{font-style:normal;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:4px;font-family:var(--f-num);font-weight:600;font-size:12px;border:1px solid rgba(233,245,242,.4)}
+.setsu-seibi label{font-size:13px;display:flex;gap:6px;align-items:center}
+.setsu-seibi select,#setsuNewBox select,#setsuNewBox input{font:inherit;font-size:14px;background:var(--water-deep);color:var(--fg);border:1px solid var(--hud-line);border-radius:6px;padding:4px 6px}
+#setsuBody{overflow-x:auto}
 .pill{pointer-events:auto;height:34px;padding:0 14px;border-radius:20px;border:1px solid var(--hud-line);background:var(--hud);color:var(--fg);font:inherit;font-size:12px;font-weight:700;letter-spacing:.04em;cursor:pointer;white-space:nowrap}
 .clock{position:fixed;z-index:2;pointer-events:none;top:calc(6px + var(--st));left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:0}
 .clock svg{width:min(19vh,78px);height:min(19vh,78px);display:block}
@@ -322,8 +345,34 @@ body.lab-running>#phoneSteerReadout{display:none!important}
       <p style="margin:0 0 6px">バックストレッチから2マークを回り、スリットから2周。展示・直線・まわり足・一周タイムを計測。</p>
       <button class="btn ghost" id="pmClock">大時計スタート（1艇）</button>
       <button class="btn ghost" id="pmRace">レース練習（6艇・ピット離れから3周・全部自分で操作）</button>
+      <button class="btn" id="pmSetsu" style="margin-top:6px">節間モード（6日間・48人）</button>
+      <p style="margin:0 0 6px">前検でモーター抽選、予選4日の得点率で準優・優勝戦へ。自分のレースは自分で走るか、おまかせ。他のレースは結果だけ、または観戦。</p>
       <button class="btn ghost" id="pmClose">やめる</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="setsuNewBox" hidden>
+  <div class="card" style="max-width:440px">
+    <h1 style="font-size:22px"><small>節間モード</small>6日間の開催に参加</h1>
+    <p>前検日（モーター抽選・整備）→ 予選4日（1日1〜2走・計6走）→ 5日目 準優勝戦 → 最終日 優勝戦。48人の中で得点率を競います。</p>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:8px">
+      <label>選手名 <input id="setsuName" maxlength="12" value="あなた"></label>
+      <label>級 <select id="setsuCls"><option>A1</option><option>A2</option><option selected>B1</option><option>B2</option></select>（おまかせ時の強さ）</label>
+      <button class="btn" id="setsuGo">新しい節を始める</button>
+      <button class="btn ghost" id="setsuResume" hidden><span id="setsuResumeTxt">続きから</span></button>
+      <button class="btn ghost" id="setsuNewClose">やめる</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="setsu" hidden>
+  <div class="card">
+    <h1 style="font-size:22px" id="setsuTitle"></h1>
+    <div class="setsu-me" id="setsuMeLine"></div>
+    <div id="setsuTabs"><button class="pill" data-t="ban">番組・結果</button><button class="pill" data-t="rank">得点率</button><button class="pill" data-t="seibi">整備</button></div>
+    <div class="row" style="margin-top:4px"><button class="btn" id="setsuNext">次のレースへ</button><button class="btn ghost" id="setsuDay">今日の残りをおまかせ</button><button class="btn ghost" id="setsuAll">節の最後までおまかせ</button><button class="btn ghost" id="setsuQuit">中断</button></div>
+    <div id="setsuBody"></div>
   </div>
 </div>
 
@@ -925,6 +974,7 @@ function restartPractice() {
   for (const id of ['meas', 'pmenu', 'waku']) $(id).hidden = true;
   if (!$('slitPhoto').hidden) $('slitPhoto').hidden = true;
   paused = false; last = performance.now();
+  if (fleet && fleet.setsu) { toast('節間モード', '本番のレースはやり直せません', 'warn'); return; }
   if (fleet && fleet.playerNo) startEntry(fleet.playerNo, fleet.practice6 ? 'p6' : 'race');
   else if (fleet) nextRace();
   else soloRestart();
@@ -2645,7 +2695,7 @@ const SMALL_TURN_BUOY = { x: -MK + 20, y: 0 };      // 小回り防止ブイ: 20
 let onEntryHandoff = null;                          // UI hook
 
 function makeEntryFleet(playerNo, opts = {}) {
-  const rows = newRows(false);
+  const rows = opts.rows || newRows(false);
   const go = time + ENTRY.lamp;
   rows.forEach(r => {
     r.player = r.no === playerNo;
@@ -3167,9 +3217,10 @@ function entryHandoff() {
 }
 
 let entryMode = false;
-function startEntry(playerNo, kind = 'race') {
+function startEntry(playerNo, kind = 'race', opts = {}) {
   if (runLog) runLogEnd('途中でやり直し');
-  fleet = makeEntryFleet(playerNo, { noMae: kind === 'p6' });
+  fleet = makeEntryFleet(playerNo, { noMae: kind === 'p6', rows: opts.rows });
+  fleet.setsu = opts.setsu || null;
   fleet.practice6 = kind === 'p6'; fleet.noMae = kind === 'p6'; fleet.fullControl = !!playerNo && kind === 'race';
   ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
   input.thr = input.steer = input.roll = input.pitch = 0;
@@ -3179,6 +3230,7 @@ function startEntry(playerNo, kind = 'race') {
   refreshFleetUi();
 }
 function nextRace() {
+  if (fleet && fleet.setsu) return;   // 節間モード: the race decides what comes next
   if (fleet && fleet.playerNo) startEntry(fleet.playerNo);
   else if (entryMode) startEntry(null);
   else startFleet();
@@ -3207,7 +3259,7 @@ function stopFleet() {
   refreshFleetUi();
 }
 function refreshFleetUi() {
-  $('demoBtn').textContent = fleet ? (fleet.playerNo ? '練習をやめる' : '自分で操作') : '6艇デモ';
+  $('demoBtn').textContent = fleet ? (fleet.setsu ? (fleet.playerNo ? '棄権' : '結果へ') : fleet.playerNo ? '練習をやめる' : '自分で操作') : '6艇デモ';
   $('cardBtn').hidden = !fleet;
   $('skipBtn').hidden = true;
   $('demoTag').hidden = !fleet;
@@ -3428,7 +3480,7 @@ function fleetStep(dt, playerInput) {
     if(!lab.active)slitArchive(fleet.slit,fleet.boats,resultLine());
     if(!lab.active)setTimeout(() => toast('レース結果', fleet ? resultLine() : '', 'good'), 300);
   }
-  if (fleet.endAt && time > fleet.endAt) {if(lab.active)labFinish('レース終了');else nextRace();}
+  if (fleet.endAt && time > fleet.endAt) {if(lab.active)labFinish('レース終了');else if(fleet.setsu)setsuRaceDone();else nextRace();}
 }
 
 // Judge all boats before sorting: a faster crossing within the same step wins,
@@ -3590,7 +3642,7 @@ function buildCard() {
     const dsh = !r.motor ? '—' : r.motor.deashi >= 1.03 ? '◎' : r.motor.deashi >= 0.98 ? '○' : '△';
     const nb = !r.motor || r.motor.nobi == null ? '—' : r.motor.nobi >= 1.015 ? '◎' : r.motor.nobi >= 0.985 ? '○' : '△';
     const tl = r.b && r.b.tilt != null ? (r.b.tilt > 0 ? '+' : '') + r.b.tilt.toFixed(1) : '—';
-    const cells = [r.no, r.prof.top ? 'A1 ★トップ' : r.prof.name, (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh, nb, tl];
+    const cells = [r.no, (r.name ? r.name + ' ' : '') + (r.prof.top ? 'A1 ★トップ' : r.prof.name), (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh, nb, tl];
     cells.forEach((v, i) => {
       const td = document.createElement('td'); td.textContent = v;
       if (i === 0) { td.className = 'no'; td.style.background = r.col[0]; td.style.color = r.col[1]; }
@@ -3629,7 +3681,9 @@ $('wakuClose').addEventListener('click', () => { $('waku').hidden = true; paused
 $('dashBtn').addEventListener('click', () => playerDash());
 $('claimBtn').addEventListener('click', () => playerClaim());
 onEntryHandoff = () => { $('clock').hidden = false; buildCard(); };
-$('demoBtn').addEventListener('click', () => { initAudio(); if (!running || paused) return; fleet ? stopFleet() : entryMode ? startEntry(null) : startFleet(); });
+$('demoBtn').addEventListener('click', () => { initAudio(); if (!running || paused) return;
+  if (fleet && fleet.setsu) { if (!fleet.playerNo) setsuSkipWatch(); else if (confirm('このレースを棄権しますか？（欠場扱い・0点）')) setsuRaceDone(true); return; }
+  fleet ? stopFleet() : entryMode ? startEntry(null) : startFleet(); });
 $('skipBtn').addEventListener('click', skipRace);
 // after an accident the order is frozen anyway, so jump straight to the result
 function skipRace() {
@@ -4630,6 +4684,323 @@ labFill(labDefault());
 try{setControlMode(localStorage.getItem('honorGP.controlMode')||(localStorage.getItem('honorGP.virtualPosture')==='1'?'pad':'tilt'),false);}catch(_){setControlMode('tilt',false);}
 
 /* ---------- loop ---------- */
+/* ---------- 節間モード (6日間: 前検 → 予選4日 → 準優 → 優勝戦) ----------
+   48 riders (you + 47 CPU). 前検: motor lottery. 予選 days 1–4: 12 races a day, 6 rides each (1 or 2 a day,
+   every 枠 about once), 着順点 10/8/6/4/2/1 → 得点率. F / L = 賞典除外. Day 5: top 18 → 準優 10–12R.
+   Day 6: 準優 1・2着 → 優勝戦 12R. Races you are not in are worked out instantly (or watched on the water);
+   your own you ride yourself or leave to おまかせ (safe riding: no F, but it costs places). */
+const SETSU = {
+  days: 6, perDay: 12, pts: [10, 8, 6, 4, 2, 1], foulPts: -5,
+  cls: { A1: 8, A2: 10, B1: 24, B2: 5 },
+  skill: { A1: 0.7, A2: 0.35, B1: 0, B2: -0.45 },
+  courseW: [0.53, 0.14, 0.12, 0.11, 0.06, 0.04], skillK: 1.25, motorK: 9,
+  fly: { A1: 0.002, A2: 0.003, B1: 0.004, B2: 0.006 }, acc: 0.004, omakase: -0.45,
+  props: { deashi: { ja: '出足型', d: 0.015, n: -0.01 }, bal: { ja: 'バランス', d: 0, n: 0 }, nobi: { ja: '伸び型', d: -0.012, n: 0.012 } },
+  tilts: [-0.5, 0, 0.5, 1, 1.5, 2, 3],
+  key: 'hfgp-setsu-v1',
+  dayJa: ['前検日', '初日', '2日目', '3日目', '4日目', '5日目（準優勝戦）', '最終日（優勝戦）'],
+};
+const SETSU_SEI = ['佐藤','鈴木','高橋','田中','渡辺','伊藤','山本','中村','小林','加藤','吉田','山田','佐々木','山口','松本','井上','木村','林','清水','山崎','森','池田','橋本','阿部','石川','前田','藤田','小川','岡田','後藤','長谷川','村上','近藤','石井','坂本','遠藤','青木','西村','福田','太田','三浦','藤原','岡本','松田','中川','中島','原田','小野','竹内','金子','和田','中山','石田','上田','森田','柴田','酒井','宮崎','横山','宮本'];
+const SETSU_MEI = ['大輔','拓也','翔太','健太','直樹','和也','達也','亮','誠','剛','哲也','雄一','隆之','浩二','慎吾','勇気','颯太','蓮','悠斗','陸','海斗','匠','航','聡','智也','学','修','純一','雅人','秀樹','大樹','祐介','俊介','武','龍之介','翼','優','光','真司','啓太','美咲','彩','愛','舞','遥','結衣','真由','千尋'];
+let setsu = null;
+
+const setsuRand = n => Math.floor(Math.random() * n);
+function setsuShuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = setsuRand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const setsuMe = () => setsu && setsu.racers.find(q => q.player);
+function setsuMotorDraw() {
+  const deashi = 0.95 + Math.random() * 0.1, nobi = 0.96 + Math.random() * 0.06;
+  const m2 = Math.round(clamp(30 + 260 * ((deashi - 1) * 0.6 + (nobi - 0.99) * 0.4) + (Math.random() - 0.5) * 10, 14, 58));
+  return { deashi, nobi, m2 };
+}
+function setsuNew(name, cls) {
+  const racers = [], used = new Set();
+  const nm = () => { for (;;) { const s = SETSU_SEI[setsuRand(SETSU_SEI.length)] + ' ' + SETSU_MEI[setsuRand(SETSU_MEI.length)]; if (!used.has(s)) { used.add(s); return s; } } };
+  const add = (c, player) => racers.push({ id: racers.length, name: player ? (name || 'あなた') : nm(), cls: c, player: !!player,
+    temper: player ? 'normal' : pickW([['calm', 3], ['normal', 5], ['aggr', 2]]), pref: player ? 'waku' : pickW([['waku', 9], ['in', 0.6], ['out', 0.6]]),
+    runs: [], excl: false, tilt: -0.5, prop: 'bal' });
+  add(cls, true);
+  for (const [c, n] of Object.entries(SETSU.cls)) for (let i = 0; i < n - (c === cls ? 1 : 0); i++) add(c, false);
+  while (racers.length < 48) add('B1', false);
+  // 前検: motor and boat lottery
+  const nos = setsuShuffle([...Array(60).keys()].map(i => i + 11));
+  racers.forEach((q, i) => { q.motorNo = nos[i]; q.motor = setsuMotorDraw(); q.boatNo = 10 + setsuRand(70); });
+  setsu = { v: 1, day: 0, racers, races: [], champ: null, log: [], watchAll: false };
+  setsuPrelims();
+  setsuSave();
+  return setsu;
+}
+// how many times each rider has had each 枠 so far, and an assignment of 6 riders to 枠 that spreads them
+function setsuSeat(ids) {
+  const cnt = id => setsu.racers[id].wakuCnt || (setsu.racers[id].wakuCnt = [0, 0, 0, 0, 0, 0]);
+  let best = null, bestC = Infinity;
+  const perm = (arr, k) => {
+    if (k === arr.length) { const c = arr.reduce((s, id, w) => s + cnt(id)[w] * 10 + Math.random(), 0); if (c < bestC) { bestC = c; best = arr.slice(); } return; }
+    for (let i = k; i < arr.length; i++) { [arr[k], arr[i]] = [arr[i], arr[k]]; perm(arr, k + 1); [arr[k], arr[i]] = [arr[i], arr[k]]; }
+  };
+  perm(ids.slice(), 0);
+  best.forEach((id, w) => cnt(id)[w]++);
+  return best;
+}
+function setsuRace(day, R, kind, ids, seat = true) { return { day, R, kind, entries: seat ? setsuSeat(ids) : ids, result: null, watch: false }; }
+// fill races [r0..r1] (1-based) with the riders: first-half rides then second-half rides, 6 per race
+function setsuFill(day, first, second, rFirst, rSecond, kind) {
+  const out = [];
+  const chunk = (ids, from) => { ids = setsuShuffle(ids); for (let i = 0; i < ids.length; i += 6) out.push(setsuRace(day, from + i / 6, kind(from + i / 6), ids.slice(i, i + 6))); };
+  chunk(first, rFirst); chunk(second, rSecond);
+  return out;
+}
+function setsuPrelims() {
+  const ids = setsuShuffle(setsu.racers.map(q => q.id)), A = ids.slice(0, 24), Bg = ids.slice(24);
+  for (let d = 1; d <= 4; d++) {
+    const dbl = d % 2 ? A : Bg, sgl = setsuShuffle(d % 2 ? Bg : A);
+    setsu.races.push(...setsuFill(d, [...dbl, ...sgl.slice(0, 12)], [...dbl, ...sgl.slice(12)], 1, 7, () => '予選'));
+  }
+}
+const setsuQualPts = q => q.runs.filter(x => x.kind === '予選');
+function setsuRate(q) { const r = setsuQualPts(q); return r.length ? r.reduce((s, x) => s + x.pts, 0) / r.length : 0; }
+function setsuStandings() {
+  return setsu.racers.slice().sort((a, b) => (a.excl - b.excl) || (setsuRate(b) - setsuRate(a)) || (b.runs.filter(x => x.place === 1).length - a.runs.filter(x => x.place === 1).length) || (a.id - b.id));
+}
+function setsuBuildDay(d) {
+  if (setsu.races.some(r => r.day === d)) return;
+  if (d === 5) {
+    const st = setsuStandings(), q18 = st.filter(q => !q.excl).slice(0, 18), rest = setsu.racers.filter(q => !q18.includes(q)).map(q => q.id);
+    for (const [R, k] of [[12, 0], [11, 1], [10, 2]]) setsu.races.push(setsuRace(5, R, '準優勝戦', [0, 1, 2, 3, 4, 5].map(i => q18[i * 3 + k] && q18[i * 3 + k].id).filter(x => x != null), false));
+    const two = setsuShuffle(rest).slice(0, 24);
+    setsu.races.push(...setsuFill(5, rest, two, 1, 6, R => R >= 8 ? '特別選抜' : '一般戦'));
+  } else if (d === 6) {
+    const semis = setsu.races.filter(r => r.day === 5 && r.kind === '準優勝戦');
+    const ok = id => !(setsu.racers[id].runs.find(x => x.day === 5 && x.kind === '準優勝戦' && (x.mark === 'F' || x.mark === 'L')));
+    const firsts = [], seconds = [], thirds = [];
+    for (const r of semis) { const o = (r.result ? r.result.order : []).filter(ok); if (o[0] != null) firsts.push(o[0]); if (o[1] != null) seconds.push(o[1]); if (o[2] != null) thirds.push(o[2]); }
+    const byRate = a => a.sort((x, y) => setsuRate(setsu.racers[y]) - setsuRate(setsu.racers[x]));
+    let fin = [...byRate(firsts), ...byRate(seconds)];
+    for (const id of byRate(thirds)) if (fin.length < 6) fin.push(id);
+    const restAll = setsu.racers.map(q => q.id).filter(id => !fin.includes(id));
+    while (fin.length < 6) fin.push(restAll.pop());
+    setsu.races.push(setsuRace(6, 12, '優勝戦', fin, false));
+    const rest = setsu.racers.map(q => q.id).filter(id => !fin.includes(id));
+    setsu.races.push(...setsuFill(6, rest, setsuShuffle(rest).slice(0, 24), 1, 8, R => R >= 10 ? '特別選抜' : '一般戦'));
+  }
+  setsu.races.sort((a, b) => a.day - b.day || a.R - b.R);
+}
+const setsuToday = () => setsu.races.filter(r => r.day === setsu.day).sort((a, b) => a.R - b.R);
+const setsuHasMe = r => r.entries.includes(setsuMe().id);
+function setsuMotor(q) { const p = SETSU.props[q.prop] || SETSU.props.bal; return { deashi: q.motor.deashi + (q.player ? p.d : 0), nobi: q.motor.nobi + (q.player ? p.n : 0) }; }
+// 出走表 → the rows the race engine takes
+function setsuRows(race) {
+  return race.entries.map((id, i) => {
+    const q = setsu.racers[id];
+    return { no: i + 1, sid: id, name: q.name, prof: DRIVERS.find(d => d.name === q.cls) || DRIVERS[2], pref: q.player ? 'waku' : q.pref,
+             key: i + 1 + (q.pref === 'in' && !q.player ? -2.6 : q.pref === 'out' && !q.player ? 2.6 : 0) + Math.random() * 0.1,
+             temper: q.temper, motor: setsuMotor(q), col: LANE_COL[i] };
+  });
+}
+// instant result: Plackett–Luce on course × skill × machine, with the odd フライング and 転覆
+function setsuQuick(race, omakase) {
+  const res = { order: [], marks: {}, st: {}, fouls: {}, quick: true };
+  const pool = [];
+  race.entries.forEach((id, i) => {
+    const q = setsu.racers[id], safe = q.player && omakase, m = setsuMotor(q);
+    const prof = DRIVERS.find(d => d.name === q.cls) || DRIVERS[2];
+    let st = Math.max(0.01, (safe ? 0.2 : prof.st + 0.04) + (Math.random() + Math.random() - 1) * (safe ? 0.05 : prof.stJit * 2 + 0.03));
+    if (!safe && Math.random() < (SETSU.fly[q.cls] || 0.004)) { res.marks[id] = 'F'; res.st[id] = -(0.01 + Math.random() * 0.04); return; }
+    res.st[id] = st;
+    if (Math.random() < SETSU.acc * (safe ? 0.3 : 1)) { res.marks[id] = Math.random() < 0.5 ? '転' : '落'; return; }
+    const s = (SETSU.skill[q.cls] ?? 0) + (safe ? SETSU.omakase : 0) + SETSU.motorK * ((m.deashi - 1) * 0.6 + (m.nobi - 0.99) * 0.4) - (st - 0.15) * 2;
+    pool.push({ id, w: SETSU.courseW[i] * Math.exp(SETSU.skillK * s) });
+  });
+  while (pool.length) {
+    let r = Math.random() * pool.reduce((a, p) => a + p.w, 0), k = 0;
+    for (; k < pool.length - 1; k++) if ((r -= pool[k].w) < 0) break;
+    res.order.push(pool[k].id); pool.splice(k, 1);
+  }
+  return res;
+}
+function setsuRecord(race, res) {
+  race.result = res;
+  race.entries.forEach((id, i) => {
+    const q = setsu.racers[id], idx = res.order.indexOf(id), mark = res.marks[id] || null;
+    const place = idx >= 0 ? idx + 1 : null;
+    let pts = place ? SETSU.pts[place - 1] : 0;
+    if (res.fouls && res.fouls[id]) pts += SETSU.foulPts * res.fouls[id];
+    q.runs.push({ day: race.day, R: race.R, kind: race.kind, waku: i + 1, place, mark, pts, st: res.st[id], self: !!(q.player && res.self) });
+    if (mark === 'F' || mark === 'L') q.excl = true;
+  });
+  if (race.kind === '優勝戦' && res.order.length) setsu.champ = res.order[0];
+}
+function setsuMyToast(race) {
+  const me = setsuMe(), x = me.runs.find(r => r.day === race.day && r.R === race.R); if (!x) return;
+  toast(`${race.R}R ${race.kind}`, x.mark ? `あなた ${x.mark}` : `あなた ${x.place}着（${x.pts}点）`, x.place === 1 ? 'good' : x.mark ? 'bad' : 'info');
+}
+function setsuSave() { try { localStorage.setItem(SETSU.key, JSON.stringify(setsu)); } catch (e) {} }
+function setsuLoad() { try { const s = JSON.parse(localStorage.getItem(SETSU.key) || 'null'); return s && s.v === 1 ? s : null; } catch (e) { return null; } }
+function setsuClear() { try { localStorage.removeItem(SETSU.key); } catch (e) {} }
+
+/* ---- flow ---- */
+let setsuTab = 'ban', setsuPre = null;   // setsuPre: the race of mine waiting to start (pre-race panel)
+function setsuOpen() { paused = true; $('setsu').hidden = false; setsuRender(); }
+function setsuHide() { $('setsu').hidden = true; }
+// run the day forward: instant results until a race that needs me (mine, or one marked to watch)
+function setsuAdvance(mode = 'step') {
+  if (!setsu) return;
+  if (setsu.day === 0) { setsuNextDay(); if (mode !== 'setsu') return; }
+  for (const race of setsuToday()) {
+    if (race.result) continue;
+    const mine = setsuHasMe(race);
+    if (mine && mode === 'step') { setsuPre = race; setsuRender(); return; }
+    if (!mine && race.watch && mode === 'step') { setsuRun(race, false); return; }
+    setsuRecord(race, setsuQuick(race, mine));
+  }
+  setsuSave();
+  if (mode === 'setsu' && setsu.day < SETSU.days) { setsuNextDay(); setsuAdvance('setsu'); return; }
+  setsuRender();
+}
+function setsuNextDay() {
+  if (setsu.day >= SETSU.days) return;
+  setsu.day++; setsuBuildDay(setsu.day); setsuPre = null; setsuTab = 'ban'; setsuSave(); setsuRender();
+}
+// on the water: my race (I ride) or a race I watch
+function setsuRun(race, ride) {
+  const rows = setsuRows(race), me = setsuMe();
+  const myNo = ride ? race.entries.indexOf(me.id) + 1 : null;
+  if (ride) { playerTilt = me.tilt; const ts = $('tiltSel'); if (ts) ts.value = String(me.tilt); }
+  setsuHide(); setsuPre = null; paused = false; last = performance.now(); initAudio();
+  if (!$('slitPhoto').hidden) $('slitPhoto').hidden = true;
+  startEntry(myNo, 'race', { rows, setsu: { race } });
+  toast(`${SETSU.dayJa[setsu.day]} ${race.R}R ${race.kind}`, ride ? `${myNo}号艇で出走` : '観戦中（「結果へ」で飛ばせます）', 'info');
+}
+// the race on the water is over: read the result off the fleet
+function setsuRaceDone(abandon) {
+  const f = fleet, race = f.setsu.race;
+  const res = { order: [], marks: {}, st: {}, fouls: {}, self: !!f.playerNo };
+  for (const r of f.rank) {
+    res.st[r.sid] = r.st;
+    if (r.entryViol && r.entryViol.length) res.fouls[r.sid] = r.entryViol.length;
+    if (r.flying) res.marks[r.sid] = 'F';
+    else if (r.st != null && r.st > 1) res.marks[r.sid] = 'L';
+    else if (r.out) res.marks[r.sid] = r.out === '落水' ? '落' : '転';
+    else if (abandon && r.player) res.marks[r.sid] = '欠';
+    else if (r.dq) res.marks[r.sid] = '失';
+    else if (r.fin != null || r.skipped) res.order.push(r.sid);
+  }
+  // still out on the course (cut short): in their running order
+  for (const r of f.rank) if (!res.marks[r.sid] && !res.order.includes(r.sid)) res.order.push(r.sid);
+  if (runLog) runLogEnd('節間');
+  fleet = null; $('order').hidden = true; refreshFleetUi();
+  setsuRecord(race, res); setsuSave();
+  if (res.self) setsuMyToast(race);
+  setsuOpen();
+}
+// 観戦をやめる: the rest of this race is worked out instantly
+function setsuSkipWatch() {
+  const race = fleet.setsu.race;
+  fleet = null; $('order').hidden = true; refreshFleetUi();
+  setsuRecord(race, setsuQuick(race, false)); setsuSave(); setsuOpen();
+}
+
+/* ---- screen ---- */
+const setsuEsc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const setsuMark = (x) => x.mark ? x.mark : x.place ? String(x.place) : '-';
+function setsuChip(i) { const c = LANE_COL[i]; return `<i class="sw" style="background:${c[0]};color:${c[1]}">${i + 1}</i>`; }
+function setsuRaceTable(race) {
+  const res = race.result;
+  const rows = race.entries.map((id, i) => {
+    const q = setsu.racers[id];
+    const run = res ? q.runs.find(x => x.day === race.day && x.R === race.R) : null;
+    const st = res && res.st[id] != null ? (res.st[id] < 0 ? 'F' + (-res.st[id]).toFixed(2).slice(1) : res.st[id].toFixed(2).replace(/^0/, '')) : '';
+    return `<tr class="${q.player ? 'me' : ''}"><td>${setsuChip(i)}</td><td class="nm">${setsuEsc(q.name)}</td><td>${q.cls}</td><td class="num">${setsuRate(q).toFixed(2)}</td><td class="num">${q.motorNo}<small>(${q.motor.m2}%)</small></td><td class="num pl">${run ? setsuMark(run) : ''}</td><td class="num">${st}</td></tr>`;
+  }).join('');
+  return `<table class="race st"><thead><tr><th>枠</th><th>選手</th><th>級</th><th>得点率</th><th>モーター</th><th>着</th><th>ST</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function setsuRender() {
+  if (!setsu) return;
+  const me = setsuMe(), st = setsuStandings(), myRank = st.indexOf(me) + 1;
+  const d = setsu.day;
+  $('setsuTitle').innerHTML = `<small>節間モード ・ ${setsuEsc(me.name)}（${me.cls}）</small>${SETSU.dayJa[d]}`;
+  $('setsuMeLine').textContent = d === 0 ? `モーター ${me.motorNo}号機（2連率 ${me.motor.m2}%）・ボート ${me.boatNo}号艇`
+    : `得点率 ${setsuRate(me).toFixed(2)}（${me.excl ? '賞典除外' : myRank + '位/48'}）  ` + me.runs.map(setsuMark).join(' ');
+  for (const b of document.querySelectorAll('#setsuTabs button')) b.classList.toggle('on', b.dataset.t === setsuTab && !setsuPre);
+  const body = $('setsuBody'); let h = '';
+  const done = d > 0 && setsuToday().every(r => r.result);
+  if (setsuPre) {
+    h += `<p class="setsu-h">${setsuPre.R}R ${setsuPre.kind} — あなたは${setsuPre.entries.indexOf(me.id) + 1}号艇</p>`;
+    h += `<div class="row"><button class="btn" id="sRide">自分で走る</button><button class="btn ghost" id="sAuto">おまかせ（安全運転）</button><button class="btn ghost" id="sBack">戻る</button></div>`;
+    h += setsuRaceTable(setsuPre) + setsuSeibi() + `<p>おまかせは無理をしない走りで、フライングや事故は起きませんが、着順は自分で走るより落ちやすくなります。</p>`;
+  } else if (setsuTab === 'ban') {
+    if (d === 0) h += `<p class="setsu-h">前検日：モーター・ボートの抽選</p><p>あなたは <b>${me.motorNo}号機</b>（2連率 ${me.motor.m2}%）、<b>${me.boatNo}号艇</b>を引きました。「整備」でチルトとペラを決めて、初日へ進みます。</p>` + setsuMotorLine(me);
+    else for (const race of setsuToday()) {
+      const mine = setsuHasMe(race);
+      const watch = !race.result && !mine ? `<label class="wt"><input type="checkbox" data-w="${race.R}" ${race.watch ? 'checked' : ''}>観戦</label>` : '';
+      h += `<div class="setsu-r ${mine ? 'mine' : ''} ${race.result ? 'done' : ''}"><div class="setsu-rh"><b>${race.R}R</b> ${race.kind}${mine ? ' <span class="tag">出走</span>' : ''}${watch}</div>${setsuRaceTable(race)}</div>`;
+    }
+    if (d === SETSU.days && done) {
+      const c = setsu.racers[setsu.champ];
+      h = `<p class="setsu-h">優勝 ${c ? setsuEsc(c.name) + '（' + c.cls + '）' : '—'}${c && c.player ? ' — おめでとう！' : ''}</p>` + setsuSummary() + (() => { const f = setsu.races.find(r => r.kind === '優勝戦'); return f ? `<div class="setsu-r mine"><div class="setsu-rh"><b>12R</b> 優勝戦</div>${setsuRaceTable(f)}</div>` : ''; })() + h;
+    }
+  } else if (setsuTab === 'rank') {
+    h += `<table class="race st"><thead><tr><th>順</th><th>選手</th><th>級</th><th>得点率</th><th>成績</th></tr></thead><tbody>` +
+      st.map((q, i) => `<tr class="${q.player ? 'me' : ''}"><td class="num">${q.excl ? '除' : i + 1}</td><td class="nm">${setsuEsc(q.name)}</td><td>${q.cls}</td><td class="num">${setsuRate(q).toFixed(2)}</td><td class="num runs">${q.runs.map(setsuMark).join(' ')}</td></tr>`).join('') + `</tbody></table><p>予選は 1着10・2着8・3着6・4着4・5着2・6着1点の平均（得点率）。待機行動違反は1回につき${SETSU.foulPts}点。フライング・出遅れは賞典除外（準優・優勝戦に乗れません）。上位18人が5日目の準優勝戦へ、準優の1・2着が優勝戦へ。</p>`;
+  } else if (setsuTab === 'seibi') {
+    h += setsuMotorLine(me) + setsuSeibi();
+  }
+  body.innerHTML = h;
+  const cd = $('setsu').querySelector('.card'); if (cd) cd.scrollTop = 0;
+  const nx = $('setsuNext');
+  nx.hidden = !!setsuPre;
+  nx.textContent = d === 0 ? '初日へ' : done ? (d < SETSU.days ? '翌日へ' : '節を終える') : '次のレースへ';
+  $('setsuDay').hidden = !!setsuPre || d === 0 || done;
+  $('setsuAll').hidden = !!setsuPre || (d === SETSU.days && done);
+  wireSetsuBody();
+}
+function setsuMotorLine(q) {
+  const m = setsuMotor(q), r = (v, a, b) => v >= a ? '◎' : v >= b ? '○' : '△';
+  return `<p>モーター ${q.motorNo}号機 2連率 ${q.motor.m2}% ・ 出足 ${r(m.deashi, 1.03, 0.98)} ・ 伸び ${r(m.nobi, 1.015, 0.985)}（ペラ調整込み）</p>`;
+}
+function setsuSeibi() {
+  const me = setsuMe();
+  const tl = SETSU.tilts.map(t => `<option value="${t}" ${t === me.tilt ? 'selected' : ''}>${t > 0 ? '+' : t < 0 ? '−' : ''}${Math.abs(t).toFixed(1)}</option>`).join('');
+  const pr = Object.entries(SETSU.props).map(([k, p]) => `<option value="${k}" ${k === me.prop ? 'selected' : ''}>${p.ja}</option>`).join('');
+  return `<div class="row setsu-seibi"><label>チルト <select id="sTilt">${tl}</select></label><label>ペラ <select id="sProp">${pr}</select></label></div><p>チルトを上げると伸びが出る代わりに出足とターンが甘くなります。ペラは出足型・伸び型で機力の向きを少し変えます（おまかせのときも反映）。</p>`;
+}
+function setsuSummary() {
+  const me = setsuMe(), runs = me.runs;
+  const wins = runs.filter(x => x.place === 1).length, n = runs.length;
+  const fin = runs.find(x => x.kind === '優勝戦'), semi = runs.find(x => x.kind === '準優勝戦');
+  return `<p>あなたの節：${n}走 ${wins}勝 ・ 予選得点率 ${setsuRate(me).toFixed(2)}${me.excl ? '（賞典除外）' : ''} ・ ${fin ? '優勝戦 ' + setsuMark(fin) + '着' : semi ? '準優 ' + setsuMark(semi) + '着' : '予選敗退'}</p>`;
+}
+function wireSetsuBody() {
+  for (const cb of document.querySelectorAll('#setsuBody input[data-w]')) cb.addEventListener('change', e => { const r = setsuToday().find(x => x.R === +e.target.dataset.w); if (r) { r.watch = e.target.checked; setsuSave(); } });
+  const me = setsuMe();
+  const t = $('sTilt'); if (t) t.addEventListener('change', e => { me.tilt = +e.target.value; setsuSave(); });
+  const p = $('sProp'); if (p) p.addEventListener('change', e => { me.prop = e.target.value; setsuSave(); setsuRender(); });
+  const ride = $('sRide'); if (ride) ride.addEventListener('click', () => setsuRun(setsuPre, true));
+  const auto = $('sAuto'); if (auto) auto.addEventListener('click', () => { const r = setsuPre; setsuPre = null; setsuRecord(r, setsuQuick(r, true)); setsuSave(); setsuMyToast(r); setsuRender(); });
+  const back = $('sBack'); if (back) back.addEventListener('click', () => { setsuPre = null; setsuRender(); });
+}
+function setsuStart() {
+  const saved = setsuLoad();
+  $('setsuResume').hidden = !saved;
+  if (saved) $('setsuResumeTxt').textContent = `続き：${saved.racers.find(q => q.player).name}・${SETSU.dayJa[saved.day]}`;
+  $('pmenu').hidden = true; paused = true; $('setsuNewBox').hidden = false;
+}
+if (typeof document !== 'undefined' && document.getElementById('setsu')) {
+  $('pmSetsu').addEventListener('click', () => { if (fleet) quitFleet(); setsuStart(); });
+  $('setsuGo').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsuNew($('setsuName').value.trim().slice(0, 12), $('setsuCls').value); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
+  $('setsuResume').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsu = setsuLoad(); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
+  $('setsuNewClose').addEventListener('click', () => { $('setsuNewBox').hidden = true; paused = false; last = performance.now(); });
+  $('setsuNext').addEventListener('click', () => {
+    const done = setsu.day > 0 && setsuToday().every(r => r.result);
+    if (setsu.day === 0 || (done && setsu.day < SETSU.days)) setsuNextDay();
+    else if (done) { setsuClear(); setsu = null; setsuHide(); paused = false; last = performance.now(); toast('節間モード', '節が終わりました', 'good'); }
+    else setsuAdvance('step');
+  });
+  $('setsuDay').addEventListener('click', () => setsuAdvance('day'));
+  $('setsuAll').addEventListener('click', () => { if (confirm('節の最後までおまかせで進めますか？（自分のレースもおまかせ）')) setsuAdvance('setsu'); });
+  $('setsuQuit').addEventListener('click', () => { setsuSave(); setsuHide(); paused = false; last = performance.now(); toast('節間モード', '中断しました。練習メニューの「節間モード」から続きができます', 'info'); });
+  for (const b of document.querySelectorAll('#setsuTabs button')) b.addEventListener('click', () => { setsuPre = null; setsuTab = b.dataset.t; setsuRender(); });
+}
+
 let last = performance.now();
 function frame(now) {
   // never let one bad frame stop the loop
