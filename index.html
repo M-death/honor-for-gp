@@ -212,6 +212,7 @@ body.lab-running>#phoneSteerReadout{display:none!important}
     <button id="entryBtn" class="pill" aria-pressed="false">進入：固定</button>
     <button id="sgBtn" class="pill" aria-pressed="false">SG：オフ</button>
     <button id="slitBtn" class="pill alt" disabled title="レース終了後に確認できます">スリット写真</button>
+    <button id="logBtn" class="pill alt" disabled title="起こし〜1マークを走ると見られます">入力ログ</button>
     <button id="cardBtn" class="pill alt" hidden>出走表</button>
     <button id="skipBtn" class="pill alt" hidden>事故のためスキップ</button>
   </div>
@@ -341,9 +342,18 @@ body.lab-running>#phoneSteerReadout{display:none!important}
     <div class="slit-tools"><label>記録 <select id="slitRace" aria-label="確認するレース"></select></label><button class="btn ghost" id="slitClose">閉じる</button></div>
     <canvas id="slitCanvas" width="1000" height="700" role="img" aria-label="スタート時の各艇の位置、判定点とST"></canvas>
     <div class="slit-tools"><button class="btn ghost" id="slitPrev" aria-label="前の記録コマ">◀</button><input id="slitSeek" type="range" min="-1000" max="1500" step="1" value="0" aria-label="スタート合図からの時刻（ミリ秒）"><button class="btn ghost" id="slitNext" aria-label="次の記録コマ">▶</button><output id="slitTime" aria-live="polite">合図 +0.000秒</output></div>
-    <div class="slit-tools"><button class="btn ghost" id="slitMode" aria-pressed="false">スリットカメラで見る</button><button class="btn" id="slitZero">合図の瞬間</button><button class="btn ghost" id="slitSave">画像を保存</button></div>
+    <div class="slit-tools"><button class="btn ghost" id="slitLog" hidden>入力ログ</button><button class="btn ghost" id="slitMode" aria-pressed="false">スリットカメラで見る</button><button class="btn" id="slitZero">合図の瞬間</button><button class="btn ghost" id="slitSave">画像を保存</button></div>
     <p id="slitSummary"></p>
     <p>ゲーム内の実測位置を記録した俯瞰画像です。記録コマの間は位置を補間します。白い点は現在のd42の判定点（舳先の最先端）で、ST・Fは実際のゲーム判定値です。直近5走を保持します（ページを閉じると消えます）。</p>
+  </div>
+</div>
+
+<div class="overlay" id="logView" hidden role="dialog" aria-modal="true" aria-labelledby="logTitle">
+  <div class="card" style="max-width:900px">
+    <h1 id="logTitle" style="font-size:22px"><small>起こし〜1マーク</small>入力ログ</h1>
+    <div class="row" style="margin-top:4px"><select id="logSel" aria-label="記録" style="font:inherit;background:var(--hud);color:var(--fg);border:1px solid var(--hud-line);border-radius:6px;padding:6px"></select><button class="btn" id="logCopy">コピー</button><button class="btn ghost" id="logClose">閉じる</button><span id="logMsg" style="font-size:12px;color:var(--good)"></span></div>
+    <textarea id="logText" readonly spellcheck="false" style="width:100%;height:min(52vh,420px);margin-top:10px;font:11px/1.45 ui-monospace,monospace;background:#05181f;color:#dcecf3;border:1px solid var(--hud-line);border-radius:8px;padding:8px;white-space:pre;overflow:auto;user-select:text;-webkit-user-select:text;touch-action:auto"></textarea>
+    <p style="font-size:12px">0.1秒ごとの記録（タブ区切り。表計算に貼り付けられます）。加速度＝推力−空気抵抗−待機抵抗−引き波抵抗−旋回損失−姿勢抵抗（m/s²）。直近5本を保持（ページを閉じると消えます）。</p>
   </div>
 </div>
 
@@ -986,7 +996,8 @@ $('measClose').addEventListener('click', () => { $('meas').hidden = true; paused
 
 function resetBoat() {
   resetVirtualPosture();
-  Object.assign(B, { x: START.x, y: START.y, a: START.a, v: 4, vl: 0, yaw: 0, porp: 0, cap: 0, zig: null, zigTold: false, deashi: 1, nobi: 1, tilt: playerTilt });
+  Object.assign(B, { x: START.x, y: START.y, a: START.a, v: 4, vl: 0, yaw: 0, porp: 0, cap: 0, zig: null, zigTold: false, deashi: 1, nobi: 1, tilt: playerTilt, logged: false });
+  if (runLog && runLog.b === B) runLog = null;
   input.thr = 0; wake.length = 0; spray.length = 0; T.on = false;
   cam.x = B.x; cam.y = B.y;
   lap.n = 0; lap.start = time; lap.visR = lap.visL = false; lap.prevY = B.y;
@@ -1282,14 +1293,17 @@ function boatPhysics(b, inp, dt) {
   const te = IDLE + (1 - IDLE) * t;
   const up = Math.max(0, -p), down = Math.max(0, p);
   const drag = 0.012 * (1 + 0.25 * up - 0.1 * down);
-  let acc = te * THRUST * thrustK(b.v) * startK(b.v, b.preStart) * motorK(b) * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0)) - drag * b.v * b.v - 0.1 * b.v;
-  if (b.hold === 'hang') acc -= 1.5 * b.v;   // 待機: rudder hard over and sat up, bow off the line — the hull scrubs off nearly all way
-  else if (b.hold) acc -= WAIT_DRAG * b.v;   // 待機: lever shut and sat up — it still drifts on at a slow walk (~7 km/h)
+  const thrustA = te * THRUST * thrustK(b.v) * startK(b.v, b.preStart) * motorK(b) * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0));
+  const airA = drag * b.v * b.v + 0.1 * b.v;
+  let acc = thrustA - airA;
+  const holdA = b.hold === 'hang' ? 1.5 * b.v : b.hold ? WAIT_DRAG * b.v : 0;
+  acc -= holdA;   // 待機: lever shut and sat up — it still drifts on at a slow walk (~7 km/h); hanging bow-off it all but stops
   acc -= b.porp * (1.2 + simRandom() * 2.2);
   // 引き波: rough water from another boat. Riding in it drags; crossing it at an angle
   // (bump) makes the hull slam and hop, costing more speed and grip and knocking it off line.
   const wk = b.inWake || 0, bump = b.wakeBump || 0;
-  acc -= (wk * (0.5 + b.v * 0.04) + bump * (0.8 + b.v * 0.07)) * WAKE.drag;
+  const wakeA = (wk * (0.5 + b.v * 0.04) + bump * (0.8 + b.v * 0.07)) * WAKE.drag;
+  acc -= wakeA;
   if (bump > 0.05) b.yaw += (simRandom() * 2 - 1) * bump * 6 * WAKE.kick * dt;
 
   // how hard the hull can be pushed sideways before it lets go: body position, then the rider's skill
@@ -1324,9 +1338,12 @@ function boatPhysics(b, inp, dt) {
   const turnLoss = 0.9 * (1 - TURN.keep * b.harmony) * Math.max(0.2, 1 + TURN.upBrake * up - TURN.run * firm * down);   // turns bleed speed; a clean monkey turn keeps more of it
   // a slight lean (no rudder) only nudges the heading and costs nothing; turning on the rudder scrubs speed
   const freeYaw = Math.abs(s) < 0.08 ? Math.min(Math.abs(r), STRAIGHT_LEAN.free) * 0.28 * sf : 0;
-  acc -= Math.max(0, Math.abs(b.yaw) - freeYaw) * b.v * turnLoss + Math.abs(b.vl) * 0.7;
+  const turnA = Math.max(0, Math.abs(b.yaw) - freeYaw) * b.v * turnLoss + Math.abs(b.vl) * 0.7;
+  acc -= turnA;
   // an extreme hang-off without turning (or sat bolt upright at speed) drags on a straight
-  if (Math.abs(s) < 0.08 && Math.abs(b.yaw) < 0.12) acc -= STRAIGHT_LEAN.drag * b.v * Math.max(0, Math.abs(r) - STRAIGHT_LEAN.ok) / (1 - STRAIGHT_LEAN.ok);
+  const leanA = Math.abs(s) < 0.08 && Math.abs(b.yaw) < 0.12 ? STRAIGHT_LEAN.drag * b.v * Math.max(0, Math.abs(r) - STRAIGHT_LEAN.ok) / (1 - STRAIGHT_LEAN.ok) : 0;
+  acc -= leanA;
+  if (b.dbg) Object.assign(b.dbg, { thrustA, airA, holdA, wakeA, turnA, leanA, acc, startK: startK(b.v, b.preStart), motorK: motorK(b) });
   b.v = Math.max(0, b.v + acc * dt);
   b.a += b.yaw * dt;
   b.x += (fx * b.v + rx * b.vl) * dt;
@@ -1489,7 +1506,11 @@ function step(dt) {
   B.preStart = SS.phase === 'count' ? 1 : (soloKind === 'clock' && lap.n === 0 && B.y > 0 && B.x > -5 ? preStartAfter(boatBow(B).x) : 0);
   // 起こし〜スリット: 舵と体の左右の傾きは固定（真っ直ぐだけ）。通過してから入力を受け付ける
   if (SS.phase === 'count') zigCheck(B, input.steer, null);
-  const ev = boatPhysics(B, SS.phase === 'count' ? { thr: input.thr, steer: clamp(input.steer, -PRE_SLIT.steer, PRE_SLIT.steer), roll: 0, pitch: input.pitch } : input, dt);
+  const binp = SS.phase === 'count' ? { thr: input.thr, steer: clamp(input.steer, -PRE_SLIT.steer, PRE_SLIT.steer), roll: 0, pitch: input.pitch } : input;
+  if (soloKind === 'clock' && SS.phase === 'count' && !B.logged && !runLog && input.thr >= 0.3) { B.logged = true; runLogBegin(B, '大時計スタート（1艇）', SS.t0 + CLOCK); }
+  if (runLog && runLog.b === B && ((B.y < -4 && B.x < MK - 5) || time > SS.t0 + CLOCK + 30)) runLogEnd(`ST ${meas.st == null ? '—' : meas.st < 0 ? 'F' + fmtST(-meas.st) : fmtST(meas.st)} / チルト ${B.tilt}`);
+  const ev = boatPhysics(B, binp, dt);
+  if (runLog && runLog.b === B) runLogStep(B, binp, SS.t0 + CLOCK, '');
   harmony = B.harmony || 0;
   hitCool = Math.max(0, hitCool - dt);
   if (ev) {
@@ -3232,7 +3253,12 @@ function fleetStep(dt, playerInput) {
     }
     if(lab.active)r.labApplied={thr:o.thr,steer:o.steer,roll:o.roll,pitch:o.pitch};
     b.preStart = lab.active ? 0 : r.st == null ? (SS.phase === 'count' ? 1 : 0) : (!r.drv.mem.firstDone && b.y > 0 && r.laps === 0 ? preStartAfter(boatBow(b).x) : 0);
+    if (r.player && !lab.active) {
+      if (!r.logged && !runLog && r.st == null && SS.phase === 'count' && o.thr >= 0.3) { r.logged = true; runLogBegin(b, `${r.no}号艇 ${r.trait.course}コース${r.trait.slow ? 'スロー' : 'ダッシュ'}`, zero); }
+      if (runLog && runLog.b === b && (r.drv.mem.firstDone || r.out || time > zero + 30)) runLogEnd(`起こし ${Math.round(r.trait.okoshi || 0)}m / ST ${r.st == null ? '—' : r.st < 0 ? 'F' + fmtST(-r.st) : fmtST(r.st)} / チルト ${b.tilt} / 出足 ${(b.deashi || 1).toFixed(3)} 伸び ${(b.nobi || 1).toFixed(3)}`);
+    }
     const ev = boatPhysics(b, o, dt);
+    if (r.player && runLog && runLog.b === b) runLogStep(b, o, zero, r.st != null && !r.logSt ? (r.logSt = true, 'スリット通過') : '');
     if(lab.active&&ev)labEvent('physics',r.no,{label:ev});
     if (ev && ev.startsWith('cap:') && !r.out) accident(r, '転覆', ev.slice(4));
     else if (ev === 'buoy' || ev === 'boom') toast(ev === 'buoy' ? 'ターンマーク接触' : '消波装置に接触', `${r.no}号艇`, 'warn');
@@ -3435,6 +3461,41 @@ function pushFailed(r) {
 }
 
 // 蛇行: the rudder flicked from one side to the other zigFlips times within zigWindow s before the slit
+// 入力ログ: the player's own run from the 起こし (lever opened during the start) to past 1M — inputs and what the
+// physics made of them, every 0.1 s, kept for the last 5 runs to view and copy after the race
+const runLogs = [];
+let runLog = null;
+function runLogBegin(b, label, zero) {
+  runLog = { label, zero, rows: [], last: -1, b, at: new Date() };
+  b.dbg = {};
+}
+function runLogStep(b, inp, zero, extra) {
+  if (!runLog || runLog.b !== b) return;
+  if (time - runLog.last < 0.1 - 1e-9 && !extra) return;
+  runLog.last = time;
+  const d = b.dbg || {}, f = (v, n = 2) => (v == null || !isFinite(v)) ? '' : (+v).toFixed(n);
+  runLog.rows.push([f(time - zero, 2), f(b.x, 1), f(b.y, 1), f(b.v * 3.6, 1), f(d.acc, 2), f(inp.thr, 2), f(inp.steer, 2), f(inp.roll, 2), f(inp.pitch, 2),
+    b.hold ? (b.hold === 'hang' ? 'hang' : 'hold') : '-', f(d.startK, 3), f(d.motorK, 3), f(d.thrustA, 2), f(d.airA, 2), f(d.holdA, 2), f(d.wakeA, 2), f(d.turnA, 2), f(d.leanA, 2),
+    f(b.inWake, 2), f(b.wakeBump, 2), f(b.trail, 2), f(b.load, 2), f(b.yaw * 57.3, 1), extra || ''].join('\t'));
+}
+function runLogEnd(meta) {
+  if (!runLog) return;
+  const L = runLog; runLog = null; L.b.dbg = null;
+  if (L.rows.length < 3) return;
+  const head = ['時刻(合図=0)', 'x', 'y', '速度km/h', '加速度m/s2', 'アクセル', '舵', '左右傾き', '姿勢(+伏せ)', '待機減速', 'スタート補正', 'モーター', '推力', '空気抵抗', '待機抵抗', '引き波抵抗', '旋回損失', '姿勢抵抗', '引き波', '横切り', '航跡', '安定度', '旋回°/s', '備考'];
+  L.text = `# Honor for GP 入力ログ ${L.label} ${L.at.toLocaleString()}\n# ${meta || ''}\n# 推力〜姿勢抵抗は m/s²（加速度 = 推力 − 各抵抗）\n` + head.join('\t') + '\n' + L.rows.join('\n');
+  runLogs.unshift(L); if (runLogs.length > 5) runLogs.pop();
+  $('logBtn').disabled = false; $('slitLog').hidden = false;
+  toast('入力ログ', '起こし〜1マークを記録（右上の「入力ログ」で見る）', 'info');
+}
+let logWasPaused = false;
+function logOpen() {
+  if (!runLogs.length) return;
+  logWasPaused = paused; paused = true;
+  const sel = $('logSel'); sel.textContent = '';
+  runLogs.forEach((L, i) => { const o = document.createElement('option'); o.value = i; o.textContent = `${L.at.toLocaleTimeString()} ${L.label}`; sel.appendChild(o); });
+  sel.value = '0'; $('logText').value = runLogs[0].text; $('logMsg').textContent = ''; $('logView').hidden = false;
+}
 function zigCheck(b, steer, r) {
   const sg = Math.abs(steer) > 0.03 ? Math.sign(steer) : 0;
   if (!sg) return;
@@ -3719,6 +3780,16 @@ function slitClose(){
   if(slitReturnFocus && slitReturnFocus.focus)slitReturnFocus.focus();
 }
 $('slitBtn').addEventListener('click',()=>slitOpen());
+$('logBtn').addEventListener('click', logOpen);
+$('slitLog').addEventListener('click', () => { $('slitPhoto').hidden = true; paused = slitWasPaused; logOpen(); });
+$('logSel').addEventListener('change', e => { const L = runLogs[+e.target.value]; if (L) $('logText').value = L.text; $('logMsg').textContent = ''; });
+$('logClose').addEventListener('click', () => { $('logView').hidden = true; paused = logWasPaused; last = performance.now(); });
+$('logCopy').addEventListener('click', async () => {
+  const t = $('logText'); let ok = false;
+  try { await navigator.clipboard.writeText(t.value); ok = true; } catch (e) {}
+  if (!ok) { try { t.focus(); t.select(); ok = document.execCommand('copy'); } catch (e) {} }
+  $('logMsg').textContent = ok ? 'コピーしました' : '全選択して手動でコピーしてください';
+});
 $('measSlit').addEventListener('click',()=>slitOpen(practiceSlit));
 $('slitClose').addEventListener('click',slitClose);
 $('slitRace').addEventListener('change',slitChoose);
