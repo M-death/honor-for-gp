@@ -150,6 +150,8 @@ table.race.st tr.me td{background:rgba(255,180,46,.14)}
 .calbox .calx,.calbox .caly{position:absolute;background:rgba(233,245,242,.25)}
 .calbox .calx{left:8px;right:8px;top:50%;height:1px}.calbox .caly{top:8px;bottom:8px;left:50%;width:1px}
 #calDot{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:#ffb42e;box-shadow:0 0 8px rgba(255,180,46,.7)}
+.rpChip{position:fixed;z-index:7;left:50%;bottom:calc(10px + var(--sb));transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 8px 6px 14px;border-radius:14px;background:rgba(5,24,31,.88);border:1px solid var(--hud-line);color:var(--fg);font-size:13px;font-weight:700}
+.rpChip .btn{padding:8px 14px;font-size:13px}
 .overlay{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:calc(12px + var(--st)) calc(16px + var(--sr)) calc(12px + var(--sb)) calc(16px + var(--sl));background:rgba(4,20,26,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
 .card{background:var(--hud);border:1px solid var(--hud-line);border-radius:14px;padding:18px 22px;max-width:680px;width:100%;max-height:100%;overflow:auto;touch-action:pan-y}
 .card h1{font-family:var(--f-display);font-weight:400;font-size:clamp(24px,5vh,34px);margin:0 0 2px;letter-spacing:.03em;text-wrap:balance}
@@ -354,12 +356,22 @@ body.lab-running>#phoneSteerReadout{display:none!important}
       <button class="btn ghost" id="pmClock">大時計スタート（1艇）</button>
       <button class="btn ghost" id="pmRace">レース練習（6艇・ピット離れから3周・全部自分で操作）</button>
       <button class="btn" id="pmSetsu" style="margin-top:6px">節間モード（6日間・48人）</button>
+      <button class="btn ghost" id="pmReplay" style="margin-top:6px">保存したリプレイログ</button>
       <p style="margin:0 0 6px">前検でモーター抽選、予選4日の得点率で準優・優勝戦へ。自分のレースは自分で走るか、おまかせ。他のレースは結果だけ、または観戦。</p>
       <button class="btn ghost" id="pmClose">やめる</button>
     </div>
   </div>
 </div>
 
+<div class="rpChip" id="rpChip" hidden><span>リプレイログ</span><button class="btn" id="rpKeep">残す</button><button class="btn ghost" id="rpSkip">残さない</button></div>
+<div class="overlay" id="rpBox" hidden style="z-index:8">
+  <div class="card" style="max-width:720px;width:100%">
+    <h1 style="font-size:20px;margin:0 0 6px"><small>検証用</small>リプレイログ</h1>
+    <p id="rpInfo" style="margin:0 0 6px;font-size:12px"></p>
+    <textarea id="rpText" readonly spellcheck="false" style="width:100%;box-sizing:border-box;height:42vh;font:10px/1.35 ui-monospace,Menlo,Consolas,monospace;background:var(--water-deep);color:var(--fg);border:1px solid var(--hud-line);border-radius:8px;padding:6px;white-space:pre;overflow:auto"></textarea>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="btn" id="rpCopy">コピー</button><button class="btn ghost" id="rpOlder">前のログ</button><button class="btn ghost" id="rpNewer">次のログ</button><button class="btn ghost" id="rpDel">このログを消す</button><button class="btn ghost" id="rpClose">閉じる</button></div>
+  </div>
+</div>
 <div class="overlay" id="askBox" hidden style="z-index:9">
   <div class="card" style="max-width:380px">
     <p id="askMsg" style="color:var(--fg);font-size:15px"></p>
@@ -1710,7 +1722,77 @@ function cutinNote(st) {
   if (c.kind === 'go') return st < 0 ? '　「イケるっ」…感覚に騙された' : '　「イケるっ」の通り';
   return c.pred >= 0 ? `　「早いっ」…握っていれば ST ${fmtST(c.pred)} だった` : '　「早いっ」で正解';
 }
+/* ---- リプレイログ (検証用): every race is recorded quietly (4 times a second: each boat's position, heading, speed,
+   inputs and what its CPU is up to, plus every message). After the race you choose whether to keep it; kept logs are
+   shown as text to copy and paste. ---- */
+const RP = { every: 0.25, keep: 6, key: 'hfgp-replays' };
+let rpLast = null, rpIdx = 0, rpWasPaused = false, rpFromMenu = false;
+const rpN = (v, d = 1) => v == null || !isFinite(v) ? '-' : (+v).toFixed(d).replace(/\.0+$/, '').replace(/^-0$/, '0');
+function rpBegin(f, zero) {
+  const e = waterEnv, st = f.setsu && f.setsu.race;
+  const head = [`#HFGP-REPLAY v1 ${'d107'} ${new Date().toISOString()}`,
+    `#mode ${lab.active ? 'lab' : st ? `setsu day${st.day} ${st.R}R ${st.kind}` : f.playerNo ? `race player=${f.playerNo}` : 'demo'} entry=${f.entry ? 'pit' : 'fixed'}`,
+    `#env ${e ? `${windJa(e)} wave=${e.wave}cm cx=${rpN(e.cx, 2)} stab=${e.stabilizer ? 1 : 0}${e.temp != null ? ` temp=${e.temp}` : ''}${e.tideJa ? ` tide=${e.tideJa}${e.tideLv}` : ''}` : 'calm'}`,
+    '#boat no cls name temper pref motor(deashi/mid/nobi/power) hull(grip/ride/drag) weightK tilt skill(start/turn/judge) courseAff'];
+  for (const r of f.boats) { const b = r.b, k = r.skill;
+    head.push(`B ${r.no} ${r.prof.top ? 'TOP' : r.prof.name} ${(r.name || '-').replace(/\s+/g, '')} ${r.temper} ${r.pref} ${rpN(b.deashi, 3)}/${rpN(b.mMid, 3)}/${rpN(b.nobi, 3)}/${rpN(b.powerK || 1, 3)} ${rpN(b.hullGrip || 1, 3)}/${rpN(b.hullRide || 1, 2)}/${rpN(b.hullDrag || 1, 3)} ${rpN(b.weightK || 1, 3)} ${rpN(b.tilt, 1)} ${k ? `${Math.round(k.start)}/${Math.round(k.turn)}/${Math.round(k.judge)} ${k.course.join(',')}` : '-'}${r.player ? ' PLAYER' : ''}`); }
+  head.push('#S t | no x y heading(deg) v(km/h) thr steer roll pitch flags…  (t = s from the start signal; flags: role=m mark/s sashi/o out/w wide/W wait, sty, C 叩き F 連動 K 壁 Q 絞り R 抵抗 Y 引く P 勝負 A 回避 cap 転覆 out dq Fly relegated fin)');
+  f.rp = { head, rows: [], ev: [], next: -999, zero };
+}
+function rpSample(f, zero) {
+  if (lab.active) return;
+  if (!f.rp) rpBegin(f, zero);
+  const rp = f.rp; if (time < rp.next) return; rp.next = time + (time - zero < -15 ? 1 : RP.every);   // the long wait in the pits: once a second
+  const t = time - zero, parts = [`S ${rpN(t, 2)}`];
+  for (const r of f.boats) { const b = r.b, m = r.drv && r.drv.mem || {}, i = r.player ? input : r.inp || {};
+    const fl = [];
+    if (m.turnRole) fl.push('role=' + ({ mark: 'm', sashi: 's', out: 'o', wide: 'w', wait: 'W', waitIn: 'Wi' }[m.turnRole.role] || m.turnRole.role));
+    if (m.turnStyle) fl.push('sty=' + m.turnStyle);
+    if (m.commit) fl.push('C'); if (m.follow) fl.push('F'); if (m.kabe) fl.push('K'); if (m.squeeze) fl.push('Q'); if (m.sqResp === 'resist') fl.push('R'); if (m.sqResp === 'yield') fl.push('Y'); if (m.push) fl.push('P');
+    if (m.av && (m.av.priority || Math.abs(m.av.steerAdd || 0) > 0.05 || (m.av.thrMul ?? 1) < 0.95)) fl.push('A');
+    if (b.cap > 0) fl.push('cap'); if (r.out) fl.push('out'); if (r.dq) fl.push('dq'); if (r.flying) fl.push('Fly'); if (r.relegated) fl.push('relegated'); if (r.fin != null) fl.push('fin');
+    parts.push(`${r.no} ${rpN(b.x)} ${rpN(b.y)} ${Math.round(((b.a * 180 / Math.PI) % 360 + 540) % 360 - 180)} ${Math.round(b.v * 3.6)} ${rpN(i.thr, 2)} ${rpN(i.steer, 2)} ${rpN(i.roll, 2)} ${rpN(i.pitch, 2)}${fl.length ? ' ' + fl.join(' ') : ''}`); }
+  rp.rows.push(parts.join(' | '));
+}
+function rpFinish(f) {
+  if (!f || !f.rp || f.rp.done) return;
+  const rp = f.rp; rp.done = true;
+  const res = ['#result ' + (typeof resultLine === 'function' ? resultLine() : '')];
+  for (const r of f.boats) res.push(`R ${r.no} course=${r.trait ? r.trait.course : '-'}${r.trait && r.trait.slow ? ' slow' : ' dash'} ST=${r.st == null ? '-' : rpN(r.st, 2)} fin=${r.fin != null ? rpN(r.fin - rp.zero, 2) : '-'}${r.relegated ? ' relegated' : ''}${r.out ? ' ' + r.out : ''}${r.dq ? ' dq' : ''}${r.flying ? ' F' : ''}`);
+  const text = [...rp.head, ...rp.rows, '#events (t, message)', ...rp.ev, ...res].join('\n');
+  const st = f.setsu && f.setsu.race;
+  rpLast = { at: Date.now(), title: `${st ? `節間 ${SETSU.dayJa[setsu ? setsu.day : 0] || ''} ${st.R}R ${st.kind}` : f.playerNo ? 'レース練習' : 'デモ'}　${resultLine()}`, text };
+  if (typeof document !== 'undefined' && $('rpChip')) { $('rpChip').hidden = false; clearTimeout(rpFinish.t); rpFinish.t = setTimeout(() => { $('rpChip').hidden = true; }, 25000); }
+}
+const rpLoad = () => { try { return JSON.parse(localStorage.getItem(RP.key) || '[]'); } catch (e) { return []; } };
+function rpStore(entry) { const all = rpLoad(); all.unshift(entry); while (all.length > RP.keep) all.pop(); for (;;) { try { localStorage.setItem(RP.key, JSON.stringify(all)); break; } catch (e) { if (all.length <= 1) break; all.pop(); } } return all; }
+function rpOpen(i = 0) {
+  const all = rpLoad(); rpIdx = clamp(i, 0, Math.max(0, all.length - 1));
+  paused = true; $('rpBox').hidden = false;
+  const e = all[rpIdx];
+  $('rpInfo').textContent = e ? `${rpIdx + 1}/${all.length}　${new Date(e.at).toLocaleString('ja-JP')}　${e.title}　（${Math.round(e.text.length / 1024)}KB）` : '保存したログはまだありません。レースが終わったら画面下の「残す」で保存できます。';
+  $('rpText').value = e ? e.text : '';
+  $('rpOlder').disabled = !e || rpIdx >= all.length - 1; $('rpNewer').disabled = !e || rpIdx <= 0; $('rpDel').disabled = !e;
+}
+function rpCloseBox() { $('rpBox').hidden = true; if (rpFromMenu) { rpFromMenu = false; $('pmenu').hidden = false; return; } paused = rpWasPaused; last = performance.now(); if (orient.full && !document.fullscreenElement) lockLandscape(); }
+async function rpCopy() {
+  const ta = $('rpText'), txt = ta.value; if (!txt) return;
+  let ok = false;
+  try { await navigator.clipboard.writeText(txt); ok = true; } catch (e) {}
+  if (!ok) { try { ta.focus(); ta.select(); ta.setSelectionRange(0, txt.length); ok = document.execCommand('copy'); } catch (e) {} }
+  toast('リプレイログ', ok ? 'コピーしました' : 'コピーできませんでした。テキストを長押しして全選択→コピーしてください', ok ? 'good' : 'warn');
+}
+if (typeof document !== 'undefined' && document.getElementById('rpBox')) {
+  $('rpKeep').addEventListener('click', () => { $('rpChip').hidden = true; if (!rpLast) return; rpStore(rpLast); rpWasPaused = paused; rpOpen(0); });
+  $('rpSkip').addEventListener('click', () => { $('rpChip').hidden = true; });
+  $('rpCopy').addEventListener('click', rpCopy);
+  $('rpOlder').addEventListener('click', () => rpOpen(rpIdx + 1));
+  $('rpNewer').addEventListener('click', () => rpOpen(rpIdx - 1));
+  $('rpDel').addEventListener('click', () => { const all = rpLoad(); all.splice(rpIdx, 1); try { localStorage.setItem(RP.key, JSON.stringify(all)); } catch (e) {} rpOpen(Math.min(rpIdx, all.length - 1)); });
+  $('rpClose').addEventListener('click', rpCloseBox);
+}
 function toast(big, small, kind) {
+  if (typeof fleet !== 'undefined' && fleet && fleet.rp && !fleet.rp.done) fleet.rp.ev.push(`${rpN(time - fleet.rp.zero, 2)} ${big} ${small}`);
   const el = $('toast');
   $('tBig').textContent = big; $('tSmall').textContent = small;
   el.dataset.kind = kind;
@@ -2623,7 +2705,9 @@ function makeDriver(prof, trait = {}) {
       }
       mem.sqRespT = Math.max(0, mem.sqRespT - dt);
       if (mem.sqResp === 'yield' && mem.sqRespT > 0) ty = b.y;   // 叩かれた側: holds its line — doesn't dive in, doesn't push out
-      if (mem.sqResp === 'resist' && b.x < MK - 45 && env.outer) ty = Math.min(env.outer.y - 1.1, b.y + 2);   // 張る: push out into it
+      // 張る: push out into it — only on the first straight, against a boat really outside me (it used to stay on for
+      // the rest of the race and, with the 'outside' boat over on the back straight, dragged the rider across the infield)
+      if (first && mem.sqResp === 'resist' && b.y > 0 && b.x < MK - 45 && env.outer && env.outer.y > b.y) ty = Math.min(env.outer.y - 1.1, b.y + 2);
       if (!(first && b.x < MK - 45)) mem.resistQ = null;
       // read the wake and shift the line toward calmer water
       planWake(b, env, dt);
@@ -2804,7 +2888,7 @@ function innerTarget(b, env) {
   }
   return best;
 }
-const TURN_ORDER = { commitLead: 3.0, startedA: 0.3, alongX: 7, overOff: 2, swellOver: 2, slotOff: 3, swellOut: 4, swellWide: 6, others: 3, sashiMin: 4, forceRoom: 3.5, wideOff: 7, waitThr: 0.5, yieldMargin: 2.5, zone: 38, ahead: 2.0, lat: 16, room: 5, sashiIn: 3.5, outOff: 4, yieldThr: 0.5, sashiThr: 0.8, sashiClear: 4 };
+const TURN_ORDER = { commitLead: 3.0, startedA: 0.3, alongX: 7, overOff: 2, swellOver: 2, slotOff: 3, swellOut: 4, swellWide: 5, others: 3, sashiMin: 4, forceRoom: 3.5, wideOff: 5, waitThr: 0.5, yieldMargin: 2.5, zone: 38, ahead: 2.0, lat: 16, room: 5, sashiIn: 3.5, outOff: 4, yieldThr: 0.5, sashiThr: 0.8, sashiClear: 4 };
 // how far off the buoy a boat is: running in, its distance off the buoy's line; going round, its radius
 function gapOffMark(q) { const mk = COURSE.marks[0]; return q.x < mk.x ? Math.abs(q.y - mk.y) : Math.hypot(q.x - mk.x, q.y - mk.y); }
 // my part in the 1M turn order (see the driver): 'mark' (I turn first), 'yield', 'sashi' or 'out'
@@ -2875,14 +2959,15 @@ const COMMIT = { at: 25, lead: 3.5, dv: 1.0 };   // 叩き: decided this far pas
 const SIDE_ON = { ang: 0.6, yaw: 0.3, cut: 0.95 };   // giving way to a boat turning across: heading difference (rad), its turn rate (rad/s), how hard to lift
 const MAKURI3 = { lead: 1.5, p: 0.6, wallP: { calm: 0.25, normal: 0.45, aggr: 0.65 } };   // 3コース: m in front of the 2 to go for it; chance; カド受けの壁 by temper
 const FOLLOW = { p: { calm: 0.55, normal: 0.75, aggr: 0.9 }, off: 5 };   // 連動: chance to follow a 叩き from inside; how far outside it to run
-const TURN_STYLE = { waitLater: 0.3, wide: { calm: 0.3, normal: 0.25, aggr: 0.18 }, force: { calm: 0.03, normal: 0.08, aggr: 0.2 }, wait: { 4: 0.2, 5: 0.35, 6: 0.55 } };
+const TURN_STYLE = { waitLater: 0.1, wide: { calm: 0.3, normal: 0.25, aggr: 0.18 }, crowdWide: 0.3, force: { calm: 0.03, normal: 0.08, aggr: 0.2 }, wait: { 4: 0.08, 5: 0.15, 6: 0.3 } };
 function turnStyleOf(b, env, trait, prof, first) {
   if (first && (trait.course ?? 1) === 1) return 'normal';
   let crowd = 0;
   for (const o of env.others) if (!sameBoat(o, b) && o.cap <= 0 && o.y > 0 && o.y < b.y && Math.abs(o.x - b.x) < 12) crowd++;
   const t = trait.temper || 'normal', r = simRandom();
   // waiting for the inside to sort itself out: on the first turn it is the outside courses' move; later, anyone with traffic inside
-  const pw = crowd >= 2 ? (first ? TURN_STYLE.wait[trait.course] ?? 0 : TURN_STYLE.waitLater) : 0, pwide = TURN_STYLE.wide[t] ?? 0.25, pf = TURN_STYLE.force[t] ?? 0.08;
+  // a crowd inside: going round it flat out (外を全速) usually beats sitting behind it, so most go wide rather than wait
+  const pw = crowd >= 2 ? (first ? TURN_STYLE.wait[trait.course] ?? 0 : TURN_STYLE.waitLater) : 0, pwide = (TURN_STYLE.wide[t] ?? 0.25) + (crowd >= 2 ? TURN_STYLE.crowdWide : crowd ? TURN_STYLE.crowdWide / 2 : 0), pf = TURN_STYLE.force[t] ?? 0.08;
   return r < pw ? 'wait' : r < pw + pwide ? 'wide' : r < pw + pwide + pf ? 'force' : 'normal';
 }
 const MAKURI_CHECK = { at: 35, lead: 1.5, behind: 4, pMs: 0.5 };   // m before 1M it decides; m in front it needs; within m behind it may still まくり差し
@@ -3896,11 +3981,13 @@ function fleetStep(dt, playerInput) {
     if (started.length) toast('スタート', `トップST ${started[0].no}号艇 ${fmtST(started[0].st)}（${started[0].trait.slow ? 'スロー' : 'ダッシュ'}）`, 'info');
   }
   if (SS.phase === 'done' && SS.hideAt && time > SS.hideAt) { SS.phase = 'off'; $('clock').hidden = true; }
+  rpSample(fleet, zero);
   fleet.rankT -= dt;
   if (fleet.rankT <= 0) { fleet.rankT = 0.25; fleet.rank = fleet.boats.slice().sort((a, b) => b.prog - a.prog); }
   const stillRacing = fleet.boats.filter(r => !r.dq && r.fin == null).length;
   if (!fleet.endAt && time > zero + 5 && (stillRacing === 0 || (fleet.order.length && time > fleet.order[0].fin + 30))) {
     fleet.endAt = time + 7;
+    if (!lab.active) rpFinish(fleet);
     if(!lab.active)slitArchive(fleet.slit,fleet.boats,resultLine());
     if(!lab.active)setTimeout(() => toast('レース結果', fleet ? resultLine() : '', 'good'), 300);
   }
@@ -5605,6 +5692,7 @@ function setsuStart() {
 }
 if (typeof document !== 'undefined' && document.getElementById('setsu')) {
   $('pmSetsu').addEventListener('click', () => { if (fleet) quitFleet(); setsuStart(); });
+  $('pmReplay').addEventListener('click', () => { rpWasPaused = true; rpFromMenu = true; $('pmenu').hidden = true; rpOpen(0); });
   $('setsuGo').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsuNew($('setsuName').value.trim().slice(0, 12), $('setsuCls').value, $('setsuGrade').value, { sex: $('setsuSex').value, weight: +$('setsuWt').value || 0, season: $('setsuSeason').value }); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
   $('setsuResume').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsu = setsuLoad(); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
   $('setsuSex').addEventListener('change', e => { $('setsuWt').value = e.target.value === 'f' ? '48' : '53'; });
