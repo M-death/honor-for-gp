@@ -573,6 +573,8 @@ const TURN = { lean: 0.9, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 
   holdPose: 0.5, exitPose: 0.3, carve: 0.8, upBrake: 0.35, run: 0.7, keep: 0.7 };   // carving out: a firm inside lean keeps the bite while easing up into a crouch; a clean turn scrubs less speed
 // 引き波: a boat's wake is a thick, lasting wave — width either side of each wave line (m), how long it
 // stays rough (s), and how hard crossing it hits speed, heading and grip (1 = the old strength)
+// 引き波よけ: lateral offsets (m, + = to my right) a CPU considers to find calm water — wide enough to step out of a pack's wake band
+const WAKE_PLAN = { offs: [-4.5, -3, -1.5, 0, 1.5, 3, 4.5, 6] };
 const WAKE = { width: 1.4, life: 2.4, drag: 1.8, kick: 1.9, grip: 1.6, unsettle: 0.55 };
 // 航跡: running in line behind a boat (not crossing its wake) takes the edge off thrust — the closer, the more
 const TRAIL = { range: 60, width: 2.5, max: 0.1, dodgeK: 2.5 };          // chance per second of going over, scaled by (load − 1)^1.5 past the danger line
@@ -1732,7 +1734,7 @@ let rpLast = null, rpIdx = 0, rpWasPaused = false, rpFromMenu = false;
 const rpN = (v, d = 1) => v == null || !isFinite(v) ? '-' : (+v).toFixed(d).replace(/\.0+$/, '').replace(/^-0$/, '0');
 function rpBegin(f, zero) {
   const e = waterEnv, st = f.setsu && f.setsu.race;
-  const head = [`#HFGP-REPLAY v1 ${'d109'} ${new Date().toISOString()}`,
+  const head = [`#HFGP-REPLAY v1 ${'d110'} ${new Date().toISOString()}`,
     `#mode ${lab.active ? 'lab' : st ? `setsu day${st.day} ${st.R}R ${st.kind}` : f.playerNo ? `race player=${f.playerNo}` : 'demo'} entry=${f.entry ? 'pit' : 'fixed'}`,
     `#env ${e ? `${windJa(e)} wave=${e.wave}cm cx=${rpN(e.cx, 2)} stab=${e.stabilizer ? 1 : 0}${e.temp != null ? ` temp=${e.temp}` : ''}${e.tideJa ? ` tide=${e.tideJa}${e.tideLv}` : ''}` : 'calm'}`,
     '#boat no cls name temper pref motor(deashi/mid/nobi/power) hull(grip/ride/drag) weightK tilt skill(start/turn/judge) courseAff'];
@@ -1957,8 +1959,8 @@ const nearMarkAt = (x, y, r) => COURSE.marks.some(m => Math.hypot(x - m.x, y - m
 // 差し構え: where it drops the lever before 1M (m before the turn), how far, when it grips again
 // (share of the arc), how much tighter the arc, how much later the lean, how much wider past the buoy
 const SASHI = {
-  win:   { dropAt: 38, lever: 0.5,  regrip: 0.28, rCut: 2,   late: 3, gapAdd: 0.5 },
-  place: { dropAt: 48, lever: 0.42, regrip: 0.35, rCut: 1.5, late: 5, gapAdd: 1.5 },
+  win:   { dropAt: 30, lever: 0.68, regrip: 0.2, rCut: 2,   late: 3, gapAdd: 0.5 },
+  place: { dropAt: 38, lever: 0.58, regrip: 0.28, rCut: 1.5, late: 5, gapAdd: 1.5 },
 };
 // 立ち上がり: out of a turn the boat runs on the line it came out on and edges in toward the inside
 // along a shallow straight diagonal (sideways m per m run, by class) — never a curve back in, never back out.
@@ -2132,7 +2134,7 @@ function makeDriver(prof, trait = {}) {
     mem.cpuDecision=null;mem.cpuLine=null;mem.cpuWide=null;mem.cpuThreaded=false;mem.cpuSlotGap=null;mem.cpuReadAt=0;mem.cpuChangedAt=0;
     mem.push = null; mem.pushDecided = false;
     mem.go = false; mem.firstDone = false; mem.dumpT = 0; mem.dumpQ = null; mem.dumpSeen.clear();
-    mem.wakeOff = mem.wakeOffT = mem.wakeAhead = mem.brace = mem.emergency = 0; mem.sashiDrop = false; mem.exitHold = null; mem.wasInTurn = false; mem.entryWide = 0; mem.nigeDrop = false; mem.squeeze = null; mem.commit = false; mem.follow = false; mem.followDecided = false; mem.kabe = false; mem.kabeDecided = false; mem.commitDecided = false; mem.turnRole = null; mem.turnStyle = null; mem.sqDecided = false; mem.sqResp = null; mem.sqRespT = 0; mem.resistQ = null; mem.planDecided = false; mem.plan = null; mem.tsukeDecided = false; mem.tsukeQ = null; mem.tacticNow = trait.tactic; mem.tacticLock = null; mem.tacticNow = trait.tactic;
+    mem.wakeOff = mem.wakeOffT = mem.wakeAhead = mem.brace = mem.emergency = 0; mem.ft = null; mem.sashiDrop = false; mem.exitHold = null; mem.wasInTurn = false; mem.entryWide = 0; mem.nigeDrop = false; mem.squeeze = null; mem.commit = false; mem.follow = false; mem.followDecided = false; mem.kabe = false; mem.kabeDecided = false; mem.commitDecided = false; mem.turnRole = null; mem.turnStyle = null; mem.sqDecided = false; mem.sqResp = null; mem.sqRespT = 0; mem.resistQ = null; mem.planDecided = false; mem.plan = null; mem.tsukeDecided = false; mem.tsukeQ = null; mem.tacticNow = trait.tactic; mem.tacticLock = null; mem.tacticNow = trait.tactic;
   }
   reset();
   const care = trait.care ?? 1;   // how early it gives way (cautious > 1, aggressive < 1)
@@ -2225,7 +2227,7 @@ function makeDriver(prof, trait = {}) {
       } else if (lat < 0) {
         // I'm the outside boat: open the gap and drop back
         steerAdd += (0.4 + 0.6 * urg) * Math.max(0.8, care);
-        thrMul = Math.min(thrMul, 1 - 0.6 * urg);
+        thrMul = Math.min(thrMul, 1 - CPU_TURN.outLift * urg);
       } else {
         // I'm the inside boat: keep my line and keep the drive on (I have the water); only if I'm sliding out into it,
         // lift a little to tighten up. Coming off a turn alongside, a rider with the stomach for it leans on it instead (ダンプ)
@@ -2239,7 +2241,7 @@ function makeDriver(prof, trait = {}) {
       }
     }
     // near a turn mark there is no room inside: only dodge outward, otherwise lift off
-    if (inTurn && steerAdd < 0 && !(mem.emergency > 0)) { thrMul = Math.min(thrMul, 0.7); steerAdd = 0; }
+    if (inTurn && steerAdd < 0 && !(mem.emergency > 0)) { thrMul = Math.min(thrMul, CPU_TURN.inDodgeThr); steerAdd = 0; }
     return { steerAdd: clamp(steerAdd, -0.9, 0.9), thrMul, priority, threats, giveWay };
   }
 
@@ -2254,7 +2256,7 @@ function makeDriver(prof, trait = {}) {
     const L1 = Math.max(6, b.v * 0.6), L2 = Math.max(10, b.v * 1.1);
     const nm = nearMarkAt(b.x, b.y, 26);
     let best = 0, bestC = Infinity;
-    for (const off of [-3, -1.5, 0, 1.5, 3]) {
+    for (const off of WAKE_PLAN.offs) {
       let c = wakeAt(b.x + fx * L1 + rx * off * 0.6, b.y + fy * L1 + ry * off * 0.6, env.wakes, env.now, 0.35).w
             + 0.8 * wakeAt(b.x + fx * L2 + rx * off, b.y + fy * L2 + ry * off, env.wakes, env.now, 0.6).w
             + Math.abs(off) * 0.04 + Math.abs(off - mem.wakeOffT) * 0.02;
@@ -2790,13 +2792,14 @@ function makeDriver(prof, trait = {}) {
       const exiting = ti.inTurn && ti.left < (prof.exitEarly ?? 4);
       if (leanIn && !exiting) {
         rollT = -prof.lean * tq.lean * clamp((b.v - 4) / 4, 0, 1);   // anticlockwise course: inside is left
-        pitchT = -prof.up * tq.up;
+        const upA = prof.up * tq.up * CPU_TURN.upK;
+        pitchT = -upA;
         thrT = tThr;
         // 起こして入り、傾けたまま起こしを緩めて伏せながら抜ける — the better the rider, the cleaner the hand-over
         if (ti.inTurn) {
           const prog = 1 - ti.left / (Math.PI * R), skill = (CARVE[prof.name] ?? 0.5) * tq.carve;
-          const ease = clamp((prog - tq.easeAt) / 0.5, 0, 1) * skill;
-          pitchT = -prof.up * tq.up + (prof.up * tq.up + 0.9) * ease;
+          const ease = clamp((prog - tq.easeAt * CPU_TURN.easeK) / 0.5, 0, 1) * skill;
+          pitchT = -upA + (upA + 0.9) * ease;
         }
         if (tactic === 'tsuke' && first) { rollT = -Math.max(prof.lean, 0.9) * clamp((b.v - 4) / 4, 0, 1); pitchT = -Math.max(prof.up, 0.8); }
         if (mem.push) {
@@ -2850,10 +2853,45 @@ function makeDriver(prof, trait = {}) {
         }
         if(mem.cpuLine?.waiting){thrT=Math.min(thrT,.50);pitchT=Math.min(pitchT,0);}
       }
+      // 外全速ターン (1周目の1マーク): how a rider goes round the outside flat out — run wide on a diagonal past the mark,
+      // pivot hard in one short burst well beyond it (sat up only for that), then lean round crouched and drive out.
+      // Circling the buoy on the rudder with the body up (the old way) scrubbed CPU boats down to ~25 km/h.
+      {
+        const tr = mem.turnRole && mem.turnRole.role, ftRole = (tr === 'out' || tr === 'wide' || mem.commit || mem.follow || FULLT.forceCourse === trait.course) && (!FULLT.onlyCourse || FULLT.onlyCourse === trait.course);
+        if (FULLT.on && first && (ftRole || (mem.ft && mem.ft.phase !== 'run')) && !mem.push && !avoiding && b.cap <= 0 && !env.caution && !env.cruise && !(mem.ft && mem.ft.phase === 'done')) {
+          const ft = mem.ft || (mem.ft = { phase: 'run' }), hd = wrapRad(b.a);
+          if (ft.phase === 'run' && b.y > 0 && b.x > MK - FULLT.from) {
+            const q = mem.turnRole && mem.turnRole.q, minY = Math.max(FULLT.minY, q && q.cap <= 0 ? q.y + FULLT.clear : 0);
+            const px = MK + FULLT.over, py = clamp(b.y, minY, FULLT.maxY);
+            const err = wrapRad(Math.atan2(py - b.y, px - b.x) - b.a);
+            steerT = clamp(err * (prof.gain ?? 2) + av.steerAdd, -1, 1); rollT = 0; pitchT = prof.cruise; thrT = 1;
+            // an inside neighbour still alongside and too close to swing with → hold on a bit wider before turning
+            const tight = FULLT.stagger && env.others.some(o => o !== b && o.cap <= 0 && o.y > -2 && o.y < b.y - 0.5 && b.y - o.y < FULLT.stagger && Math.abs(o.x - b.x) < 6);
+            if (b.x >= MK + FULLT.swingAt && (!tight || b.x >= MK + FULLT.swingMax)) { ft.phase = 'pivot'; ft.t = 0; }
+          }
+          if (ft.phase === 'swing') {   // carve in on the lean, crouched and flat out, to set the bow up for the pivot
+            steerT = -FULLT.swingSteer; rollT = -FULLT.roll * clamp((b.v - 4) / 4, 0, 1); pitchT = FULLT.swingPitch; thrT = 1;
+            if (hd < -FULLT.swingTo) { ft.phase = 'pivot'; ft.t = 0; }
+          }
+          if (ft.phase === 'pivot') {
+            ft.t += dt; steerT = -1; rollT = -FULLT.roll * clamp((b.v - 4) / 4, 0, 1); pitchT = FULLT.pivotPitch; thrT = 1;
+            if (hd < -FULLT.pivotTo || hd > 2.6 || ft.t > 4) ft.phase = 'arc';
+          }
+          if (ft.phase === 'arc') {
+            steerT = -FULLT.arcSteer; rollT = -1 * clamp((b.v - 4) / 4, 0, 1); pitchT = FULLT.arcPitch; thrT = 1;
+            if (Math.abs(hd) > FULLT.doneAt || b.x < MK - 25) { ft.phase = 'drive'; ft.t = 0; ft.y = Math.min(b.y, -FULLT.exitMinY); }
+          }
+          if (ft.phase === 'drive') {   // drive out crouched and flat out on its own line — don't cut back across the pack
+            ft.t += dt; const err = wrapRad(Math.atan2(ft.y - b.y, -30) - b.a);
+            steerT = clamp(err * (prof.gain ?? 2) + av.steerAdd, -1, 1); rollT = 0; pitchT = 1; thrT = 1;
+            if (ft.t > FULLT.driveT || b.x < MK - 45) ft.phase = 'done';
+          }
+        }
+      }
       // near the danger line with nobody to fight: back off a touch (no point risking it).
       // In a close fight it holds on; only a deliberate 勝負 goes past the line. Cautious riders ease earlier.
       const near1M = Math.hypot(b.x - MK, b.y) < 40;
-      if (!mem.push && !(first && (tactic === 'makuri' || mem.commit)) && (!env.battle || near1M) && (b.load || 0) > 0.95 + 0.06 * (1 - Math.min(1, care))) { thrT *= 0.9; }
+      if (!mem.push && !(first && mem.ft && mem.ft.phase !== 'done') && !(first && (tactic === 'makuri' || mem.commit)) && (!env.battle || near1M) && (b.load || 0) > 0.95 + 0.06 * (1 - Math.min(1, care))) { thrT *= 0.9; }
       // swerving against the lean (dodging outward mid-turn): take the body out of it too
       if (Math.abs(steerT) > 0.2 && rollT !== 0 && Math.sign(steerT) !== Math.sign(rollT)) rollT *= 0.6;
       if(lab.active){const targets=labTraceInputs(mem,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},b,prof,o);thrT=targets.thr;steerT=targets.steer;rollT=targets.roll;pitchT=targets.pitch;}
@@ -2892,7 +2930,7 @@ function innerTarget(b, env) {
   }
   return best;
 }
-const TURN_ORDER = { commitLead: 3.0, startedA: 0.3, alongX: 7, overOff: 2, swellOver: 2, slotOff: 3, swellOut: 4, swellWide: 5, others: 3, sashiMin: 4, forceRoom: 3.5, wideOff: 5, waitThr: 0.5, yieldMargin: 2.5, zone: 38, ahead: 2.0, lat: 16, room: 5, sashiIn: 3.5, outOff: 4, yieldThr: 0.5, sashiThr: 0.8, sashiClear: 4 };
+const TURN_ORDER = { dropSashi: false, dropLead: 2, dropRoom: 1, commitLead: 3.0, startedA: 0.3, alongX: 7, overOff: 2, swellOver: 2, slotOff: 3, swellOut: 4, swellWide: 5, others: 3, sashiMin: 4, forceRoom: 3.5, wideOff: 5, waitThr: 0.7, yieldMargin: 2.5, zone: 38, ahead: 2.0, lat: 16, room: 5, sashiIn: 3.5, outOff: 4, yieldThr: 0.65, sashiThr: 0.9, sashiClear: 4 };
 // how far off the buoy a boat is: running in, its distance off the buoy's line; going round, its radius
 function gapOffMark(q) { const mk = COURSE.marks[0]; return q.x < mk.x ? Math.abs(q.y - mk.y) : Math.hypot(q.x - mk.x, q.y - mk.y); }
 // my part in the 1M turn order (see the driver): 'mark' (I turn first), 'yield', 'sashi' or 'out'
@@ -2953,6 +2991,19 @@ function turnRoleOf(b, env, style) {
       prev = g;
     }
   }
+  // 混雑回避: alongside the inside boat(s) rather than in front — don't swing round the outside of the whole pack;
+  // ease a touch, drop in behind its stern and take the water inside its arc (突けるならイン)
+  if (TURN_ORDER.dropSashi && style !== 'commit' && style !== 'wide' && ins.every(o => o.x - b.x > -TURN_ORDER.dropLead)) {
+    const arcs = ins.map(o => { const g = gapOffMark(o); return o.x >= MK - 5 ? g : g - 3; }).sort((p, q) => p - q);
+    let prev = 0;
+    for (const g of arcs) {
+      if (g - prev >= TURN_ORDER.room + TURN_ORDER.dropRoom) {
+        const gapT = prev === 0 ? g - TURN_ORDER.sashiIn : prev + TURN_ORDER.slotOff;
+        return { role: 'sashi', q: inner, qGap, room: g, gapT, between: prev > 0, drop: true, ...y };
+      }
+      prev = g;
+    }
+  }
   // already in front of them all (just not by enough to cut across): over the top, close outside them — まくり
   return { role: 'out', q: inner, qGap, over: style === 'commit' || ins.every(o => clearAhead(b, o)), ...y };
 }
@@ -2963,6 +3014,13 @@ const COMMIT = { at: 25, lead: 3.5, dv: 1.0 };   // 叩き: decided this far pas
 const SIDE_ON = { ang: 0.6, yaw: 0.3, cut: 0.95 };   // giving way to a boat turning across: heading difference (rad), its turn rate (rad/s), how hard to lift
 const MAKURI3 = { lead: 1.5, p: 0.6, wallP: { calm: 0.25, normal: 0.45, aggr: 0.65 } };   // 3コース: m in front of the 2 to go for it; chance; カド受けの壁 by temper
 const FOLLOW = { p: { calm: 0.55, normal: 0.75, aggr: 0.9 }, off: 5 };   // 連動: chance to follow a 叩き from inside; how far outside it to run
+// 外全速ターン: from how far before 1M it swings out; how far past the mark it pivots; the lane it keeps outside the
+// boat inside; when to start the pivot (m before, at 20 m/s); lean, how far it sits up; heading to pivot to, then
+// a crouched leaning arc (a little rudder) until it points down the back straight
+// how hard a CPU sits up through a turn (1 = the old way). Sitting up grips but brakes hard: the player's flat carve showed
+// the old CPU turn scrubbing to ~27 km/h where ~45 is there to be had.
+const CPU_TURN = { upK: 0.5, easeK: 0.6, outLift: 0.3, inDodgeThr: 0.85 };
+const FULLT = { on: false, from: 60, over: 0, minY: 18, maxY: 32, clear: 7, pivotPitch: 0, swingAt: -7, swingSteer: 0.15, swingPitch: 0, swingTo: 0.6, roll: 0.95, up: 0.7, pivotTo: 2.75, arcSteer: 0.1, arcPitch: 0.9, doneAt: 2.95, exitMinY: 12, driveT: 2.5, stagger: 0, swingMax: 8, forceCourse: 0, onlyCourse: 0 };
 const TURN_STYLE = { waitLater: 0.1, wide: { calm: 0.3, normal: 0.25, aggr: 0.18 }, crowdWide: 0.3, force: { calm: 0.03, normal: 0.08, aggr: 0.2 }, wait: { 4: 0.08, 5: 0.15, 6: 0.3 } };
 function turnStyleOf(b, env, trait, prof, first) {
   if (first && (trait.course ?? 1) === 1) return 'normal';
