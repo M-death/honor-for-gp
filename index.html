@@ -72,6 +72,7 @@ table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;widt
 #gear{pointer-events:auto;width:40px;height:40px;border-radius:50%;border:1px solid var(--hud-line);background:var(--hud);color:var(--fg);display:grid;place-items:center;cursor:pointer}
 #gear:focus-visible,.btn:focus-visible,.pill:focus-visible{outline:2px solid var(--lever);outline-offset:2px}
 [hidden]{display:none!important}
+.padfocus{outline:3px solid var(--lever)!important;outline-offset:2px}
 #setsu .card{max-width:720px;padding:14px 14px}
 #setsuTabs{display:flex;gap:6px;margin:8px 0 4px;flex-wrap:wrap}
 #setsuTabs button.on{border-color:var(--lever);color:var(--lever)}
@@ -947,10 +948,14 @@ function lockLandscape() {
       o.lock(t).then(() => { orient.locked = true; }).catch(() => {});
     };
     if (document.fullscreenElement) { orient.full = true; lock(); return; }
+    if (orient.stayWindow) return;   // PC: the player left full screen once — keep the window
     if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { orient.full = true; lock(); }).catch(() => {});
   } catch (e) {}
 }
 const orient = { locked: false, full: false };   // full: the player had full screen (taken back on the next tap if lost)
+// on a PC (mouse, no touch), leaving full screen (Esc etc.) is the player's choice: don't go back into it
+const isPC = () => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches && !('ontouchstart' in window) && !(navigator.maxTouchPoints > 0); } catch (e) { return false; } };
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && orient.full && isPC()) { orient.full = false; orient.stayWindow = true; } });
 async function enableTiltInput(){
   let ok = true;
   // both requests fire inside the same tap so iOS still counts it as a user gesture
@@ -1228,12 +1233,82 @@ function currentPad() {
   for (const g of list || []) if (g && g.connected) return g;
   return null;
 }
-function pollPadButtons() {
+/* ---- コントローラでメニュー操作: 十字キー／左スティックで選び、A＝決定、B＝キャンセル ----
+   Works on whichever menu is on top (overlays, the lab screens, the replay chip). */
+const PAD_MENU = { repeat0: 0.38, repeat: 0.14, stick: 0.55 };
+const padNav = { surf: null, el: null, held: 0, t: 0 };
+function padMenuSurface() {
+  let best = null, bz = -1;
+  for (const el of document.querySelectorAll('.overlay, #labSetup, #labRun, #rpChip')) {
+    if (el.hidden || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') continue;
+    const z = +getComputedStyle(el).zIndex || 0;
+    if (z >= bz) { bz = z; best = el; }
+  }
+  return best;
+}
+function padMenuItems(surf) {
+  return [...surf.querySelectorAll('button, select, input, textarea, summary, [tabindex="0"]')].filter(e => !e.disabled && e.offsetParent !== null && !e.closest('[hidden]') && !(e.tagName === 'INPUT' && e.type === 'hidden') && !(e.tagName === 'TEXTAREA' && e.readOnly));
+}
+function padMenuMark(el) {
+  if (padNav.el && padNav.el !== el) padNav.el.classList.remove('padfocus');
+  padNav.el = el;
+  if (!el) return;
+  el.classList.add('padfocus');
+  try { el.focus({ preventScroll: true }); } catch (e) {}
+  try { el.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+}
+function padMenuCancel(surf) {
+  const items = [...surf.querySelectorAll('button')].filter(e => !e.disabled && e.offsetParent !== null);
+  const c = items.find(e => /(Close|close|No|Skip|Cancel)$/.test(e.id) || /^(やめる|閉じる|キャンセル|いいえ|残さない)/.test(e.textContent.trim()));
+  if (c) { c.click(); return true; }
+  return false;
+}
+// true while a menu is open (the controller is driving the menu, not the boat)
+function padMenu(g, down, edge, dt) {
+  const surf = padMenuSurface();
+  if (!surf) { if (padNav.el) padMenuMark(null); padNav.surf = null; return false; }
+  const items = padMenuItems(surf);
+  if (padNav.surf !== surf || !items.includes(padNav.el)) {
+    padNav.surf = surf;
+    // start on the menu's main button (the first .btn that isn't a ghost), else the first item
+    padMenuMark(items.find(e => e.classList.contains('btn') && !e.classList.contains('ghost')) || items[0] || null);
+  }
+  const ay = g.axes[1] || 0, ax = g.axes[0] || 0;
+  const dir = down(12) || ay < -PAD_MENU.stick ? -1 : down(13) || ay > PAD_MENU.stick ? 1 : 0;
+  const side = down(14) || ax < -PAD_MENU.stick ? -1 : down(15) || ax > PAD_MENU.stick ? 1 : 0;
+  const any = dir || side;
+  let step = false;
+  if (!any) padNav.held = 0;
+  else if (padNav.held === 0) { step = true; padNav.held = 1; padNav.t = PAD_MENU.repeat0; }
+  else { padNav.t -= dt; if (padNav.t <= 0) { step = true; padNav.t = PAD_MENU.repeat; } }
+  const el = padNav.el;
+  if (step && el) {
+    const adjust = side && !dir && (el.tagName === 'SELECT' || el.tagName === 'INPUT' && el.type === 'range');
+    if (adjust) {
+      if (el.tagName === 'SELECT') { const i = clamp(el.selectedIndex + side, 0, el.options.length - 1); if (i !== el.selectedIndex) { el.selectedIndex = i; el.dispatchEvent(new Event('change', { bubbles: true })); } }
+      else { if (side > 0) el.stepUp(); else el.stepDown(); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+    } else if (items.length) {
+      const i = items.indexOf(el), d = dir || side;
+      padMenuMark(items[(i + d + items.length) % items.length]);
+    }
+  }
+  if (edge(0) && padNav.el) {
+    const e = padNav.el;
+    if (e.tagName === 'SELECT') { const i = (e.selectedIndex + 1) % e.options.length; e.selectedIndex = i; e.dispatchEvent(new Event('change', { bubbles: true })); }
+    else if (e.tagName === 'INPUT' && (e.type === 'text' || e.type === 'number')) { try { e.focus(); } catch (x) {} }
+    else e.click();
+  }
+  if (edge(1)) padMenuCancel(surf);
+  return true;
+}
+function pollPadButtons(dt = 0) {
   const g = currentPad();
   $('padTag').hidden = !g;
   if (!g) return;
   const down = i => !!(g.buttons[i] && g.buttons[i].pressed);
   const edge = i => down(i) && !pad.prev[i];
+  // a menu is open: the controller works the menu (Start still opens/closes 設定)
+  if (padMenu(g, down, edge, dt) && !edge(9)) { pad.prev = g.buttons.map(b => b.pressed); return; }
   if (edge(0) && running && !paused && fleet && fleet.entry && $('start').hidden && !calib.open) playerClaim();   // A = コース主張
   else if (edge(0) && !$('start').hidden) start();
   else if (edge(0) && calib.open) closeCalib();
@@ -1734,7 +1809,7 @@ let rpLast = null, rpIdx = 0, rpWasPaused = false, rpFromMenu = false;
 const rpN = (v, d = 1) => v == null || !isFinite(v) ? '-' : (+v).toFixed(d).replace(/\.0+$/, '').replace(/^-0$/, '0');
 function rpBegin(f, zero) {
   const e = waterEnv, st = f.setsu && f.setsu.race;
-  const head = [`#HFGP-REPLAY v1 ${'d110'} ${new Date().toISOString()}`,
+  const head = [`#HFGP-REPLAY v1 ${'d113'} ${new Date().toISOString()}`,
     `#mode ${lab.active ? 'lab' : st ? `setsu day${st.day} ${st.R}R ${st.kind}` : f.playerNo ? `race player=${f.playerNo}` : 'demo'} entry=${f.entry ? 'pit' : 'fixed'}`,
     `#env ${e ? `${windJa(e)} wave=${e.wave}cm cx=${rpN(e.cx, 2)} stab=${e.stabilizer ? 1 : 0}${e.temp != null ? ` temp=${e.temp}` : ''}${e.tideJa ? ` tide=${e.tideJa}${e.tideLv}` : ''}` : 'calm'}`,
     '#boat no cls name temper pref motor(deashi/mid/nobi/power) hull(grip/ride/drag) weightK tilt skill(start/turn/judge) courseAff'];
@@ -2123,11 +2198,11 @@ function makeDriver(prof, trait = {}) {
     const mode = startModeOf(trait);
     mem.stMode = mode;
     const sc = prof.stCls || START_CLASS[prof.name] || START_CLASS.B1;
-    const cf = trait.course === 1 ? START_COURSE.in : trait.slow ? (START_COURSE[trait.course] ?? START_COURSE.slow) : START_COURSE.dash;
-    mem.stTarget = START_MODE[mode] + sc.shift;
+    const cf = (START_COURSE.by[trait.course - 1] ?? 1.5) * (trait.slow ? 1 : START_COURSE.dash);
+    mem.stTarget = START_MODE[mode] + sc.shift + START_COURSE.margin * sc.sd * Math.max(0, cf - START_COURSE.by[0]);
     const ge = gauss() * sc.sd * cf * (trait.stSdMul || 1);
     mem.stErr = mode === 'shobu' ? ge : (ge < 0 ? ge * 0.6 : ge);   // a safe start's early misses mostly get caught (放る)
-    if (simRandom() < sc.dent * (mode === 'antei' ? 0.5 : 1)) mem.stErr += 0.06 + simRandom() * 0.15;   // ミス／凹み
+    if (simRandom() < sc.dent * cf * (mode === 'antei' ? 0.5 : 1)) mem.stErr += 0.06 + simRandom() * 0.15;   // ミス／凹み
     mem.misread = false; mem.hou = false; mem.houed = false;
     mem.houSure = mode !== 'shobu' || simRandom() < START_SHOBU_HOU;   // going for it, it doesn't always pull out in time
     if (simRandom() < (trait.flyRisk || 0)) { mem.stTarget = -0.01 - simRandom() * 0.05; mem.stErr = 0; mem.misread = true; }   // reads the clock wrong and never notices
@@ -2930,7 +3005,7 @@ function innerTarget(b, env) {
   }
   return best;
 }
-const TURN_ORDER = { dropSashi: false, dropLead: 2, dropRoom: 1, commitLead: 3.0, startedA: 0.3, alongX: 7, overOff: 2, swellOver: 2, slotOff: 3, swellOut: 4, swellWide: 5, others: 3, sashiMin: 4, forceRoom: 3.5, wideOff: 5, waitThr: 0.7, yieldMargin: 2.5, zone: 38, ahead: 2.0, lat: 16, room: 5, sashiIn: 3.5, outOff: 4, yieldThr: 0.65, sashiThr: 0.9, sashiClear: 4 };
+const TURN_ORDER = { dropSashi: true, dropLead: 2, dropRoom: 1, commitLead: 3.0, startedA: 0.3, alongX: 7, overOff: 2, swellOver: 2, slotOff: 3, swellOut: 4, swellWide: 5, others: 3, sashiMin: 4, forceRoom: 3.5, wideOff: 5, waitThr: 0.7, yieldMargin: 2.5, zone: 38, ahead: 2.0, lat: 16, room: 5, sashiIn: 3.5, outOff: 4, yieldThr: 0.65, sashiThr: 0.9, sashiClear: 4 };
 // how far off the buoy a boat is: running in, its distance off the buoy's line; going round, its radius
 function gapOffMark(q) { const mk = COURSE.marks[0]; return q.x < mk.x ? Math.abs(q.y - mk.y) : Math.hypot(q.x - mk.x, q.y - mk.y); }
 // my part in the 1M turn order (see the driver): 'mark' (I turn first), 'yield', 'sashi' or 'out'
@@ -3048,7 +3123,10 @@ const ST_SPREAD = { 1: 0.05, 2: 0.11, 3: 0.11, 4: 0.08, 5: 0.10, 6: 0.10, kado: 
 const ST_MARGIN = 0.5, HOU_AT = 0.01;
 const START_MODE = { shobu: 0.05, pin: 0.10, antei: 0.15 };
 const START_CLASS = { TOP: { shift: -0.01, sd: 0.028, dent: 0.03 }, A1: { shift: 0, sd: 0.035, dent: 0.05 }, A2: { shift: 0.02, sd: 0.045, dent: 0.07 }, B1: { shift: 0.04, sd: 0.055, dent: 0.09 }, B2: { shift: 0.06, sd: 0.065, dent: 0.12 } };
-const START_COURSE = { in: 0.8, 2: 1.15, 3: 0.9, slow: 1.0, dash: 1.45 };   // the 2 is the awkward one (squeezed between); the 3 times it more easily   // how hard each spot is to time (× sd)
+// how hard each spot is to time (× sd), by course: the 1コース is the easiest to read, harder the further out.
+// A dash boat (any course) times it from a run-up — harder still, but it crosses with the speed on.
+// margin: how much later (× its extra error) an outside boat aims to stay clear of a フライング
+const START_COURSE = { by: [0.6, 0.85, 1.0, 1.2, 1.35, 1.5], dash: 1.15, margin: 0.5 };
 const START_PICK = { calm: { shobu: 0.04, antei: 0.4 }, normal: { shobu: 0.12, antei: 0.25 }, aggr: { shobu: 0.25, antei: 0.1 } };
 const START_SHOBU_HOU = 0.75;   // going for 0.05, the chance it still throws the lever off when it would be early
 function startModeOf(trait) {
@@ -5786,9 +5864,9 @@ function tick(now) {
       lab.accumulator+=dt*lab.rate;
       while(lab.accumulator>=1/120&&!paused&&!lab.finished){labStep();lab.accumulator-=1/120;}
     }
-    hapticsStop();updateAudio();draw();labUpdate();return;
+    pollPadButtons(dt);hapticsStop();updateAudio();draw();labUpdate();return;
   }
-  if($('labSetup').hidden && $('slitPhoto').hidden)pollPadButtons();
+  pollPadButtons(dt);
   if (running && !paused) {
     if (fleet && playerActive()) { const sd = dt * (now < slowUntil ? CUTIN.slow : 1); updateInput(dt); fleetStep(sd / 2, input); fleetStep(sd / 2, input); cutinCheck(); const pr = playerRow(); if (pr && playerRacing(pr)) hapticsFrame(dt, pr.b); }   // practice runs in real time
     else if (fleet) { const n = Math.ceil(simSpeed * 2); for (let i = 0; i < n; i++) fleetStep(dt * simSpeed / n, input); }
