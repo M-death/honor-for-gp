@@ -508,6 +508,9 @@ function makeDriver(prof, trait = {}) {
         if (gap < 6) vT = Math.min(vT, 3);
       }
       thrT = clamp(0.3 + (vT - b.v) * 0.3, 0, 1);
+      // 追い抜き禁止: right behind (or alongside) the boat that goes first — lever off and sit up, let it go
+      mem.cauYield = !!(q && Math.hypot(q.x - b.x, q.y - b.y) < CAUTION_ZONE.yield && b.v > q.v - 2);
+      if (mem.cauYield) { thrT = 0; pitchT = -1; mem.cauYieldAt = time; }
       rollT = turnInfo(R, s).inTurn ? -0.4 : 0;
       o.thr += (thrT - o.thr) * (1 - Math.exp(-4 * dt));
     } else if (env.cruise) {
@@ -1106,7 +1109,11 @@ const SASHI_ORDER = { tactics: ['sashi', 'sashiWin', 'sashiPlace', 'wall'], at: 
 const CAUTION_V = { near: 10, k: 0.25, far: 21 };
 // 着順確定: the last boat must be this far (m) past the wreck as well as round the next turn mark.
 // Until then they still race, except within `near` m of a wreck: there it is 徐行, outside it, no passing.
-const CAUTION_LOCK = { past: 10, near: 60, along: 4, lap: 0.5 };   // lap: the last boat runs at least this share of a lap before the pass that fixes it   // along: closer than this (m, along the course) counts as side by side
+const CAUTION_LOCK = { past: 10, near: 25, along: 4, lap: 0.5 };
+// 追い抜き禁止区間: from 150 m before the turn mark the wreck lies toward (1M: the start line; 2M: the middle of the
+// back straight — the riders' own agreement) to `past` m beyond the wreck. Inside it the boat ahead goes first
+// (side by side: the inside one); everywhere else it is still a race.
+const CAUTION_ZONE = { past: 20, yield: 10 };   // yield: closer than this (m) to the boat that goes first → lever off, sit up   // lap: the last boat runs at least this share of a lap before the pass that fixes it   // along: closer than this (m, along the course) counts as side by side
 const nearWreck = (b, d) => fleet.wrecks.some(w => Math.hypot(w.x - b.x, w.y - b.y) < d);   // m/s at the wreck, gain per m away, cap away from it
 // 流れ: how often the 逃げ swings wide off 1M (by class), and how much more under pressure / after a poor start
 const NIGE_NAGARE = { p: { TOP: 0.1, A1: 0.13, A2: 0.18, B1: 0.24, B2: 0.3 }, press: 0.15, late: 0.15, tail: 0.1, R: 3.5, gap: 2 };   // m before 1M; overlap window (m behind / ahead of the inside boat); lever while yielding
@@ -2075,7 +2082,7 @@ function fleetStep(dt, playerInput) {
                   stAdv: inR && r.st != null ? (inR.st != null ? inR.st - r.st : Math.max(0, time - zero) - r.st) : 0,   // inside boat not across yet: at least this much behind
                     battle: r.battle, retire: r.flying && r.passed1M,
                     cruise: r.fin != null ? { ahead: fi > 0 ? fleet.finOrder[fi - 1].b : null } : null,
-                    caution: fleet.caution && r.fin == null && !r.dq && (fleet.locked || nearWreck(b, CAUTION_LOCK.near)) ? { ahead: cautionAhead(r), wrecks: fleet.wrecks } : null };
+                    caution: fleet.caution && r.fin == null && !r.dq && (fleet.locked || inCautionZone(r) || nearWreck(b, CAUTION_LOCK.near)) ? { ahead: cautionAhead(r), wrecks: fleet.wrecks } : null };
       env.finalStretch = r.laps === raceLaps() - 1 && (r.vis & 2) && b.y > 0;   // round the last mark, heading for the line
       if(lab.active)labBeforeDrive(r,env);
       o = r.drv.drive(b, env, dt);
@@ -2093,7 +2100,7 @@ function fleetStep(dt, playerInput) {
         o = { thr: pi.thr, steer: pi.steer, roll: pi.roll, pitch: pi.pitch, ev: null };
         r.inp = o; b.gripBoost = 1; b.pushing = false;
       } else if (r.player && r.inp !== r.drv.out) r.inp = r.drv.out;
-      b.hold = fleet.pitMode && r.st == null && (r.player ? o.thr < 0.08 : !r.drv.mem.go);
+      b.hold = fleet.pitMode && r.st == null && (r.player ? o.thr < 0.08 : !r.drv.mem.go) || (!r.player && r.drv.mem.cauYieldAt === time);
       if (o.ev === 'pushFail') pushFailed(r);
       else if (o.ev === 'squeeze') { fleet.squeezes++; toast('絞り', `${r.no}号艇が内の${inR?.no??"?"}号艇を絞りにいく`, 'info'); }
       else if (o.ev === 'resist') { fleet.resists++; toast('抵抗', `${r.no}号艇が張って抵抗`, 'warn'); }
@@ -2509,6 +2516,16 @@ function cautionAhead(r) {
 // (past the wreck, outside it) — until then it still counts as raced. Only then can the race be skipped.
 // prog of the end of each turn (1M exit, 2M exit) within a lap, measured the same way as r.prog
 const TURN_EXIT = (() => { const M = arcX(13), A = Math.PI * 13, L = loopLen(13), p = s => ((s - MK + L) % L + L) % L; return [p(2 * M + A), p(L)].sort((a, b) => a - b); })();
+// the two 150 m-before-the-mark lines (x = 0 on the home and the back straight), in the same measure as r.prog
+const ZONE_FROM = [loopS(13, 0, 30), loopS(13, 0, -30)].map(s => ((s - MK) % LREF + LREF) % LREF).sort((a, b) => a - b);
+// where in the lap (same measure as r.prog) the no-overtaking zone for a wreck starts, and how long it is
+function cautionZoneFor(w) {
+  const wp = ((loopS(13, w.x, w.y) - MK) % LREF + LREF) % LREF;
+  let s = -Infinity; for (const e of ZONE_FROM) if (e <= wp) s = Math.max(s, e);
+  if (s === -Infinity) s = ZONE_FROM[ZONE_FROM.length - 1] - LREF;
+  return { s, len: wp + CAUTION_ZONE.past - s };
+}
+const inCautionZone = r => (fleet.cZones || []).some(z => ((r.prog - z.s) % LREF + LREF) % LREF < z.len);
 function nextTurnExit(pg) {
   const lap = Math.floor(pg / LREF), at = pg - lap * LREF;
   for (const e of TURN_EXIT) if (e >= at) return lap * LREF + e;
@@ -2536,7 +2553,7 @@ function accident(r, kind, why) {
   splash(b); sfxCapsize(b.x, b.y);
   toast(kind, `${r.no}号艇 ${why}　失格`, 'bad');
   jkSay('acc', r.no, kind);
-  fleet.wrecks.push(b);
+  fleet.wrecks.push(b); (fleet.cZones = fleet.cZones || []).push(cautionZoneFor(b));
   if (!fleet.caution) {
     fleet.caution = true;
     fleet.rank = fleet.boats.slice().sort((a, b) => b.prog - a.prog);   // fresh, not the 0.25 s-old display order
@@ -2547,7 +2564,7 @@ function accident(r, kind, why) {
     let lockAt = wreckProg + CAUTION_LOCK.past;
     while (lockAt < Math.max(nextTurnExit(last), last + LREF * CAUTION_LOCK.lap)) lockAt += LREF;
     fleet.lockAt = lockAt;
-    if(!lab.active)setTimeout(() => toast('事故発生', '事故艇の近くは徐行。最後尾が1周して事故艇の外を回ったら着順確定', 'warn'), 1800);
+    if(!lab.active)setTimeout(() => toast('事故発生', '事故艇の手前のストレートから追い抜き禁止（前の艇が優先、並んだら内側）。最後尾が1周して事故艇の外を回ったら着順確定', 'warn'), 1800);
   }
 }
 function pushFailed(r) {

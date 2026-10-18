@@ -1,4 +1,4 @@
-// Honor for GP — 共通の道具・水面とボートの物理定数・モーター・プレイヤー艇の状態
+// Honor for GP — 共通の道具・コースの形・スタートの決まり・プレイヤー艇の状態
 const lab = {active:false,finished:false,inSim:false,rng:42,steps:0,config:null,data:null};
 function simRandom(){
  if(lab.predicting)return .5;
@@ -45,72 +45,6 @@ function gateCrossing(g,p,q){
   const u=(lo+hi)/2,at=boatBow(interpolatePose(p,q,u));
   return Math.sign(at.y)===g.side?p.t+(q.t-p.t)*u:null;
 }
-const GRIP_BASE = 5;         // sideways grip; with the turn-rate cap this sets how wide a turn swings at speed
-const HAZARD = 0.2;
-const WAIT_DRAG = 0.1;   // extra drag sat up with the lever shut while waiting
-// 接触による転覆: impulse threshold (j0, never below jMin), how much an unsettled hull lowers it, the impulse range to
-// the full chance, how much instability raises it, and the share of that chance the boat that did the hitting faces
-const CAPSIZE = { j0: 7.6, jMin: 2.6, unstJ: 3.5, span: 10, unstP: 2, hitter: 0.3 };
-// turning: how much leaning in adds grip, how much sitting up amplifies that and staying crouched spoils it,
-// how far full throttle pushes a turn wide without the body in it, how much easing the lever settles the hull,
-// and how much a flat-out, full-lock, deep hang-on at top speed (無茶) adds to the load
-const TURN = { lean: 0.9, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 0.2, dropCalm: 0.3, mucha: 0.5,
-  holdPose: 0.5, exitPose: 0.3, carve: 0.8, upBrake: 0.35, run: 0.7, keep: 0.7 };   // carving out: a firm inside lean keeps the bite while easing up into a crouch; a clean turn scrubs less speed
-// 引き波: a boat's wake is a thick, lasting wave — width either side of each wave line (m), how long it
-// stays rough (s), and how hard crossing it hits speed, heading and grip (1 = the old strength)
-// 引き波よけ: lateral offsets (m, + = to my right) a CPU considers to find calm water — wide enough to step out of a pack's wake band
-const WAKE_PLAN = { offs: [-4.5, -3, -1.5, 0, 1.5, 3, 4.5, 6], freeAt: 55, nudge: 1.5 };   // freeAt: m before a mark where line changes are free again
-const WAKE = { width: 1.4, life: 2.4, drag: 1.8, kick: 1.9, grip: 1.6, unsettle: 0.55, fade: 2.5 };   // fade: how fast a wake dies with age (d118 0.7). Fresh wake hits as hard as ever; an old one fades fast
-// 航跡: running in line behind a boat (not crossing its wake) takes the edge off thrust — the closer, the more
-const TRAIL = { range: 60, width: 2.5, max: 0.1, dodgeK: 2.5 };          // chance per second of going over, scaled by (load − 1)^1.5 past the danger line
-// 直線: lean up to `free` steers the hull a touch at no cost; past `ok` the posture itself drags (per m/s of speed)
-const STRAIGHT_LEAN = { free: 0.35, ok: 0.5, drag: 0.035 };
-// CPU on a straight (next mark more than `from` m ahead): rudder held within ±steer, the rest of the wanted turn goes to the lean
-const STRAIGHT_RUN = { from: 55, steer: 0.06, leanK: 1.5, crouch: 1 };   // crouch: on a clean straight every rider lies flat — the speed is the motor's
-const YAW_OVER = 1.15;       // how far past the grip limit the nose may be forced round (the excess slides)       // sideways grip before a slide; lower = turns swing wider at speed
-const THRUST = 7.85;          // full-lever push: top speed ≈ 82 km/h crouched, idle ≈ 16 km/h
-// 立ち上がり: the hull drives hard only once it's up on the plane; below that the same lever pulls less
-const PLANE = { low: 0.4, v: 23 };
-const thrustK = v => 1 - PLANE.low * clamp(1 - v / PLANE.v, 0, 1);
-// スタート（起こし→スリット）だけは加速が鈍い: 助走100mでスリット時に全速の85%前後、200mで95%前後。
-// 周回中のターン立ち上がりには掛からない（preStart は大時計の針が回っている間、スタートラインを越えるまで）
-const START_ACC = { cut: 0.5, v: 22.5, fade: 40, slowK: 1.19, slowFade: 51 };   // slowK: the スロー start's short run-up digs in harder (it reaches the slit slower and is still climbing)   // fade: m past the slit over which the start's dull pull wears off (the dash boats' 伸び tells there)
-// 向かい風 holds the スロー's short run-up back (the dash gets its chance); 追い風 helps it along
-const startWindK = b => b && b.slowStart && waterEnv ? 1 + clamp(-waterEnv.wx, 0, 8) * 0.03 - clamp(waterEnv.wx, 0, 8) * 0.015 : 1;
-const startK = (v, pre, b) => pre ? 1 - Math.min(0.9, START_ACC.cut * (b && b.slowStart ? START_ACC.slowK : 1) * startWindK(b)) * (+pre) * clamp(1 - v / START_ACC.v, 0, 1) : 1;
-// after the slit the slow boats are still climbing: the dull pull fades out over the first fade m of the straight
-const preStartAfter = (bowX, slow) => clamp(1 - bowX / (slow ? START_ACC.slowFade : START_ACC.fade), 0, 1);
-// モーター・ペラ・チルト: 出足 (deashi) shapes the pull at low speed, 伸び (nobi) the top end. Tilt up (+) buys 伸び and
-// costs 出足 and grip in the turns; tilt down (−0.5) the other way round.
-// 周回ごとの失速: the leader slows a little every lap even when alone.
-// 水面の荒れ (CHOP): every boat's wash and prop froth stays in the small pool and bounces off the walls, so the
-//   whole water gets choppier as the race goes on — the prop bites a little less and the hull grips a little less.
-// 熱ダレ (HEAT): flat out the motor heats up and loses a touch of power; easing the lever lets it cool a bit.
-const CHOP = { full: 110, pow: 1.5, thr: 0.05, grip: 0.03 };   // pow > 1: the first lap's water is still clean, it builds up later
-const HEAT = { T: 90, cool: 0.4, thr: 0.045 };
-const raceElapsed = () => fleet && fleet.raceOn && time > fleet.raceStart ? time - fleet.raceStart : 0;   // only once the race is off (not in the 待機行動)
-const chopNow = () => Math.pow(clamp(raceElapsed() / CHOP.full, 0, 1), CHOP.pow);
-function heatStep(b, thr, dt) { if (!raceElapsed()) { b.heat = 0; return; } b.heat = clamp((b.heat || 0) + (thr - HEAT.cool) * dt / HEAT.T, 0, 1); }
-const raceFadeK = b => (1 - CHOP.thr * chopNow()) * (1 - HEAT.thr * (b.heat || 0));
-// 回り足 (quick races): extra pull and bite while the boat is turning; 1 = average motor
-const MAWARI = { yaw: 0.35, thr: 2.5, grip: 1.2 };
-const mawariK = (b, k) => b && b.mawari ? 1 + (b.mawari - 1) * k * clamp(Math.abs(b.yaw) / MAWARI.yaw, 0, 1) : 1;
-const TILT = { hop: 0.25, nobi: 0.006, deashi: 0.01, grip: 0.035, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };
-function motorK(b, v = b.v) {
-  if (!b || b.nobi == null) return 1;
-  const t = b.tilt || 0;
-  if (b.mMid == null) { const w = clamp((v - 14) / 8, 0, 1); return ((b.deashi - TILT.deashi * t) * (1 - w) + (b.nobi + TILT.nobi * t) * w) * (b.powerK || 1) * mawariK(b, MAWARI.thr); }
-  // 3つの速度域: 出足 (low), 回り足・行き足 (mid), 伸び (top), blended by speed; temperature hits the low end harder
-  const wTop = clamp((v - 16) / 6, 0, 1), wLow = clamp((13 - v) / 6, 0, 1), wMid = Math.max(0, 1 - wTop - wLow);
-  const lo = b.deashi - TILT.deashi * t + (b.tempLow || 0), top = b.nobi + TILT.nobi * t + (b.tempTop || 0), mid = b.mMid + (b.tempLow || 0) * 0.5 + (b.tempTop || 0) * 0.5;
-  return (lo * wLow + mid * wMid + top * wTop) * (b.powerK || 1);
-}
-// その日の水面 (節間): wind (m/s, a vector: +x = blowing from 2M toward 1M = 追い風 on the home straight), tide current, wave height (cm)
-let waterEnv = null;
-// the chop runs with the wind: punching into it (向かい) slams the hull, running with it (追い波) is far smoother
-const waveHeadK = a => { if (!waterEnv) return 1; const w = Math.hypot(waterEnv.wx, waterEnv.wy); if (w < 0.3) return 0.65; const c = (waterEnv.wx * Math.cos(a) + waterEnv.wy * Math.sin(a)) / w; return 0.65 - 0.35 * c; };
-const ENV = { windDrift: 0.035, windAir: 0.025, waveBump: 0.012, waveStab: 6, stabDrag: 1.08, stabBump: 0.6, boatMass: 110 };
-const tiltGrip = b => 1 - TILT.grip * Math.max(0, b.tilt || 0) + 0.02 * Math.max(0, -(b.tilt || 0));
 // 隊形: 7 m centre to centre (about 5.5 m of water between hulls), as on a real start; the course is wide enough for it
 const LANE = { y0: 8, step: 7 };
 const COURSE = { xMin: -310, xMax: 200, yMin: -58, yMax: 58, marks: [{ x: MK, y: 0, name: '1M' }, { x: -MK, y: 0, name: '2M' }] };
