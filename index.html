@@ -363,7 +363,8 @@ body.lab-running>#jk{display:none!important}
       <button class="btn" id="pm6">6艇スタート練習</button>
       <p style="margin:0 0 6px">ピット離れから。舵は自動でアクセルだけ調整して待機位置へ。「引く」でダッシュ。スタートしたら自動で1マークを回り、スリット写真で終了（前付けなし）。</p>
       <button class="btn" id="pmTA">タイムアタック（1艇・大時計スタートから3周・級判定）</button>
-      <p style="margin:0 0 6px">タイムで級（ルーキー〜B2・B1・A2・A1・記念クラス）を判定。自己ベストはゴーストになって一緒に走ります。</p>
+      <p style="margin:0 0 6px">タイムで級（ルーキー〜B2・B1・A2・A1・記念クラス）を判定。自己ベストはゴーストになって一緒に走ります。走りきった回はログ（位置・速度・操作を0.1秒ごと）が残ります。</p>
+      <button class="btn ghost" id="pmTALog">タイムアタックのログ</button>
       <button class="btn ghost" id="pmTenji">展示航走（1艇・タイム計測）</button>
       <p style="margin:0 0 6px">バックストレッチから2マークを回り、スリットから2周。展示・直線・まわり足・一周タイムを計測。</p>
       <button class="btn ghost" id="pmClock">大時計スタート（1艇）</button>
@@ -379,10 +380,10 @@ body.lab-running>#jk{display:none!important}
 <div class="rpChip" id="rpChip" hidden><span>リプレイログ</span><button class="btn" id="rpKeep">残す</button><button class="btn ghost" id="rpSkip">残さない</button></div>
 <div class="overlay" id="rpBox" hidden style="z-index:8">
   <div class="card" style="max-width:720px;width:100%">
-    <h1 style="font-size:20px;margin:0 0 6px"><small>検証用</small>リプレイログ</h1>
+    <h1 style="font-size:20px;margin:0 0 6px"><small>検証用</small><span id="rpHead">リプレイログ</span></h1>
     <p id="rpInfo" style="margin:0 0 6px;font-size:12px"></p>
     <textarea id="rpText" readonly spellcheck="false" style="width:100%;box-sizing:border-box;height:42vh;font:10px/1.35 ui-monospace,Menlo,Consolas,monospace;background:var(--water-deep);color:var(--fg);border:1px solid var(--hud-line);border-radius:8px;padding:6px;white-space:pre;overflow:auto"></textarea>
-    <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="btn" id="rpCopy">コピー</button><button class="btn ghost" id="rpOlder">前のログ</button><button class="btn ghost" id="rpNewer">次のログ</button><button class="btn ghost" id="rpDel">このログを消す</button><button class="btn ghost" id="rpClose">閉じる</button></div>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="btn" id="rpCopy">コピー</button><button class="btn ghost" id="rpSave">ファイルに保存</button><button class="btn ghost" id="rpOlder">前のログ</button><button class="btn ghost" id="rpNewer">次のログ</button><button class="btn ghost" id="rpDel">このログを消す</button><button class="btn ghost" id="rpClose">閉じる</button></div>
   </div>
 </div>
 <div class="overlay" id="askBox" hidden style="z-index:9">
@@ -467,7 +468,7 @@ body.lab-running>#jk{display:none!important}
     <p id="taMsg" style="color:var(--fg)"></p>
     <table class="mtab"><thead><tr><th></th><th>今回</th><th>自己ベスト</th></tr></thead><tbody id="taBody"></tbody></table>
     <p id="taNote" style="font-size:12px;color:var(--muted)"></p>
-    <div class="row"><button class="btn" id="taAgain">もう一度</button><button class="btn ghost" id="taSlit" hidden>スリット写真</button><button class="btn ghost" id="taClose">閉じる</button></div>
+    <div class="row"><button class="btn" id="taAgain">もう一度</button><button class="btn ghost" id="taLog">ログ</button><button class="btn ghost" id="taSlit" hidden>スリット写真</button><button class="btn ghost" id="taClose">閉じる</button></div>
   </div>
 </div>
 <div class="overlay" id="card" hidden>
