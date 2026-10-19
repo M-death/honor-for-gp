@@ -442,7 +442,7 @@ let rpLast = null, rpIdx = 0, rpWasPaused = false, rpFromMenu = false;
 const rpN = (v, d = 1) => v == null || !isFinite(v) ? '-' : (+v).toFixed(d).replace(/\.0+$/, '').replace(/^-0$/, '0');
 function rpBegin(f, zero) {
   const e = waterEnv, st = f.setsu && f.setsu.race;
-  const head = [`#HFGP-REPLAY v1 ${'d131'} ${new Date().toISOString()}`,
+  const head = [`#HFGP-REPLAY v1 ${'d132'} ${new Date().toISOString()}`,
     `#mode ${lab.active ? 'lab' : st ? `setsu day${st.day} ${st.R}R ${st.kind}` : f.playerNo ? `race player=${f.playerNo}` : 'demo'} entry=${f.entry ? 'pit' : 'fixed'}`,
     `#env ${e ? `${windJa(e)} wave=${e.wave}cm cx=${rpN(e.cx, 2)} stab=${e.stabilizer ? 1 : 0}${e.temp != null ? ` temp=${e.temp}` : ''}${e.tideJa ? ` tide=${e.tideJa}${e.tideLv}` : ''}` : 'calm'}`,
     '#boat no cls name temper pref motor(deashi/mid/nobi/power) hull(grip/ride/drag) weightK tilt skill(start/turn/judge) courseAff'];

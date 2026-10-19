@@ -1,0 +1,97 @@
+/* ---------- タイムアタック (1艇・大時計スタートから3周・級判定) ----------
+   The time is a race time: from the hand hitting zero to the finish line on the 3rd lap. Calm water, an average
+   motor (出足・伸び1.0), and the race's own fade (水面の荒れ・熱ダレ) so the laps slow the way they do in a race.
+   フライング・出遅れ・転覆・内側航走 end the run with no record. The best run is kept in this browser and comes back
+   as a ghost boat. */
+const TA = { laps: 3, key: 'honorGP.ta', ghostDt: 0.1, failWait: 1.8 };
+// 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
+// A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
+const TA_RANKS = [['記念クラス', 105.0], ['A1', 106.5], ['A2', 110.0], ['B1', 114.0], ['B2', 120.0], ['ルーキー', Infinity]];
+const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false };
+let taBest = null;
+try { taBest = JSON.parse(localStorage.getItem(TA.key) || 'null'); } catch (e) {}
+const taRank = t => TA_RANKS.find(r => t <= r[1])[0];
+const taGap = d => (d < 0 ? '−' : '+') + Math.abs(d).toFixed(2);
+
+function beginTA() {
+  beginStart();
+  soloKind = 'ta'; waterEnv = null;
+  Object.assign(ta, { on: true, zero: SS.t0 + CLOCK, lastAt: SS.t0 + CLOCK, laps: [], st: null, path: [], nextPt: SS.t0, done: false });
+  toast('タイムアタック', `大時計スタートから${TA.laps}周　${taBest ? '自己ベスト ' + fmtRT(taBest.t) : '走ったタイムで級を判定'}`, 'info');
+}
+// every physics step of the solo boat
+function taStep() {
+  if (!ta.on) return;
+  if (time >= ta.nextPt) { ta.path.push(+B.x.toFixed(2), +B.y.toFixed(2), +B.a.toFixed(3)); ta.nextPt += TA.ghostDt; }
+  if (B.cap > 0) taFail('転覆');
+}
+function taStart(st) { if (!ta.on) return; ta.st = st; if (st < 0) taFail('フライング'); }
+function taLap(at) {
+  if (!ta.on) return;
+  const lt = at - ta.lastAt, n = ta.laps.push(lt); ta.lastAt = at;
+  const b = taBest && taBest.laps ? taBest.laps.slice(0, n).reduce((s, v) => s + v, 0) : null;
+  const sum = at - ta.zero;
+  if (n >= TA.laps) { taFinish(sum); return; }
+  toast(`${n}周`, `ラップ ${lt.toFixed(2)}${b != null ? `　自己ベスト比 ${taGap(sum - b)}` : ''}`, 'info');
+}
+function taFail(why) {
+  if (!ta.on) return;
+  ta.on = false;
+  toast(why, '記録なし', 'bad');
+  setTimeout(() => taShow(null, why), TA.failWait * 1000);
+}
+function taFinish(t) {
+  ta.on = false; ta.done = true;
+  const prev = taBest, best = !prev || t < prev.t;
+  if (best) {
+    taBest = { t, laps: ta.laps.slice(), st: ta.st, rank: taRank(t), g: ta.path, g0: SS.t0 - ta.zero, at: Date.now() };
+    try { localStorage.setItem(TA.key, JSON.stringify(taBest)); } catch (e) {}
+  }
+  toast(best ? '自己ベスト更新' : 'ゴール', `${fmtRT(t)}　${taRank(t)}`, best ? 'good' : 'info');
+  setTimeout(() => taShow({ t, laps: ta.laps.slice(), st: ta.st }, null, best ? prev : taBest, best), 1200);
+}
+// the result card. run = this run (null if it ended with no record), ref = the best to compare against
+function taShow(run, why, ref = taBest, isBest = false) {
+  if (soloKind !== 'ta' || fleet) return;
+  $('taTime').textContent = run ? fmtRT(run.t) : '記録なし';
+  const rk = run ? taRank(run.t) : '';
+  $('taRank').textContent = rk; $('taRank').hidden = !run;
+  $('taRank').className = 'ta-rank' + (rk === '記念クラス' ? ' top' : '');
+  let msg;
+  if (!run) msg = why === 'フライング' ? 'フライング：針が0を指す前にスタートラインを越えました。' : why === '出遅れ' ? '出遅れ：針が0を指してから1秒以内に越えられませんでした。' : why === '転覆' ? '転覆：ターンで体重移動が足りないか、アクセルを開けすぎました。' : '内側航走：ターンマークの内側を通りました。';
+  else {
+    const i = TA_RANKS.findIndex(r => r[0] === rk), up = i > 0 ? TA_RANKS[i - 1] : null;
+    msg = (isBest ? (ref ? `自己ベスト更新！（${taGap(run.t - ref.t)}秒）` : '初めての記録です。') : `自己ベストまで ${(run.t - ref.t).toFixed(2)}秒。`)
+      + (up ? `　${up[0]}まであと${(run.t - up[1]).toFixed(1)}秒。` : '　最高ランクです。');
+  }
+  $('taMsg').textContent = msg;
+  const tb = $('taBody'); tb.textContent = '';
+  const row = (name, a, b) => { const tr = document.createElement('tr'); [name, a, b].forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); }); tb.appendChild(tr); };
+  const st = v => v == null ? '—' : v < 0 ? 'F ' + fmtST(-v) : fmtST(v);
+  const cur = run || { laps: ta.laps, st: ta.st };
+  for (let i = 0; i < TA.laps; i++) row(`${i + 1}周`, cur.laps[i] != null ? cur.laps[i].toFixed(2) : '—', ref && ref.laps[i] != null ? ref.laps[i].toFixed(2) : '—');
+  row('ST', st(cur.st), ref ? st(ref.st) : '—');
+  row('タイム', run ? fmtRT(run.t) : '—', ref ? fmtRT(ref.t) : '—');
+  $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。タイムは針が0を指してからゴールまで。';
+  $('taSlit').hidden = !(practiceSlit && practiceSlit.archived);
+  paused = true; $('taBox').hidden = false;
+}
+const taClose = () => { $('taBox').hidden = true; paused = false; last = performance.now(); };
+$('taAgain').addEventListener('click', () => { taClose(); beginTA(); });
+$('taClose').addEventListener('click', taClose);
+$('taSlit').addEventListener('click', () => slitOpen(practiceSlit));
+$('pmTA').addEventListener('click', () => { closeMenu(); if (fleet) quitFleet(); beginTA(); });
+
+// ゴースト: the best run, drawn faint, on the same clock
+const GHOST_STYLE = { hull: '#9fe8d4', num: '#0a2c38', label: 'G', helmet: '#9fe8d4' };
+const GHOST_IN = { thr: 0, steer: 0, roll: 0, pitch: 0 };
+function taDrawGhost() {
+  if (soloKind !== 'ta' || fleet || !taBest || !taBest.g || !(ta.on || ta.done)) return;
+  const g = taBest.g, n = g.length / 3, u = (time - ta.zero - taBest.g0) / TA.ghostDt;
+  if (u < 0 || u >= n - 1) return;
+  const i = Math.floor(u), f = u - i, j = i * 3;
+  let da = g[j + 5] - g[j + 2]; da = Math.atan2(Math.sin(da), Math.cos(da));
+  const gb = { x: g[j] + (g[j + 3] - g[j]) * f, y: g[j + 1] + (g[j + 4] - g[j + 1]) * f, a: g[j + 2] + da * f,
+    v: Math.hypot(g[j + 3] - g[j], g[j + 4] - g[j + 1]) / TA.ghostDt, vl: 0, yaw: 0, porp: 0, cap: 0, load: 0 };
+  ctx.save(); ctx.globalAlpha = 0.38; drawBoatAt(gb, GHOST_IN, GHOST_STYLE, false); ctx.restore();
+}

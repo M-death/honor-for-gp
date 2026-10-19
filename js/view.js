@@ -334,6 +334,17 @@ function drawWindsock(x, y) {
   }
   ctx.restore();
 }
+// 自動ズーム (PC): pull back just far enough to keep every boat still racing on screen — close in when they are
+// bunched, out to the whole course when they spread. min: the closest it comes in (m across the short side).
+const CAM_AUTO = { margin: 22, min: 60, ease: 2.2 };
+let camMode = 'follow';
+try { camMode = localStorage.getItem('honorGP.camera') || 'follow'; } catch (e) {}
+if ($('camMode')) { $('camMode').value = camMode; $('camMode').addEventListener('change', e => { camMode = e.target.value; try { localStorage.setItem('honorGP.camera', camMode); } catch (x) {} }); }
+function camAutoTargets() {
+  if (!fleet) return [];
+  const live = fleet.boats.filter(r => !r.out && r.fin == null && !(r.flying && r.passed1M));
+  return (live.length ? live : fleet.boats.filter(r => !r.out)).map(r => r.b);
+}
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   let S = Math.min(W, H) / (fleet ? 44 : 34); // px per metre
@@ -350,7 +361,22 @@ function draw() {
     const ymax=lab.view==='mark'?45:Math.max(...boats.map(b=>b.y));
     S=Math.min(W/Math.max(65,xmax-xmin+35),H/Math.max(65,ymax-ymin+35));
     cam.x=(xmin+xmax)/2;cam.y=(ymin+ymax)/2;
+  }else if(camMode==='auto' && fleet && camAutoTargets().length){
+    const bs=camAutoTargets(), m=CAM_AUTO.margin;
+    let x0=Math.min(...bs.map(b=>b.x))-m, x1=Math.max(...bs.map(b=>b.x))+m, y0=Math.min(...bs.map(b=>b.y))-m, y1=Math.max(...bs.map(b=>b.y))+m;
+    const cw=COURSE.xMax-COURSE.xMin, ch=COURSE.yMax-COURSE.yMin;
+    const sFull=Math.min(W/cw,H/ch), sMax=Math.min(W,H)/CAM_AUTO.min;
+    const sT=clamp(Math.min(W/(x1-x0),H/(y1-y0)),sFull,Math.max(sFull,sMax));
+    const ka=fdt>0?1-Math.exp(-CAM_AUTO.ease*fdt):0.05;
+    cam.s=cam.s?cam.s*Math.exp(Math.log(sT/cam.s)*ka):sT; S=cam.s;
+    // keep the view on the water: centre on the boats, but never show past the course edge when it all fits
+    const vw=W/S, vh=H/S;
+    let tx=(x0+x1)/2, ty=(y0+y1)/2;
+    tx=vw>=cw?(COURSE.xMin+COURSE.xMax)/2:clamp(tx,COURSE.xMin+vw/2,COURSE.xMax-vw/2);
+    ty=vh>=ch?(COURSE.yMin+COURSE.yMax)/2:clamp(ty,COURSE.yMin+vh/2,COURSE.yMax-vh/2);
+    cam.x += (tx - cam.x) * ka * 2; cam.y += (ty - cam.y) * ka * 2;
   }else{
+    cam.s=0;
     cam.x += (vb.x + Math.cos(vb.a) * look - cam.x) * k;
     cam.y += (vb.y + Math.sin(vb.a) * look - cam.y) * k;
   }
@@ -470,7 +496,7 @@ function draw() {
   }
   if (fleet) {
     for (const r of fleet.boats) drawBoatAt(r.b, r.inp, { hull: r.col[0], num: r.col[1], label: String(r.no), helmet: r.col[0], top: !!r.prof.top }, r === fr);
-  } else drawBoatAt(B, input, PLAYER_STYLE, false);
+  } else { taDrawGhost(); drawBoatAt(B, input, PLAYER_STYLE, false); }
   ctx.restore();
   if (fleet && waterEnv && waterEnv.rain) drawRain();
   drawMini();
@@ -704,8 +730,13 @@ function updateHud() {
     $('skipBtn').hidden = !(fleet.locked && !fleet.endAt);
   } else {
     el.best.classList.remove('top');
-    setTxt('lap', `LAP ${lap.n + 1}  ${fmt(Math.max(0, time - lap.start))}`);
-    setTxt('best', lap.best == null ? 'ベスト —' : `ベスト ${fmt(lap.best)}`);
+    if (soloKind === 'ta') {
+      setTxt('lap', SS.phase === 'count' ? 'タイムアタック' : `${Math.min(TA.laps, ta.laps.length + 1)}周目  ${fmtRT(Math.max(0, (ta.on ? time : ta.lastAt) - ta.zero))}`);
+      setTxt('best', taBest ? `自己ベスト ${fmtRT(taBest.t)}（${taRank(taBest.t)}）` : '自己ベスト —');
+    } else {
+      setTxt('lap', `LAP ${lap.n + 1}  ${fmt(Math.max(0, time - lap.start))}`);
+      setTxt('best', lap.best == null ? 'ベスト —' : `ベスト ${fmt(lap.best)}`);
+    }
   }
   const th = el.track.clientHeight;
   el.fill.style.height = (vi.thr * 100) + '%';
