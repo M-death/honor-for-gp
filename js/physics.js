@@ -439,10 +439,12 @@ function cutinNote(st) {
    shown as text to copy and paste. ---- */
 const RP = { every: 0.25, keep: 6, key: 'hfgp-replays' };
 let rpLast = null, rpIdx = 0, rpWasPaused = false, rpFromMenu = false;
+// the same box also shows other kinds of log: rpSrc = { key, title, empty }, rpBack = where closing it returns to
+let rpSrc = null, rpBack = null;
 const rpN = (v, d = 1) => v == null || !isFinite(v) ? '-' : (+v).toFixed(d).replace(/\.0+$/, '').replace(/^-0$/, '0');
 function rpBegin(f, zero) {
   const e = waterEnv, st = f.setsu && f.setsu.race;
-  const head = [`#HFGP-REPLAY v1 ${'d132'} ${new Date().toISOString()}`,
+  const head = [`#HFGP-REPLAY v1 ${'d133'} ${new Date().toISOString()}`,
     `#mode ${lab.active ? 'lab' : st ? `setsu day${st.day} ${st.R}R ${st.kind}` : f.playerNo ? `race player=${f.playerNo}` : 'demo'} entry=${f.entry ? 'pit' : 'fixed'}`,
     `#env ${e ? `${windJa(e)} wave=${e.wave}cm cx=${rpN(e.cx, 2)} stab=${e.stabilizer ? 1 : 0}${e.temp != null ? ` temp=${e.temp}` : ''}${e.tideJa ? ` tide=${e.tideJa}${e.tideLv}` : ''}` : 'calm'}`,
     '#boat no cls name temper pref motor(deashi/mid/nobi/power) hull(grip/ride/drag) weightK tilt skill(start/turn/judge) courseAff'];
@@ -476,17 +478,18 @@ function rpFinish(f) {
   rpLast = { at: Date.now(), title: `${st ? `節間 ${SETSU.dayJa[setsu ? setsu.day : 0] || ''} ${st.R}R ${st.kind}` : f.playerNo ? 'レース練習' : 'デモ'}　${resultLine()}`, text };
   if (typeof document !== 'undefined' && $('rpChip')) { $('rpChip').hidden = false; clearTimeout(rpFinish.t); rpFinish.t = setTimeout(() => { $('rpChip').hidden = true; }, 25000); }
 }
-const rpLoad = () => { try { return JSON.parse(localStorage.getItem(RP.key) || '[]'); } catch (e) { return []; } };
+const rpLoad = () => { try { return JSON.parse(localStorage.getItem(rpSrc ? rpSrc.key : RP.key) || '[]'); } catch (e) { return []; } };
 function rpStore(entry) { const all = rpLoad(); all.unshift(entry); while (all.length > RP.keep) all.pop(); for (;;) { try { localStorage.setItem(RP.key, JSON.stringify(all)); break; } catch (e) { if (all.length <= 1) break; all.pop(); } } return all; }
 function rpOpen(i = 0) {
   const all = rpLoad(); rpIdx = clamp(i, 0, Math.max(0, all.length - 1));
   paused = true; $('rpBox').hidden = false;
   const e = all[rpIdx];
-  $('rpInfo').textContent = e ? `${rpIdx + 1}/${all.length}　${new Date(e.at).toLocaleString('ja-JP')}　${e.title}　（${Math.round(e.text.length / 1024)}KB）` : '保存したログはまだありません。レースが終わったら画面下の「残す」で保存できます。';
+  $('rpHead').textContent = rpSrc ? rpSrc.title : 'リプレイログ';
+  $('rpInfo').textContent = e ? `${rpIdx + 1}/${all.length}　${new Date(e.at).toLocaleString('ja-JP')}　${e.title}　（${Math.round(e.text.length / 1024)}KB）` : rpSrc ? rpSrc.empty : '保存したログはまだありません。レースが終わったら画面下の「残す」で保存できます。';
   $('rpText').value = e ? e.text : '';
-  $('rpOlder').disabled = !e || rpIdx >= all.length - 1; $('rpNewer').disabled = !e || rpIdx <= 0; $('rpDel').disabled = !e;
+  $('rpOlder').disabled = !e || rpIdx >= all.length - 1; $('rpNewer').disabled = !e || rpIdx <= 0; $('rpDel').disabled = !e; $('rpSave').disabled = !e;
 }
-function rpCloseBox() { $('rpBox').hidden = true; if (rpFromMenu) { rpFromMenu = false; $('pmenu').hidden = false; return; } paused = rpWasPaused; last = performance.now(); if (orient.full && !document.fullscreenElement) lockLandscape(); }
+function rpCloseBox() { $('rpBox').hidden = true; if (rpBack) { const f = rpBack; rpBack = null; rpSrc = null; f(); return; } if (rpFromMenu) { rpFromMenu = false; $('pmenu').hidden = false; return; } paused = rpWasPaused; last = performance.now(); if (orient.full && !document.fullscreenElement) lockLandscape(); }
 async function rpCopy() {
   const ta = $('rpText'), txt = ta.value; if (!txt) return;
   let ok = false;
@@ -500,7 +503,13 @@ if (typeof document !== 'undefined' && document.getElementById('rpBox')) {
   $('rpCopy').addEventListener('click', rpCopy);
   $('rpOlder').addEventListener('click', () => rpOpen(rpIdx + 1));
   $('rpNewer').addEventListener('click', () => rpOpen(rpIdx - 1));
-  $('rpDel').addEventListener('click', () => { const all = rpLoad(); all.splice(rpIdx, 1); try { localStorage.setItem(RP.key, JSON.stringify(all)); } catch (e) {} rpOpen(Math.min(rpIdx, all.length - 1)); });
+  $('rpDel').addEventListener('click', () => { const all = rpLoad(); all.splice(rpIdx, 1); try { localStorage.setItem(rpSrc ? rpSrc.key : RP.key, JSON.stringify(all)); } catch (e) {} rpOpen(Math.min(rpIdx, all.length - 1)); });
+  // ファイルに保存: the shown log as a .txt download (easier than copying 60KB on a phone)
+  $('rpSave').addEventListener('click', () => { const e = rpLoad()[rpIdx]; if (!e) return;
+    const a = document.createElement('a'), d = new Date(e.at), p = n => String(n).padStart(2, '0');
+    a.href = URL.createObjectURL(new Blob([e.text], { type: 'text/plain' }));
+    a.download = `${rpSrc ? 'hfgp_ta' : 'hfgp_replay'}_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.txt`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
   $('rpClose').addEventListener('click', rpCloseBox);
 }
 function toast(big, small, kind) {

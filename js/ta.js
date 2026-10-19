@@ -3,11 +3,11 @@
    motor (出足・伸び1.0), and the race's own fade (水面の荒れ・熱ダレ) so the laps slow the way they do in a race.
    フライング・出遅れ・転覆・内側航走 end the run with no record. The best run is kept in this browser and comes back
    as a ghost boat. */
-const TA = { laps: 3, key: 'honorGP.ta', ghostDt: 0.1, failWait: 1.8 };
+const TA = { laps: 3, key: 'honorGP.ta', ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
 // A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
 const TA_RANKS = [['記念クラス', 105.0], ['A1', 106.5], ['A2', 110.0], ['B1', 114.0], ['B2', 120.0], ['ルーキー', Infinity]];
-const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false };
+const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false, log: [], ev: [] };
 let taBest = null;
 try { taBest = JSON.parse(localStorage.getItem(TA.key) || 'null'); } catch (e) {}
 const taRank = t => TA_RANKS.find(r => t <= r[1])[0];
@@ -16,19 +16,24 @@ const taGap = d => (d < 0 ? '−' : '+') + Math.abs(d).toFixed(2);
 function beginTA() {
   beginStart();
   soloKind = 'ta'; waterEnv = null;
-  Object.assign(ta, { on: true, zero: SS.t0 + CLOCK, lastAt: SS.t0 + CLOCK, laps: [], st: null, path: [], nextPt: SS.t0, done: false });
+  Object.assign(ta, { on: true, zero: SS.t0 + CLOCK, lastAt: SS.t0 + CLOCK, laps: [], st: null, path: [], nextPt: SS.t0, done: false, log: [], ev: [] });
   toast('タイムアタック', `大時計スタートから${TA.laps}周　${taBest ? '自己ベスト ' + fmtRT(taBest.t) : '走ったタイムで級を判定'}`, 'info');
 }
 // every physics step of the solo boat
 function taStep() {
   if (!ta.on) return;
-  if (time >= ta.nextPt) { ta.path.push(+B.x.toFixed(2), +B.y.toFixed(2), +B.a.toFixed(3)); ta.nextPt += TA.ghostDt; }
+  if (time >= ta.nextPt) {
+    ta.path.push(+B.x.toFixed(2), +B.y.toFixed(2), +B.a.toFixed(3)); ta.nextPt += TA.ghostDt;
+    ta.log.push(`${rpN(time - ta.zero, 2)} ${rpN(B.x)} ${rpN(B.y)} ${Math.round(((B.a * 180 / Math.PI) % 360 + 540) % 360 - 180)} ${rpN(B.v * 3.6)} ${rpN(input.thr, 2)} ${rpN(input.steer, 2)} ${rpN(input.roll, 2)} ${rpN(input.pitch, 2)} ${rpN(B.load, 2)} ${Math.round((B.yaw || 0) * 57.3)}${B.cap > 0 ? ' cap' : ''}`);
+  }
   if (B.cap > 0) taFail('転覆');
 }
-function taStart(st) { if (!ta.on) return; ta.st = st; if (st < 0) taFail('フライング'); }
+const taEv = msg => ta.ev.push(`${rpN(time - ta.zero, 2)} ${msg}`);
+function taStart(st) { if (!ta.on) return; ta.st = st; taEv(`ST ${st < 0 ? 'F' + fmtST(-st) : fmtST(st)}`); if (st < 0) taFail('フライング'); }
 function taLap(at) {
   if (!ta.on) return;
   const lt = at - ta.lastAt, n = ta.laps.push(lt); ta.lastAt = at;
+  taEv(`lap${n} ${lt.toFixed(2)}`);
   const b = taBest && taBest.laps ? taBest.laps.slice(0, n).reduce((s, v) => s + v, 0) : null;
   const sum = at - ta.zero;
   if (n >= TA.laps) { taFinish(sum); return; }
@@ -36,7 +41,7 @@ function taLap(at) {
 }
 function taFail(why) {
   if (!ta.on) return;
-  ta.on = false;
+  taEv(`fail ${why}`); ta.on = false;
   toast(why, '記録なし', 'bad');
   setTimeout(() => taShow(null, why), TA.failWait * 1000);
 }
@@ -47,6 +52,7 @@ function taFinish(t) {
     taBest = { t, laps: ta.laps.slice(), st: ta.st, rank: taRank(t), g: ta.path, g0: SS.t0 - ta.zero, at: Date.now() };
     try { localStorage.setItem(TA.key, JSON.stringify(taBest)); } catch (e) {}
   }
+  taLogSave(t, best);
   toast(best ? '自己ベスト更新' : 'ゴール', `${fmtRT(t)}　${taRank(t)}`, best ? 'good' : 'info');
   setTimeout(() => taShow({ t, laps: ta.laps.slice(), st: ta.st }, null, best ? prev : taBest, best), 1200);
 }
@@ -76,6 +82,26 @@ function taShow(run, why, ref = taBest, isBest = false) {
   $('taSlit').hidden = !(practiceSlit && practiceSlit.archived);
   paused = true; $('taBox').hidden = false;
 }
+// ログ: every finished run is kept (the last TA.logKeep, plus the current best which is never pushed out)
+function taLogSave(t, best) {
+  const pad = typeof currentPad === 'function' && currentPad();
+  const text = [`#HFGP-TA v1 ${'d133'} ${new Date().toISOString()}`,
+    `#result time=${t.toFixed(2)} rank=${taRank(t)} ST=${ta.st == null ? '-' : ta.st.toFixed(3)} laps=${ta.laps.map(v => v.toFixed(2)).join('/')}${best ? ' best' : ''}`,
+    `#setup laps=${TA.laps} water=calm motor=avg(deashi1/nobi1) tilt=${rpN(B.tilt, 1)} control=${controlMode}${pad ? '+controller' : ''}`,
+    '#S t x y heading(deg) v(km/h) thr steer roll pitch load yaw(deg/s)  (t = s from the start signal, every 0.1 s; x,y in m, start line x=0, 1M x=+' + MK + ', 2M x=-' + MK + ')',
+    ...ta.log, '#events (t, what)', ...ta.ev].join('\n');
+  let all = []; try { all = JSON.parse(localStorage.getItem(TA.logKey) || '[]'); } catch (e) {}
+  if (best) for (const e of all) e.best = false;
+  all.unshift({ at: Date.now(), title: `タイムアタック ${fmtRT(t)} ${taRank(t)}${best ? '（自己ベスト）' : ''}`, text, best });
+  while (all.length > TA.logKeep) { const i = all.map(e => !!e.best).lastIndexOf(false); all.splice(i < 0 ? all.length - 1 : i, 1); }
+  for (;;) { try { localStorage.setItem(TA.logKey, JSON.stringify(all)); break; } catch (e) { const i = all.map(e => !!e.best).lastIndexOf(false); if (all.length <= 1 || i <= 0) break; all.splice(i, 1); } }
+}
+function taLogOpen(back) {
+  rpSrc = { key: TA.logKey, title: 'タイムアタックのログ', empty: 'タイムアタックのログはまだありません。3周走りきると自動で残ります。' };
+  rpBack = back; rpOpen(0);
+}
+$('taLog').addEventListener('click', () => { $('taBox').hidden = true; taLogOpen(() => { $('taBox').hidden = false; paused = true; }); });
+$('pmTALog').addEventListener('click', () => { $('pmenu').hidden = true; taLogOpen(() => { $('pmenu').hidden = false; paused = true; }); });
 const taClose = () => { $('taBox').hidden = true; paused = false; last = performance.now(); };
 $('taAgain').addEventListener('click', () => { taClose(); beginTA(); });
 $('taClose').addEventListener('click', taClose);
