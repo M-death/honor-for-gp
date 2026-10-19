@@ -43,7 +43,9 @@ const preStartAfter = (bowX, slow) => clamp(1 - bowX / (slow ? START_ACC.slowFad
 // 熱ダレ (HEAT): flat out the motor heats up and loses a touch of power; easing the lever lets it cool a bit.
 const CHOP = { full: 110, pow: 1.5, thr: 0.05, grip: 0.03 };   // pow > 1: the first lap's water is still clean, it builds up later
 const HEAT = { T: 90, cool: 0.4, thr: 0.045 };
-const raceElapsed = () => fleet && fleet.raceOn && time > fleet.raceStart ? time - fleet.raceStart : 0;   // only once the race is off (not in the 待機行動)
+// タイムアタック (1艇) fades on its own clock, from the hand hitting zero
+const raceElapsed = () => fleet ? (fleet.raceOn && time > fleet.raceStart ? time - fleet.raceStart : 0)
+  : soloKind === 'ta' && typeof ta !== 'undefined' && ta.on && time > ta.zero ? time - ta.zero : 0;   // only once the race is off (not in the 待機行動)
 const chopNow = () => Math.pow(clamp(raceElapsed() / CHOP.full, 0, 1), CHOP.pow);
 function heatStep(b, thr, dt) { if (!raceElapsed()) { b.heat = 0; return; } b.heat = clamp((b.heat || 0) + (thr - HEAT.cool) * dt / HEAT.T, 0, 1); }
 const raceFadeK = b => (1 - CHOP.thr * chopNow()) * (1 - HEAT.thr * (b.heat || 0));
@@ -315,11 +317,11 @@ function splash(b) {
 function step(dt) {
   const previous=timingPose(B,time);
   time += dt;
-  B.preStart = SS.phase === 'count' ? 1 : (soloKind === 'clock' && lap.n === 0 && B.y > 0 && B.x > -5 ? preStartAfter(boatBow(B).x) : 0);
+  B.preStart = SS.phase === 'count' ? 1 : ((soloKind === 'clock' || soloKind === 'ta') && lap.n === 0 && B.y > 0 && B.x > -5 ? preStartAfter(boatBow(B).x) : 0);
   // 起こし〜スリット: 舵と体の左右の傾きは固定（真っ直ぐだけ）。通過してから入力を受け付ける
   if (SS.phase === 'count') zigCheck(B, input.steer, null);
   const binp = SS.phase === 'count' ? { thr: input.thr, steer: clamp(input.steer, -PRE_SLIT.steer, PRE_SLIT.steer), roll: 0, pitch: input.pitch } : input;
-  if (soloKind === 'clock' && SS.phase === 'count' && !B.logged && !runLog && input.thr >= 0.3) { B.logged = true; runLogBegin(B, '大時計スタート（1艇）', SS.t0 + CLOCK); }
+  if ((soloKind === 'clock' || soloKind === 'ta') && SS.phase === 'count' && !B.logged && !runLog && input.thr >= 0.3) { B.logged = true; runLogBegin(B, '大時計スタート（1艇）', SS.t0 + CLOCK); }
   if (runLog && runLog.b === B && ((B.y < -4 && B.x < MK - 5) || time > SS.t0 + CLOCK + 30)) runLogEnd(`ST ${meas.st == null ? '—' : meas.st < 0 ? 'F' + fmtST(-meas.st) : fmtST(meas.st)} / チルト ${B.tilt}`);
   const ev = boatPhysics(B, binp, dt);
   if (runLog && runLog.b === B) runLogStep(B, binp, SS.t0 + CLOCK, '');
@@ -333,6 +335,7 @@ function step(dt) {
     }
   }
   slitCapture(practiceSlit,time-(SS.t0+CLOCK),[{no:1,b:B,trait:{course:1}}]);
+  if (soloKind === 'ta') taStep();
   if (B.cap > 0) return;
   boatFx(B, wake, dt);
 
@@ -348,13 +351,13 @@ function step(dt) {
   }
   if (SS.phase === 'count') {
     if (crossed) { judgeStart(startOffset(crossAt,SS.t0+CLOCK),crossAt); lap.visR = lap.visL = false; return; }
-    if (time > SS.t0 + CLOCK + 1) { SS.phase = 'done'; SS.hideAt = time + 2.5; toast('出遅れ', '1秒以内にスタートラインを越えられなかった', 'bad'); }
+    if (time > SS.t0 + CLOCK + 1) { SS.phase = 'done'; SS.hideAt = time + 2.5; toast('出遅れ', '1秒以内にスタートラインを越えられなかった', 'bad'); if (soloKind === 'ta') taFail('出遅れ'); }
   }
   if (SS.phase === 'done' && SS.hideAt && time > SS.hideAt) { SS.phase = 'off'; $('clock').hidden = true; }
 
   measStep(previous,current);
   // laps: cross the line at x=0 on the lower straight after rounding both marks
-  if (SS.phase !== 'count' && Math.sign(lap.prevY || B.y) !== Math.sign(B.y) && Math.abs(B.x) < MK - 1) toast('内側航走', 'ターンマークの内側を通過（レースなら6着扱い）', 'bad');
+  if (SS.phase !== 'count' && Math.sign(lap.prevY || B.y) !== Math.sign(B.y) && Math.abs(B.x) < MK - 1) { toast('内側航走', 'ターンマークの内側を通過（レースなら6着扱い）', 'bad'); if (soloKind === 'ta') taFail('内側航走'); }
   lap.prevY = B.y;
   if (B.x > MK - 15) lap.visR = true;
   if (B.x < -MK + 15) lap.visL = true;
@@ -363,8 +366,11 @@ function step(dt) {
       const lt = crossAt - lap.start;
       lap.best = lap.best == null ? lt : Math.min(lap.best, lt);
       lap.n++;
-      if (!T.on) toast(`${lap.n}周`, `ラップ ${fmt(lt)}`, 'info');
-      if (meas.on && lap.n >= MEAS_LAPS) measFinish(crossAt - meas.startAt);
+      if (soloKind === 'ta') taLap(crossAt);
+      else {
+        if (!T.on) toast(`${lap.n}周`, `ラップ ${fmt(lt)}`, 'info');
+        if (meas.on && lap.n >= MEAS_LAPS) measFinish(crossAt - meas.startAt);
+      }
     }
     lap.start = crossAt; lap.visR = lap.visL = false;
   }
@@ -436,7 +442,7 @@ let rpLast = null, rpIdx = 0, rpWasPaused = false, rpFromMenu = false;
 const rpN = (v, d = 1) => v == null || !isFinite(v) ? '-' : (+v).toFixed(d).replace(/\.0+$/, '').replace(/^-0$/, '0');
 function rpBegin(f, zero) {
   const e = waterEnv, st = f.setsu && f.setsu.race;
-  const head = [`#HFGP-REPLAY v1 ${'d128'} ${new Date().toISOString()}`,
+  const head = [`#HFGP-REPLAY v1 ${'d131'} ${new Date().toISOString()}`,
     `#mode ${lab.active ? 'lab' : st ? `setsu day${st.day} ${st.R}R ${st.kind}` : f.playerNo ? `race player=${f.playerNo}` : 'demo'} entry=${f.entry ? 'pit' : 'fixed'}`,
     `#env ${e ? `${windJa(e)} wave=${e.wave}cm cx=${rpN(e.cx, 2)} stab=${e.stabilizer ? 1 : 0}${e.temp != null ? ` temp=${e.temp}` : ''}${e.tideJa ? ` tide=${e.tideJa}${e.tideLv}` : ''}` : 'calm'}`,
     '#boat no cls name temper pref motor(deashi/mid/nobi/power) hull(grip/ride/drag) weightK tilt skill(start/turn/judge) courseAff'];

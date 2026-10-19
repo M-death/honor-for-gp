@@ -2382,7 +2382,7 @@ let resAfter = null, resTimer = 0, resPhotoT = 0;
 function resNext() { if (resPhotoT) { clearTimeout(resPhotoT); resPhotoT = 0; const p = photoPairs(); $('resPhotoTxt').textContent = '写真判定　' + p.map(q => `${q.place}着争い ${q.a.no}－${q.b.no}：${photoGapJa(q)}`).join('　'); $('resBox').querySelector('.tablewrap').hidden = false; return; }
   clearTimeout(resTimer); if ($('resBox').hidden) return; $('resBox').hidden = true; const a = resAfter; resAfter = null; if (a) a(); }
 /* ---- 実況テキスト: at the key moments a line of commentary slides across the top of the screen.
-   Styles: 標準 (plain), 熱血 (宮島風のノリ — big and loud). A venue can name its own style later (VENUES[...].jikkyo). ---- */
+   Styles: 標準 (plain), 熱血 (児島風のノリ — big and loud). A venue can name its own style later (VENUES[...].jikkyo). ---- */
 const JK = { hold: 3.2, gap: 0.6, posEvery: 0.5, posCool: 4 };
 let jkMode = 'std';
 try { jkMode = localStorage.getItem('honorGP.jikkyo') || 'std'; } catch (e) {}

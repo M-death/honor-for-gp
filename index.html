@@ -150,6 +150,8 @@ table.race.st tr.me td{background:rgba(255,180,46,.14)}
 .mtab th,.mtab td{padding:7px 8px;border-bottom:1px solid rgba(233,245,242,.15);text-align:right}
 .mtab th:first-child,.mtab td:first-child{text-align:left}
 .mtab td.best{color:var(--good)}
+.ta-big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:4px 0 2px}.ta-big b{font-family:var(--f-num);font-size:40px;font-variant-numeric:tabular-nums}
+.ta-rank{font-weight:700;font-size:20px;padding:2px 12px;border-radius:8px;background:#1d4a57;color:#bcf5e2}.ta-rank.top{background:#7a1d18;color:#ffd9d4}
 .calbox{position:relative;width:150px;height:150px;margin:6px auto 4px;border-radius:50%;border:2px solid rgba(233,245,242,.35);background:rgba(5,24,31,.5)}
 .calbox .calx,.calbox .caly{position:absolute;background:rgba(233,245,242,.25)}
 .calbox .calx{left:8px;right:8px;top:50%;height:1px}.calbox .caly{top:8px;bottom:8px;left:50%;width:1px}
@@ -317,19 +319,18 @@ body.lab-running>#jk{display:none!important}
 <div class="overlay" id="start">
   <div class="card">
     <h1><small>開発版</small>Honor for GP<span class="sub">波の向こうに</span></h1>
-    <p>スマホを横向きにして、操作方法を選んでください。姿勢パッドは左右＝体の傾き、上＝伏せる、下＝起こす。指を離すと中央へ戻り、アクセルは位置を維持します。</p>
+    <p>スマホは横向きで。操作モードを選んでください。</p>
     <fieldset class="mode-choices"><legend>最初に操作モードを選択</legend>
       <label><input type="radio" name="startControlMode" value="tilt" checked><span><b>1．傾きあり</b><small>左：アクセル ／ 右：舵 ／ スマホの傾き：姿勢</small></span></label>
       <label><input type="radio" name="startControlMode" value="pad"><span><b>2．傾きなし・姿勢パッドあり</b><small>左：アクセル＋姿勢パッド ／ 右：舵 ／ センサー停止</small></span></label>
       <label><input type="radio" name="startControlMode" value="wheel"><span><b>3．姿勢パッド＋右手アクセル</b><small>左：姿勢パッドのみ ／ 右：アクセル ／ スマホ自体を回して舵</small></span></label>
     </fieldset>
     <p id="controlHelp" style="font-size:13px"></p>
-    <div class="monkey">最初は大時計スタート。エンジンは止まらないので、針が0を指してから1秒以内にスタートラインを越えるよう、スロットルで間合いを詰めます。スリットを通過するまでは舵は微調整程度しか効かず（体の左右の傾きはなし）、真っ直ぐ進みます。左右に切り返すと「蛇行」、隣の艇へ寄せると「スタート前の斜行」で待機行動違反。スリットを越えたら舵も傾きも全開です。早すぎるとフライング。<br>コースは左回り。直線は伏せて伸ばし、ターンマークでは「体を起こす＋内へ傾ける＋舵」が揃うとモンキーターンが決まり、小さく速く回れます。全速のまま姿勢を入れずに回ると大きく膨らみ、伏せたまま・内へ傾けるだけの無茶な回り方は転覆の危険があります。レバーを落とすと小さく安定して回れますが、出口の速度は落ちます。速く回るコツは「起こして入り、内へ傾けたまま起こしを緩めて、伏せながら抜ける」こと。体がしっかり内に入っていれば、起こしを緩めても伏せてもグリップが残り、速度を殺さずに回れます（ずっと起こしたままだと減速が大きく、傾けずに伏せると膨らむか転覆します）。外へ傾けると流されて転覆します。</div>
     <div class="row">
       <button class="btn" id="go">スタート</button>
       <button class="btn ghost" id="goDemo">6艇デモを見る</button>
       <button class="btn ghost" id="labLaunchStart">挙動検証（2〜6艇）</button>
-      <span style="font-size:12px;color:var(--muted)">PCでは W/S＝スロットル、A/D＝舵、矢印キー＝体重移動（↑伏せる／↓起こす）、Space＝引く（ピット離れモード）。コントローラなら 左トリガー＝スロットル、右スティック＝舵、左スティック＝体重移動、Aでスタート／コース主張、Bで引く（ダッシュ）、Xで練習やり直し</span>
+      <span style="font-size:12px;color:var(--muted)">PC：W/S＝スロットル　A/D＝舵　矢印＝体重移動（↑伏せる／↓起こす）<br>コントローラ：左トリガー＝スロットル　右スティック＝舵　左スティック＝体重移動</span>
     </div>
   </div>
 </div>
@@ -361,6 +362,8 @@ body.lab-running>#jk{display:none!important}
     <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
       <button class="btn" id="pm6">6艇スタート練習</button>
       <p style="margin:0 0 6px">ピット離れから。舵は自動でアクセルだけ調整して待機位置へ。「引く」でダッシュ。スタートしたら自動で1マークを回り、スリット写真で終了（前付けなし）。</p>
+      <button class="btn" id="pmTA">タイムアタック（1艇・大時計スタートから3周・級判定）</button>
+      <p style="margin:0 0 6px">タイムで級（ルーキー〜B2・B1・A2・A1・記念クラス）を判定。自己ベストはゴーストになって一緒に走ります。</p>
       <button class="btn ghost" id="pmTenji">展示航走（1艇・タイム計測）</button>
       <p style="margin:0 0 6px">バックストレッチから2マークを回り、スリットから2周。展示・直線・まわり足・一周タイムを計測。</p>
       <button class="btn ghost" id="pmClock">大時計スタート（1艇）</button>
@@ -457,6 +460,16 @@ body.lab-running>#jk{display:none!important}
   </div>
 </div>
 
+<div class="overlay" id="taBox" hidden>
+  <div class="card">
+    <h1 style="font-size:22px"><small>タイムアタック（3周）</small>結果</h1>
+    <div class="ta-big"><b id="taTime"></b><span id="taRank" class="ta-rank"></span></div>
+    <p id="taMsg" style="color:var(--fg)"></p>
+    <table class="mtab"><thead><tr><th></th><th>今回</th><th>自己ベスト</th></tr></thead><tbody id="taBody"></tbody></table>
+    <p id="taNote" style="font-size:12px;color:var(--muted)"></p>
+    <div class="row"><button class="btn" id="taAgain">もう一度</button><button class="btn ghost" id="taSlit" hidden>スリット写真</button><button class="btn ghost" id="taClose">閉じる</button></div>
+  </div>
+</div>
 <div class="overlay" id="card" hidden>
   <div class="card" style="max-width:560px">
     <h1 style="font-size:22px"><small>出走表</small>6艇の特性</h1>
@@ -498,8 +511,9 @@ body.lab-running>#jk{display:none!important}
       <label>デモのCPU基本判断 <select id="demoCpuMode"><option value="legacy">標準（d42までの調整）</option><option value="course-v1">コース別作戦 v1（試験中）</option></select></label>
       <label>自艇のチルト <select id="tiltSel"><option value="-0.5" selected>−0.5（出足・回り足）</option><option value="0">0</option><option value="0.5">+0.5</option><option value="1">+1.0</option><option value="1.5">+1.5</option><option value="2">+2.0</option><option value="3">+3.0（伸び）</option></select></label>
       <p style="margin:0;font-size:12px">チルトを上げるほど直線の伸びが出て外のコース向き。代わりに出足が鈍り、ターンで流れやすくなります。</p>
+      <label>カメラ <select id="camMode"><option value="follow">追いかけ</option><option value="auto">自動ズーム（PC向け・全艇が入るまで引く）</option></select></label>
       <label>天候 <select id="wxMode"><option value="auto">いつも通り</option><option value="storm">荒天にする（安定板・2周戦）</option></select></label>
-      <label>実況 <select id="jkMode"><option value="off">オフ</option><option value="std">標準</option><option value="hot">熱血（宮島風）</option></select></label>
+      <label>実況 <select id="jkMode"><option value="off">オフ</option><option value="std">標準</option><option value="hot">熱血（児島風）</option></select></label>
       <label>6艇デモの再生速度 <select id="simSpeed"><option value="1">1倍（実時間）</option><option value="1.5" selected>1.5倍</option><option value="2">2倍</option><option value="3">3倍</option></select></label>
       <div class="row" style="margin-top:0">
         <button class="btn ghost" id="reset">練習をやり直す</button>
@@ -543,6 +557,7 @@ body.lab-running>#jk{display:none!important}
 <script src="js/view.js"></script>
 <script src="js/lab.js"></script>
 <script src="js/setsu.js"></script>
+<script src="js/ta.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
