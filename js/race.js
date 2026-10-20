@@ -159,7 +159,10 @@ function turnRoll(prof) {
 const KINEN = { gap: 0.36, pT: 0.35, Lmax: 0.91, kl: 3.4, rel: 42, exR: 0.47, exT: 0.62, exS: 0.88, exP: 1.5, s0: 0.5, rampT: 0.3,
   hz: 20, H: 3.5, from: 60,            // m before the mark it starts reading the turn
   app: 110, Ly: 26, Ly2: 21, ks: 0.04, ka: 2, sMax: 0.15,   // from `app` m out it swings wide to Ly (m off the centreline) for the run in: lean first, a touch of rudder
-  near: 12, touch: 5, box: 25 };       // free = nobody within `near` m, nor ahead between me and the mark; drop it if anyone comes within `touch` m
+  near: 12, box: 25, lane: 4, ahead: 25, behind: 10,   // straight: nobody within `near` m ahead/alongside; run-in: nobody in my lane within `ahead` m
+  level: 6, reachX: 15, dv: 1.5, gone: 40,       // まくり pays: within `level` m of each inner boat's position, or within reachX m and dv m/s faster
+  over: 7, mkR: 9, mkY: 12, mkK: 0.5,  // over them: run in `over` m outside the widest, and clear the buoy by mkR (+mkK per m they sit beyond mkY)
+  pathF: 10, pathS: 3.5 };             // in the turn, give it up if anyone is within pathF m ahead and pathS m to the side
 const KINEN_MARKS = () => OBSTACLES.filter(o => o.kind === 'mark'), KINEN_BOOMS = () => OBSTACLES.filter(o => o.kind === 'boom');
 function kinenGap(c, ob) {
   const fx = Math.cos(c.a), fy = Math.sin(c.a);
@@ -181,60 +184,84 @@ function kinenPredict(b, m, sv) {
   lab.predicting = was;
   return ok ? g : -1;
 }
-function kinenFree(b, env, m, lx, ly, r) {
-  const sg = m ? -1 : 1;
+// who is around, in the mark's frame: in my lane ahead (blocks the run), inside me toward the mark (to go round outside of),
+// alongside or ahead out wide (blocks the swing out)
+function kinenScan(b, env, m, lx, ly, Ly) {
+  const sg = m ? -1 : 1, S = { block: false, wide: false, inner: [], innerY: -Infinity };
   for (const q of env.others) {
     if (q === b || q.cap > 0) continue;
-    const d = Math.hypot(q.x - b.x, q.y - b.y);
-    if (d < r) return false;
-    const qx = sg * q.x, qy = sg * q.y;
-    if (qx > lx - 5 && qx < MK + 10 && qy > -KINEN.box && qy < ly + 5 && d < 45) return false;   // between me and the mark
+    const qx = sg * q.x, qy = sg * q.y, dx = qx - lx, d = Math.hypot(q.x - b.x, q.y - b.y);
+    if (Math.abs(qy - ly) < KINEN.lane && dx > -2 && dx < KINEN.ahead) S.block = true;
+    else if (qy < ly - 1 && qy > -KINEN.box && dx > -KINEN.behind && dx < KINEN.gone && qx < MK + 10) { S.inner.push({ q, dx }); S.innerY = Math.max(S.innerY, qy); }
+    else if (qy >= ly - 1 && qy < Math.max(ly, Ly) + 6 && dx > -8 && dx < 30) S.wide = true;
+  }
+  return S;
+}
+// a full-speed まくり over the boats inside pays only if I can get round them (those `gone` m ahead will be round first): level with the leading one already,
+// or close behind it and clearly faster
+function kinenMakuriOk(b, S) {
+  for (const { q, dx } of S.inner) if (!(dx < KINEN.level || (dx < KINEN.reachX && b.v - q.v > KINEN.dv))) return false;
+  return true;
+}
+// nobody close ahead or alongside (those behind don't matter on a straight)
+function kinenClear(b, env, r) {
+  const fx = Math.cos(b.a), fy = Math.sin(b.a);
+  for (const q of env.others) {
+    if (q === b || q.cap > 0) continue;
+    const ex = q.x - b.x, ey = q.y - b.y;
+    if (Math.hypot(ex, ey) < r && ex * fx + ey * fy > -3) return false;
   }
   return true;
 }
-// the water out to the wide line is clear (no one alongside or just behind on that side)
-function kinenWide(b, env, m, lx, ly) {
-  const sg = m ? -1 : 1;
+// someone in the path of the turn right now (just ahead of my bow, within a hull or so either side)
+function kinenInPath(b, env) {
+  const fx = Math.cos(b.a), fy = Math.sin(b.a);
   for (const q of env.others) {
     if (q === b || q.cap > 0) continue;
-    const qx = sg * q.x, qy = sg * q.y;
-    if (qx > lx - 20 && qx < lx + 30 && qy > ly - 2 && qy < Math.max(ly, KINEN.Ly) + 6) return false;
+    const ex = q.x - b.x, ey = q.y - b.y, f = ex * fx + ey * fy, s = -ex * fy + ey * fx;
+    if (f > 0 && f < KINEN.pathF && s < KINEN.pathS && s > -KINEN.pathS - 3) return true;   // more room kept on the inside, where the lock takes it
   }
-  return true;
+  return false;
 }
-// returns inputs while it is flying the turn itself, else null (the A1★ driving carries on)
+// returns inputs while it is flying the line itself, else null (the A1★ driving carries on).
+// d141 (まえ): turn flat out whenever it can; with boats inside, go round outside them flat out if that pays (全速まくり)
 function kinenDrive(b, env, mem, dt) {
-  const kn = mem.kn || (mem.kn = { m: b.y >= 0 ? 0 : 1, ph: 'str', next: 0, sv: 1, tt: 0, t0: 0 });
+  const kn = mem.kn || (mem.kn = { m: b.y >= 0 ? 0 : 1, ph: 'str', next: 0, sv: 1, tt: 0, t0: 0, need: KINEN.gap });
   if (env.caution || env.cruise || env.retire || b.cap > 0) { kn.ph = 'str'; return null; }
   const m = kn.m, sg = m ? -1 : 1, lx = sg * b.x, ly = sg * b.y, la = wrapRad(b.a + (m ? Math.PI : 0));
   if (kn.ph === 'str') {
     if (sg * b.y < 0 && lx > MK - 40) { kn.m = m ^ 1; return null; }   // already round this one (taken by the A1★ driving)
     if (ly < 0 || !fleet.raceOn) return null;
-    const Ly = m ? KINEN.Ly2 : KINEN.Ly, want = KINEN.ks * (Ly - ly) - KINEN.ka * la;
-    if (lx < MK - KINEN.app) {   // the straight: flat out on the TA line, held by lean alone, while no one is near
-      if (lx < -MK + 10 || !kinenFree(b, env, m, lx, ly, KINEN.near)) return null;
+    const Ly0 = m ? KINEN.Ly2 : KINEN.Ly;
+    if (lx < MK - KINEN.app) {   // the straight: flat out on the TA line, held by lean alone, while no one is close ahead or alongside
+      if (lx < -MK + 10 || !kinenClear(b, env, KINEN.near)) return null;
+      const want = KINEN.ks * (Ly0 - ly) - KINEN.ka * la;
       return { thr: 1, steer: 0, roll: clamp(want, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free), pitch: 1 };
     }
-    if (!kinenFree(b, env, m, lx, ly, KINEN.near) || !kinenWide(b, env, m, lx, ly)) { kn.ph = 'skip'; return null; }
+    let S = kinenScan(b, env, m, lx, ly, Ly0);
+    let Ly = S.inner.length ? Math.max(Ly0, S.innerY + KINEN.over) : Ly0;
+    if (Ly > Ly0) S = kinenScan(b, env, m, lx, ly, Ly);
+    if (S.block || !kinenMakuriOk(b, S)) { kn.ph = 'skip'; return null; }
+    if (S.wide) Ly = Math.min(Ly, Math.max(ly, 0));   // someone out wide: no swing out, turn from the lane it is in
+    kn.need = S.inner.length ? Math.max(KINEN.gap, KINEN.mkR + Math.max(0, S.innerY - KINEN.mkY) * KINEN.mkK) : KINEN.gap;
+    const want = KINEN.ks * (Ly - ly) - KINEN.ka * la;
     const run = { thr: 1, steer: clamp(want * 0.5, -KINEN.sMax, KINEN.sMax), roll: clamp(want, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free), pitch: 1 };
     if (lx < MK - KINEN.from || time < kn.next) return run;
     kn.next = time + 1 / KINEN.hz;
-    if (kinenPredict(b, m, 1) < KINEN.gap) return run;
-    kn.ph = 'turn'; kn.tt = time; kn.next = 0;
+    if (kinenPredict(b, m, 1) < kn.need) return run;
+    kn.ph = 'turn'; kn.tt = time; kn.next = 0; kn.mk = S.inner.length > 0;
   }
   if (kn.ph === 'skip') {
     if (ly < 0 && la < -Math.PI * 0.75) { kn.ph = 'str'; kn.m = m ^ 1; }
     return null;
   }
-  if (kn.ph === 'turn' || kn.ph === 'exit') {
-    if (!kinenFree(b, env, m, lx, ly, KINEN.touch) && kn.ph === 'turn') { kn.ph = 'skip'; return null; }
-  }
+  if (kn.ph === 'turn' && kinenInPath(b, env)) { kn.ph = 'skip'; return null; }
   if (kn.ph === 'turn') {
     if (time >= kn.next && la > -Math.PI / 2 - 0.2) {
       kn.next = time + 1 / KINEN.hz;
       let lo = 0.15, hi = 1;
-      if (kinenPredict(b, m, hi) >= KINEN.gap) lo = hi;
-      else for (let i = 0; i < 6; i++) { const mid = (lo + hi) / 2; if (kinenPredict(b, m, mid) >= KINEN.gap) lo = mid; else hi = mid; }
+      if (kinenPredict(b, m, hi) >= kn.need) lo = hi;
+      else for (let i = 0; i < 6; i++) { const mid = (lo + hi) / 2; if (kinenPredict(b, m, mid) >= kn.need) lo = mid; else hi = mid; }
       kn.sv = lo;
     }
     let sv = Math.min(kn.sv, KINEN.s0 + (1 - KINEN.s0) * clamp((time - kn.tt) / KINEN.rampT, 0, 1));
