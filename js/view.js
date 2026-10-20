@@ -732,7 +732,7 @@ function updateHud() {
     el.best.classList.remove('top');
     if (soloKind === 'ta') {
       setTxt('lap', SS.phase === 'count' ? 'タイムアタック' : `${Math.min(TA.laps, ta.laps.length + 1)}周目  ${fmtRT(Math.max(0, (ta.on ? time : ta.lastAt) - ta.zero))}`);
-      setTxt('best', taBest ? `自己ベスト ${fmtRT(taBest.t)}（${taRank(taBest.t)}）` : '自己ベスト —');
+      setTxt('best', `${playerName()}　` + (taBest ? `自己ベスト ${fmtRT(taBest.t)}（${taRank(taBest.t)}）` : '自己ベスト —'));
     } else {
       setTxt('lap', `LAP ${lap.n + 1}  ${fmt(Math.max(0, time - lap.start))}`);
       setTxt('best', lap.best == null ? 'ベスト —' : `ベスト ${fmt(lap.best)}`);

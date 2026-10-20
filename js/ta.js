@@ -7,17 +7,19 @@ const TA = { laps: 3, key: 'honorGP.ta', ghostDt: 0.1, failWait: 1.8, logKey: 'h
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
 // A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
 const TA_RANKS = [['記念クラス', 105.0], ['A1', 106.5], ['A2', 110.0], ['B1', 114.0], ['B2', 120.0], ['ルーキー', Infinity]];
-const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false, log: [], ev: [] };
+const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false, log: [], ev: [], corners: [], cur: null, cSide: -1 };
+// the best run belongs to the player chosen in the practice menu (player.js)
 let taBest = null;
-try { taBest = JSON.parse(localStorage.getItem(TA.key) || 'null'); } catch (e) {}
+function taReload() { taBest = null; try { taBest = JSON.parse(localStorage.getItem(playerKey(TA.key)) || 'null'); } catch (e) {} }
+taReload();
 const taRank = t => TA_RANKS.find(r => t <= r[1])[0];
 const taGap = d => (d < 0 ? '−' : '+') + Math.abs(d).toFixed(2);
 
 function beginTA() {
   beginStart();
   soloKind = 'ta'; waterEnv = null;
-  Object.assign(ta, { on: true, zero: SS.t0 + CLOCK, lastAt: SS.t0 + CLOCK, laps: [], st: null, path: [], nextPt: SS.t0, done: false, log: [], ev: [] });
-  toast('タイムアタック', `大時計スタートから${TA.laps}周　${taBest ? '自己ベスト ' + fmtRT(taBest.t) : '走ったタイムで級を判定'}`, 'info');
+  Object.assign(ta, { on: true, zero: SS.t0 + CLOCK, lastAt: SS.t0 + CLOCK, laps: [], st: null, path: [], nextPt: SS.t0, done: false, log: [], ev: [], corners: [], cur: null, cSide: -1 });
+  toast('タイムアタック', `${playerName()}　大時計スタートから${TA.laps}周　${taBest ? '自己ベスト ' + fmtRT(taBest.t) : '走ったタイムで級を判定'}`, 'info');
 }
 // every physics step of the solo boat
 function taStep() {
@@ -26,8 +28,34 @@ function taStep() {
     ta.path.push(+B.x.toFixed(2), +B.y.toFixed(2), +B.a.toFixed(3)); ta.nextPt += TA.ghostDt;
     ta.log.push(`${rpN(time - ta.zero, 2)} ${rpN(B.x)} ${rpN(B.y)} ${Math.round(((B.a * 180 / Math.PI) % 360 + 540) % 360 - 180)} ${rpN(B.v * 3.6)} ${rpN(input.thr, 2)} ${rpN(input.steer, 2)} ${rpN(input.roll, 2)} ${rpN(input.pitch, 2)} ${rpN(B.load, 2)} ${Math.round((B.yaw || 0) * 57.3)}${B.cap > 0 ? ' cap' : ''}`);
   }
+  if (SS.phase !== 'count') taMarkGap();
   if (B.cap > 0) taFail('転覆');
 }
+// マークとの間隔: for each corner, the closest the hull came to the turn mark — from the hull's edge (the capsule
+// HULL_AFT behind to HULL_FWD ahead of the centre, HULL_R wide) to the buoy's surface (r 1.5 m). 0 = touching.
+const TA_CORNER = { from: 30 };   // a corner is the water beyond MK − 30 m on that mark's side
+const TA_PART_JA = { bow: '艇首', mid: '中央', stern: '艇尾' };
+function taMarkGap() {
+  const side = B.x > MK - TA_CORNER.from ? 0 : B.x < -(MK - TA_CORNER.from) ? 1 : -1;
+  if (side !== ta.cSide) { if (ta.cur) taCornerEnd(); ta.cSide = side; ta.cur = side < 0 ? null : { m: side ? '2M' : '1M', gap: Infinity }; }
+  if (!ta.cur) return;
+  const ob = OBSTACLES.filter(o => o.kind === 'mark')[side], c = Math.cos(B.a), s = Math.sin(B.a);
+  const [px, py, qx, qy] = closestSegSeg(B.x - c * HULL_AFT, B.y - s * HULL_AFT, B.x + c * HULL_FWD, B.y + s * HULL_FWD, ob.x1, ob.y1, ob.x2, ob.y2);
+  const gap = Math.hypot(px - qx, py - qy) - HULL_R - ob.r;
+  if (gap < ta.cur.gap) {
+    const along = (px - B.x) * c + (py - B.y) * s;
+    Object.assign(ta.cur, { gap, t: time - ta.zero, v: B.v * 3.6, part: along > HULL_FWD - 0.3 ? 'bow' : along < -HULL_AFT + 0.3 ? 'stern' : 'mid' });
+  }
+}
+function taCornerEnd() {
+  const k = ta.cur; ta.cur = null;
+  if (!k || !isFinite(k.gap)) return;
+  k.lap = ta.laps.length + 1; ta.corners.push(k);
+  taEv(`${k.m} lap${k.lap} gap=${Math.max(0, k.gap).toFixed(2)}m t=${k.t.toFixed(2)} v=${Math.round(k.v)} part=${k.part}`);
+}
+const taGapJa = g => g <= 0.02 ? '接触' : `${g.toFixed(2)}m`;
+// per lap: "1周 1M 0.12m（中央）・2M 0.30m（艇首）"
+const taCornersJa = list => [1, 2, 3].map(l => { const cs = list.filter(k => k.lap === l); return cs.length ? `${l}周 ` + cs.map(k => `${k.m} ${taGapJa(k.gap)}（${TA_PART_JA[k.part]}）`).join('・') : ''; }).filter(Boolean).join('　');
 const taEv = msg => ta.ev.push(`${rpN(time - ta.zero, 2)} ${msg}`);
 function taStart(st) { if (!ta.on) return; ta.st = st; taEv(`ST ${st < 0 ? 'F' + fmtST(-st) : fmtST(st)}`); if (st < 0) taFail('フライング'); }
 function taLap(at) {
@@ -46,11 +74,12 @@ function taFail(why) {
   setTimeout(() => taShow(null, why), TA.failWait * 1000);
 }
 function taFinish(t) {
+  if (ta.cur) taCornerEnd();
   ta.on = false; ta.done = true;
   const prev = taBest, best = !prev || t < prev.t;
   if (best) {
     taBest = { t, laps: ta.laps.slice(), st: ta.st, rank: taRank(t), g: ta.path, g0: SS.t0 - ta.zero, at: Date.now() };
-    try { localStorage.setItem(TA.key, JSON.stringify(taBest)); } catch (e) {}
+    try { localStorage.setItem(playerKey(TA.key), JSON.stringify(taBest)); } catch (e) {}
   }
   taLogSave(t, best);
   toast(best ? '自己ベスト更新' : 'ゴール', `${fmtRT(t)}　${taRank(t)}`, best ? 'good' : 'info');
@@ -78,6 +107,7 @@ function taShow(run, why, ref = taBest, isBest = false) {
   for (let i = 0; i < TA.laps; i++) row(`${i + 1}周`, cur.laps[i] != null ? cur.laps[i].toFixed(2) : '—', ref && ref.laps[i] != null ? ref.laps[i].toFixed(2) : '—');
   row('ST', st(cur.st), ref ? st(ref.st) : '—');
   row('タイム', run ? fmtRT(run.t) : '—', ref ? fmtRT(ref.t) : '—');
+  $('taGaps').textContent = ta.corners.length ? 'マークとの間隔（艇体の端〜ブイ）　' + taCornersJa(ta.corners) : '';
   $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。タイムは針が0を指してからゴールまで。';
   $('taSlit').hidden = !(practiceSlit && practiceSlit.archived);
   paused = true; $('taBox').hidden = false;
@@ -85,19 +115,21 @@ function taShow(run, why, ref = taBest, isBest = false) {
 // ログ: every finished run is kept (the last TA.logKeep, plus the current best which is never pushed out)
 function taLogSave(t, best) {
   const pad = typeof currentPad === 'function' && currentPad();
-  const text = [`#HFGP-TA v1 ${'d133'} ${new Date().toISOString()}`,
+  const text = [`#HFGP-TA v1 ${'d135'} ${new Date().toISOString()}`,
     `#result time=${t.toFixed(2)} rank=${taRank(t)} ST=${ta.st == null ? '-' : ta.st.toFixed(3)} laps=${ta.laps.map(v => v.toFixed(2)).join('/')}${best ? ' best' : ''}`,
+    `#player ${playerName()}`,
     `#setup laps=${TA.laps} water=calm motor=avg(deashi1/nobi1) tilt=${rpN(B.tilt, 1)} control=${controlMode}${pad ? '+controller' : ''}`,
     '#S t x y heading(deg) v(km/h) thr steer roll pitch load yaw(deg/s)  (t = s from the start signal, every 0.1 s; x,y in m, start line x=0, 1M x=+' + MK + ', 2M x=-' + MK + ')',
-    ...ta.log, '#events (t, what)', ...ta.ev].join('\n');
-  let all = []; try { all = JSON.parse(localStorage.getItem(TA.logKey) || '[]'); } catch (e) {}
+    ...ta.log, '#events (t, what; gap = hull edge to buoy surface at its closest in that corner, part = which part of the hull)', ...ta.ev].join('\n');
+  const key = playerKey(TA.logKey);
+  let all = []; try { all = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
   if (best) for (const e of all) e.best = false;
   all.unshift({ at: Date.now(), title: `タイムアタック ${fmtRT(t)} ${taRank(t)}${best ? '（自己ベスト）' : ''}`, text, best });
   while (all.length > TA.logKeep) { const i = all.map(e => !!e.best).lastIndexOf(false); all.splice(i < 0 ? all.length - 1 : i, 1); }
-  for (;;) { try { localStorage.setItem(TA.logKey, JSON.stringify(all)); break; } catch (e) { const i = all.map(e => !!e.best).lastIndexOf(false); if (all.length <= 1 || i <= 0) break; all.splice(i, 1); } }
+  for (;;) { try { localStorage.setItem(key, JSON.stringify(all)); break; } catch (e) { const i = all.map(e => !!e.best).lastIndexOf(false); if (all.length <= 1 || i <= 0) break; all.splice(i, 1); } }
 }
 function taLogOpen(back) {
-  rpSrc = { key: TA.logKey, title: 'タイムアタックのログ', empty: 'タイムアタックのログはまだありません。3周走りきると自動で残ります。' };
+  rpSrc = { key: playerKey(TA.logKey), title: `タイムアタックのログ（${playerName()}）`, file: 'hfgp_ta', empty: 'タイムアタックのログはまだありません。3周走りきると自動で残ります。' };
   rpBack = back; rpOpen(0);
 }
 $('taLog').addEventListener('click', () => { $('taBox').hidden = true; taLogOpen(() => { $('taBox').hidden = false; paused = true; }); });

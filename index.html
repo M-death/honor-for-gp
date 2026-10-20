@@ -150,6 +150,7 @@ table.race.st tr.me td{background:rgba(255,180,46,.14)}
 .mtab th,.mtab td{padding:7px 8px;border-bottom:1px solid rgba(233,245,242,.15);text-align:right}
 .mtab th:first-child,.mtab td:first-child{text-align:left}
 .mtab td.best{color:var(--good)}
+.plrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 4px}.plrow select,.plrow input{font:inherit;padding:6px 8px;background:#132c39;color:var(--fg);border:1px solid var(--hud-line);border-radius:8px}.plrow input{width:9em}.plrow .btn{padding:6px 12px}
 .ta-big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:4px 0 2px}.ta-big b{font-family:var(--f-num);font-size:40px;font-variant-numeric:tabular-nums}
 .ta-rank{font-weight:700;font-size:20px;padding:2px 12px;border-radius:8px;background:#1d4a57;color:#bcf5e2}.ta-rank.top{background:#7a1d18;color:#ffd9d4}
 .calbox{position:relative;width:150px;height:150px;margin:6px auto 4px;border-radius:50%;border:2px solid rgba(233,245,242,.35);background:rgba(5,24,31,.5)}
@@ -359,6 +360,8 @@ body.lab-running>#jk{display:none!important}
 <div class="overlay" id="pmenu" hidden>
   <div class="card" style="max-width:480px">
     <h1 style="font-size:22px"><small>練習</small>モードを選ぶ</h1>
+    <div class="plrow"><label>プレイヤー <select id="plSel" aria-label="記録するプレイヤー"></select></label><input id="plName" maxlength="12" placeholder="名前を追加" aria-label="追加する名前"><button class="btn ghost" id="plAdd">追加</button><button class="btn ghost" id="plDel">消す</button></div>
+    <p style="margin:0 0 8px;font-size:12px">選んだ人ごとに、自己ベスト・ゴースト・タイムアタックのログ・リプレイログを分けて記録します。</p>
     <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
       <button class="btn" id="pm6">6艇スタート練習</button>
       <p style="margin:0 0 6px">ピット離れから。舵は自動でアクセルだけ調整して待機位置へ。「引く」でダッシュ。スタートしたら自動で1マークを回り、スリット写真で終了（前付けなし）。</p>
@@ -467,6 +470,7 @@ body.lab-running>#jk{display:none!important}
     <div class="ta-big"><b id="taTime"></b><span id="taRank" class="ta-rank"></span></div>
     <p id="taMsg" style="color:var(--fg)"></p>
     <table class="mtab"><thead><tr><th></th><th>今回</th><th>自己ベスト</th></tr></thead><tbody id="taBody"></tbody></table>
+    <p id="taGaps" style="font-size:13px;color:var(--fg);margin:4px 0"></p>
     <p id="taNote" style="font-size:12px;color:var(--muted)"></p>
     <div class="row"><button class="btn" id="taAgain">もう一度</button><button class="btn ghost" id="taLog">ログ</button><button class="btn ghost" id="taSlit" hidden>スリット写真</button><button class="btn ghost" id="taClose">閉じる</button></div>
   </div>
@@ -558,6 +562,7 @@ body.lab-running>#jk{display:none!important}
 <script src="js/view.js"></script>
 <script src="js/lab.js"></script>
 <script src="js/setsu.js"></script>
+<script src="js/player.js"></script>
 <script src="js/ta.js"></script>
 <script src="js/main.js"></script>
 </body>
