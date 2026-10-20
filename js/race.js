@@ -152,6 +152,102 @@ function turnRoll(prof) {
   return { lean: 1 - Math.min(0.5, Math.abs(gauss()) * sd * 0.8), up: 1 - Math.min(0.5, Math.abs(gauss()) * sd),
            carve: clamp(1 - Math.abs(gauss()) * sd * 2.2, 0, 1), easeAt: clamp(0.4 + gauss() * sd * 0.8, 0.15, 0.75) };
 }
+/* 記念クラス (d140): a CPU built from the time-attack logs (まえ's and the fastest TA CPU, tests/t_tacpu.js).
+   When it has a mark to itself it turns the way the fastest solo run does: flat out and crouched to MK − ~28 m,
+   then all in at once (lean, rudder, half-crouch), reading ahead which rudder still clears the buoy by `gap`,
+   and coming off the lock at heading ±(180 − rel)° with some lean kept. Anyone close and it drives like an A1★. */
+const KINEN = { gap: 0.36, pT: 0.35, Lmax: 0.91, kl: 3.4, rel: 42, exR: 0.47, exT: 0.62, exS: 0.88, exP: 1.5, s0: 0.5, rampT: 0.3,
+  hz: 20, H: 3.5, from: 60,            // m before the mark it starts reading the turn
+  app: 110, Ly: 26, Ly2: 21, ks: 0.04, ka: 2, sMax: 0.15,   // from `app` m out it swings wide to Ly (m off the centreline) for the run in: lean first, a touch of rudder
+  near: 12, touch: 5, box: 25 };       // free = nobody within `near` m, nor ahead between me and the mark; drop it if anyone comes within `touch` m
+const KINEN_MARKS = () => OBSTACLES.filter(o => o.kind === 'mark'), KINEN_BOOMS = () => OBSTACLES.filter(o => o.kind === 'boom');
+function kinenGap(c, ob) {
+  const fx = Math.cos(c.a), fy = Math.sin(c.a);
+  const [px, py, qx, qy] = closestSegSeg(c.x - fx * HULL_AFT, c.y - fy * HULL_AFT, c.x + fx * HULL_FWD, c.y + fy * HULL_FWD, ob.x1, ob.y1, ob.x2, ob.y2);
+  return Math.hypot(px - qx, py - qy) - HULL_R - ob.r;
+}
+// a flat-out, full-lean turn at rudder sv from now: the closest it comes to the mark (−1 = it would cut inside or stall)
+function kinenPredict(b, m, sv) {
+  const sg = m ? -1 : 1, c = Object.assign({}, b), was = lab.predicting, mk = KINEN_MARKS()[m], bm = KINEN_BOOMS()[m];
+  const inp = { thr: 1, steer: -sv, roll: -1, pitch: KINEN.pT };
+  let g = Infinity, ok = false;
+  lab.predicting = true;
+  for (let i = 0; i < KINEN.H * 60; i++) {
+    boatPhysics(c, inp, 1 / 60);
+    g = Math.min(g, kinenGap(c, mk), kinenGap(c, bm) + 0.5);
+    if (sg * c.y < 0) { ok = sg * c.x > MK; break; }
+    if (c.v < 3) break;
+  }
+  lab.predicting = was;
+  return ok ? g : -1;
+}
+function kinenFree(b, env, m, lx, ly, r) {
+  const sg = m ? -1 : 1;
+  for (const q of env.others) {
+    if (q === b || q.cap > 0) continue;
+    const d = Math.hypot(q.x - b.x, q.y - b.y);
+    if (d < r) return false;
+    const qx = sg * q.x, qy = sg * q.y;
+    if (qx > lx - 5 && qx < MK + 10 && qy > -KINEN.box && qy < ly + 5 && d < 45) return false;   // between me and the mark
+  }
+  return true;
+}
+// the water out to the wide line is clear (no one alongside or just behind on that side)
+function kinenWide(b, env, m, lx, ly) {
+  const sg = m ? -1 : 1;
+  for (const q of env.others) {
+    if (q === b || q.cap > 0) continue;
+    const qx = sg * q.x, qy = sg * q.y;
+    if (qx > lx - 20 && qx < lx + 30 && qy > ly - 2 && qy < Math.max(ly, KINEN.Ly) + 6) return false;
+  }
+  return true;
+}
+// returns inputs while it is flying the turn itself, else null (the A1★ driving carries on)
+function kinenDrive(b, env, mem, dt) {
+  const kn = mem.kn || (mem.kn = { m: b.y >= 0 ? 0 : 1, ph: 'str', next: 0, sv: 1, tt: 0, t0: 0 });
+  if (env.caution || env.cruise || env.retire || b.cap > 0) { kn.ph = 'str'; return null; }
+  const m = kn.m, sg = m ? -1 : 1, lx = sg * b.x, ly = sg * b.y, la = wrapRad(b.a + (m ? Math.PI : 0));
+  if (kn.ph === 'str') {
+    if (sg * b.y < 0 && lx > MK - 40) { kn.m = m ^ 1; return null; }   // already round this one (taken by the A1★ driving)
+    if (ly < 0 || !fleet.raceOn) return null;
+    const Ly = m ? KINEN.Ly2 : KINEN.Ly, want = KINEN.ks * (Ly - ly) - KINEN.ka * la;
+    if (lx < MK - KINEN.app) {   // the straight: flat out on the TA line, held by lean alone, while no one is near
+      if (lx < -MK + 10 || !kinenFree(b, env, m, lx, ly, KINEN.near)) return null;
+      return { thr: 1, steer: 0, roll: clamp(want, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free), pitch: 1 };
+    }
+    if (!kinenFree(b, env, m, lx, ly, KINEN.near) || !kinenWide(b, env, m, lx, ly)) { kn.ph = 'skip'; return null; }
+    const run = { thr: 1, steer: clamp(want * 0.5, -KINEN.sMax, KINEN.sMax), roll: clamp(want, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free), pitch: 1 };
+    if (lx < MK - KINEN.from || time < kn.next) return run;
+    kn.next = time + 1 / KINEN.hz;
+    if (kinenPredict(b, m, 1) < KINEN.gap) return run;
+    kn.ph = 'turn'; kn.tt = time; kn.next = 0;
+  }
+  if (kn.ph === 'skip') {
+    if (ly < 0 && la < -Math.PI * 0.75) { kn.ph = 'str'; kn.m = m ^ 1; }
+    return null;
+  }
+  if (kn.ph === 'turn' || kn.ph === 'exit') {
+    if (!kinenFree(b, env, m, lx, ly, KINEN.touch) && kn.ph === 'turn') { kn.ph = 'skip'; return null; }
+  }
+  if (kn.ph === 'turn') {
+    if (time >= kn.next && la > -Math.PI / 2 - 0.2) {
+      kn.next = time + 1 / KINEN.hz;
+      let lo = 0.15, hi = 1;
+      if (kinenPredict(b, m, hi) >= KINEN.gap) lo = hi;
+      else for (let i = 0; i < 6; i++) { const mid = (lo + hi) / 2; if (kinenPredict(b, m, mid) >= KINEN.gap) lo = mid; else hi = mid; }
+      kn.sv = lo;
+    }
+    let sv = Math.min(kn.sv, KINEN.s0 + (1 - KINEN.s0) * clamp((time - kn.tt) / KINEN.rampT, 0, 1));
+    if (la <= -Math.PI / 2) sv = 1;
+    if (la <= -Math.PI + KINEN.rel * D2R && la < 0) { kn.ph = 'exit'; kn.t0 = time; }
+    else return { thr: 1, steer: -sv, roll: -1, pitch: clamp(KINEN.pT - KINEN.kl * Math.max(0, (b.load || 0) - KINEN.Lmax), -1, 1) };
+  }
+  // exit: rudder off over exS of exT, lean eased out, down into a crouch
+  const k = clamp((time - kn.t0) / KINEN.exT, 0, 1);
+  if (k >= 1) { kn.ph = 'str'; kn.m = m ^ 1; return null; }
+  return { thr: 1, steer: -Math.max(0, 1 - k / KINEN.exS), roll: -(1 - Math.pow(k, KINEN.exP)) * (1 - KINEN.exR * k),
+    pitch: clamp(KINEN.pT + (1 - KINEN.pT) * k - KINEN.kl * Math.max(0, (b.load || 0) - KINEN.Lmax), -1, 1) };
+}
 /* Shared first-mark CPU: used by applyCourse/makeDriver in demo and laboratory.
    These are game tuning values, not official racing rules or measured probabilities. */
 const COURSE_CPU = {
@@ -1090,6 +1186,7 @@ function makeDriver(prof, trait = {}) {
           if (thrT > 0.9) pitchT = Math.max(pitchT, STRAIGHT_RUN.crouch);
         }
       }
+      if (prof.kinen) { const kn = kinenDrive(b, env, mem, dt); mem.knOn = !!kn; if (kn) { thrT = kn.thr; steerT = kn.steer; rollT = kn.roll; pitchT = kn.pitch; } }
       if (b.cap > 0) { thrT = 0; rollT = 0; pitchT = 0; }
       o.thr += (thrT - o.thr) * (1 - Math.exp(-6 * dt));
     }
@@ -1264,7 +1361,7 @@ let fleet = null, simSpeed = 1.5, sgMode = false;   // demo playback speed; the 
 
 function pickW(pairs) { let r = simRandom() * pairs.reduce((a, p) => a + p[1], 0); for (const [v, w] of pairs) { if ((r -= w) < 0) return v; } return pairs[0][0]; }
 
-// the six riders for a race: class, entry preference, temperament, motor. SG: all A1 with a few トップクラス.
+// the six riders for a race: class, entry preference, temperament, motor. SG: all A1 with a few トップクラス, one of them 記念クラス.
 function newRows(fixedEntry) {
   const rows = [];
   for (let no = 1; no <= 6; no++) {
@@ -1275,7 +1372,7 @@ function newRows(fixedEntry) {
   }
   if (sgMode) {
     const n = pickW([[1, 5], [2, 4], [3, 1]]);
-    rows.slice().sort(() => simRandom() - 0.5).slice(0, n).forEach(r => { r.prof = DRIVERS.find(d => d.top); });
+    rows.slice().sort(() => simRandom() - 0.5).slice(0, n).forEach((r, i) => { r.prof = DRIVERS.find(d => d.top && !d.kinen === !!i); });   // d140: the first one is 記念クラス
   }
   return rows;
 }
@@ -2358,7 +2455,7 @@ function resultShow(after) {
     const tr = document.createElement('tr');
     const pl = r.flying ? 'F' : r.st != null && r.st > 1 ? 'L' : r.out ? (r.out === '落水' ? '落' : '転') : r.dq ? '失' : (shown++, tieB.has(r) ? String(place) : String(place = shown));
     const tm = r.fin != null && !r.skipped && !r.dq ? fmtRT(r.fin - f.raceStart) : '—';
-    const cells = [pl, r.no, (r.player ? '★' : '') + (r.name || (r.player ? 'あなた' : '—')), r.prof.top ? 'A1★' : r.prof.name, r.trait.course, r.st == null ? '—' : r.st < 0 ? 'F' + fmtST(-r.st) : fmtST(r.st), tm + (r.relegated ? '（内側航走）' : '')];
+    const cells = [pl, r.no, (r.player ? '★' : '') + (r.name || (r.player ? 'あなた' : '—')), profJa(r.prof), r.trait.course, r.st == null ? '—' : r.st < 0 ? 'F' + fmtST(-r.st) : fmtST(r.st), tm + (r.relegated ? '（内側航走）' : '')];
     cells.forEach((v, i) => { const td = document.createElement('td'); td.textContent = v; if (i === 1) { td.className = 'no'; td.style.background = r.col[0]; td.style.color = r.col[1]; } if (i === 0) td.className = 'pl'; tr.appendChild(td); });
     if (r.player) tr.className = 'me';
     tb.appendChild(tr);
@@ -2694,7 +2791,7 @@ function buildCard() {
     const nb = !r.motor || r.motor.nobi == null ? '—' : r.motor.nobi >= 1.015 ? '◎' : r.motor.nobi >= 0.985 ? '○' : '△';
     const mw = !r.motor || r.motor.mawari == null ? '—' : r.motor.mawari >= 1.02 ? '◎' : r.motor.mawari >= 0.98 ? '○' : '△';
     const tl = r.b && r.b.tilt != null ? (r.b.tilt > 0 ? '+' : '') + r.b.tilt.toFixed(1) : '—';
-    const cells = [r.no, (r.name ? r.name + ' ' : '') + (r.prof.top ? 'A1 ★トップ' : r.prof.name), (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh, mw, nb, tl];
+    const cells = [r.no, (r.name ? r.name + ' ' : '') + (r.prof.kinen ? 'A1 ★記念クラス' : r.prof.top ? 'A1 ★トップ' : r.prof.name), (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh, mw, nb, tl];
     cells.forEach((v, i) => {
       const td = document.createElement('td'); td.textContent = v;
       if (i === 0) { td.className = 'no'; td.style.background = r.col[0]; td.style.color = r.col[1]; }

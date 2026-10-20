@@ -15,7 +15,7 @@ function labFill(config){
  $('labCpuMode').value=config.cpuMode||'legacy';$('labSeed').value=config.seed; $('labDuration').value=config.duration; $('labHz').value=config.hz; $('labApproach').value=config.approach;
  $('labBoats').innerHTML=config.boats.map(b=>`<details class="lab-block lab-boat" data-course="${b.course}" style="--boat:${LANE_COL[b.course-1][0]}"${b.enabled?' open':''}><summary><label><input type="checkbox" data-f="enabled"${b.enabled?' checked':''}>${b.course}コース / ${b.course}号艇</label></summary>
  <div class="lab-grid">
- <label>選手能力<select data-f="grade">${labOptions({A1:'A1',A2:'A2',B1:'B1',B2:'B2',TOP:'A1 ★トップ'},b.grade)}</select></label>
+ <label>選手能力<select data-f="grade">${labOptions({A1:'A1',A2:'A2',B1:'B1',B2:'B2',TOP:'A1 ★トップ',KINEN:'A1 ★記念クラス'},b.grade)}</select></label>
  <label>気性<select data-f="temper">${labOptions({calm:'慎重',normal:'普通',aggr:'攻撃的'},b.temper)}</select></label>
  <label>スタート型<select data-f="style">${labOptions({slow:'スロー',dash:'ダッシュ',kado:'カド'},b.style)}</select></label>
  <label>接触への対応<select data-f="contactMode">${labOptions({normal:'通常（d42）',priority:'接触回避を優先'},b.contactMode||'normal')}</select></label>
@@ -53,7 +53,7 @@ function labValidate(raw){
   if(b.contactMode==null)b.contactMode='normal'; // old logs replay with original policy
   if(!['normal','priority'].includes(b.contactMode))throw Error('接触への対応が無効です。');
   num(b.course,1,6,'コース');if(!Number.isInteger(b.course)||courses.has(b.course))throw Error('コースが重複しています。');courses.add(b.course);
-  if(typeof b.enabled!=='boolean'||!['A1','A2','B1','B2','TOP'].includes(b.grade)||!['calm','normal','aggr'].includes(b.temper)||!['slow','dash','kado'].includes(b.style)||!Object.hasOwn(LAB_TACTICS,b.plan)||b.plan==='keep')throw Error('選手条件が無効です。');
+  if(typeof b.enabled!=='boolean'||!['A1','A2','B1','B2','TOP','KINEN'].includes(b.grade)||!['calm','normal','aggr'].includes(b.temper)||!['slow','dash','kado'].includes(b.style)||!Object.hasOwn(LAB_TACTICS,b.plan)||b.plan==='keep')throw Error('選手条件が無効です。');
   for(const [k,lo,hi] of [['x',-40,110],['y',3,46],['speed',0,95],['st',0,.99],['motor',.8,1.2]])num(b[k],lo,hi,`${b.course}コース ${k}`);
   if(!Array.isArray(b.stages)||b.stages.length!==5)throw Error('5段階分の判断が必要です。');
   for(const [i,d] of b.stages.entries()){
@@ -87,7 +87,7 @@ function labBegin(c){
  try{
   const firstDash=c.boats.filter(b=>b.enabled&&b.style!=='slow').map(b=>b.course).sort((a,b)=>a-b)[0];
   const rows=c.boats.filter(b=>b.enabled).map(b=>{
-   const r={no:b.course,prof:DRIVERS.find(d=>d.name===b.grade),pref:'waku',temper:b.temper,motor:{deashi:b.motor},col:LANE_COL[b.course-1],labConfig:b,labPhase:-1};
+   const r={no:b.course,prof:DRIVERS.find(d=>b.grade==='KINEN'?d.kinen:d.name===b.grade),pref:'waku',temper:b.temper,motor:{deashi:b.motor},col:LANE_COL[b.course-1],labConfig:b,labPhase:-1};
    applyCourse(r,b.course,b.style==='slow',c.cpuMode===COURSE_CPU.version?b.course===firstDash:b.style==='kado',100);
    r.trait.contactMode=b.contactMode;r.trait.squeezeMode=b.squeezeMode;
    if(b.plan!=='auto'){r.trait.tactic=b.plan;r.trait.preferredTactic=b.plan;}

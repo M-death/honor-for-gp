@@ -454,7 +454,7 @@ function rpBegin(f, zero) {
     `#env ${e ? `${windJa(e)} wave=${e.wave}cm cx=${rpN(e.cx, 2)} stab=${e.stabilizer ? 1 : 0}${e.temp != null ? ` temp=${e.temp}` : ''}${e.tideJa ? ` tide=${e.tideJa}${e.tideLv}` : ''}` : 'calm'}`,
     '#boat no cls name temper pref motor(deashi/mid/nobi/power) hull(grip/ride/drag) weightK tilt skill(start/turn/judge) courseAff'];
   for (const r of f.boats) { const b = r.b, k = r.skill;
-    head.push(`B ${r.no} ${r.prof.top ? 'TOP' : r.prof.name} ${(r.name || '-').replace(/\s+/g, '')} ${r.temper} ${r.pref} ${rpN(b.deashi, 3)}/${rpN(b.mMid, 3)}/${rpN(b.nobi, 3)}/${rpN(b.powerK || 1, 3)} ${rpN(b.hullGrip || 1, 3)}/${rpN(b.hullRide || 1, 2)}/${rpN(b.hullDrag || 1, 3)} ${rpN(b.weightK || 1, 3)} ${rpN(b.tilt, 1)} ${k ? `${Math.round(k.start)}/${Math.round(k.turn)}/${Math.round(k.judge)} ${k.course.join(',')}` : '-'}${r.player ? ' PLAYER' : ''}`); }
+    head.push(`B ${r.no} ${r.prof.kinen ? 'KINEN' : r.prof.top ? 'TOP' : r.prof.name} ${(r.name || '-').replace(/\s+/g, '')} ${r.temper} ${r.pref} ${rpN(b.deashi, 3)}/${rpN(b.mMid, 3)}/${rpN(b.nobi, 3)}/${rpN(b.powerK || 1, 3)} ${rpN(b.hullGrip || 1, 3)}/${rpN(b.hullRide || 1, 2)}/${rpN(b.hullDrag || 1, 3)} ${rpN(b.weightK || 1, 3)} ${rpN(b.tilt, 1)} ${k ? `${Math.round(k.start)}/${Math.round(k.turn)}/${Math.round(k.judge)} ${k.course.join(',')}` : '-'}${r.player ? ' PLAYER' : ''}`); }
   head.push('#S t | no x y heading(deg) v(km/h) thr steer roll pitch flags…  (t = s from the start signal; flags: role=m mark/s sashi/o out/w wide/W wait, sty, C 叩き F 連動 K 壁 Q 絞り R 抵抗 Y 引く P 勝負 A 回避 cap 転覆 out dq Fly relegated fin)');
   f.rp = { head, rows: [], ev: [], next: -999, zero };
 }

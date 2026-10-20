@@ -28,6 +28,8 @@ const DRIVERS = [
   { name: 'B2', gap: 6.5, grip: 0.93, lean: 0.8,  up: 0.75,  cruise: 0.75, line: 17, turnThr: 0.95,  react: 6, leanLate: 4,  st: 0.2, stJit: 0.12, wobble: 0.07 , look0: 17, lookK: 0.9,  gain: 1.85, preLean: 4, exitEarly: 2 },
   // トップクラス: A1 on the card, but a cut above — tighter to the buoy, more grip, sharper, surer at the start (SG mode only)
   { name: 'TOP', label: 'A1', top: true, gap: 2.8, grip: 1.05, lean: 1.0, up: 1.0, cruise: 1.0, line: 15.5, turnThr: 1.0, react: 10.5, leanLate: 0, st: 0.06, stJit: 0.02, wobble: 0.01, look0: 20.8, lookK: 0.99, gain: 1.58, preLean: 5.3, exitEarly: 0 },
+  // 記念クラス (d140): an A1★ that, given a mark to itself, turns like the fastest time-attack run (race.js KINEN). Same tables as TOP.
+  { name: 'TOP', label: 'A1', top: true, gap: 2.8, grip: 1.05, lean: 1.0, up: 1.0, cruise: 1.0, line: 15.5, turnThr: 1.0, react: 10.5, leanLate: 0, st: 0.06, stJit: 0.02, wobble: 0.01, look0: 20.8, lookK: 0.99, gain: 1.58, preLean: 5.3, exitEarly: 0 , kinen: true, stCls: { shift: -0.015, sd: 0.022, dent: 0.02 } },
 ];
 
 // ---- 個人パラメータ (仮): 0–100 per rider. The class tables above are the anchors — a rider at its class's anchor
@@ -40,6 +42,7 @@ function skillLerp(v, get) {   // value v → interpolate get(className) between
   const n = A.length - 1; return get(A[n][0]) + (get(A[n][0]) - get(A[n - 1][0])) * (v - A[n][1]) / (A[n][1] - A[n - 1][1]) * 0.5;
 }
 const DRV = name => DRIVERS.find(d => d.name === name);
+const profJa = p => p.kinen ? 'A1★記念' : p.top ? 'A1★' : p.name;   // short class tag (result table)
 function profFor(cls, sk) {
   const base = DRV(cls) || DRIVERS[2], p = { ...base };
   if (!sk) return p;
