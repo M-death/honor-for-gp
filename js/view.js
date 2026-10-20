@@ -669,6 +669,7 @@ function drawMini() {
 }
 
 /* ---------- HUD ---------- */
+const REDUCED_MOTION = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 const el = { stab: $('stab'), stabFill: $('stabFill'), demoTag: $('demoTag'), spd: $('spd'), lap: $('lap'), best: $('best'), fill: $('lfill'), knob: $('lknob'), wrot: $('wrot'), pdot: $('pdot'), pdeg: $('pdeg'), pbox: $('pbox'), track: $('track'), hand: $('hand'), clockTxt: $('clockTxt'), clock: $('clock') };
 let lastTxt = {};
 const setTxt = (k, v) => { if (lastTxt[k] !== v) { lastTxt[k] = v; el[k].textContent = v; } };
@@ -744,9 +745,13 @@ function updateHud() {
   el.wrot.setAttribute('transform', `rotate(${vi.steer * 110})`);
   el.pdot.style.transform = `translate(${vi.roll * 30}px, ${-vi.pitch * 30}px)`;
   const f = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n));
-  // 安定度 gauge: 0 … 1.5, danger line at 1.0 (two-thirds across)
+  // 限界度 gauge (load): 0 … 1.5, danger line at 1.0 (two-thirds across). Past the line the needle and the gauge
+  // shake, harder the deeper it goes — the warning that the hull may let go (d138)
   const ld = vb.cap > 0 ? 1.5 : (vb.load || 0);
-  el.stabFill.style.width = Math.min(100, ld / 1.5 * 100) + '%';
+  const shake = vb.cap <= 0 && ld > 1 && !REDUCED_MOTION ? clamp((ld - 1) / 0.4, 0, 1) : 0, tn = performance.now() / 1000;
+  const nz = k => Math.sin(tn * (41 + k) + k * 1.7) * 0.6 + Math.sin(tn * (67 + 2 * k) + k) * 0.4;
+  el.stabFill.style.width = clamp(ld / 1.5 * 100 + nz(0) * (3 + 12 * shake) * (shake > 0), 0, 100) + '%';
+  el.stab.style.transform = shake > 0 ? `translate(${(nz(1) * (0.8 + 2.5 * shake)).toFixed(2)}px, ${(nz(2) * (0.4 + 1.5 * shake)).toFixed(2)}px)` : '';
   el.stabFill.style.background = ld < 0.75 ? C.good : ld < 1 ? C.warn : C.bad;
   el.stab.classList.toggle('over', ld >= 1 && vb.cap <= 0);
   const stabWord = vb.cap > 0 ? '転覆' : ld >= 1 ? '危険ライン超え' : ld >= 0.85 ? '限界ぎりぎり' : ld >= 0.55 ? '攻め' : '余裕';

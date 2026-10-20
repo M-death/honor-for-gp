@@ -10,7 +10,8 @@ const CAPSIZE = { j0: 7.6, jMin: 2.6, unstJ: 3.5, span: 10, unstP: 2, hitter: 0.
 // how far full throttle pushes a turn wide without the body in it, how much easing the lever settles the hull,
 // and how much a flat-out, full-lock, deep hang-on at top speed (無茶) adds to the load
 const TURN = { lean: 0.9, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 0.2, dropCalm: 0.3, mucha: 0.5,
-  holdPose: 0.5, exitPose: 0.3, carve: 0.8, upBrake: 0.35, run: 0.7, keep: 0.7 };   // carving out: a firm inside lean keeps the bite while easing up into a crouch; a clean turn scrubs less speed
+  holdPose: 0.5, exitPose: 0.3, carve: 0.8, upBrake: 0.35, run: 0.7, keep: 0.7,
+  crouchLoad: 0.5, crouchWide: 0.25 };   // d137 伏せたまま回る (crouched, leaned firmly in, rudder at full lock): it keeps the speed but the hull is on the edge and the arc swings wide   // carving out: a firm inside lean keeps the bite while easing up into a crouch; a clean turn scrubs less speed
 // 引き波: a boat's wake is a thick, lasting wave — width either side of each wave line (m), how long it
 // stays rough (s), and how hard crossing it hits speed, heading and grip (1 = the old strength)
 // 引き波よけ: lateral offsets (m, + = to my right) a CPU considers to find calm water — wide enough to step out of a pack's wake band
@@ -124,6 +125,7 @@ function boatPhysics(b, inp, dt) {
   // easing out of the sit-up into a crouch keeps most of the bite (pose) instead of throwing it away
   const ins = Math.max(0, inside), firm = clamp((ins - 0.5) / 0.4, 0, 1);
   const pose = Math.max(up, firm * (TURN.holdPose + TURN.exitPose * down)), downG = down * (1 - TURN.carve * firm);
+  const crouchLock = down * firm * clamp((Math.abs(s) - 0.5) / 0.4, 0, 1);
   const monkey = ins * (0.4 + 0.6 * pose) * (1 - 0.5 * downG);
   let grip = GRIP_BASE * (1 + 0.15 * pose) * (1 + TURN.lean * ins * (1 + TURN.upBoost * pose - TURN.downCut * downG)) * (1 + 0.5 * Math.min(0, inside))
     * (1 - TURN.thrWide * t * (1 - monkey)) * (1 + TURN.dropGrip * (1 - t))
@@ -134,7 +136,7 @@ function boatPhysics(b, inp, dt) {
   const turnBase = 1.35 / (1 + b.v / 35);
   let yawT = s * turnBase * sf * (1 + 0.7 * Math.max(0, inside) * (0.6 + 0.5 * pose - 0.4 * downG)) + r * 0.28 * sf;
   // the nose can only come round as fast as the grip allows at this speed: faster means a wider arc
-  const yawCap = grip * YAW_OVER / Math.max(4, b.v);
+  const yawCap = grip * YAW_OVER / Math.max(4, b.v) * (1 - TURN.crouchWide * crouchLock);
   yawT = clamp(yawT, -yawCap, yawCap);
   b.yaw += (yawT - b.yaw) * (1 - Math.exp(-5 * dt));
 
@@ -170,7 +172,7 @@ function boatPhysics(b, inp, dt) {
   // 無茶: a deep hang-on at full throttle and near top speed, rudder hard over, is past what the hull will take —
   // worse still done crouched. Easing the lever calms everything down.
   const mucha = ins * t * clamp((b.v / 22.8 - 0.7) / 0.3, 0, 1) * clamp(Math.abs(s) * 1.4 - 0.4, 0, 1) * (1 + 1.2 * down);
-  const load = (Math.max(0.85 * turnLoad, slideLoad, lowLean * 1.1) + TURN.mucha * mucha) * (1 - TURN.dropCalm * (1 - t)) + WAKE.unsettle * bump + 0.1 * wk;   // a hull bucking on a wave is on the edge
+  const load = (Math.max(0.85 * turnLoad, slideLoad, lowLean * 1.1) + TURN.mucha * mucha) * (1 - TURN.dropCalm * (1 - t)) + WAKE.unsettle * bump + 0.1 * wk + TURN.crouchLoad * crouchLock;   // a hull bucking on a wave is on the edge
   b.load = (b.load || 0) + (load - (b.load || 0)) * (1 - Math.exp(-dt * 8));
   let ev = null;
   if (b.load > 1 || Math.abs(b.vl) > 11) {
@@ -446,7 +448,7 @@ const rpKeyNow = () => typeof playerKey === 'function' ? playerKey(RP.key) : RP.
 const rpN = (v, d = 1) => v == null || !isFinite(v) ? '-' : (+v).toFixed(d).replace(/\.0+$/, '').replace(/^-0$/, '0');
 function rpBegin(f, zero) {
   const e = waterEnv, st = f.setsu && f.setsu.race;
-  const head = [`#HFGP-REPLAY v1 ${'d135'} ${new Date().toISOString()}`,
+  const head = [`#HFGP-REPLAY v1 ${'d138'} ${new Date().toISOString()}`,
     `#player ${typeof playerName === 'function' ? playerName() : '-'}`,
     `#mode ${lab.active ? 'lab' : st ? `setsu day${st.day} ${st.R}R ${st.kind}` : f.playerNo ? `race player=${f.playerNo}` : 'demo'} entry=${f.entry ? 'pit' : 'fixed'}`,
     `#env ${e ? `${windJa(e)} wave=${e.wave}cm cx=${rpN(e.cx, 2)} stab=${e.stabilizer ? 1 : 0}${e.temp != null ? ` temp=${e.temp}` : ''}${e.tideJa ? ` tide=${e.tideJa}${e.tideLv}` : ''}` : 'calm'}`,

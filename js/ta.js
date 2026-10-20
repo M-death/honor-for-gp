@@ -6,7 +6,9 @@
 const TA = { laps: 3, key: 'honorGP.ta', ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
 // A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
-const TA_RANKS = [['記念クラス', 105.0], ['A1', 106.5], ['A2', 110.0], ['B1', 114.0], ['B2', 120.0], ['ルーキー', Infinity]];
+// d136: エクストラ (まえ) — GP覇者 and レジェンド sit above 記念クラス
+const TA_EXTRA = ['レジェンド', 'GP覇者'];
+const TA_RANKS = [['レジェンド', 103.0], ['GP覇者', 104.0], ['記念クラス', 105.0], ['A1', 106.5], ['A2', 110.0], ['B1', 114.0], ['B2', 120.0], ['ルーキー', Infinity]];
 const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false, log: [], ev: [], corners: [], cur: null, cSide: -1 };
 // the best run belongs to the player chosen in the practice menu (player.js)
 let taBest = null;
@@ -91,7 +93,7 @@ function taShow(run, why, ref = taBest, isBest = false) {
   $('taTime').textContent = run ? fmtRT(run.t) : '記録なし';
   const rk = run ? taRank(run.t) : '';
   $('taRank').textContent = rk; $('taRank').hidden = !run;
-  $('taRank').className = 'ta-rank' + (rk === '記念クラス' ? ' top' : '');
+  $('taRank').className = 'ta-rank' + (TA_EXTRA.includes(rk) ? ' ex' : rk === '記念クラス' ? ' top' : '');
   let msg;
   if (!run) msg = why === 'フライング' ? 'フライング：針が0を指す前にスタートラインを越えました。' : why === '出遅れ' ? '出遅れ：針が0を指してから1秒以内に越えられませんでした。' : why === '転覆' ? '転覆：ターンで体重移動が足りないか、アクセルを開けすぎました。' : '内側航走：ターンマークの内側を通りました。';
   else {
@@ -108,14 +110,14 @@ function taShow(run, why, ref = taBest, isBest = false) {
   row('ST', st(cur.st), ref ? st(ref.st) : '—');
   row('タイム', run ? fmtRT(run.t) : '—', ref ? fmtRT(ref.t) : '—');
   $('taGaps').textContent = ta.corners.length ? 'マークとの間隔（艇体の端〜ブイ）　' + taCornersJa(ta.corners) : '';
-  $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。タイムは針が0を指してからゴールまで。';
+  $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.filter(r => !TA_EXTRA.includes(r[0])).slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。エクストラ：' + TA_RANKS.filter(r => TA_EXTRA.includes(r[0])).reverse().map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '。タイムは針が0を指してからゴールまで。';
   $('taSlit').hidden = !(practiceSlit && practiceSlit.archived);
   paused = true; $('taBox').hidden = false;
 }
 // ログ: every finished run is kept (the last TA.logKeep, plus the current best which is never pushed out)
 function taLogSave(t, best) {
   const pad = typeof currentPad === 'function' && currentPad();
-  const text = [`#HFGP-TA v1 ${'d135'} ${new Date().toISOString()}`,
+  const text = [`#HFGP-TA v1 ${'d138'} ${new Date().toISOString()}`,
     `#result time=${t.toFixed(2)} rank=${taRank(t)} ST=${ta.st == null ? '-' : ta.st.toFixed(3)} laps=${ta.laps.map(v => v.toFixed(2)).join('/')}${best ? ' best' : ''}`,
     `#player ${playerName()}`,
     `#setup laps=${TA.laps} water=calm motor=avg(deashi1/nobi1) tilt=${rpN(B.tilt, 1)} control=${controlMode}${pad ? '+controller' : ''}`,
