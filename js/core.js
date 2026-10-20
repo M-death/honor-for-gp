@@ -9,6 +9,9 @@ function simRandom(){
 }
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
+// 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
+const GAME_VER = 'd139';
+if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
 const clamp = (v, a = -1, b = 1) => v < a ? a : v > b ? b : v;

@@ -361,10 +361,10 @@ const WAKU_NOTE = {
 };
 function closeMenu() { $('pmenu').hidden = true; paused = false; last = performance.now(); }
 function openWaku(kind) { practiceKind = kind; $('wakuNote').textContent = WAKU_NOTE[kind]; $('pmenu').hidden = true; paused = true; $('waku').hidden = false; }
-function soloRestart() { soloKind === 'tenji' ? beginTenji() : beginStart(); }
+function soloRestart() { soloKind === 'tenji' ? beginTenji() : soloKind === 'ta' ? beginTA() : beginStart(); }
 // 練習をやり直す (settings / controller X): start the practice in progress again from the beginning
 function restartPractice() {
-  for (const id of ['meas', 'pmenu', 'waku']) $(id).hidden = true;
+  for (const id of ['meas', 'pmenu', 'waku', 'taBox']) $(id).hidden = true;
   if (!$('slitPhoto').hidden) $('slitPhoto').hidden = true;
   paused = false; last = performance.now();
   if (fleet && fleet.setsu) { toast('節間モード', '本番のレースはやり直せません', 'warn'); return; }
@@ -475,6 +475,7 @@ function judgeStart(st,at=time) {
   else if (st <= 0.15) toast('好スタート', `ST ${fmtST(st)}`, 'good');
   else if (st <= 0.3) toast('スタート', `ST ${fmtST(st)}`, 'warn');
   else toast('遅れ気味', `ST ${fmtST(st)}`, 'bad');
+  if (soloKind === 'ta') taStart(st);
 }
 
 /* ---------- keyboard ---------- */
@@ -654,11 +655,13 @@ function pollPadButtons(dt = 0) {
   else if (edge(0) && calib.open) closeCalib();
   else if (edge(0) && !$('rotate').hidden) { portraitOk = true; $('rotate').hidden = true; }
   else if (edge(0) && !$('meas').hidden) $('measAgain').click();   // 計測結果: A = もう一度
+  else if (edge(0) && !$('taBox').hidden) $('taAgain').click();   // タイムアタック結果: A = もう一度
   if (edge(9)) { if ($('settings').hidden) { if (running) { paused = true; $('settings').hidden = false; } } else { paused = false; last = performance.now(); $('settings').hidden = true; } }
   if (edge(1)) {
     if (!$('settings').hidden) { paused = false; last = performance.now(); $('settings').hidden = true; }
     else if (!$('card').hidden) { paused = false; last = performance.now(); $('card').hidden = true; }
     else if (!$('meas').hidden) $('measClose').click();
+    else if (!$('taBox').hidden) $('taClose').click();
     else if (running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();   // 待機行動中: B = 引く（ダッシュ）
   }
   if (edge(2) && running && $('settings').hidden && $('card').hidden) restartPractice();   // X = 練習をやり直す

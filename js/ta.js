@@ -117,7 +117,7 @@ function taShow(run, why, ref = taBest, isBest = false) {
 // ログ: every finished run is kept (the last TA.logKeep, plus the current best which is never pushed out)
 function taLogSave(t, best) {
   const pad = typeof currentPad === 'function' && currentPad();
-  const text = [`#HFGP-TA v1 ${'d138'} ${new Date().toISOString()}`,
+  const text = [`#HFGP-TA v1 ${GAME_VER} ${new Date().toISOString()}`,
     `#result time=${t.toFixed(2)} rank=${taRank(t)} ST=${ta.st == null ? '-' : ta.st.toFixed(3)} laps=${ta.laps.map(v => v.toFixed(2)).join('/')}${best ? ' best' : ''}`,
     `#player ${playerName()}`,
     `#setup laps=${TA.laps} water=calm motor=avg(deashi1/nobi1) tilt=${rpN(B.tilt, 1)} control=${controlMode}${pad ? '+controller' : ''}`,
