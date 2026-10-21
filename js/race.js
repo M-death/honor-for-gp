@@ -156,27 +156,36 @@ function turnRoll(prof) {
    When it has a mark to itself it turns the way the fastest solo run does: flat out and crouched to MK − ~28 m,
    then all in at once (lean, rudder, half-crouch), reading ahead which rudder still clears the buoy by `gap`,
    and coming off the lock at heading ±(180 − rel)° with some lean kept. Anyone close and it drives like an A1★. */
-const KINEN = { gap: 0.36, pT: 0.35, Lmax: 0.91, kl: 3.4, rel: 42, exR: 0.47, exT: 0.62, exS: 0.88, exP: 1.5, s0: 0.5, rampT: 0.3,
-  hz: 20, H: 3.5, from: 60,            // m before the mark it starts reading the turn
+const KINEN = { gap: 0.2, pT: 0.35, Lmax: 0.91, kl: 3.4, rel: 42, exR: 0.47, exT: 0.62, exS: 0.88, exP: 1.5, s0: 0.5, rampT: 0.3,
+  hz: 60, H: 3.5, from: 60,            // m before the mark it starts reading the turn
   app: 110, Ly: 26, Ly2: 21, ks: 0.04, ka: 2, sMax: 0.15,   // from `app` m out it swings wide to Ly (m off the centreline) for the run in: lean first, a touch of rudder
   near: 12, box: 25, lane: 4, ahead: 25, behind: 10,   // straight: nobody within `near` m ahead/alongside; run-in: nobody in my lane within `ahead` m
   level: 6, reachX: 15, dv: 1.5, gone: 40,       // まくり pays: within `level` m of each inner boat's position, or within reachX m and dv m/s faster
   over: 7, mkR: 9, mkY: 12, mkK: 0.5,  // over them: run in `over` m outside the widest, and clear the buoy by mkR (+mkK per m they sit beyond mkY)
-  pathF: 10, pathS: 3.5 };             // in the turn, give it up if anyone is within pathF m ahead and pathS m to the side
+  pathF: 10, pathS: 3.5,               // in the turn, give it up if anyone is within pathF m ahead and pathS m to the side
+  oneCut: true };   // d142 お釣り無し (まえ): one cut, held to the release (false = the d140 read-and-correct turn: gap 0.36, hz 20)
 const KINEN_MARKS = () => OBSTACLES.filter(o => o.kind === 'mark'), KINEN_BOOMS = () => OBSTACLES.filter(o => o.kind === 'boom');
 function kinenGap(c, ob) {
   const fx = Math.cos(c.a), fy = Math.sin(c.a);
   const [px, py, qx, qy] = closestSegSeg(c.x - fx * HULL_AFT, c.y - fy * HULL_AFT, c.x + fx * HULL_FWD, c.y + fy * HULL_FWD, ob.x1, ob.y1, ob.x2, ob.y2);
   return Math.hypot(px - qx, py - qy) - HULL_R - ob.r;
 }
-// a flat-out, full-lean turn at rudder sv from now: the closest it comes to the mark (−1 = it would cut inside or stall)
-function kinenPredict(b, m, sv) {
+// a flat-out, full-lean turn at rudder sv from now: the closest it comes to the mark (−1 = it would cut inside or stall).
+// With the rider's current inputs `o` it also plays out how fast the hands and body get there (the ramp-in and the
+// driver's react filters), so a rudder chosen once is the rudder that clears — no correcting later
+function kinenPredict(b, m, sv, o, prof) {
   const sg = m ? -1 : 1, c = Object.assign({}, b), was = lab.predicting, mk = KINEN_MARKS()[m], bm = KINEN_BOOMS()[m];
-  const inp = { thr: 1, steer: -sv, roll: -1, pitch: KINEN.pT };
+  const inp = o ? { thr: 1, steer: o.steer, roll: o.roll, pitch: o.pitch } : { thr: 1, steer: -sv, roll: -1, pitch: KINEN.pT };
+  const dt = 1 / 60, kS = 1 - Math.exp(-(prof ? prof.react : 10) * 1.6 * dt), kB = 1 - Math.exp(-(prof ? prof.react : 10) * dt);
   let g = Infinity, ok = false;
   lab.predicting = true;
   for (let i = 0; i < KINEN.H * 60; i++) {
-    boatPhysics(c, inp, 1 / 60);
+    if (o) {
+      const st = Math.min(sv, KINEN.s0 + (1 - KINEN.s0) * clamp(i * dt / KINEN.rampT, 0, 1));
+      inp.steer += (-st - inp.steer) * kS; inp.roll += (-1 - inp.roll) * kB;
+      inp.pitch += (clamp(KINEN.pT - KINEN.kl * Math.max(0, (c.load || 0) - KINEN.Lmax), -1, 1) - inp.pitch) * kB;   // sits up as the load passes Lmax, as in the turn
+    }
+    boatPhysics(c, inp, dt);
     g = Math.min(g, kinenGap(c, mk), kinenGap(c, bm) + 0.5);
     if (sg * c.y < 0) { ok = sg * c.x > MK; break; }
     if (c.v < 3) break;
@@ -225,7 +234,7 @@ function kinenInPath(b, env) {
 }
 // returns inputs while it is flying the line itself, else null (the A1★ driving carries on).
 // d141 (まえ): turn flat out whenever it can; with boats inside, go round outside them flat out if that pays (全速まくり)
-function kinenDrive(b, env, mem, dt) {
+function kinenDrive(b, env, mem, dt, o, prof) {
   const kn = mem.kn || (mem.kn = { m: b.y >= 0 ? 0 : 1, ph: 'str', next: 0, sv: 1, tt: 0, t0: 0, need: KINEN.gap });
   if (env.caution || env.cruise || env.retire || b.cap > 0) { kn.ph = 'str'; return null; }
   const m = kn.m, sg = m ? -1 : 1, lx = sg * b.x, ly = sg * b.y, la = wrapRad(b.a + (m ? Math.PI : 0));
@@ -248,7 +257,10 @@ function kinenDrive(b, env, mem, dt) {
     const run = { thr: 1, steer: clamp(want * 0.5, -KINEN.sMax, KINEN.sMax), roll: clamp(want, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free), pitch: 1 };
     if (lx < MK - KINEN.from || time < kn.next) return run;
     kn.next = time + 1 / KINEN.hz;
-    if (kinenPredict(b, m, 1) < kn.need) return run;
+    if (KINEN.oneCut) {   // お釣り無し: one full cut, held to the release, started the moment it clears (read with the hands' lag)
+      if (kinenPredict(b, m, 1, o, prof) < kn.need) return run;
+      kn.sv = 1;
+    } else if (kinenPredict(b, m, 1) < kn.need) return run;
     kn.ph = 'turn'; kn.tt = time; kn.next = 0; kn.mk = S.inner.length > 0;
   }
   if (kn.ph === 'skip') {
@@ -257,7 +269,7 @@ function kinenDrive(b, env, mem, dt) {
   }
   if (kn.ph === 'turn' && kinenInPath(b, env)) { kn.ph = 'skip'; return null; }
   if (kn.ph === 'turn') {
-    if (time >= kn.next && la > -Math.PI / 2 - 0.2) {
+    if (!KINEN.oneCut && time >= kn.next && la > -Math.PI / 2 - 0.2) {
       kn.next = time + 1 / KINEN.hz;
       let lo = 0.15, hi = 1;
       if (kinenPredict(b, m, hi) >= kn.need) lo = hi;
@@ -265,7 +277,7 @@ function kinenDrive(b, env, mem, dt) {
       kn.sv = lo;
     }
     let sv = Math.min(kn.sv, KINEN.s0 + (1 - KINEN.s0) * clamp((time - kn.tt) / KINEN.rampT, 0, 1));
-    if (la <= -Math.PI / 2) sv = 1;
+    if (la <= -Math.PI / 2 && !KINEN.oneCut) sv = 1;
     if (la <= -Math.PI + KINEN.rel * D2R && la < 0) { kn.ph = 'exit'; kn.t0 = time; }
     else return { thr: 1, steer: -sv, roll: -1, pitch: clamp(KINEN.pT - KINEN.kl * Math.max(0, (b.load || 0) - KINEN.Lmax), -1, 1) };
   }
@@ -274,6 +286,67 @@ function kinenDrive(b, env, mem, dt) {
   if (k >= 1) { kn.ph = 'str'; kn.m = m ^ 1; return null; }
   return { thr: 1, steer: -Math.max(0, 1 - k / KINEN.exS), roll: -(1 - Math.pow(k, KINEN.exP)) * (1 - KINEN.exR * k),
     pitch: clamp(KINEN.pT + (1 - KINEN.pT) * k - KINEN.kl * Math.max(0, (b.load || 0) - KINEN.Lmax), -1, 1) };
+}
+/* 一発切り (d143, まえ): every class turns お釣り無し — or tries to. On the run in, the rider reads ahead when a turn with
+   the rudder put in once (and the body as it is) would round the buoy at the clearance its line asks for, cuts at that
+   moment and holds it until the bow comes round, then lets the line-follower take it out. What separates the classes
+   is how truly that is done: the clearance aimed for (g, m), how late the hands follow the eye (t, s), how deep the
+   cut goes (d, short of full), how far off the release heading (r, °), and how often it checks the turn is working
+   (chk, s). When the turn it is holding would miss its line by `tol` m, it cuts again: the お釣り. */
+const ONECUT = { on: true, from: 60, hz: 20, H: 3.5, rel: 35, tol: 1.0, svMin: 0.2, dMin: 0.08, near: 16, ahead: 40, side: 8, carveK: 0, hold: 2, holdLean: 2,
+  TOP: { g: 0.3, t: 0.02, d: 0.03, r: 4, chk: 0.15 }, A1: { g: 0.5, t: 0.04, d: 0.05, r: 6, chk: 0.2 }, A2: { g: 1.1, t: 0.08, d: 0.12, r: 10, chk: 0.25 },
+  B1: { g: 2.0, t: 0.15, d: 0.2, r: 14, chk: 0.3 }, B2: { g: 3.0, t: 0.25, d: 0.3, r: 20, chk: 0.35 } };
+// the turn held at rudder sv from now with the body at `body` (and the hands/body lag of this rider): closest hull–buoy gap, −1 = cuts inside
+function cutPredict(b, m, sv, o, prof, body) {
+  const sg = m ? -1 : 1, c = Object.assign({}, b), was = lab.predicting, mk = KINEN_MARKS()[m], bm = KINEN_BOOMS()[m];
+  const inp = { thr: body.thr, steer: o.steer, roll: o.roll, pitch: o.pitch }, dt = 1 / 60;
+  const kS = 1 - Math.exp(-prof.react * 1.6 * dt), kB = 1 - Math.exp(-prof.react * dt);
+  let g = Infinity, ok = false;
+  lab.predicting = true;
+  for (let i = 0; i < ONECUT.H * 60; i++) {
+    inp.steer += (-sv - inp.steer) * kS; inp.roll += (body.roll - inp.roll) * kB; inp.pitch += (body.pitch - inp.pitch) * kB;
+    boatPhysics(c, inp, dt);
+    g = Math.min(g, kinenGap(c, mk), kinenGap(c, bm) + 0.5);
+    if (sg * c.y < 0) { ok = sg * c.x > MK; break; }
+    if (c.v < 3) break;
+  }
+  lab.predicting = was;
+  return ok ? g : -1;
+}
+// steer for the one cut, or null (the line-follower's rudder stands)
+function cutDrive(b, mem, o, prof, gap, body, free) {
+  const P = ONECUT[prof.name] || ONECUT.A1;
+  const cs = mem.cut || (mem.cut = { m: b.y >= 0 ? 0 : 1, ph: 'app', next: 0 });
+  const m = cs.m, sg = m ? -1 : 1, lx = sg * b.x, ly = sg * b.y, la = wrapRad(b.a + (m ? Math.PI : 0));
+  if (cs.ph === 'done' || cs.ph === 'app' && sg * b.y < 0 && lx > MK - 60) {   // round this one: wait for the next
+    if (lx < MK - 70 || ly < -5 && Math.abs(la) > 2.6 && lx < MK - 20) { cs.m = m ^ 1; cs.ph = 'app'; cs.aim = null; }
+    return null;
+  }
+  if (!free) { if (cs.ph === 'hold') cs.ph = 'done'; return null; }
+  if (cs.ph === 'app') {
+    if (lx < MK - ONECUT.from || ly < 0 || Math.abs(la) > 0.9) { cs.run = false; return null; }
+    if (time < cs.next) return null;
+    cs.next = time + 1 / ONECUT.hz;
+    if (cs.aim == null) cs.aim = Math.max(0.1, gap - HULL_R - 1.5 + gauss() * P.g);   // the clearance it means to take — as truly as it can judge it
+    if (cutPredict(b, m, 1, o, prof, body) < cs.aim) { cs.run = true; return null; }   // not yet: run on straight to the cut point (caller holds it)
+    cs.run = false; cs.ph = 'hold'; cs.sv = clamp(1 - Math.abs(gauss()) * P.d, ONECUT.svMin, 1); cs.go = time + Math.abs(gauss()) * P.t;
+    cs.rel = -Math.PI + (ONECUT.rel + gauss() * P.r) * D2R; cs.chk = time + P.chk; cs.cuts = 1; mem.cutTurns = (mem.cutTurns || 0) + 1;
+  }
+  if (time < cs.go) return null;   // the eye has it, the hands not yet
+  if (b.v < 5) { cs.ph = 'done'; return null; }   // it has gone wrong (hit, stalled): the line-follower sorts it out
+  if (la <= cs.rel && la < 0) { cs.ph = 'done'; return null; }   // round: let go, and the line takes it out
+  if (time >= cs.chk && la > -Math.PI / 2 && ly > 2) {   // is it going round where it should? (read while the buoy is still ahead)
+    cs.chk = time + P.chk;
+    const gp = cutPredict(b, m, cs.sv, o, prof, body);
+    if (gp < 0 || gp < cs.aim - ONECUT.tol || gp > cs.aim + ONECUT.tol && cs.sv < 1 - ONECUT.dMin) {   // no — cut again (お釣り): the rudder that would still make the line
+      let lo = ONECUT.svMin, hi = 1;   // the gap opens as the rudder comes off: find where it is `aim`
+      if (cutPredict(b, m, 1, o, prof, body) >= cs.aim) lo = 1;
+      else for (let i = 0; i < 6; i++) { const mid = (lo + hi) / 2; if (cutPredict(b, m, mid, o, prof, body) >= cs.aim) lo = mid; else hi = mid; }
+      const sv = clamp(lo + gauss() * P.d * 0.5, ONECUT.svMin, 1);
+      if (Math.abs(sv - cs.sv) >= ONECUT.dMin) { cs.sv = sv; cs.cuts++; mem.recuts = (mem.recuts || 0) + 1; }   // (a touch is no re-cut — the hands stay)
+    }
+  }
+  return -cs.sv;
 }
 /* Shared first-mark CPU: used by applyCourse/makeDriver in demo and laboratory.
    These are game tuning values, not official racing rules or measured probabilities. */
@@ -1213,7 +1286,23 @@ function makeDriver(prof, trait = {}) {
           if (thrT > 0.9) pitchT = Math.max(pitchT, STRAIGHT_RUN.crouch);
         }
       }
-      if (prof.kinen) { const kn = kinenDrive(b, env, mem, dt); mem.knOn = !!kn; if (kn) { thrT = kn.thr; steerT = kn.steer; rollT = kn.roll; pitchT = kn.pitch; } }
+      if (ONECUT.on && !lab.active) {   // 一発切り: the rudder for the turn itself
+        const close = env.others && env.others.some(q => {   // someone right there, or on my line ahead: race them, don't read the buoy
+          if (q === b || q.cap > 0) return false;
+          const ex = q.x - b.x, ey = q.y - b.y, f = ex * Math.cos(b.a) + ey * Math.sin(b.a), sd = -ex * Math.sin(b.a) + ey * Math.cos(b.a);
+          return f > -3 && (Math.hypot(ex, ey) < ONECUT.near || f < ONECUT.ahead && Math.abs(sd) < ONECUT.side);
+        });
+        const free = b.cap <= 0 && !env.caution && !env.cruise && !dumping && !avoiding && !mem.push && !first && !close && !(mem.emergency > 0);   // (1周1M is the start battle: its entry, 逃げ・差し・まくり lines as they were)
+        const upA = prof.up * CPU_TURN.upK, body = { thr: tThr, roll: -prof.lean * clamp((b.v - 4) / 4, 0, 1), pitch: -upA + (upA + 0.9) * ONECUT.carveK * (CARVE[prof.name] ?? 0.5) };   // the body it turns with: half up, as much crouch as the class can carve with
+        const cut = cutDrive(b, mem, o, prof, gap, body, free);
+        if (cut == null && mem.cut && mem.cut.run && free) {   // the run in to the cut: straight, the line held on the lean, body up only when it cuts
+          const la = wrapRad(b.a + (mem.cut.m ? Math.PI : 0));
+          steerT = clamp(-ONECUT.hold * la, -STRAIGHT_RUN.steer, STRAIGHT_RUN.steer); rollT = clamp(-ONECUT.holdLean * la, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free);
+          if (thrT > 0.9) pitchT = Math.max(pitchT, prof.cruise);
+        }
+        if (cut != null) { steerT = cut; rollT = body.roll; pitchT = body.pitch; thrT = Math.max(thrT, body.thr * av.thrMul); }   // body in with the cut, held as it was read
+      }
+      if (prof.kinen) { const kn = kinenDrive(b, env, mem, dt, o, prof); mem.knOn = !!kn; if (kn) { thrT = kn.thr; steerT = kn.steer; rollT = kn.roll; pitchT = kn.pitch; } }
       if (b.cap > 0) { thrT = 0; rollT = 0; pitchT = 0; }
       o.thr += (thrT - o.thr) * (1 - Math.exp(-6 * dt));
     }
