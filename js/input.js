@@ -380,17 +380,19 @@ $('pmClose').addEventListener('click', closeMenu);
 $('note').addEventListener('click', () => { $('note').hidden = true; });
 
 /* ---------- オリジナル展示タイム style measurement (スタート練習, 2 laps) ----------
-   展示タイム   back straight, the 150 m running into 2M (伸び)
-   直線タイム   back straight from just out of 1M to mid-straight (行き足)
+   (d146, まえ's reference drawings of the real measuring points)
+   展示タイム   back straight, 150 m from the start-line extension to the 2M line (伸び)
+   直線タイム   back straight, 120 m from the 1M line to the start-line extension (行き足)
    まわり足     from 22 m before 1M on the home side, round 1M, to 23 m out on the back side (回り足)
-   一周タイム   one full lap, gate on the back straight */
+   一周タイム   one full lap, gate on the start-line extension of the back straight */
 const GATES = {
-  tenji: { from: { x: 10, side: -1 }, to: { x: -140, side: -1 } },
-  choku: { from: { x: 120, side: -1 }, to: { x: -43, side: -1 } },
+  tenji: { from: { x: 0, side: -1 }, to: { x: -MK, side: -1 } },
+  choku: { from: { x: 120, side: -1 }, to: { x: 0, side: -1 } },
   mawari: { from: { x: MK - 22, side: 1 }, to: { x: MK - 23, side: -1 } },
 };
-const LAP_GATE = { x: -43, side: -1 };
+const LAP_GATE = { x: 0, side: -1 };
 const MEAS_LAPS = 2;
+const measLaps = () => soloKind === 'ta' ? TA.laps : MEAS_LAPS;   // タイムアタックは3周すべて計測
 const MEAS_JA = { tenji: '展示タイム', choku: '直線タイム', mawari: 'まわり足タイム', isshu: '一周タイム' };
 const meas = { on: false, t: {}, open: {}, lapGateAt: null, startAt: 0, st: null };
 function measReset() { Object.assign(meas, { on: false, t: { tenji: [], choku: [], mawari: [], isshu: [] }, open: {}, lapGateAt: null, startAt: 0, st: null }); }
@@ -404,12 +406,12 @@ function measStep(previous,current) {
     if(from!=null)meas.open[k]=from;
     if(meas.open[k]!=null && to!=null && to>=meas.open[k]){
       const v=to-meas.open[k];meas.open[k]=null;
-      if(meas.t[k].length<MEAS_LAPS){meas.t[k][lapNo-1]=v;toast(MEAS_JA[k],`${lapNo}周目 ${v.toFixed(2)}秒`,'info');}
+      if(lapNo<=measLaps()){meas.t[k][lapNo-1]=v;toast(MEAS_JA[k],`${lapNo}周目 ${v.toFixed(2)}秒`,'info');}
     }
   }
   const at=gateCrossing(LAP_GATE,previous,current);
   if(at!=null){
-    if(meas.lapGateAt!=null && meas.t.isshu.length<MEAS_LAPS){const v=at-meas.lapGateAt;meas.t.isshu.push(v);toast(MEAS_JA.isshu,`${v.toFixed(2)}秒`,'info');}
+    if(meas.lapGateAt!=null && meas.t.isshu.length<measLaps()){const v=at-meas.lapGateAt;meas.t.isshu.push(v);toast(MEAS_JA.isshu,`${v.toFixed(2)}秒`,'info');}
     meas.lapGateAt=at;
   }
 }
@@ -431,7 +433,7 @@ function measFinish(total) {
   row(MEAS_JA.isshu, [meas.t.isshu[0] != null ? meas.t.isshu[0].toFixed(2) : '—', ''], null);
   row('ST', [meas.st == null ? '—' : meas.st < 0 ? 'F ' + fmtST(-meas.st) : fmtST(meas.st), ''], null);
   row('2周タイム', [fmtRT(total), ''], null);
-  $('measNote').textContent = '展示＝2マーク手前150m（伸び）／直線＝1マークを出た後の行き足／まわり足＝1マーク手前22mから回って出口23mまで／一周＝バック側の計測線から1周。緑は2周のうち良い方。';
+  $('measNote').textContent = '展示＝バックのスタートライン延長から2マークまで150m（伸び）／直線＝1マークからスタートライン延長まで120m（行き足）／まわり足＝1マーク手前22mから回って出口23mまで／一周＝バックのスタートライン延長から1周。緑は2周のうち良い方。';
   paused = true; $('meas').hidden = false;
 }
 $('measAgain').addEventListener('click', () => { $('meas').hidden = true; paused = false; last = performance.now(); soloRestart(); });

@@ -430,7 +430,7 @@ function draw() {
     ctx.strokeStyle = 'rgba(255,214,120,.35)'; ctx.lineWidth = 0.25; ctx.setLineDash([0.6, 0.6]);
     ctx.fillStyle = 'rgba(255,214,120,.6)'; ctx.font = '700 1.2px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'center';
     const tick = (g, label, dy = 0) => { const y0 = g.side > 0 ? 4 : -4, y1 = g.side > 0 ? 40 : -40; ctx.beginPath(); ctx.moveTo(g.x, y0); ctx.lineTo(g.x, y1); ctx.stroke(); ctx.fillText(label, g.x, (g.side > 0 ? 42.5 : -41.5) + dy); };
-    tick(GATES.tenji.from, '展示 始'); tick(GATES.tenji.to, '展示 終'); tick(GATES.choku.from, '直線 始'); tick(LAP_GATE, '直線 終／一周');
+    tick(GATES.tenji.from, '直線 終／展示 始／一周'); tick(GATES.tenji.to, '展示 終'); tick(GATES.choku.from, '直線 始');
     tick(GATES.mawari.from, 'まわり足 始'); tick(GATES.mawari.to, 'まわり足 終', -2.6);
     ctx.setLineDash([]);
   }

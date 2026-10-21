@@ -2296,7 +2296,7 @@ function fleetStep(dt, playerInput) {
                   stAdv: inR && r.st != null ? (inR.st != null ? inR.st - r.st : Math.max(0, time - zero) - r.st) : 0,   // inside boat not across yet: at least this much behind
                     battle: r.battle, retire: r.flying && r.passed1M,
                     cruise: r.fin != null ? { ahead: fi > 0 ? fleet.finOrder[fi - 1].b : null } : null,
-                    caution: fleet.caution && r.fin == null && !r.dq && (fleet.locked || inCautionZone(r) || nearWreck(b, CAUTION_LOCK.near)) ? { ahead: cautionAhead(r), wrecks: fleet.wrecks } : null };
+                    caution: fleet.caution && r.fin == null && !(r.flying && r.passed1M) && (fleet.locked || inCautionZone(r) || nearWreck(b, CAUTION_LOCK.near)) ? { ahead: r.dq ? dqAhead(r) : cautionAhead(r), wrecks: fleet.wrecks } : null };   // 失格艇も事故艇の外を徐行
       env.finalStretch = r.laps === raceLaps() - 1 && (r.vis & 2) && b.y > 0;   // round the last mark, heading for the line
       if(lab.active)labBeforeDrive(r,env);
       o = r.drv.drive(b, env, dt);
@@ -2494,7 +2494,7 @@ function fleetTimingStep(previous,zero){
   for(const r of fleet.boats){
     const b=r.b,bow=boatBow(b),li=fleet.locked?fleet.lockOrder.indexOf(r):-1;
     const pg=r.fin!=null?1e6-fleet.order.indexOf(r):li>=0?5e5-li:r.st==null?bow.x-1000:r.laps*LREF+((loopS(13,bow.x,bow.y)-MK+LREF)%LREF);
-    r.prog=r.dq?-3e6+(r.out?0:1):r.relegated?-2e6+pg/1e3:pg;
+    r.pgRaw=pg; r.prog=r.dq?-3e6+(r.out?0:1):r.relegated?-2e6+pg/1e3:pg;   // (pgRaw: where it really is — a 失格 boat still running is placed by it for the wreck zones)
   }
   if(finishedNow)fleet.rank=fleet.boats.slice().sort((a,b)=>b.prog-a.prog);
   // 決まり手の材料: how each boat took the first 1M, and who led once it was over
@@ -2726,6 +2726,16 @@ function cautionAhead(r) {
   }
   return best ? best.b : null;
 }
+// a 失格 boat still running (not in the order): it goes behind whatever running boat is just in front of it — never passes near the wreck
+function dqAhead(r) {
+  let best = null, bd = 30;
+  for (const q of fleet.boats) {
+    if (q === r || q.out || q.fin != null || q.st == null || q.b.cap > 0) continue;
+    const ex = q.b.x - r.b.x, ey = q.b.y - r.b.y, f = ex * Math.cos(r.b.a) + ey * Math.sin(r.b.a), sd = -ex * Math.sin(r.b.a) + ey * Math.cos(r.b.a);
+    if (f > -2 && Math.abs(sd) < 10 && f < bd) { bd = f; best = q; }
+  }
+  return best ? best.b : null;
+}
 // 事故後の着順確定: the order is fixed once the last boat still running has come round the next turn mark
 // (past the wreck, outside it) — until then it still counts as raced. Only then can the race be skipped.
 // prog of the end of each turn (1M exit, 2M exit) within a lap, measured the same way as r.prog
@@ -2739,7 +2749,7 @@ function cautionZoneFor(w) {
   if (s === -Infinity) s = ZONE_FROM[ZONE_FROM.length - 1] - LREF;
   return { s, len: wp + CAUTION_ZONE.past - s };
 }
-const inCautionZone = r => (fleet.cZones || []).some(z => ((r.prog - z.s) % LREF + LREF) % LREF < z.len);
+const inCautionZone = r => (fleet.cZones || []).some(z => (((r.dq ? r.pgRaw ?? r.prog : r.prog) - z.s) % LREF + LREF) % LREF < z.len);
 function nextTurnExit(pg) {
   const lap = Math.floor(pg / LREF), at = pg - lap * LREF;
   for (const e of TURN_EXIT) if (e >= at) return lap * LREF + e;

@@ -79,13 +79,14 @@ function taFinish(t) {
   if (ta.cur) taCornerEnd();
   ta.on = false; ta.done = true;
   const prev = taBest, best = !prev || t < prev.t;
+  const mt = taMeasNow();
   if (best) {
-    taBest = { t, laps: ta.laps.slice(), st: ta.st, rank: taRank(t), g: ta.path, g0: SS.t0 - ta.zero, at: Date.now() };
+    taBest = { t, laps: ta.laps.slice(), st: ta.st, meas: mt, rank: taRank(t), g: ta.path, g0: SS.t0 - ta.zero, at: Date.now() };
     try { localStorage.setItem(playerKey(TA.key), JSON.stringify(taBest)); } catch (e) {}
   }
   taLogSave(t, best);
   toast(best ? '自己ベスト更新' : 'ゴール', `${fmtRT(t)}　${taRank(t)}`, best ? 'good' : 'info');
-  setTimeout(() => taShow({ t, laps: ta.laps.slice(), st: ta.st }, null, best ? prev : taBest, best), 1200);
+  setTimeout(() => taShow({ t, laps: ta.laps.slice(), st: ta.st, meas: mt }, null, best ? prev : taBest, best), 1200);
 }
 // the result card. run = this run (null if it ended with no record), ref = the best to compare against
 function taShow(run, why, ref = taBest, isBest = false) {
@@ -109,16 +110,40 @@ function taShow(run, why, ref = taBest, isBest = false) {
   for (let i = 0; i < TA.laps; i++) row(`${i + 1}周`, cur.laps[i] != null ? cur.laps[i].toFixed(2) : '—', ref && ref.laps[i] != null ? ref.laps[i].toFixed(2) : '—');
   row('ST', st(cur.st), ref ? st(ref.st) : '—');
   row('タイム', run ? fmtRT(run.t) : '—', ref ? fmtRT(ref.t) : '—');
+  taMeasTable(run ? run.meas : taMeasNow(), ref && ref.meas);
   $('taGaps').textContent = ta.corners.length ? 'マークとの間隔（艇体の端〜ブイ）　' + taCornersJa(ta.corners) : '';
-  $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.filter(r => !TA_EXTRA.includes(r[0])).slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。エクストラ：' + TA_RANKS.filter(r => TA_EXTRA.includes(r[0])).reverse().map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '。タイムは針が0を指してからゴールまで。';
+  $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.filter(r => !TA_EXTRA.includes(r[0])).slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。エクストラ：' + TA_RANKS.filter(r => TA_EXTRA.includes(r[0])).reverse().map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '。タイムは針が0を指してからゴールまで。' + TA_MEAS_NOTE;
   $('taSlit').hidden = !(practiceSlit && practiceSlit.archived);
   paused = true; $('taBox').hidden = false;
+}
+// 区間タイム (展示・直線・まわり足・一周): the same gates as the practice 展示航走 (input.js GATES), every lap
+const TA_MEAS_KEYS = ['tenji', 'choku', 'mawari', 'isshu'];
+const TA_MEAS_NOTE = '　区間：展示＝バックのスタートライン延長から2マークまで150m／直線＝1マークからスタートライン延長まで120m／まわり足＝1マーク手前22mから出口23mまで／一周＝バックのスタートライン延長から次の周の同じ所まで（2周目・3周目の欄）。緑はその区間の今回いちばん速い周。';
+const taMeasNow = () => { const o = {}; for (const k of TA_MEAS_KEYS) o[k] = (meas.t[k] || []).map(v => v == null ? null : +v.toFixed(3)); return o; };
+// 一周 is measured back straight to back straight, so its n-th value ends in lap n+1
+const taMeasLaps = (m, k) => { const a = (m && m[k]) || []; return k === 'isshu' ? [null, ...a] : a; };
+const taMeasLog = m => TA_MEAS_KEYS.map(k => `${k}=` + Array.from({ length: TA.laps }, (_, i) => { const v = taMeasLaps(m, k)[i]; return v == null ? '-' : v.toFixed(2); }).join('/')).join(' ');
+function taMeasTable(m, ref) {
+  let tab = $('taMeas');
+  if (!tab) {
+    tab = document.createElement('table'); tab.id = 'taMeas'; tab.className = 'mtab';
+    $('taBody').closest('table').after(tab);
+  }
+  tab.textContent = '';
+  const tr = cells => { const r = document.createElement('tr'); cells.forEach(([v, cls, th]) => { const c = document.createElement(th ? 'th' : 'td'); c.textContent = v; if (cls) c.style.color = 'var(--good)'; r.appendChild(c); }); tab.appendChild(r); };
+  tr([['区間', '', 1], ...Array.from({ length: TA.laps }, (_, i) => [`${i + 1}周`, '', 1]), ['自己ベスト時', '', 1]]);
+  for (const k of TA_MEAS_KEYS) {
+    const a = taMeasLaps(m, k), vals = a.filter(v => v != null), lo = vals.length > 1 ? Math.min(...vals) : null;
+    const r = taMeasLaps(ref, k).filter(v => v != null);
+    tr([[MEAS_JA[k].replace('タイム', '')], ...Array.from({ length: TA.laps }, (_, i) => [a[i] == null ? '—' : a[i].toFixed(2), a[i] != null && a[i] === lo ? 'good' : '']), [r.length ? Math.min(...r).toFixed(2) : '—']]);
+  }
 }
 // ログ: every finished run is kept (the last TA.logKeep, plus the current best which is never pushed out)
 function taLogSave(t, best) {
   const pad = typeof currentPad === 'function' && currentPad();
   const text = [`#HFGP-TA v1 ${GAME_VER} ${new Date().toISOString()}`,
     `#result time=${t.toFixed(2)} rank=${taRank(t)} ST=${ta.st == null ? '-' : ta.st.toFixed(3)} laps=${ta.laps.map(v => v.toFixed(2)).join('/')}${best ? ' best' : ''}`,
+    `#meas ${taMeasLog(taMeasNow())}`,
     `#player ${playerName()}`,
     `#setup laps=${TA.laps} water=calm motor=avg(deashi1/nobi1) tilt=${rpN(B.tilt, 1)} control=${controlMode}${pad ? '+controller' : ''}`,
     '#S t x y heading(deg) v(km/h) thr steer roll pitch load yaw(deg/s)  (t = s from the start signal, every 0.1 s; x,y in m, start line x=0, 1M x=+' + MK + ', 2M x=-' + MK + ')',
