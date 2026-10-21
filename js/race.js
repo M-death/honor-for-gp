@@ -319,12 +319,13 @@ function cutDrive(b, mem, o, prof, gap, body, free) {
   const cs = mem.cut || (mem.cut = { m: b.y >= 0 ? 0 : 1, ph: 'app', next: 0 });
   const m = cs.m, sg = m ? -1 : 1, lx = sg * b.x, ly = sg * b.y, la = wrapRad(b.a + (m ? Math.PI : 0));
   if (cs.ph === 'done' || cs.ph === 'app' && sg * b.y < 0 && lx > MK - 60) {   // round this one: wait for the next
+    cs.run = false;   // (no run-in hold left over: past the buoy the line-follower steers)
     if (lx < MK - 70 || ly < -5 && Math.abs(la) > 2.6 && lx < MK - 20) { cs.m = m ^ 1; cs.ph = 'app'; cs.aim = null; }
     return null;
   }
-  if (!free) { if (cs.ph === 'hold') cs.ph = 'done'; return null; }
+  if (!free) { if (cs.ph === 'hold') cs.ph = 'done'; cs.run = false; return null; }
   if (cs.ph === 'app') {
-    if (lx < MK - ONECUT.from || ly < 0 || Math.abs(la) > 0.9) { cs.run = false; return null; }
+    if (lx < MK - ONECUT.from || lx > MK || ly < 0 || Math.abs(la) > 0.9) { cs.run = false; return null; }   // (level with the buoy and still no cut: the line-follower turns it)
     if (time < cs.next) return null;
     cs.next = time + 1 / ONECUT.hz;
     if (cs.aim == null) cs.aim = Math.max(0.1, gap - HULL_R - 1.5 + gauss() * P.g);   // the clearance it means to take — as truly as it can judge it
@@ -1295,7 +1296,7 @@ function makeDriver(prof, trait = {}) {
         const free = b.cap <= 0 && !env.caution && !env.cruise && !dumping && !avoiding && !mem.push && !first && !close && !(mem.emergency > 0);   // (1周1M is the start battle: its entry, 逃げ・差し・まくり lines as they were)
         const upA = prof.up * CPU_TURN.upK, body = { thr: tThr, roll: -prof.lean * clamp((b.v - 4) / 4, 0, 1), pitch: -upA + (upA + 0.9) * ONECUT.carveK * (CARVE[prof.name] ?? 0.5) };   // the body it turns with: half up, as much crouch as the class can carve with
         const cut = cutDrive(b, mem, o, prof, gap, body, free);
-        if (cut == null && mem.cut && mem.cut.run && free) {   // the run in to the cut: straight, the line held on the lean, body up only when it cuts
+        if (cut == null && mem.cut && mem.cut.run && mem.cut.ph === 'app' && free) {   // the run in to the cut: straight, the line held on the lean, body up only when it cuts
           const la = wrapRad(b.a + (mem.cut.m ? Math.PI : 0));
           steerT = clamp(-ONECUT.hold * la, -STRAIGHT_RUN.steer, STRAIGHT_RUN.steer); rollT = clamp(-ONECUT.holdLean * la, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free);
           if (thrT > 0.9) pitchT = Math.max(pitchT, prof.cruise);
