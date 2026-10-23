@@ -3,12 +3,16 @@
    motor (出足・伸び1.0), and the race's own fade (水面の荒れ・熱ダレ) so the laps slow the way they do in a race.
    フライング・出遅れ・転覆・内側航走 end the run with no record. The best run is kept in this browser and comes back
    as a ghost boat. */
-const TA = { laps: 3, key: 'honorGP.ta', ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
+// d148–d152: the turns (and the exits) got wider (GRIP_BASE), so the old bests were reset — a new key; the old 'honorGP.ta' is left unread
+// d157: the turns slide now (ドリフト) — the old bests were reset again (d158: more slide and the hull's bank; d159: deep bank pays — reset each time)
+const TA = { laps: 3, key: 'honorGP.ta.d159', ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
 // A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
 // d136: エクストラ (まえ) — GP覇者 and レジェンド sit above 記念クラス
 const TA_EXTRA = ['レジェンド', 'GP覇者'];
-const TA_RANKS = [['レジェンド', 103.0], ['GP覇者', 104.0], ['記念クラス', 105.0], ['A1', 106.5], ['A2', 110.0], ['B1', 114.0], ['B2', 120.0], ['ルーキー', Infinity]];
+// d152 (まえ): bands set to 記念 1'45"0, A1 1'47"0, B2 1'58"0 (CPU 1艇 with fade: 記念 1'45"0 A1★ 1'48"0 A1 1'48"6 A2 1'48"7 B1 1'51"2 B2 1'57"9)
+// (old d132/d136: レジェンド 1'43"0 GP覇者 1'44"0 記念 1'45"0 A1 1'46"5 A2 1'50"0 B1 1'54"0 B2 2'00"0)
+const TA_RANKS = [['レジェンド', 103.0], ['GP覇者', 104.0], ['記念クラス', 105.0], ['A1', 107.0], ['A2', 110.0], ['B1', 114.0], ['B2', 118.0], ['ルーキー', Infinity]];
 const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false, log: [], ev: [], corners: [], cur: null, cSide: -1 };
 // the best run belongs to the player chosen in the practice menu (player.js)
 let taBest = null;

@@ -757,6 +757,21 @@ function hapticsFrame(dt, b) {
   }
 }
 
+/* ウィリーターン (d156, まえ): weight back twice, quickly (タタン), and the lever squeezed in with it. A tap = the posture
+   input pulled back past `back` from at least `rel`; two within `gap` s arm it for `win` s, and the lever reaching `thr`
+   in that window fires it (input.willie, read once by the physics). WILLIE_IN.needDrop: the lever must also have been
+   let go (below `drop`) within `dropWin` s before — off for now. */
+const WILLIE_IN = { back: -0.55, rel: -0.25, gap: 0.35, win: 0.4, thr: 0.95, needDrop: false, drop: 0.6, dropWin: 1.0 };
+const willieIn = { t: 0, down: false, tap1: -9, armed: -9, dropAt: -9, prevThr: 0 };
+function willieDetect(tp, dt) {
+  const w = willieIn, P = WILLIE_IN; w.t += dt;
+  if (input.thr < P.drop) w.dropAt = w.t;
+  if (!w.down && tp < P.back) { w.down = true; if (w.t - w.tap1 < P.gap) { w.armed = w.t; w.tap1 = -9; } else w.tap1 = w.t; }
+  else if (w.down && tp > P.rel) w.down = false;
+  const squeezed = input.thr >= P.thr && (w.prevThr < P.thr || w.t - w.armed < dt * 1.5);
+  if (w.t - w.armed < P.win && squeezed && (!P.needDrop || w.t - w.dropAt < P.dropWin)) { input.willie = true; w.armed = -9; }
+  w.prevThr = input.thr;
+}
 function updateInput(dt) {
   const k = 1 - Math.exp(-dt * 10);
   const gp = readPad();
@@ -768,6 +783,7 @@ function updateInput(dt) {
     const vp = virtualPosture.enabled && virtualPosture.pointer != null;
     input.roll += ((vp ? virtualPosture.roll : gp.roll) - input.roll) * k;
     input.pitch += ((vp ? virtualPosture.pitch : gp.pitch) - input.pitch) * k;
+    willieDetect(vp ? virtualPosture.pitch : gp.pitch, dt);
     return;
   }
   if (keys.has('KeyW')) input.thr = Math.min(1, input.thr + dt * 1.2);
@@ -782,6 +798,7 @@ function updateInput(dt) {
   else if (kr || kp || !sensor.got) { tr = kr; tp = kp; }
   input.roll += (tr - input.roll) * k;
   input.pitch += (tp - input.pitch) * k;
+  willieDetect(tp, dt);
 }
 
 /* ---------- boat physics (metres, seconds) ----------

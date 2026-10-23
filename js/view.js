@@ -557,6 +557,12 @@ function drawWake(arr) {
 }
 
 const PLAYER_STYLE = { hull: '#f4f7f6', num: '#0a2c38', label: '1', helmet: C.lever };
+/* バウンド: drawn from the hull's hop in the physics (d155; d154 was looks only). In the air the hull comes up at the
+   camera and its shadow stays on the water; a landing throws a white burst. */
+const BOUNCE_VIEW = { hMax: 0.45, splashT: 0.4, wil: 0.22 };   // wil: ウィリー drawn as this much lift (bow up, riding on the tail)
+function boatBounce(b) {
+  return { h: b.cap > 0 ? 0 : clamp(Math.max(b.hop || 0, (b.wil || 0) * BOUNCE_VIEW.wil), 0, BOUNCE_VIEW.hMax), wil: b.cap > 0 ? 0 : b.wil || 0, ls: b.landAge ?? 9, sp: clamp((b.landV || 0) / 4, 0, 1), stuck: (b.stuckAge ?? 9) < 0.3 };
+}
 function drawBoatAt(b, inp, sty, focused) {
   ctx.save();
   ctx.translate(b.x, b.y); ctx.rotate(b.a);
@@ -564,8 +570,17 @@ function drawBoatAt(b, inp, sty, focused) {
     ctx.setLineDash([0.6, 0.6]); ctx.strokeStyle = C.lever; ctx.lineWidth = 0.2;
     ctx.beginPath(); ctx.arc(0, 0, 3.4, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
   }
+  const bo = boatBounce(b), lift = bo.h, ls = bo.ls;
   const bob = 1 + 0.07 * Math.sin(time * 18) * Math.max(b.porp, (b.wakeBump || 0) * 1.3);
   ctx.scale(bob, 1);
+  if (ls >= 0 && ls < BOUNCE_VIEW.splashT && bo.sp > 0.25 && b.cap <= 0) {   // landing slap: a white burst out both sides
+    const k = ls / BOUNCE_VIEW.splashT, a = (1 - k) * 0.75 * bo.sp;
+    ctx.strokeStyle = `rgba(240,255,250,${a})`; ctx.lineWidth = 0.16 * (1 - k) + 0.05;
+    ctx.beginPath(); ctx.ellipse(-0.3, 0, 2.6 + k * 1.6 * bo.sp, 1.2 + k * 1.4 * bo.sp, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = `rgba(245,255,252,${a * 0.8})`;
+    for (let n = 0; n < 8; n++) { const h = hash(n, Math.floor((time - ls) * 10)), side = n % 2 ? 1 : -1;
+      ctx.beginPath(); ctx.ellipse(1.2 - h * 3.2, side * (1.1 + k * (0.8 + h) * 1.6 * bo.sp), 0.12 + h * 0.1, 0.07, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
   const capT = b.cap > 0 ? (b.cap > 100 ? (time * 0.6) % 1 : 1 - b.cap / 2.2) : 0;
   // stability on the water: amber as it nears the line, red and pulsing past it; a second ring while it's going for it
   if (b.cap <= 0) {
@@ -582,10 +597,43 @@ function drawBoatAt(b, inp, sty, focused) {
     }
   }
   // Soft contact shadow, then a cached shaded hull (same physical footprint).
-  ctx.fillStyle = 'rgba(0,22,30,.22)';
-  ctx.beginPath(); ctx.ellipse(0.12, 0.4 + inp.roll * 0.25, 2.55, 1.05, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(0,18,25,.25)';
-  ctx.beginPath(); ctx.ellipse(-0.15, 0.22, 2.15, 0.78, 0, 0, Math.PI * 2); ctx.fill();
+  { const sk = b.cap > 0 ? 0 : clamp((b.splashK || 0) / 1.2, 0, 1.4);
+    if (sk > 0.12 && b.v > 7 && Math.abs(b.yaw || 0) > 0.2) {   // スプラッシュ (d158): thrown off the outside of the turn — a tall wall when the hull is flat, a thin low sheet when it is banked deep
+      const side = -Math.sign(b.yaw), hgt = sk * sk;
+      for (let n = 0; n < 14; n++) { const h = hash(n + 110, Math.floor(time * 15)), u = n / 14;
+        const o = side * (1.0 + u * (0.6 + 2.6 * hgt) + h * 0.5 * sk), r0 = 0.12 + (0.18 + h * 0.2) * sk + u * 0.25 * hgt;
+        ctx.fillStyle = `rgba(0,26,34,${0.12 * hgt})`;   // its shadow, falling away down-screen as it gets taller
+        ctx.beginPath(); ctx.ellipse(0.4 - u * 3.6 + 0.4 * hgt, o + 0.6 * hgt * u, r0, r0 * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(242,255,252,${clamp(0.25 + 0.5 * sk, 0, 0.85) * (1 - 0.5 * u)})`;
+        ctx.beginPath(); ctx.ellipse(0.4 - u * 3.6, o, r0, r0 * 0.6, 0, 0, Math.PI * 2); ctx.fill(); }
+    }
+  }
+  { const sl = b.cap > 0 ? 0 : clamp((Math.abs(b.slip || 0) - 0.05) / 0.25, 0, 1);
+    if (sl > 0 && b.v > 6) {   // ドリフト: the hull skating sideways throws a sheet of water off the side it is sliding toward
+      const side = Math.sign(b.vl) || 1;   // + = toward the left of the bow (local +y)
+      ctx.fillStyle = `rgba(238,255,250,${0.55 * sl})`;
+      for (let n = 0; n < 9; n++) { const h = hash(n + 70, Math.floor(time * 16)), u = n / 9;
+        ctx.beginPath(); ctx.ellipse(1.6 - u * 3.8, side * (1.05 + h * 0.5 + sl * (0.4 + u * 1.2)), 0.18 + h * 0.18 + sl * 0.15, 0.1 + sl * 0.12, 0, 0, Math.PI * 2); ctx.fill(); }
+    }
+  }
+  if (bo.wil > 0.05) {   // ウィリー: a tall rooster tail off the stern, the hull riding on it
+    ctx.fillStyle = `rgba(240,255,250,${0.5 * bo.wil})`;
+    for (let n = 0; n < 9; n++) { const h = hash(n + 40, Math.floor(time * 14)), u = n / 9;
+      ctx.beginPath(); ctx.ellipse(-2.8 - u * 3.2, (h - 0.5) * (0.6 + u * 1.4), 0.25 + u * 0.35, 0.15 + u * 0.2, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  if (bo.stuck && b.cap <= 0) {   // 刺さり: the bow buried, water thrown up and forward over it
+    const k = clamp((b.stuckAge || 0) / 0.3, 0, 1);
+    ctx.fillStyle = `rgba(250,255,253,${0.85 * (1 - k)})`;
+    for (let n = 0; n < 10; n++) { const h = hash(n, Math.floor((time - (b.stuckAge || 0)) * 10)), side = n % 2 ? 1 : -1;
+      ctx.beginPath(); ctx.ellipse(2.0 + h * 1.4 + k, side * (0.3 + h * 0.9 + k * 0.6), 0.22 + h * 0.15, 0.12, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  const lf = lift / BOUNCE_VIEW.hMax;   // in the air the shadow stays on the water, falls away down-screen and sharpens, the hull comes up at the camera
+  const ox = lf * 1.6, oy = lf * 2.2, ca = Math.cos(b.a), sa = Math.sin(b.a), sx = ox * ca + oy * sa, sy = -ox * sa + oy * ca;
+  ctx.fillStyle = `rgba(0,22,30,${0.22 + 0.1 * lf})`;
+  ctx.beginPath(); ctx.ellipse(0.12 + sx, 0.4 + inp.roll * 0.25 + sy, 2.55 * (1 - 0.08 * lf), 1.05 * (1 - 0.08 * lf), 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `rgba(0,18,25,${0.25 + 0.1 * lf})`;
+  ctx.beginPath(); ctx.ellipse(-0.15 + sx, 0.22 + sy, 2.15, 0.78, 0, 0, Math.PI * 2); ctx.fill();
+  if (lift > 0.005) ctx.scale(1 + lf * 0.28, 1 + lf * 0.2);   // nearer the camera
   // Bow spray follows speed and lateral load; it is entirely visual.
   if (b.cap <= 0 && b.v > 5) {
     const speed = clamp(b.v / 23, 0, 1);
@@ -604,8 +652,18 @@ function drawBoatAt(b, inp, sty, focused) {
     }
   }
   const hullSprite = boatSprite(sty, b.cap > 0 && !b.fallen);
-  ctx.save(); ctx.scale(1, 1 - Math.abs(inp.roll) * .06);
-  ctx.drawImage(hullSprite, -2.65, -1.1, 5.3, 2.2); ctx.restore();
+  const bk = b.cap > 0 ? 0 : clamp((b.bank || 0) / BANK.max, -1, 1);   // 艇の傾き (d158): seen from above a banked hull narrows and its bottom shows on the high side
+  ctx.save(); ctx.translate(0, bk * 0.18); ctx.scale(1, 1 - Math.abs(bk) * 0.22);
+  ctx.drawImage(hullSprite, -2.65, -1.1, 5.3, 2.2);
+  if (Math.abs(bk) > 0.08) {
+    const hi = -Math.sign(bk);   // the side that has come up out of the water
+    ctx.fillStyle = `rgba(12,30,40,${0.35 + 0.4 * Math.abs(bk)})`;
+    ctx.beginPath(); ctx.moveTo(2.3, hi * 0.75); ctx.quadraticCurveTo(0.2, hi * (1.12 + 0.35 * Math.abs(bk)), -2.6, hi * (1.0 + 0.35 * Math.abs(bk)));
+    ctx.lineTo(-2.6, hi * 1.0); ctx.quadraticCurveTo(0.2, hi * 1.1, 2.3, hi * 0.75); ctx.fill();
+    ctx.strokeStyle = `rgba(255,255,255,${0.25 * Math.abs(bk)})`; ctx.lineWidth = 0.06;
+    ctx.beginPath(); ctx.moveTo(1.8, hi * (0.86 + 0.2 * Math.abs(bk))); ctx.lineTo(-2.4, hi * (1.06 + 0.3 * Math.abs(bk))); ctx.stroke();   // the chine
+  }
+  ctx.restore();
   if (b.cap <= 0) {
     // Life jacket, bent arms, helmet shell and visor; pose follows the actual inputs.
     const rxp = -0.35 + inp.pitch * 0.6, ryp = inp.roll * 0.55;
@@ -670,7 +728,7 @@ function drawMini() {
 
 /* ---------- HUD ---------- */
 const REDUCED_MOTION = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-const el = { stab: $('stab'), stabFill: $('stabFill'), demoTag: $('demoTag'), spd: $('spd'), lap: $('lap'), best: $('best'), fill: $('lfill'), knob: $('lknob'), wrot: $('wrot'), pdot: $('pdot'), pdeg: $('pdeg'), pbox: $('pbox'), track: $('track'), hand: $('hand'), clockTxt: $('clockTxt'), clock: $('clock') };
+const el = { stab: $('stab'), stabFill: $('stabFill'), demoTag: $('demoTag'), spd: $('spd'), lap: $('lap'), best: $('best'), fill: $('lfill'), knob: $('lknob'), wrot: $('wrot'), pdot: $('pdot'), pbank: document.querySelectorAll('svg.bank'), pdeg: $('pdeg'), pbox: $('pbox'), track: $('track'), hand: $('hand'), clockTxt: $('clockTxt'), clock: $('clock') };
 let lastTxt = {};
 const setTxt = (k, v) => { if (lastTxt[k] !== v) { lastTxt[k] = v; el[k].textContent = v; } };
 // 予想コース (under the order strip): the courses as they stand now — slow group / dash group
@@ -744,6 +802,8 @@ function updateHud() {
   el.knob.style.transform = `translateY(${-vi.thr * (th - 18)}px)`;
   el.wrot.setAttribute('transform', `rotate(${vi.steer * 110})`);
   el.pdot.style.transform = `translate(${vi.roll * 30}px, ${-vi.pitch * 30}px)`;
+  const bankDeg = vb.cap > 0 ? 0 : (vb.bank || 0) * 57.3;   // 艇の傾き: the hull's section, as seen from behind (body lean is the dot)
+  for (const ic of el.pbank) { ic.style.transform = `rotate(${bankDeg.toFixed(1)}deg)`; ic.classList.toggle('deep', Math.abs(bankDeg) > 0.75 * BANK.max * 57.3); }
   const f = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n));
   // 限界度 gauge (load): 0 … 1.5, danger line at 1.0 (two-thirds across). Past the line the needle and the gauge
   // shake, harder the deeper it goes — the warning that the hull may let go (d138)
@@ -756,7 +816,7 @@ function updateHud() {
   el.stab.classList.toggle('over', ld >= 1 && vb.cap <= 0);
   const stabWord = vb.cap > 0 ? '転覆' : ld >= 1 ? '危険ライン超え' : ld >= 0.85 ? '限界ぎりぎり' : ld >= 0.55 ? '攻め' : '余裕';
   el.stab.title = stabWord;
-  setTxt('pdeg', (vb.pushing ? '勝負中・' : '') + stabWord + '　' + (!fr && pad.seenAt > 0 && performance.now() - pad.seenAt < 3000 ? `パッド 左右 ${f(input.roll * 100)}%  前後 ${f(input.pitch * 100)}%` : !fr&&virtualPosture.enabled ? `仮想 左右 ${f(input.roll*100)}% 前後 ${f(input.pitch*100)}%` : fr ? `想定 左右 ${f(vi.roll * sensor.range)}°  前後 ${f(vi.pitch * sensor.range)}°` : sensor.got ? `左右 ${f(sensor.deg[0])}°  前後 ${f(sensor.deg[1])}°` : (running ? '傾き入力なし' : '体重移動')));
+  setTxt('pdeg', (vb.pushing ? '勝負中・' : '') + stabWord + '　' + (Math.abs(bankDeg) >= 3 ? `艇${bankDeg > 0 ? '右' : '左'}${Math.round(Math.abs(bankDeg))}°　` : '') + (!fr && pad.seenAt > 0 && performance.now() - pad.seenAt < 3000 ? `パッド 左右 ${f(input.roll * 100)}%  前後 ${f(input.pitch * 100)}%` : !fr&&virtualPosture.enabled ? `仮想 左右 ${f(input.roll*100)}% 前後 ${f(input.pitch*100)}%` : fr ? `想定 左右 ${f(vi.roll * sensor.range)}°  前後 ${f(vi.pitch * sensor.range)}°` : sensor.got ? `左右 ${f(sensor.deg[0])}°  前後 ${f(sensor.deg[1])}°` : (running ? '傾き入力なし' : '体重移動')));
   const turning = Math.abs(vi.steer) > 0.3 && vb.cap <= 0;
   el.pbox.style.setProperty('--h', !turning ? C.line : vh > 0.68 ? C.good : vh > 0.42 ? C.warn : C.bad);
   if (SS.phase === 'entry' && fleet && fleet.entry) {

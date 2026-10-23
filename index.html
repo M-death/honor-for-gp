@@ -125,6 +125,10 @@ table.race.st tr.me td{background:rgba(255,180,46,.14)}
 .box .l{left:5px;top:50%;transform:translateY(-50%)}
 .box .r{right:5px;top:50%;transform:translateY(-50%)}
 .cross{position:absolute;inset:0;background:linear-gradient(var(--hud-line),var(--hud-line)) center/1px 70% no-repeat,linear-gradient(var(--hud-line),var(--hud-line)) center/70% 1px no-repeat}
+.bank{position:absolute;left:50%;top:50%;width:54px;height:22px;margin:-11px 0 0 -27px;overflow:visible;pointer-events:none;transition:transform .05s linear}
+.bank path{fill:rgba(233,245,242,.16);stroke:rgba(233,245,242,.55);stroke-width:1.5}.bank line{stroke:rgba(233,245,242,.3);stroke-width:1}
+.posture-zone .bank{width:84px;height:34px;margin:-17px 0 0 -42px}
+.bank.deep path{fill:rgba(126,217,180,.28);stroke:rgba(126,217,180,.85)}
 .dot{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--fg);box-shadow:0 0 8px rgba(233,245,242,.6)}
 .stab{position:relative;width:84px;height:8px;border-radius:4px;background:var(--hud);border:1px solid var(--hud-line);overflow:hidden}
 .stabfill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--good)}
@@ -291,7 +295,7 @@ body.lab-running>#jk{display:none!important}
 
 <div class="posture-stick" id="postureStick" hidden>
   <div class="posture-zone" id="postureZone" role="group" tabindex="0" aria-label="姿勢アナログパッド。左右で傾き、上で伏せる、下で起こす。指を離すと中央。矢印キーでも操作できます。">
-    <span class="up">伏せる</span><span class="down">起こす</span><span class="left">左</span><span class="right">右</span><i class="posture-thumb" id="postureThumb"></i>
+    <span class="up">伏せる</span><span class="down">起こす</span><span class="left">左</span><span class="right">右</span><svg class="bank" viewBox="-30 -12 60 24" aria-hidden="true"><path d="M-26,-6 L26,-6 L20,1 L0,8 L-20,1 Z"/><line x1="-30" y1="-6" x2="30" y2="-6"/></svg><i class="posture-thumb" id="postureThumb"></i>
   </div><div class="lbl">姿勢パッド</div>
 </div>
 <div id="phoneSteerReadout" hidden>スマホ舵：中央</div>
@@ -313,6 +317,7 @@ body.lab-running>#jk{display:none!important}
   <div class="box" id="pbox">
     <i class="cross"></i>
     <span class="t">伏せる</span><span class="b">起こす</span><span class="l">左</span><span class="r">右</span>
+    <svg class="bank" viewBox="-30 -12 60 24" aria-hidden="true"><path d="M-26,-6 L26,-6 L20,1 L0,8 L-20,1 Z"/><line x1="-30" y1="-6" x2="30" y2="-6"/></svg>
     <i class="dot" id="pdot"></i>
   </div>
   <div class="deg" id="pdeg">体重移動</div>

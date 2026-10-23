@@ -157,7 +157,7 @@ function turnRoll(prof) {
    then all in at once (lean, rudder, half-crouch), reading ahead which rudder still clears the buoy by `gap`,
    and coming off the lock at heading ±(180 − rel)° with some lean kept. Anyone close and it drives like an A1★. */
 const KINEN = { gap: 0.2, pT: 0.35, Lmax: 0.91, kl: 3.4, rel: 42, exR: 0.47, exT: 0.62, exS: 0.88, exP: 1.5, s0: 0.5, rampT: 0.3,
-  hz: 60, H: 3.5, from: 60,            // m before the mark it starts reading the turn
+  hz: 60, H: 5, from: 60,            // m before the mark it starts reading the turn
   app: 110, Ly: 26, Ly2: 21, ks: 0.04, ka: 2, sMax: 0.15,   // from `app` m out it swings wide to Ly (m off the centreline) for the run in: lean first, a touch of rudder
   near: 12, box: 25, lane: 4, ahead: 25, behind: 10,   // straight: nobody within `near` m ahead/alongside; run-in: nobody in my lane within `ahead` m
   level: 6, reachX: 15, dv: 1.5, gone: 40,       // まくり pays: within `level` m of each inner boat's position, or within reachX m and dv m/s faster
@@ -188,6 +188,7 @@ function kinenPredict(b, m, sv, o, prof) {
     boatPhysics(c, inp, dt);
     g = Math.min(g, kinenGap(c, mk), kinenGap(c, bm) + 0.5);
     if (sg * c.y < 0) { ok = sg * c.x > MK; break; }
+    { const ha = wrapRad(c.a + (m ? Math.PI : 0)); if (ha < 0 && ha < -Math.PI * 0.9 && sg * c.x > MK) { ok = true; break; } }   // d153: from far out a tight turn comes round before it crosses the centreline
     if (c.v < 3) break;
   }
   lab.predicting = was;
@@ -255,6 +256,7 @@ function kinenDrive(b, env, mem, dt, o, prof) {
     kn.need = S.inner.length ? Math.max(KINEN.gap, KINEN.mkR + Math.max(0, S.innerY - KINEN.mkY) * KINEN.mkK) : KINEN.gap;
     const want = KINEN.ks * (Ly - ly) - KINEN.ka * la;
     const run = { thr: 1, steer: clamp(want * 0.5, -KINEN.sMax, KINEN.sMax), roll: clamp(want, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free), pitch: 1 };
+    if (lx > MK - 5) { kn.ph = 'skip'; return null; }   // d153: never ran past the buoy on the run in (the A1★ driving turns it)
     if (lx < MK - KINEN.from || time < kn.next) return run;
     kn.next = time + 1 / KINEN.hz;
     if (KINEN.oneCut) {   // お釣り無し: one full cut, held to the release, started the moment it clears (read with the hands' lag)
@@ -293,7 +295,7 @@ function kinenDrive(b, env, mem, dt, o, prof) {
    is how truly that is done: the clearance aimed for (g, m), how late the hands follow the eye (t, s), how deep the
    cut goes (d, short of full), how far off the release heading (r, °), and how often it checks the turn is working
    (chk, s). When the turn it is holding would miss its line by `tol` m, it cuts again: the お釣り. */
-const ONECUT = { on: true, from: 60, hz: 20, H: 3.5, rel: 35, tol: 1.0, svMin: 0.2, dMin: 0.08, near: 16, ahead: 40, side: 8, carveK: 0, hold: 2, holdLean: 2,
+const ONECUT = { on: true, from: 60, hz: 20, H: 5, rel: 35, tol: 1.0, svMin: 0.2, dMin: 0.08, near: 16, ahead: 40, side: 8, carveK: 0, hold: 2, holdLean: 2,
   TOP: { g: 0.3, t: 0.02, d: 0.03, r: 4, chk: 0.15 }, A1: { g: 0.5, t: 0.04, d: 0.05, r: 6, chk: 0.2 }, A2: { g: 1.1, t: 0.08, d: 0.12, r: 10, chk: 0.25 },
   B1: { g: 2.0, t: 0.15, d: 0.2, r: 14, chk: 0.3 }, B2: { g: 3.0, t: 0.25, d: 0.3, r: 20, chk: 0.35 } };
 // the turn held at rudder sv from now with the body at `body` (and the hands/body lag of this rider): closest hull–buoy gap, −1 = cuts inside
@@ -308,6 +310,7 @@ function cutPredict(b, m, sv, o, prof, body) {
     boatPhysics(c, inp, dt);
     g = Math.min(g, kinenGap(c, mk), kinenGap(c, bm) + 0.5);
     if (sg * c.y < 0) { ok = sg * c.x > MK; break; }
+    { const ha = wrapRad(c.a + (m ? Math.PI : 0)); if (ha < 0 && ha < -Math.PI * 0.9 && sg * c.x > MK) { ok = true; break; } }   // (from wide out a turn comes round before it crosses the centreline)
     if (c.v < 3) break;
   }
   lab.predicting = was;
@@ -317,6 +320,7 @@ function cutPredict(b, m, sv, o, prof, body) {
 function cutDrive(b, mem, o, prof, gap, body, free) {
   const P = ONECUT[prof.name] || ONECUT.A1;
   const cs = mem.cut || (mem.cut = { m: b.y >= 0 ? 0 : 1, ph: 'app', next: 0 });
+  if (cs.ph !== 'hold') { const s0 = cs.m ? -1 : 1, lx0 = s0 * b.x; if (s0 * b.y < -5 && lx0 < MK - 70 && lx0 > -MK + 30) { cs.m ^= 1; cs.ph = 'app'; cs.aim = null; cs.run = false; } }   // d157: already on the far straight — this mark is behind me, whatever happened at it
   const m = cs.m, sg = m ? -1 : 1, lx = sg * b.x, ly = sg * b.y, la = wrapRad(b.a + (m ? Math.PI : 0));
   if (cs.ph === 'done' || cs.ph === 'app' && sg * b.y < 0 && lx > MK - 60) {   // round this one: wait for the next
     cs.run = false;   // (no run-in hold left over: past the buoy the line-follower steers)
@@ -697,6 +701,7 @@ function makeDriver(prof, trait = {}) {
       const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
       steerT = clamp(err * 2 + av.steerAdd * 0.6);
       let vT = clamp(CAUTION_V.near + (nearWreck - 30) * CAUTION_V.k, CAUTION_V.near - 1, CAUTION_V.far);   // 徐行 only near the wreck
+      { const ti = turnInfo(R, s); vT = Math.min(vT, CAUTION_V.turn + (ti.inTurn ? 0 : ti.toTurn * CAUTION_V.turnK)); }   // d157: the boat slides now — come off the lever for the turn
       const q = env.caution.ahead;
       if (q) {
         const gap = Math.hypot(q.x - b.x, q.y - b.y);
@@ -1223,6 +1228,14 @@ function makeDriver(prof, trait = {}) {
         mem.sashiYield = q;
         if (q) { thrT = Math.min(thrT, win ? SASHI_ORDER.win.thr : SASHI_ORDER.thr); pitchT = Math.min(pitchT, 0); }
       }
+      // 込み合うターンは落として回る (d149, まえ): with a boat close by going into or through the first half of a turn,
+      // lift the lever and sit up — a smaller, calmer arc that keeps out of the others' way. A boat set on a 全速ターン
+      // (まくり・壁・抵抗・回り順の commit) or with the turn to itself still goes round flat out.
+      if (CROWD_DROP.on && leanIn && !exiting && !avoiding && !dumping && !mem.resistQ && !(ro && ro.commit) && !(first && (tactic === 'makuri' || tactic === 'wall' || tactic === 'tsuke' || mem.kabe))
+        && (!ti.inTurn || 1 - ti.left / (Math.PI * R) < CROWD_DROP.until) && env.others
+        && env.others.some(q => q !== b && !(q.cap > 0) && Math.hypot(q.x - b.x, q.y - b.y) < CROWD_DROP.r)) {
+        thrT = Math.min(thrT, CROWD_DROP.lever[prof.name] ?? 0.65); pitchT = Math.min(pitchT, 0); mem.crowdDrop = time;
+      }
       if(first&&(courseCpu||tactic==='makurisashi'&&!mem.turnRole)){
         if(tactic==='makurisashi'){
           thrT=Math.min(thrT,mem.cpuLine?.stage==='thread'?.90:1);
@@ -1294,7 +1307,7 @@ function makeDriver(prof, trait = {}) {
           return f > -3 && (Math.hypot(ex, ey) < ONECUT.near || f < ONECUT.ahead && Math.abs(sd) < ONECUT.side);
         });
         const free = b.cap <= 0 && !env.caution && !env.cruise && !dumping && !avoiding && !mem.push && !first && !close && !(mem.emergency > 0);   // (1周1M is the start battle: its entry, 逃げ・差し・まくり lines as they were)
-        const upA = prof.up * CPU_TURN.upK, body = { thr: tThr, roll: -prof.lean * clamp((b.v - 4) / 4, 0, 1), pitch: -upA + (upA + 0.9) * ONECUT.carveK * (CARVE[prof.name] ?? 0.5) };   // the body it turns with: half up, as much crouch as the class can carve with
+        const upA = prof.up * CPU_TURN.upK, body = { thr: tThr, roll: -prof.lean * clamp((b.v - 4) / 4, 0, 1), pitch: clamp((CUT_PITCH[prof.name] ?? 0) - KINEN.kl * Math.max(0, (b.load || 0) - KINEN.Lmax), -1, 1) };   // the body it turns with: half crouched (CUT_PITCH), sitting up as the load nears the edge
         const cut = cutDrive(b, mem, o, prof, gap, body, free);
         if (cut == null && mem.cut && mem.cut.run && mem.cut.ph === 'app' && free) {   // the run in to the cut: straight, the line held on the lean, body up only when it cuts
           const la = wrapRad(b.a + (mem.cut.m ? Math.PI : 0));
@@ -1304,6 +1317,20 @@ function makeDriver(prof, trait = {}) {
         if (cut != null) { steerT = cut; rollT = body.roll; pitchT = body.pitch; thrT = Math.max(thrT, body.thr * av.thrMul); }   // body in with the cut, held as it was read
       }
       if (prof.kinen) { const kn = kinenDrive(b, env, mem, dt, o, prof); mem.knOn = !!kn; if (kn) { thrT = kn.thr; steerT = kn.steer; rollT = kn.roll; pitchT = kn.pitch; } }
+      // バウンド (d155): in the air or just down, sit back and let the knees take it; a hard one, ease the lever. On rough water
+      // nobody rides fully crouched — the better the rider, the more of the crouch they dare keep
+      if (BOUNCE.on && b.cap <= 0 && BN_CPU.on) {
+        const P = BN_CPU[prof.name] || BN_CPU.A1;
+        if (b.hop > 0.02 || b.landAge < P.hold) { pitchT = Math.min(pitchT, P.up); if (b.landV > BN_CPU.hard || b.hop > BN_CPU.high) thrT = Math.min(thrT, P.lever); }
+        if (waterEnv && waterEnv.wave >= BN_CPU.wave) pitchT = Math.min(pitchT, P.rough);
+      }
+      // ウィリーターン (d156): only the top riders, only to cut inside (差し・まくり差し), and only on a motor they know will lift it
+      if (WL_CPU.on && WILLIE.on && prof.top && b.cap <= 0 && !env.caution && !env.cruise) {
+        const sashiNow = (mem.turnRole && mem.turnRole.role === 'sashi') || /sashi/i.test(String(mem.tacticNow || tactic || ''));
+        if (Math.abs(o.steer) < 0.1) mem.wilArm = false;
+        else if (sashiNow && !mem.wilArm && Math.abs(o.steer) > 0.5 && Math.abs(b.yaw) > 0.3 && thrT > 0.9 && !(b.hop > 0.02) && !(b.cav > 0) && (b.wakeBump || 0) < 0.25 && willieOdds(b) >= (WL_CPU[prof.kinen ? 'KINEN' : 'TOP'])) { mem.wilArm = true; mem.wilGo = true; }
+        if (b.wilT > 0) { pitchT = Math.min(pitchT, WL_CPU.pitch); thrT = 1; }
+      }
       if (b.cap > 0) { thrT = 0; rollT = 0; pitchT = 0; }
       o.thr += (thrT - o.thr) * (1 - Math.exp(-6 * dt));
     }
@@ -1311,6 +1338,7 @@ function makeDriver(prof, trait = {}) {
     o.steer += (steerT - o.steer) * (1 - Math.exp(-prof.react * (mem.emergency > 0 ? 3 : 1.6) * dt));
     o.roll += (rollT - o.roll) * k;
     o.pitch += (pitchT - o.pitch) * k;
+    if (mem.wilGo) { o.willie = true; mem.wilGo = false; }
     return o;
   }
   return { prof, trait, drive, reset, out: o, dumping: q => mem.dumpT > 0 && mem.dumpQ === q, mem };
@@ -1320,7 +1348,7 @@ function makeDriver(prof, trait = {}) {
    Each boat: class (A1–B2 driver profile), entry preference, course, slow/dash start, first-turn tactic. */
 const STRAIGHT_X = MK - 23;   // |x| below this is straight water
 const SASHI_ORDER = { tactics: ['sashi', 'sashiWin', 'sashiPlace', 'wall'], at: 30, atWall: 18, alongside: 2.5, clear: 4, thr: 0.55, win: { clear: 2.5, thr: 0.72 } };
-const CAUTION_V = { near: 10, k: 0.25, far: 21 };
+const CAUTION_V = { near: 10, k: 0.25, far: 21, turn: 13, turnK: 0.12 };
 // 着順確定: the last boat must be this far (m) past the wreck as well as round the next turn mark.
 // Until then they still race, except within `near` m of a wreck: there it is 徐行, outside it, no passing.
 const CAUTION_LOCK = { past: 10, near: 25, along: 4, lap: 0.5 };
@@ -1472,6 +1500,16 @@ const START_FEEL = { TOP: { sd: 0.03, bias: 0, dent: 0.02 }, A1: { sd: 0.035, bi
 // by class: how much of that extra outside-start difficulty it actually suffers
 const ST_OUT = { TOP: 0.4, A1: 0.5, A2: 0.8, B1: 1.1, B2: 1.3 };
 // 1コース逃げ: how far before 1M it eases the lever, to what (by class), and when it grips again (share of the arc)
+// d152 (まえ: 記念 1'45" / A1 1'47" / B2 1'58" alone): every class aims at a circle a touch bigger (TURN_LINE_K) and runs
+// closer to the buoy (TURN_GAP_K × its class gap); it turns half crouched (CUT_PITCH, the 記念 way) and sits up as the load nears the edge
+const TURN_LINE_K = 1.05, TURN_GAP_K = 0.6;
+const CUT_PITCH = { TOP: 0.35, A1: 0.35, A2: 0.3, B1: 0.25, B2: 0.2 };
+for (const d of DRIVERS) { d.line *= TURN_LINE_K; d.gap *= TURN_GAP_K; }
+// 込み合うターン: how near another boat must be (m), how far into the turn the lever stays down (share of the half circle), the lever by class
+const WL_CPU = { on: true, KINEN: 0.6, TOP: 0.75, pitch: -0.4 };   // odds of the bow coming up (willieOdds) they need before trying
+const BN_CPU = { on: true, hard: 2.5, high: 0.25, wave: 8, TOP: { up: -0.3, hold: 0.35, lever: 0.85, rough: 0.5 }, A1: { up: -0.25, hold: 0.3, lever: 0.85, rough: 0.4 },
+  A2: { up: -0.2, hold: 0.25, lever: 0.8, rough: 0.35 }, B1: { up: -0.1, hold: 0.2, lever: 0.75, rough: 0.3 }, B2: { up: 0, hold: 0.15, lever: 0.7, rough: 0.2 } };
+const CROWD_DROP = { on: true, r: 10, until: 0.45, lever: { TOP: 0.75, A1: 0.7, A2: 0.66, B1: 0.6, B2: 0.56 } };
 const NIGE_DROP = { at: 22, regrip: 0.2, lever: { TOP: 0.76, A1: 0.72, A2: 0.68, B1: 0.62, B2: 0.58 } };   // steady speed with the lever shut (m/s)   // demo: every boat takes its own number's course, 3 slow / 3 dash
 let demoCpuMode='legacy';   // 標準はd42までで調整したCPU。コース別作戦 v1 は試験中（設定で切替）
 let fleet = null, simSpeed = 1.5, sgMode = false;   // demo playback speed; the race clock always shows real race time
@@ -2311,7 +2349,7 @@ function fleetStep(dt, playerInput) {
       } else if (r.player && playerRacing(r)) {
         // past the slit: rudder, lean, posture and lever are all the player's
         const pi = playerInput || IDLE_INPUT;
-        o = { thr: pi.thr, steer: pi.steer, roll: pi.roll, pitch: pi.pitch, ev: null };
+        o = { thr: pi.thr, steer: pi.steer, roll: pi.roll, pitch: pi.pitch, willie: !!pi.willie, ev: null }; pi.willie = false;
         r.inp = o; b.gripBoost = 1; b.pushing = false;
       } else if (r.player && r.inp !== r.drv.out) r.inp = r.drv.out;
       b.hold = fleet.pitMode && r.st == null && (r.player ? o.thr < 0.08 : !r.drv.mem.go) || (!r.player && r.drv.mem.cauYieldAt === time);
@@ -2329,6 +2367,7 @@ function fleetStep(dt, playerInput) {
       if (runLog && runLog.b === b && (r.drv.mem.firstDone || r.out || time > zero + 30)) runLogEnd(`起こし ${Math.round(r.trait.okoshi || 0)}m / ST ${r.st == null ? '—' : r.st < 0 ? 'F' + fmtST(-r.st) : fmtST(r.st)} / チルト ${b.tilt} / 出足 ${(b.deashi || 1).toFixed(3)} 伸び ${(b.nobi || 1).toFixed(3)}`);
     }
     const ev = boatPhysics(b, o, dt);
+    if (r.player) willieToast(b); else b.wilEv = null;
     if (r.player && runLog && runLog.b === b) runLogStep(b, o, zero, r.st != null && !r.logSt ? (r.logSt = true, 'スリット通過') : '');
     if(lab.active&&ev)labEvent('physics',r.no,{label:ev});
     if (ev && ev.startsWith('cap:') && !r.out) accident(r, '転覆', ev.slice(4));
@@ -2438,7 +2477,7 @@ function fleetStep(dt, playerInput) {
     const vic = e.JA >= e.JC ? A : Bt, other = vic === A ? Bt : A;
     for (const [x, y, share] of [[vic, other, 1], [other, vic, CAPSIZE.hitter]]) {
       if (x.out) continue;
-      const xb = x.b, vb = xb.wakeBump || 0, unst = Math.max(0, (xb.load || 0) - 0.7) + Math.max(0, Math.abs(xb.vl) - 1.5) * 0.15;
+      const xb = x.b, vb = xb.wakeBump || 0, unst = Math.max(0, (xb.load || 0) - 0.7) + (DRIFT.on ? (xb.slideX || 0) * 0.5 : Math.max(0, Math.abs(xb.vl) - 1.5) * 0.15);   // (ドリフト: a turn always slides — only skating out past the edge counts)
       const jLim = Math.max(CAPSIZE.jMin, CAPSIZE.j0 - 6 * vb - CAPSIZE.unstJ * unst);
       if (e.J <= jLim) continue;
       const p = clamp((e.J - jLim) / CAPSIZE.span * (1 + 2 * vb + CAPSIZE.unstP * unst), 0, 0.6) * share * (RISK[x.prof.name] || RISK.B1).hit;
@@ -2914,9 +2953,9 @@ function buildCard() {
   const tb = $('cardBody'); tb.textContent = '';
   for (const r of fleet.boats) {
     const tr = document.createElement('tr');
-    const dsh = !r.motor ? '—' : r.motor.deashi >= 1.03 ? '◎' : r.motor.deashi >= 0.98 ? '○' : '△';
+    const dsh = !r.motor ? '—' : r.motor.deashi >= 1.03 ? '◎' : r.motor.deashi > 1 ? '○' : r.motor.deashi >= 0.98 ? '－' : '△';   // d160: ○ = above an average motor (ウィリーの最低条件)
     const nb = !r.motor || r.motor.nobi == null ? '—' : r.motor.nobi >= 1.015 ? '◎' : r.motor.nobi >= 0.985 ? '○' : '△';
-    const mw = !r.motor || r.motor.mawari == null ? '—' : r.motor.mawari >= 1.02 ? '◎' : r.motor.mawari >= 0.98 ? '○' : '△';
+    const mw = !r.motor || r.motor.mawari == null ? '—' : r.motor.mawari >= 1.02 ? '◎' : r.motor.mawari > 1 ? '○' : r.motor.mawari >= 0.98 ? '－' : '△';
     const tl = r.b && r.b.tilt != null ? (r.b.tilt > 0 ? '+' : '') + r.b.tilt.toFixed(1) : '—';
     const cells = [r.no, (r.name ? r.name + ' ' : '') + (r.prof.kinen ? 'A1 ★記念クラス' : r.prof.top ? 'A1 ★トップ' : r.prof.name), (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh, mw, nb, tl];
     cells.forEach((v, i) => {

@@ -1,6 +1,6 @@
 // Honor for GP — ボートの物理（グリップ・旋回・引き波・推力・モーター・水面・熱ダレ）・接触・リプレイログ・トースト
 // ---- 物理の数値（レースの挙動を調整するときはこのファイルと race.js だけを触る）
-const GRIP_BASE = 5;         // sideways grip; with the turn-rate cap this sets how wide a turn swings at speed
+const GRIP_BASE = 5;           // sideways grip; with the turn-rate cap this sets how wide a turn swings at speed (d148–d151 tried 4 and 3.6 for wider turns; d152 back to 5 with the duller exits)
 const HAZARD = 0.2;
 const WAIT_DRAG = 0.1;   // extra drag sat up with the lever shut while waiting
 // 接触による転覆: impulse threshold (j0, never below jMin), how much an unsettled hull lowers it, the impulse range to
@@ -24,7 +24,15 @@ const STRAIGHT_LEAN = { free: 0.35, ok: 0.5, drag: 0.035 };
 // CPU on a straight (next mark more than `from` m ahead): rudder held within ±steer, the rest of the wanted turn goes to the lean
 const STRAIGHT_RUN = { from: 55, steer: 0.06, leanK: 1.5, crouch: 1 };   // crouch: on a clean straight every rider lies flat — the speed is the motor's
 const YAW_OVER = 1.15;       // how far past the grip limit the nose may be forced round (the excess slides)       // sideways grip before a slide; lower = turns swing wider at speed
-const THRUST = 7.85;          // full-lever push: top speed ≈ 82 km/h crouched, idle ≈ 16 km/h
+const THRUST = 7.785;         // full-lever push: top speed 81.0 km/h crouched (average motor, tilt 0, calm, no fade; d148), idle ≈ 16 km/h
+// 推進の乗り (d151, まえ): the push is best crouched and running straight. With the rudder over, sat up, or leaned
+// (past a small trim) the boat picks up speed more slowly — this is what dulls the exit of a turn (the net gain is scaled, so a turn's own speed is kept).
+const DRIVE = { steer: 0.3, up: 0.2, lean: 0.2, leanFree: 0.1 };
+const driveK = (s, r, up) => (1 - DRIVE.steer * Math.abs(s)) * (1 - DRIVE.up * up) * (1 - DRIVE.lean * Math.max(0, Math.abs(r) - DRIVE.leanFree));
+// 行き足 (d151): once racing, the climb from a turn's exit speed up to the top end is slower (the net gain is scaled, so the
+// top speed and the speed a turn holds are untouched). The start keeps its own pull (START_ACC), so this fades in after the slit.
+const GAIN = { k: 0.5 };
+const gainK = (v, pre) => 1 - GAIN.k * clamp(1 - v / PLANE.v, 0, 1) * (1 - (+pre || 0));
 // 立ち上がり: the hull drives hard only once it's up on the plane; below that the same lever pulls less
 const PLANE = { low: 0.4, v: 23 };
 const thrustK = v => 1 - PLANE.low * clamp(1 - v / PLANE.v, 0, 1);
@@ -68,8 +76,93 @@ let waterEnv = null;
 // the chop runs with the wind: punching into it (向かい) slams the hull, running with it (追い波) is far smoother
 const waveHeadK = a => { if (!waterEnv) return 1; const w = Math.hypot(waterEnv.wx, waterEnv.wy); if (w < 0.3) return 0.65; const c = (waterEnv.wx * Math.cos(a) + waterEnv.wy * Math.sin(a)) / w; return 0.65 - 0.35 * c; };
 const ENV = { windDrift: 0.035, windAir: 0.025, waveBump: 0.012, waveStab: 6, stabDrag: 1.08, stabBump: 0.6, boatMass: 110 };
+/* バウンド (d155, まえ): crossing a wake or a wave crest at speed throws the hull up. In the air the prop is out of the
+   water (thrust gone, worse when crouched — the bow goes down and the stern comes up) and the hull barely bites.
+   Landing crouched (前荷重) digs the bow in — 刺さり: speed lost, the hull bucks (load) and a big one can put it over —
+   and it springs straight back up again. Sat back with the knees taking it, it lands flat and settles. A lever eased
+   off, the tilt down and the 安定板 all keep it lower. h = hop in m, hv = its vertical speed. */
+const BOUNCE = { on: true, g: 15.7, h: 0.3, rise: 0.025, bumpMin: 0.04, bumpFull: 0.15, hMax: 0.5, gap: 0.12, down: 0.6, up: 0.45, lever: 0.65, stab: 0.6, tilt: 0.12,
+  airThr: 0.6, airDown: 0.4, airGrip: 0.35, stuck: 0.12, stuckFrom: 0.3, stuckLoad: 0.7, reb: 0.3, rebDown: 0.9, rebUp: 0.7, rebMin: 1.2, hRef: 0.25 };
+function bounceStep(b, t, down, up, dt) {
+  const bump = Math.max((b.wakeBump || 0) * (1 - (1 - WILLIE.wake) * (b.wil || 0)), b.porp || 0);
+  if (b.hv == null) { b.hop = 0; b.hv = 0; b.bumpRef = bump; b.landAge = 9; b.landV = 0; b.stuckAge = 9; }
+  b.landAge += dt; b.stuckAge += dt;
+  b.bumpRef += (bump - b.bumpRef) * (1 - Math.exp(-dt * 4));
+  if (!BOUNCE.on) return;
+  const rise = bump - b.bumpRef;
+  if (rise > BOUNCE.rise && bump > BOUNCE.bumpMin && b.hop < 0.02 && b.landAge > BOUNCE.gap && b.v > 8) {
+    const H = Math.min(BOUNCE.hMax, BOUNCE.h * clamp(bump / BOUNCE.bumpFull, 0, 1.5) * clamp((b.v - 8) / 14, 0, 1.2) * Math.max(0.2, 1 + BOUNCE.down * down - BOUNCE.up * up)
+      * (1 - BOUNCE.lever * (1 - t)) * (b.stabilizer ? BOUNCE.stab : 1) * (1 + BOUNCE.tilt * (b.tilt || 0)));
+    b.hv = Math.max(b.hv, Math.sqrt(2 * BOUNCE.g * H)); b.bumpRef = bump;
+  }
+  if (b.hop <= 0 && b.hv <= 0) return;
+  b.hv -= BOUNCE.g * dt; b.hop += b.hv * dt;
+  if (b.hop > 0) return;
+  // landing
+  const vi = -b.hv, sev = vi / Math.sqrt(2 * BOUNCE.g * BOUNCE.hRef);
+  b.hop = 0; b.landAge = 0; b.landV = vi;
+  const dig = clamp((down - BOUNCE.stuckFrom) / (1 - BOUNCE.stuckFrom), 0, 1);
+  if (dig > 0 && sev > 0.3) {   // 刺さり
+    b.v *= 1 - BOUNCE.stuck * sev * dig;
+    b.load = (b.load || 0) + BOUNCE.stuckLoad * sev * dig * dig; b.stuckAge = 0;
+  }
+  b.hv = vi > BOUNCE.rebMin ? vi * BOUNCE.reb * Math.max(0.1, 1 + BOUNCE.rebDown * down - BOUNCE.rebUp * up) * (0.5 + 0.5 * t) : 0;
+}
+/* ウィリーターン (d156, まえ): in a turn, weight thrown back twice — タタン — with the lever squeezed in at the same moment
+   lifts the bow and the hull runs on its tail: far less of it in the water, so the turn bleeds much less speed, it drives
+   out harder, and a wake under it barely touches it. It only comes up with a strong low end (出足) and a prop that is
+   biting (回り足, not in the air, not cavitating, not on a wake). Held sat back with the lever in; crouch or let the lever
+   go and the bow comes down (crouched = 刺さり). A failed try just scrubs speed — or, off balance, puts it over.
+   b.wil: 0..1 how far up the bow is; b.wilT: time in it. */
+const WILLIE = { on: true, vMin: 11, steerMin: 0.3, yawMin: 0.2, dGood: 1.03, mGood: 1.02, p0: 0.3, pMax: 0.95,
+  rise: 6, maxT: 3.0, holdP: -0.15, holdThr: 0.75, exitSteer: 0.15,
+  loss: 0.7, wake: 0.3, drive: 0.5, grip: 1.15, bite: 0.85, load: 0.22, failV: 0.1, failLoad: 0.45, failDownLoad: 0.6, endHop: 0.12 };
+// d160 (まえ): 出足・回り足とも ○ 以上 (above an average motor) is the minimum — an average motor (タイムアタック) never
+// gets the bow up; the better both are, the surer it is, ◎ and ◎ (出足 1.03・回り足 1.02) almost always
+const willieFeet = b => ({ d: (b.deashi ?? 1) - TILT.deashi * (b.tilt || 0), m: b.mMid ?? (b.mawari || 1) });
+const willieOdds = b => {
+  const f = willieFeet(b);
+  if (!(f.d > 1 && f.m > 1)) return 0;
+  const k = Math.min((f.d - 1) / (WILLIE.dGood - 1), (f.m - 1) / (WILLIE.mGood - 1));
+  return clamp(WILLIE.p0 + (WILLIE.pMax - WILLIE.p0) * k, 0, WILLIE.pMax);
+};
+function willieStep(b, inp, t, s, down, up, dt) {
+  if (inp.willie) {
+    inp.willie = false;
+    if (WILLIE.on && !(b.wilT > 0) && b.cap <= 0) {
+      const inTurn = Math.abs(s) > WILLIE.steerMin && Math.abs(b.yaw) > WILLIE.yawMin && b.v > WILLIE.vMin;
+      const biting = !(b.hop > 0.02) && !(b.cav > 0) && (b.wakeBump || 0) < 0.25;
+      const ok = inTurn && biting && t > 0.9 && simRandom() < willieOdds(b);
+      b.wilTry = (b.wilTry || 0) + 1;
+      if (ok) { b.wilT = 1e-3; b.wilOk = (b.wilOk || 0) + 1; b.wilEv = 'ok'; }
+      else {   // 失敗: the bow will not come up; the hull scrubs and bucks
+        b.v *= 1 - WILLIE.failV; b.load = (b.load || 0) + WILLIE.failLoad + WILLIE.failDownLoad * down; b.wilFail = 0; b.wilEv = !inTurn ? 'noturn' : !biting ? 'bite' : t <= 0.9 ? 'lever' : willieOdds(b) <= 0 ? 'motor' : 'power';
+      }
+    }
+  }
+  b.wilFail = (b.wilFail ?? 9) + dt;
+  if (b.wilT > 0) {
+    b.wilT += dt;
+    const end = b.wilT > WILLIE.maxT || -up + down > WILLIE.holdP + 0.35 || t < WILLIE.holdThr || Math.abs(s) < WILLIE.exitSteer || b.hop > 0.05 || b.cap > 0;
+    if (end) { b.wilT = 0; if (b.cap <= 0 && b.wil > 0.3) { b.hop = WILLIE.endHop * b.wil; b.hv = 0; } }   // the bow drops back onto the water
+  }
+  b.wil = b.wilT > 0 ? Math.min(1, (b.wil || 0) + dt * WILLIE.rise) : Math.max(0, (b.wil || 0) - dt * WILLIE.rise * 2);
+}
+// the player's own ウィリー: say how it went
+function willieToast(b) {
+  if (!b.wilEv) return;
+  const e = b.wilEv; b.wilEv = null;
+  if (e === 'ok') toast('ウィリー', '舳先が上がった！ 起こしたままレバーを握って', 'good');
+  else toast('ウィリー失敗', { noturn: 'ターン中でないと上がらない', bite: 'ペラが水をつかんでいない（跳ね・引き波）', lever: 'レバーを握り込めていない', motor: '出足・回り足とも○以上のモーターでないと上がらない' }[e] || '舳先が上がらない（出足・回り足が足りない）', 'warn');
+}
 const tiltGrip = b => 1 - TILT.grip * Math.max(0, b.tilt || 0) + 0.02 * Math.max(0, -(b.tilt || 0));
 
+// 艇の傾き (d158, まえ): the hull's own bank (not the rider's body), + = right side down, radians. Rolled in by the rider's
+// weight to the inside (more when sat up — a monkey turn) and by the carve itself. Banked deep, the hull cuts the water
+// on a knife edge: little scrub, little spray, a sharp turn. Turning flat, the side slaps the water: big spray, a brake.
+// Too deep near the limit and it can go.
+const BANK = { on: true, max: 0.5, lean: 0.75, pose: 0.4, carve: 0.25, rate: 5, ref: 0.5, flatDrag: 0.45, sharp: 0.25, bite: 0.3, overFrom: 0.9, overLoad: 0.35 };
+const DRIFT = { on: true, yawK: 1.15, align: 0.5, kL: 3.0, gripK: 1.5, scrub: 0.3, latDrag: 0.05, slipOk: 0.45, slipSpan: 0.35, slideK: 0.5 };
 function boatPhysics(b, inp, dt) {
   const fx = Math.cos(b.a), fy = Math.sin(b.a), rx = -fy, ry = fx;
   if (b.cap > 0) {
@@ -98,8 +191,11 @@ function boatPhysics(b, inp, dt) {
   // the engine never stops: lever at zero is idle, and the hull coasts on
   const te = IDLE + (1 - IDLE) * t;
   const up = Math.max(0, -p), down = Math.max(0, p);
+  bounceStep(b, t, down, up, dt);
+  willieStep(b, inp, t, s, down, up, dt);
+  const air = b.hop > 0.02 ? 1 : 0, wil = b.wil || 0;
   const drag = 0.012 * (1 + 0.25 * up - 0.1 * down);
-  const thrustA = te * THRUST * thrustK(b.v) * startK(b.v, b.preStart, b) * motorK(b) * (b.weightK || 1) * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0)) * (b.cav > 0 ? WAKE_CAV.thrust : 1) * raceFadeK(b);
+  const thrustA = te * THRUST * thrustK(b.v) * startK(b.v, b.preStart, b) * motorK(b) * (b.weightK || 1) * (b.thrMul || 1) * (1 - TRAIL.max * (b.trail || 0)) * (b.cav > 0 ? WAKE_CAV.thrust : 1) * raceFadeK(b) * (1 - air * BOUNCE.airThr * (1 - BOUNCE.airDown + BOUNCE.airDown * down));
   heatStep(b, t, dt);
   // wind: the air the boat runs through moves with it (追い風) or against it (向かい風)
   const wAlong = waterEnv ? ENV.windAir * (waterEnv.wx * Math.cos(b.a) + waterEnv.wy * Math.sin(b.a)) : 0, vRel = b.v - wAlong;
@@ -110,7 +206,7 @@ function boatPhysics(b, inp, dt) {
   acc -= b.porp * (1.2 + simRandom() * 2.2);
   // 引き波: rough water from another boat. Riding in it drags; crossing it at an angle
   // (bump) makes the hull slam and hop, costing more speed and grip and knocking it off line.
-  const wk = b.inWake || 0, bump = b.wakeBump || 0;
+  const wk = (b.inWake || 0) * (1 - (1 - WILLIE.wake) * wil), bump = (b.wakeBump || 0) * (1 - (1 - WILLIE.wake) * wil);
   const wakeA = (wk * (b.wakeLine ? WAKE_LINE.along : 1) * (0.5 + b.v * 0.04) + bump * (0.8 + b.v * 0.07)) * WAKE.drag;
   acc -= wakeA;
   if (bump > 0.05) b.yaw += (simRandom() * 2 - 1) * bump * 6 * WAKE.kick * (0.3 + 0.7 * (b.wakeTurn || 0)) * dt;
@@ -129,33 +225,62 @@ function boatPhysics(b, inp, dt) {
   const monkey = ins * (0.4 + 0.6 * pose) * (1 - 0.5 * downG);
   let grip = GRIP_BASE * (1 + 0.15 * pose) * (1 + TURN.lean * ins * (1 + TURN.upBoost * pose - TURN.downCut * downG)) * (1 + 0.5 * Math.min(0, inside))
     * (1 - TURN.thrWide * t * (1 - monkey)) * (1 + TURN.dropGrip * (1 - t))
-    * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1) * tiltGrip(b) * (b.hullGrip || 1) * (b.weightGrip || 1) * mawariK(b, MAWARI.grip) * (1 - CHOP.grip * chopNow());
+    * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1) * tiltGrip(b) * (b.hullGrip || 1) * (b.weightGrip || 1) * mawariK(b, MAWARI.grip) * (1 - CHOP.grip * chopNow()) * (1 - air * BOUNCE.airGrip) * (DRIFT.on ? 1 : 1 - (1 - WILLIE.grip) * wil);
   grip = Math.max(2, grip);
 
+  // 艇の傾き: where the hull is rolled to, and how much of it is to the inside of the turn it is making
+  let bankIn = 0, tf = 0;
+  if (BANK.on) {
+    const yd = Math.sign(b.yaw || 0), turnK = clamp(Math.abs(b.yaw || 0) / 0.6, 0, 1) * clamp(b.v / 12, 0, 1);
+    const bankT = BANK.max * clamp(BANK.lean * r * (1 - BANK.pose + BANK.pose * Math.max(pose, up)) + BANK.carve * yd * turnK, -1, 1);
+    b.bank = (b.bank || 0) + (bankT - (b.bank || 0)) * (1 - Math.exp(-BANK.rate * dt));
+    bankIn = yd ? yd * b.bank / BANK.max : 0;   // 1 = rolled all the way in, 0 = flat, < 0 = leaning out
+    tf = clamp((Math.abs(b.yaw || 0) - 0.15) / 0.45, 0, 1) * clamp(b.v / 10, 0, 1);
+    grip *= 1 + BANK.sharp * tf * (bankIn - BANK.ref);   // the chine set deep in bites: a sharper turn
+  }
   const sf = clamp(b.v / 5, 0.3, 1);   // even nearly stopped, the hull can be pivoted round slowly
   const turnBase = 1.35 / (1 + b.v / 35);
   let yawT = s * turnBase * sf * (1 + 0.7 * Math.max(0, inside) * (0.6 + 0.5 * pose - 0.4 * downG)) + r * 0.28 * sf;
   // the nose can only come round as fast as the grip allows at this speed: faster means a wider arc
-  const yawCap = grip * YAW_OVER / Math.max(4, b.v) * (1 - TURN.crouchWide * crouchLock);
+  const yawCap = grip * YAW_OVER / Math.max(4, b.v) * (1 - TURN.crouchWide * crouchLock) * (DRIFT.on ? DRIFT.yawK : 1);
   yawT = clamp(yawT, -yawCap, yawCap);
+  if (DRIFT.on) yawT += DRIFT.align * b.vl / Math.max(4, b.v);   // a hull slid far out of line swings back toward where it is going
   b.yaw += (yawT - b.yaw) * (1 - Math.exp(-5 * dt));
 
-  const demand = b.v * Math.abs(b.yaw);
-  const excess = demand - grip;
-  if (excess > 0 && Math.abs(b.yaw) > 0.05) b.vl += -Math.sign(b.yaw) * excess * 0.9 * dt;
-  b.vl *= Math.exp(-dt * 1.6 * grip / GRIP_BASE);
+  let demand, latNeed = 0;
+  if (DRIFT.on) {
+    // ドリフト (d157): the nose comes round first and the boat carries on — the water under it is now coming at it from the
+    // side (vl, + = toward the left of the bow). The inside chine and fin bite on that (up to `grip`, the edge the rider
+    // is giving it) and bend the path round; whatever they can't hold slides on out.
+    const da = b.yaw * dt, c = Math.cos(da), sn = Math.sin(da), v0 = b.v, l0 = b.vl;
+    b.v = Math.max(0, v0 * c + l0 * sn); b.vl = l0 * c - v0 * sn;
+    latNeed = DRIFT.kL * (1 + BANK.bite * tf * (bankIn - BANK.ref)) * Math.abs(b.vl);   // d159: the chine set deep catches the slide sooner
+    const cap = grip * DRIFT.gripK * (1 - (1 - WILLIE.bite) * wil), aLat = Math.min(latNeed, cap);   // ウィリー: less hull in the water — less bite, it slides more
+    b.vl -= Math.sign(b.vl) * Math.min(Math.abs(b.vl), aLat * dt);
+    demand = aLat / DRIFT.gripK * YAW_OVER;   // the edge working at its limit reads like the old grip limit (~0.85)
+    b.slideX = Math.max(0, latNeed - cap) / cap;   // more coming at it sideways than the edge can hold: it is skating out
+    b.slip = Math.atan2(b.vl, Math.max(0.5, b.v));
+  } else {
+    demand = b.v * Math.abs(b.yaw);
+    const excess = demand - grip;
+    if (excess > 0 && Math.abs(b.yaw) > 0.05) b.vl += -Math.sign(b.yaw) * excess * 0.9 * dt;
+    b.vl *= Math.exp(-dt * 1.6 * grip / GRIP_BASE);
+  }
 
   b.harmony = sgn ? clamp(0.5 * Math.max(0, inside) + 0.3 * pose + 0.2 * t, 0, 1) : 0;
   // sitting up scrubs speed (it's the brake); crouching while firmly leaned in lets the hull run out of the turn
   const turnLoss = 0.9 * (1 - TURN.keep * b.harmony) * Math.max(0.2, 1 + TURN.upBrake * up - TURN.run * firm * down);   // turns bleed speed; a clean monkey turn keeps more of it
   // a slight lean (no rudder) only nudges the heading and costs nothing; turning on the rudder scrubs speed
   const freeYaw = Math.abs(s) < 0.08 ? Math.min(Math.abs(r), STRAIGHT_LEAN.free) * 0.28 * sf : 0;
-  const turnA = Math.max(0, Math.abs(b.yaw) - freeYaw) * b.v * turnLoss + Math.abs(b.vl) * 0.7;
-  acc -= turnA;
+  const turnA = (Math.max(0, Math.abs(b.yaw) - freeYaw) * b.v * turnLoss * (DRIFT.on ? DRIFT.scrub : 1) + Math.abs(b.vl) * (DRIFT.on ? DRIFT.latDrag : 0.7)) * (1 - WILLIE.loss * wil);
+  const flatA = BANK.on ? turnA * BANK.flatDrag * tf * clamp(BANK.ref - bankIn, -0.6, 1.2) : 0;   // flat in the turn: the side slaps the water (banked deep: less scrub than the old turn)
+  acc -= turnA + flatA;
+  b.splashK = b.cap > 0 ? 0 : clamp(tf * clamp(b.v / 18, 0, 1.2) * (0.25 + 1.1 * clamp(1 - bankIn, 0, 1.5)) + 0.8 * (b.slideX || 0), 0, 2);   // スプラッシュ: flat or skating, a wall of water; on the knife edge, a thin sheet
   // an extreme hang-off without turning (or sat bolt upright at speed) drags on a straight
   const leanA = Math.abs(s) < 0.08 && Math.abs(b.yaw) < 0.12 ? STRAIGHT_LEAN.drag * b.v * Math.max(0, Math.abs(r) - STRAIGHT_LEAN.ok) / (1 - STRAIGHT_LEAN.ok) : 0;
   acc -= leanA;
   if (b.dbg) Object.assign(b.dbg, { thrustA, airA, holdA, wakeA, turnA, leanA, acc, startK: startK(b.v, b.preStart, b), motorK: motorK(b) });
+  if (acc > 0) acc *= driveK(s, r, up) * gainK(b.v, b.preStart) * (1 + WILLIE.drive * wil);   // 推進の乗り・行き足: only the gain in speed is dulled, not the speed a turn holds or the top speed
   b.v = Math.max(0, b.v + acc * dt);
   b.a += b.yaw * dt;
   // 潮の流れ carries everyone; the wind pushes on the hull too (追い風 runs a boat on past 1M, 横風 sets it sideways)
@@ -166,19 +291,19 @@ function boatPhysics(b, inp, dt) {
   // Below it the boat is safe. Above it every moment carries a chance of going over that grows
   // with how far past the line it is (and how steady the rider is) — crossing it is a gamble.
   const lowLean = Math.max(0, inside) * clamp((8 - b.v) / 5, 0, 1) * Math.min(1, Math.abs(s) * 1.5);
-  const turnLoad = demand / (grip * YAW_OVER), slideLoad = Math.abs(b.vl) / 7;
+  const turnLoad = demand / (grip * YAW_OVER), slideLoad = DRIFT.on ? Math.max(Math.max(0, Math.abs(b.slip || 0) - DRIFT.slipOk) / DRIFT.slipSpan, DRIFT.slideK * (b.slideX || 0)) : Math.abs(b.vl) / 7;
   b.turnLoadV = 0.85 * turnLoad;
   // a clean turn at the grip limit reads ~0.85 (限界ぎりぎり); a slide, wake or low-speed over-lean takes it past the line
   // 無茶: a deep hang-on at full throttle and near top speed, rudder hard over, is past what the hull will take —
   // worse still done crouched. Easing the lever calms everything down.
   const mucha = ins * t * clamp((b.v / 22.8 - 0.7) / 0.3, 0, 1) * clamp(Math.abs(s) * 1.4 - 0.4, 0, 1) * (1 + 1.2 * down);
-  const load = (Math.max(0.85 * turnLoad, slideLoad, lowLean * 1.1) + TURN.mucha * mucha) * (1 - TURN.dropCalm * (1 - t)) + WAKE.unsettle * bump + 0.1 * wk + TURN.crouchLoad * crouchLock;   // a hull bucking on a wave is on the edge
+  const load = (Math.max(0.85 * turnLoad, slideLoad, lowLean * 1.1) + TURN.mucha * mucha) * (1 - TURN.dropCalm * (1 - t)) + WAKE.unsettle * bump + 0.1 * wk + TURN.crouchLoad * crouchLock + WILLIE.load * wil + (BANK.on ? BANK.overLoad * tf * Math.max(0, bankIn - BANK.overFrom) / (1 - BANK.overFrom) : 0);   // a hull bucking on a wave is on the edge
   b.load = (b.load || 0) + (load - (b.load || 0)) * (1 - Math.exp(-dt * 8));
   let ev = null;
   if (b.load > 1 || Math.abs(b.vl) > 11) {
     const haz = Math.abs(b.vl) > 11 ? 1e3 : HAZARD * Math.pow(b.load - 1, 1.5) * (b.hazMul || 1);
     if (simRandom() < haz * dt) {
-      ev = 'cap:' + (lowLean * 1.1 >= Math.max(0.85 * turnLoad, slideLoad) ? '速度がないのに内へ倒れ込んだ'
+      ev = 'cap:' + (b.wilFail < 0.6 ? 'ウィリーに失敗してバランスを崩した' : wil > 0.3 ? 'ウィリー中にバランスを崩した' : b.stuckAge < 0.5 ? 'バウンドの着水で舳先が刺さった' : lowLean * 1.1 >= Math.max(0.85 * turnLoad, slideLoad) ? '速度がないのに内へ倒れ込んだ'
         : inside < -0.2 ? '外へ体重が逃げて振られた'
         : bump > 0.3 ? '引き波に乗り上げてバランスを崩した'
         : down > 0.5 ? '伏せたまま曲がって握りきれなかった'
@@ -302,9 +427,9 @@ function boatFx(b, arr, dt) {
   if (Math.abs(b.vl) > 1.2 || (Math.abs(b.yaw) > 0.5 && b.v > 9)) {
     const out = Math.abs(b.vl) > 0.3 ? Math.sign(b.vl) : -Math.sign(b.yaw);
     for (let i = 0; i < 2; i++) {
-      const sp = 3 + simRandom() * 4 + Math.abs(b.vl);
+      const sk = 0.45 + 0.8 * (b.splashK || 0), sp = (3 + simRandom() * 4 + Math.abs(b.vl)) * sk;   // d158: banked deep a thin sheet, flat a big throw
       spray.push({ x: b.x - fx * 1.2 + rx * out * 0.9, y: b.y - fy * 1.2 + ry * out * 0.9,
-        vx: rx * out * sp - fx * 2 + (simRandom() - .5) * 2, vy: ry * out * sp - fy * 2 + (simRandom() - .5) * 2, t: time, life: 0.5 + simRandom() * 0.4 });
+        vx: rx * out * sp - fx * 2 + (simRandom() - .5) * 2, vy: ry * out * sp - fy * 2 + (simRandom() - .5) * 2, t: time, life: (0.5 + simRandom() * 0.4) * (0.6 + 0.5 * sk) });
     }
   }
 }
@@ -326,6 +451,7 @@ function step(dt) {
   if ((soloKind === 'clock' || soloKind === 'ta') && SS.phase === 'count' && !B.logged && !runLog && input.thr >= 0.3) { B.logged = true; runLogBegin(B, '大時計スタート（1艇）', SS.t0 + CLOCK); }
   if (runLog && runLog.b === B && ((B.y < -4 && B.x < MK - 5) || time > SS.t0 + CLOCK + 30)) runLogEnd(`ST ${meas.st == null ? '—' : meas.st < 0 ? 'F' + fmtST(-meas.st) : fmtST(meas.st)} / チルト ${B.tilt}`);
   const ev = boatPhysics(B, binp, dt);
+  willieToast(B);
   if (runLog && runLog.b === B) runLogStep(B, binp, SS.t0 + CLOCK, '');
   harmony = B.harmony || 0;
   hitCool = Math.max(0, hitCool - dt);
