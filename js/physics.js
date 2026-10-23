@@ -52,12 +52,16 @@ const preStartAfter = (bowX, slow) => clamp(1 - bowX / (slow ? START_ACC.slowFad
 // 熱ダレ (HEAT): flat out the motor heats up and loses a touch of power; easing the lever lets it cool a bit.
 const CHOP = { full: 110, pow: 1.5, thr: 0.05, grip: 0.03 };   // pow > 1: the first lap's water is still clean, it builds up later
 const HEAT = { T: 90, cool: 0.4, thr: 0.045 };
+// d161 (まえ): the lap-by-lap fade is the race's — 6 boats churning the pool, a motor worked hard (整備 covers it).
+// タイムアタック alone on the water keeps only a trace of it
+const FADE = { ta: 0.2, test: false };   // test: apply the solo fade to a fleet (CPU 単独 time checks)
+const fadeScale = () => fleet && !FADE.test ? 1 : FADE.ta;
 // タイムアタック (1艇) fades on its own clock, from the hand hitting zero
 const raceElapsed = () => fleet ? (fleet.raceOn && time > fleet.raceStart ? time - fleet.raceStart : 0)
   : soloKind === 'ta' && typeof ta !== 'undefined' && ta.on && time > ta.zero ? time - ta.zero : 0;   // only once the race is off (not in the 待機行動)
-const chopNow = () => Math.pow(clamp(raceElapsed() / CHOP.full, 0, 1), CHOP.pow);
+const chopNow = () => Math.pow(clamp(raceElapsed() / CHOP.full, 0, 1), CHOP.pow) * fadeScale();
 function heatStep(b, thr, dt) { if (!raceElapsed()) { b.heat = 0; return; } b.heat = clamp((b.heat || 0) + (thr - HEAT.cool) * dt / HEAT.T, 0, 1); }
-const raceFadeK = b => (1 - CHOP.thr * chopNow()) * (1 - HEAT.thr * (b.heat || 0));
+const raceFadeK = b => (1 - CHOP.thr * chopNow()) * (1 - HEAT.thr * fadeScale() * (b.heat || 0));
 // 回り足 (quick races): extra pull and bite while the boat is turning; 1 = average motor
 const MAWARI = { yaw: 0.35, thr: 2.5, grip: 1.2 };
 const mawariK = (b, k) => b && b.mawari ? 1 + (b.mawari - 1) * k * clamp(Math.abs(b.yaw) / MAWARI.yaw, 0, 1) : 1;
