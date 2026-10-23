@@ -295,7 +295,7 @@ function kinenDrive(b, env, mem, dt, o, prof) {
    is how truly that is done: the clearance aimed for (g, m), how late the hands follow the eye (t, s), how deep the
    cut goes (d, short of full), how far off the release heading (r, °), and how often it checks the turn is working
    (chk, s). When the turn it is holding would miss its line by `tol` m, it cuts again: the お釣り. */
-const ONECUT = { on: true, from: 60, hz: 20, H: 5, rel: 35, tol: 1.0, svMin: 0.2, dMin: 0.08, near: 16, ahead: 40, side: 8, carveK: 0, hold: 2, holdLean: 2,
+const ONECUT = { on: true, from: 60, hz: 20, H: 5, goneA: 0.8, late: 6, rel: 35, tol: 1.0, svMin: 0.2, dMin: 0.08, near: 16, ahead: 40, side: 8, carveK: 0, hold: 2, holdLean: 2,
   TOP: { g: 0.3, t: 0.02, d: 0.03, r: 4, chk: 0.15 }, A1: { g: 0.5, t: 0.04, d: 0.05, r: 6, chk: 0.2 }, A2: { g: 1.1, t: 0.08, d: 0.12, r: 10, chk: 0.25 },
   B1: { g: 2.0, t: 0.15, d: 0.2, r: 14, chk: 0.3 }, B2: { g: 3.0, t: 0.25, d: 0.3, r: 20, chk: 0.35 } };
 // the turn held at rudder sv from now with the body at `body` (and the hands/body lag of this rider): closest hull–buoy gap, −1 = cuts inside
@@ -333,7 +333,7 @@ function cutDrive(b, mem, o, prof, gap, body, free) {
     if (time < cs.next) return null;
     cs.next = time + 1 / ONECUT.hz;
     if (cs.aim == null) cs.aim = Math.max(0.1, gap - HULL_R - 1.5 + gauss() * P.g);   // the clearance it means to take — as truly as it can judge it
-    if (cutPredict(b, m, 1, o, prof, body) < cs.aim) { cs.run = true; return null; }   // not yet: run on straight to the cut point (caller holds it)
+    if (lx < MK - ONECUT.late && cutPredict(b, m, 1, o, prof, body) < cs.aim) { cs.run = true; return null; }   // d162: level with the buoy and the wide line it wanted never came — cut now rather than run on past it   // not yet: run on straight to the cut point (caller holds it)
     cs.run = false; cs.ph = 'hold'; cs.sv = clamp(1 - Math.abs(gauss()) * P.d, ONECUT.svMin, 1); cs.go = time + Math.abs(gauss()) * P.t;
     cs.rel = -Math.PI + (ONECUT.rel + gauss() * P.r) * D2R; cs.chk = time + P.chk; cs.cuts = 1; mem.cutTurns = (mem.cutTurns || 0) + 1;
   }
@@ -1304,7 +1304,8 @@ function makeDriver(prof, trait = {}) {
         const close = env.others && env.others.some(q => {   // someone right there, or on my line ahead: race them, don't read the buoy
           if (q === b || q.cap > 0) return false;
           const ex = q.x - b.x, ey = q.y - b.y, f = ex * Math.cos(b.a) + ey * Math.sin(b.a), sd = -ex * Math.sin(b.a) + ey * Math.cos(b.a);
-          return f > -3 && (Math.hypot(ex, ey) < ONECUT.near || f < ONECUT.ahead && Math.abs(sd) < ONECUT.side);
+          const gone = Math.abs(wrapRad(q.a - b.a)) > ONECUT.goneA && Math.hypot(ex, ey) > ONECUT.near;   // d162: already turning away ahead of me — not on my line any more, read the buoy
+          return f > -3 && (Math.hypot(ex, ey) < ONECUT.near || f < ONECUT.ahead && Math.abs(sd) < ONECUT.side && !gone);
         });
         const free = b.cap <= 0 && !env.caution && !env.cruise && !dumping && !avoiding && !mem.push && !first && !close && !(mem.emergency > 0);   // (1周1M is the start battle: its entry, 逃げ・差し・まくり lines as they were)
         const upA = prof.up * CPU_TURN.upK, body = { thr: tThr, roll: -prof.lean * clamp((b.v - 4) / 4, 0, 1), pitch: clamp((CUT_PITCH[prof.name] ?? 0) - KINEN.kl * Math.max(0, (b.load || 0) - KINEN.Lmax), -1, 1) };   // the body it turns with: half crouched (CUT_PITCH), sitting up as the load nears the edge

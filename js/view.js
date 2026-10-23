@@ -347,9 +347,9 @@ function camAutoTargets() {
 }
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  let S = Math.min(W, H) / (fleet ? 44 : 34); // px per metre
+  let S = Math.min(W, H) / (camMode === 'close' ? 20 : fleet ? 44 : 34); // px per metre
   const fr = focusRow(), vb = fr ? fr.b : B;
-  const look = 5 + vb.v * 0.45;
+  const look = camMode === 'close' ? Math.min(5, 3 + vb.v * .12) : 5 + vb.v * 0.45;
   // camera follow eased by real elapsed time, so an uneven frame doesn't make the view lurch
   const nowD = performance.now(), fdt = Math.min(0.1, Math.max(0, (nowD - (draw.t || nowD)) / 1000)); draw.t = nowD;
   const k = fdt > 0 ? 1 - Math.exp(-7.7 * fdt) : 0.12;
@@ -494,6 +494,7 @@ function draw() {
     ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 0.35;
     ctx.beginPath(); ctx.ellipse(0, 0, 3.3, 1.8, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
+  if (window.Boat3D) Boat3D.prepare(fleet ? fleet.boats : [{b:B, inp:input, no:1, col:[PLAYER_STYLE.hull,PLAYER_STYLE.num]}], S, DPR, time);
   if (fleet) {
     for (const r of fleet.boats) drawBoatAt(r.b, r.inp, { hull: r.col[0], num: r.col[1], label: String(r.no), helmet: r.col[0], top: !!r.prof.top }, r === fr);
   } else { taDrawGhost(); drawBoatAt(B, input, PLAYER_STYLE, false); }
@@ -651,6 +652,9 @@ function drawBoatAt(b, inp, sty, focused) {
       }
     }
   }
+  // The atlas is rendered from GLB geometry each frame; all 2D wake/spray/UI layers remain.
+  const drew3D = window.Boat3D && Boat3D.draw(ctx, b);
+  if (!drew3D) {
   const hullSprite = boatSprite(sty, b.cap > 0 && !b.fallen);
   const bk = b.cap > 0 ? 0 : clamp((b.bank || 0) / BANK.max, -1, 1);   // 艇の傾き (d158): seen from above a banked hull narrows and its bottom shows on the high side
   ctx.save(); ctx.translate(0, bk * 0.18); ctx.scale(1, 1 - Math.abs(bk) * 0.22);
@@ -689,6 +693,7 @@ function drawBoatAt(b, inp, sty, focused) {
   } else {
     ctx.strokeStyle = `rgba(233,245,242,${1 - capT})`; ctx.lineWidth = 0.15;
     ctx.beginPath(); ctx.arc(0, 0, 2.5 + capT * 3, 0, Math.PI * 2); ctx.stroke();
+  }
   }
   ctx.restore();
   if (b.fallen) {
