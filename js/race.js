@@ -1751,7 +1751,10 @@ function cpuPullDecide(r, boats, sp, T) {
   if (T <= need + en.pullAt) { callDash(r); toast('引く', `${r.no}号艇がダッシュへ`, 'info'); }
 }
 // 待機行動違反: 減点 (shown, recorded), not a disqualification. Once per kind per boat.
+// d167 (まえ): the 待機行動 is semi-automatic, so no 待機行動違反 is called (RULES.waitFoul).
+const RULES = { waitFoul: false };
 function entryFoul(r, kind) {
+  if (!RULES.waitFoul) return;
   if (r.entryViol.includes(kind)) return;
   r.entryViol.push(kind); fleet.entry.viol.push({ no: r.no, kind });
   toast('待機行動違反', `${r.no}号艇 ${kind}（減点）`, 'bad');
@@ -2058,6 +2061,7 @@ function entryStep(dt, playerInput) {
     else if (auto && (vT <= 2 || vT < b.v - 0.8)) { holdIt = true; thr = 0; }   // settle: lever shut, sit up and let it die
     b.hold = holdIt;
     r.inp = { thr, steer, roll: 0, pitch: 0 };
+    if (VR) VR.inp(b, r.inp);
     boatPhysics(b, r.inp, dt);
     boatFx(b, r.wake, dt);
   }
@@ -2234,6 +2238,7 @@ function wxAnnounce() {
 function startEntry(playerNo, kind = 'race', opts = {}) {
   if (runLog) runLogEnd('途中でやり直し');
   waterEnv = opts.env || wxForced() || (playerNo && !lab.active ? randomWaterEnv() : null);
+  if (VR) { if (kind === 'p6') VR.discard(); else VR.begin(opts.setsu ? 'setsu' : playerNo ? 'race' : 'demo'); }
   fleet = makeEntryFleet(playerNo, { noMae: kind === 'p6', rows: opts.rows });
   fleet.setsu = opts.setsu || null;
   fleet.practice6 = kind === 'p6'; fleet.noMae = kind === 'p6'; fleet.fullControl = !!playerNo && kind === 'race';
@@ -2258,6 +2263,7 @@ function playerActive() { const r = playerRow(); return !!(r && (fleet.entry || 
 function startFleet() {
   if (runLog) runLogEnd('途中で終了');
   { const fw = wxForced(); if (fw) waterEnv = fw; else if (waterEnv && waterEnv.forced) waterEnv = null; }
+  if (VR) VR.begin('demo');
   fleet = freshFleet(setupFleet());
   ptrs.clear(); steerTouch = false; sideOn('thr'); sideOn('steer');
   wake.length = 0; spray.length = 0;
@@ -2281,11 +2287,12 @@ function refreshFleetUi() {
   $('skipBtn').hidden = true;
   $('demoTag').hidden = !fleet;
   $('again').hidden = !!fleet;
+  if (typeof vlUi === 'function') vlUi();
 }
 
 const IDLE_INPUT = { thr: 0, steer: 0, roll: 0, pitch: 0 };
 function fleetStep(dt, playerInput) {
-  if (fleet.entry) { entryStep(dt, playerInput); return; }
+  if (fleet.entry) { entryStep(dt, playerInput); if (VR) VR.frame(); return; }
   const timingBefore=fleet.boats.map(r=>timingPose(r.b,time));
   time += dt;
   const zero = SS.t0 + CLOCK;
@@ -2367,16 +2374,17 @@ function fleetStep(dt, playerInput) {
       if (!r.logged && !runLog && r.st == null && SS.phase === 'count' && o.thr >= 0.3) { r.logged = true; runLogBegin(b, `${r.no}号艇 ${r.trait.course}コース${r.trait.slow ? 'スロー' : 'ダッシュ'}`, zero); }
       if (runLog && runLog.b === b && (r.drv.mem.firstDone || r.out || time > zero + 30)) runLogEnd(`起こし ${Math.round(r.trait.okoshi || 0)}m / ST ${r.st == null ? '—' : r.st < 0 ? 'F' + fmtST(-r.st) : fmtST(r.st)} / チルト ${b.tilt} / 出足 ${(b.deashi || 1).toFixed(3)} 伸び ${(b.nobi || 1).toFixed(3)}`);
     }
+    if (VR) VR.inp(b, o);
     const ev = boatPhysics(b, o, dt);
     if (r.player) willieToast(b); else b.wilEv = null;
     if (r.player && runLog && runLog.b === b) runLogStep(b, o, zero, r.st != null && !r.logSt ? (r.logSt = true, 'スリット通過') : '');
     if(lab.active&&ev)labEvent('physics',r.no,{label:ev});
     if (ev && ev.startsWith('cap:') && !r.out) accident(r, '転覆', ev.slice(4));
-    else if (ev === 'buoy' || ev === 'boom') toast(ev === 'buoy' ? 'ターンマーク接触' : '消波装置に接触', `${r.no}号艇`, 'warn');
+    else if (ev === 'buoy' || ev === 'boom') { if (VR) VR.ev('hit', r.no, { what: ev }); toast(ev === 'buoy' ? 'ターンマーク接触' : '消波装置に接触', `${r.no}号艇`, 'warn'); }
     // 内側航走: crossing the course centreline between the marks means a mark was cut
     if (r.st != null && !r.dq && r.fin == null && !r.relegated && r.prevY != null && Math.sign(r.prevY) !== Math.sign(b.y) && Math.abs(b.x) < MK - 1) {
       if(lab.active)labEvent('inside_course',r.no,{label:'内側航走'});
-      r.relegated = true; fleet.cutsInside++;
+      r.relegated = true; fleet.cutsInside++; if (VR) VR.ev('inside_course', r.no, null);
       toast('内側航走', `${r.no}号艇 ターンマークの内側を通過　6着扱い`, 'bad');
     }
     r.prevY = b.y;
@@ -2443,6 +2451,7 @@ function fleetStep(dt, playerInput) {
   for (const e of boatContacts(all)) {
     const A = fleet.boats[e.i], Bt = fleet.boats[e.j];
     if(lab.active)labEvent('contact',A.no,{label:'艇間接触',other:Bt.no,x:e.x,y:e.y,impulse:e.J});
+    if (VR) VR.contact(A.no, Bt.no, e);
     // fighting a squeeze side by side (抵抗): hull rubbing on hull, even gently, can put the resisting boat over
     const fighter = A.drv.mem.resistQ === Bt.b ? A : Bt.drv.mem.resistQ === A.b ? Bt : null;
     if (fighter && !fighter.out && time > (fighter.fightRollT || 0)) {
@@ -2467,10 +2476,16 @@ function fleetStep(dt, playerInput) {
     (fleet.touchLog || (fleet.touchLog = [])).push({ t: time, a: A, b: Bt, J: e.J, x: e.x, y: e.y, ra: A.drv && A.drv.mem.turnRole && A.drv.mem.turnRole.role, rb: Bt.drv && Bt.drv.mem.turnRole && Bt.drv.mem.turnRole.role, pa: [A.b.x, A.b.y, A.b.a], pb: [Bt.b.x, Bt.b.y, Bt.b.a] });
     sfxHit(e.x, e.y, e.J);
     // contact right after cutting across the victim's path is interference
-    for (const [x, y] of [[A, Bt], [Bt, A]]) if (x.lastCut && x.lastCut.q === y && time - x.lastCut.t < CUT.window && !x.dq) { furyo(x, y, `${x.lastCut.kind}で${y.no}号艇に接触`); x.interfere = { q: y, t: time }; x.lastCut = null; }
+    // d168 (まえ): racing contact is not called by itself — side by side (舳先をかけた競り合い, ダンプ) it is part of racing.
+    // Only a hard hit that is not side to side is 不良航法; if the boat hit goes over, it is 妨害失格 either way (interfere).
+    for (const [x, y] of [[A, Bt], [Bt, A]]) if (x.lastCut && x.lastCut.q === y && time - x.lastCut.t < CUT.window && !x.dq) {
+      x.interfere = { q: y, t: time }; x.lastCut = null;
+      const side = Math.abs(wrapRad(x.b.a - y.b.a)) < CONTACT_RULE.sideAng;
+      if (CONTACT_RULE.strict || (!side && e.J >= CONTACT_RULE.hardJ)) furyo(x, y, `${y.no}号艇に${side ? '' : '強く'}接触`);
+    }
     const dumper = A.drv.dumping(Bt.b) ? A : Bt.drv.dumping(A.b) ? Bt : null;
-    if (dumper) { const vic = dumper === A ? Bt : A; fleet.dumps++; toast('ダンプ', `${dumper.no}号艇が${vic.no}号艇を外へ押し出した`, 'warn'); }
-    else if (e.rear >= 0 && e.J > 3) { const hit = fleet.boats[e.rear], vic = hit === A ? Bt : A; fleet.rears++; toast('追突', `${hit.no}号艇が${vic.no}号艇に後ろから接触`, 'bad'); }
+    if (dumper) { const vic = dumper === A ? Bt : A; fleet.dumps++; if (VR) VR.ev('dump', dumper.no, { other: vic.no }); toast('ダンプ', `${dumper.no}号艇が${vic.no}号艇を外へ押し出した`, 'warn'); }
+    else if (e.rear >= 0 && e.J > 3) { const hit = fleet.boats[e.rear], vic = hit === A ? Bt : A; fleet.rears++; if (VR) VR.ev('rear_hit', hit.no, { other: vic.no, J: e.J }); toast('追突', `${hit.no}号艇が${vic.no}号艇に後ろから接触`, 'bad'); }
     else if (e.J > 2.5) toast('接触', `${A.no}号艇と${Bt.no}号艇`, 'warn');
     // a heavy hit can put the boat that took the brunt of it over, or its rider in the water
     // a heavy hit can put either boat over — the one that took the brunt more likely, the one that hit it too —
@@ -2481,8 +2496,9 @@ function fleetStep(dt, playerInput) {
       const xb = x.b, vb = xb.wakeBump || 0, unst = Math.max(0, (xb.load || 0) - 0.7) + (DRIFT.on ? (xb.slideX || 0) * 0.5 : Math.max(0, Math.abs(xb.vl) - 1.5) * 0.15);   // (ドリフト: a turn always slides — only skating out past the edge counts)
       const jLim = Math.max(CAPSIZE.jMin, CAPSIZE.j0 - 6 * vb - CAPSIZE.unstJ * unst);
       if (e.J <= jLim) continue;
-      const p = clamp((e.J - jLim) / CAPSIZE.span * (1 + 2 * vb + CAPSIZE.unstP * unst), 0, 0.6) * share * (RISK[x.prof.name] || RISK.B1).hit;
-      if (simRandom() < p) { accident(x, simRandom() < 0.5 ? '転覆' : '落水', `${y.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : unst > 0.2 ? '（姿勢が乱れていた）' : x === other ? '（当てた側）' : ''}`); break; }
+      const sh = x === other && e.J >= CAPSIZE.heavyJ ? 1 : share;
+      const p = clamp((e.J - jLim) / CAPSIZE.span * (1 + 2 * vb + CAPSIZE.unstP * unst), 0, 0.6) * sh * (RISK[x.prof.name] || RISK.B1).hit;
+      if (simRandom() < p) { accident(x, simRandom() < 0.5 ? '転覆' : '落水', `${y.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : unst > 0.2 ? '（姿勢が乱れていた）' : x === other ? '（当てた側）' : ''}`); if (!CAPSIZE.both) break; }
     }
   }
   fleetTimingStep(timingBefore,zero);
@@ -2504,11 +2520,13 @@ function fleetStep(dt, playerInput) {
   const stillRacing = fleet.boats.filter(r => !r.dq && r.fin == null).length;
   if (!fleet.endAt && time > zero + 5 && (stillRacing === 0 || (fleet.order.length && time > fleet.order[0].fin + 30))) {
     fleet.endAt = time + 7;
+    if (VR) { const home = stillRacing === 0, ord = fleet.order.filter(r => !r.skipped); VR.finish(home ? (ord.length ? 'finished' : 'no_race') : 'timeout', home && ord.length ? Math.max(...fleet.finOrder.map(r => r.fin)) : time); }
     if (!lab.active) rpFinish(fleet);
     if(!lab.active)slitArchive(fleet.slit,fleet.boats,resultLine());
     if(!lab.active)setTimeout(() => toast('レース結果', fleet ? resultLine() : '', 'good'), 300);
   }
   if (fleet.endAt && time > fleet.endAt && !fleet.resShown) {if(lab.active)labFinish('レース終了');else { fleet.resShown = true; resultShow(fleet.setsu ? () => setsuRaceDone() : () => nextRace()); }}
+  if (VR) VR.frame();
 }
 
 // Judge all boats before sorting: a faster crossing within the same step wins,
@@ -2521,11 +2539,13 @@ function fleetTimingStep(previous,zero){
     if(at==null || r.out)continue;
     if(r.st==null){
       r.st=startOffset(at,zero);r.vis=0;
+      if(VR)VR.ev('st',r.no,{st:r.st,flying:r.st<0,late:r.st>1},at);
       if(r.st<0){r.flying=true;r.dq=true;toast('フライング',`${r.no}号艇 F${fmtST(-r.st)}　返還、1マークを過ぎたら離脱${r.player?cutinNote(r.st):''}`,'bad');}
       else if(r.player&&!r.lateTold)toast(r.st<=.15?'好スタート':r.st<=.3?'スタート':'遅れ気味',`ST ${fmtST(r.st)}${cutinNote(r.st)}${fleet.fullControl?'':'　ここからCPUが引き継ぎ'}`,r.st<=.15?'good':r.st<=.3?'warn':'bad');
     }else if(r.vis===3&&r.fin==null&&!r.flying){
       r.laps++;r.vis=0;
-      if(r.laps>=raceLaps()){r.fin=at;r.finY=boatBow(r.b).y;r.finV=r.b.v;finishedNow=true;fleet.finOrder.push(r);if(!r.dq)fleet.order.push(r);}
+      if(VR)VR.ev('lap',r.no,{lap:r.laps},at);
+      if(r.laps>=raceLaps()){r.fin=at;r.finY=boatBow(r.b).y;r.finV=r.b.v;finishedNow=true;fleet.finOrder.push(r);if(!r.dq)fleet.order.push(r);if(VR)VR.ev('finish',r.no,{dq:!!r.dq,place:r.dq?null:fleet.order.length},at);}
     }
   }
   fleet.finOrder.sort((a,b)=>a.fin-b.fin);fleet.order.sort((a,b)=>a.fin-b.fin);
@@ -2558,6 +2578,7 @@ function photoCheck() {
   fleet.photoSaid = fleet.photoSaid || [];
   for (const p of photoPairs()) {
     const k = p.a.no * 10 + p.b.no; if (fleet.photoSaid.includes(k)) continue; fleet.photoSaid.push(k);
+    if (VR) VR.ev('photo', p.a.no, { place: p.place, other: p.b.no, dt: p.dt, tie: p.tie });
     jkSay('photo', p.place, p.a.no, p.b.no);
     toast('写真判定', `${p.place}着争い ${p.a.no}号艇と${p.b.no}号艇`, 'warn');
   }
@@ -2629,12 +2650,22 @@ function resultShow(after) {
   }
   box.hidden = false; resAfter = after;
   // the 6艇デモ moves on by itself; a race the player is in (or a 節間 race) waits for 次へ
-  clearTimeout(resTimer); resTimer = !f.playerNo && !f.setsu ? setTimeout(resNext, (RESULT_AUTO + (P.length ? PHOTO.wait : 0)) * 1000) : 0;
+  // (動画用ログ: 結果で待つ keeps the demo's board up so the race can be saved; without it the countdown says when it goes)
+  const auto = !f.playerNo && !f.setsu && !(vlHold && VR && VR.has()), wait = RESULT_AUTO + (P.length ? PHOTO.wait : 0);
+  clearTimeout(resTimer); resTimer = auto ? setTimeout(resNext, wait * 1000) : 0;
+  clearInterval(resCountT); resCountT = 0;
+  if (VR) { VR.refreshResults(); vlUi(); }
+  if (typeof vlResultNote === 'function') {
+    const m = $('resVidMsg'); if (m) m.textContent = '';
+    if (auto && VR && VR.has()) { let n = wait; vlResultNote(n); resCountT = setInterval(() => { n--; if (n > 0) vlResultNote(n); else { clearInterval(resCountT); resCountT = 0; } }, 1000); }
+    else vlResultNote(0);
+  }
 }
 const RESULT_AUTO = 6;   // s the result board stays up in the demo
-let resAfter = null, resTimer = 0, resPhotoT = 0;
+let resAfter = null, resTimer = 0, resPhotoT = 0, resCountT = 0;
 function resNext() { if (resPhotoT) { clearTimeout(resPhotoT); resPhotoT = 0; const p = photoPairs(); $('resPhotoTxt').textContent = '写真判定　' + p.map(q => `${q.place}着争い ${q.a.no}－${q.b.no}：${photoGapJa(q)}`).join('　'); $('resBox').querySelector('.tablewrap').hidden = false; return; }
-  clearTimeout(resTimer); if ($('resBox').hidden) return; $('resBox').hidden = true; const a = resAfter; resAfter = null; if (a) a(); }
+  clearTimeout(resTimer); clearInterval(resCountT); resCountT = 0; if ($('resBox').hidden) return; $('resBox').hidden = true; if (VR) VR.discard();   // 動画用ログ: leaving the board drops it
+  const a = resAfter; resAfter = null; if (a) a(); }
 /* ---- 実況テキスト: at the key moments a line of commentary slides across the top of the screen.
    Styles: 標準 (plain), 熱血 (児島風のノリ — big and loud). A venue can name its own style later (VENUES[...].jikkyo). ---- */
 const JK = { hold: 3.2, gap: 0.6, posEvery: 0.5, posCool: 4 };
@@ -2680,8 +2711,10 @@ const JK_LINES = {
 };
 const jk = { q: [], t: 0 };
 function jkSay(key, ...args) {
-  if (jkMode === 'off' || lab.active || !fleet) return;
+  if (lab.active || !fleet) return;
   const L = JK_LINES[jkMode] || JK_LINES.std, f = L[key];
+  if (VR) VR.ev('jikkyo', null, { key, args, style: jkMode, text: jkMode !== 'off' && f ? f(...args) : null });   // 実況オフでも何が起きたかは残す（文は出たときだけ）
+  if (jkMode === 'off') return;
   if (f) jk.q.push(f(...args));
   if (jk.q.length > 3) jk.q.splice(0, jk.q.length - 3);   // never run far behind the race
 }
@@ -2802,6 +2835,7 @@ function cautionCheck() {
   fleet.locked = true;
   fleet.rank = fleet.boats.slice().sort((a, b) => b.prog - a.prog);
   fleet.lockOrder = fleet.rank.filter(q => !q.dq);
+  if (VR) VR.ev('order_locked', null, { order: fleet.lockOrder.map(q => q.no) });
   if (!lab.active) { toast('着順確定', '最後尾が1周して事故艇の外を回り着順が確定', 'warn'); jkSay('lock'); skipRace(); }   // 確定したら結果へ
 }
 function accident(r, kind, why) {
@@ -2809,6 +2843,7 @@ function accident(r, kind, why) {
   if(lab.active)labEvent('accident',r.no,{label:kind,reason:why});
   const wreckProg = r.prog > -1e6 && r.prog < 5e5 ? r.prog : 0;
   r.out = kind; r.dq = true; fleet.accidents++;
+  if (VR) VR.ev(kind === '落水' ? 'fall' : 'capsize', r.no, { why, x: r.b.x, y: r.b.y });
   // the boat that cut across it and hit it just before: 妨害失格
   for (const x of fleet.boats) if (x !== r && !x.dq && x.interfere && x.interfere.q === r && time - x.interfere.t < 3) { x.hindered = true; disqualify(x, `${r.no}号艇を${kind}させた`); }
   const b = r.b;
@@ -2881,7 +2916,7 @@ function zigCheck(b, steer, r) {
   b.zig = b.zig || { last: 0, flips: [] };
   if (b.zig.last && sg !== b.zig.last) {
     b.zig.flips.push(time); b.zig.flips = b.zig.flips.filter(t => time - t < PRE_SLIT.zigWindow);
-    if (b.zig.flips.length >= PRE_SLIT.zigFlips) { b.zig.flips = []; if (r) startFoul(r, '蛇行'); else if (!b.zigTold) { b.zigTold = true; toast('待機行動違反', '蛇行（スリットまでは真っ直ぐ）', 'bad'); } }
+    if (b.zig.flips.length >= PRE_SLIT.zigFlips) { b.zig.flips = []; if (r) startFoul(r, '蛇行'); else if (RULES.waitFoul && !b.zigTold) { b.zigTold = true; toast('待機行動違反', '蛇行（スリットまでは真っ直ぐ）', 'bad'); } }
   }
   b.zig.last = sg;
 }
@@ -2891,6 +2926,8 @@ function zigCheck(b, steer, r) {
 // of seconds, or the cut is so steep and so close that it plainly endangers it. If the boat hit goes over: 妨害失格.
 // 不良航法 costs points (節間: −10, twice in a 節 = 賞典除外) but the race result stands.
 const CUT = { window: 2.0, steep: 4.2, steepGap: 2.6 };
+// d168: contact after a cut — side by side (heading within sideAng rad) is never 不良航法 by itself; a hit from another angle only at hardJ+
+const CONTACT_RULE = { strict: false, sideAng: 0.6, hardJ: 6 };
 function cutAcross(r, q, vy, gap, kind) {
   r.lastCut = { q, t: time, kind };
   if (Math.abs(vy) >= CUT.steep && Math.abs(gap) < CUT.steepGap) {
@@ -2906,12 +2943,15 @@ function furyo(r, q, why) {
   fleet.cutCool[key] = time + 4;
   if(lab.active)labEvent('foul',r.no,{label:'不良航法',other:q.no});
   r.fouls = (r.fouls || 0) + 1; fleet.cuts++;
+  if (VR) VR.ev('foul', r.no, { kind: '不良航法', other: q.no, why });
   toast('不良航法', `${r.no}号艇 ${why}（減点）`, 'bad');
 }
 function startFoul(r, kind) {
+  if (!RULES.waitFoul) return;
   r.entryViol = r.entryViol || [];
   if (r.entryViol.includes(kind)) return;
   r.entryViol.push(kind);
+  if (VR) VR.ev('foul', r.no, { kind: '待機行動違反', why: kind });
   if(lab.active)labEvent('foul',r.no,{label:kind});
   toast('待機行動違反', `${r.no}号艇 ${kind}（減点）`, 'bad');
   if (typeof document !== 'undefined' && document.getElementById('cardBody') && fleet) buildCard();
@@ -2920,6 +2960,7 @@ function disqualify(r, why) {
   if (r.dq) return;
   if(lab.active)labEvent('disqualified',r.no,{label:'妨害失格',reason:why});
   r.dq = true; fleet.dqs++;
+  if (VR) VR.ev('dq', r.no, { why });
   toast('妨害失格', `${r.no}号艇（${why}）`, 'bad');
 }
 
@@ -3009,10 +3050,11 @@ $('jkMode').addEventListener('change', e => { jkMode = e.target.value; try { loc
 // after an accident the order is frozen anyway, so jump straight to the result
 function skipRace() {
   if (!fleet || !fleet.locked || fleet.endAt) return;
-  for (const r of fleet.lockOrder) if (r.fin == null && !r.dq) { r.fin = time; r.skipped = true; fleet.order.push(r); }
+  for (const r of fleet.lockOrder) if (r.fin == null && !r.dq) { r.fin = time; r.skipped = true; fleet.order.push(r); if (VR) VR.ev('result_assigned', r.no, { place: fleet.order.length }); }
   for (const r of fleet.boats) if (r.fin != null && !r.dq) r.prog = r.relegated ? -2e6 + (1e6 - fleet.order.indexOf(r)) / 1e3 : 1e6 - fleet.order.indexOf(r);
   fleet.rank = fleet.boats.slice().sort((a, b) => b.prog - a.prog);
   fleet.endAt = time + 4;
+  if (VR) { VR.ev('skip', null, null); VR.finish('skipped_after_accident', time); }
   if(!lab.active)slitArchive(fleet.slit,fleet.boats,resultLine());
   toast('レース結果', resultLine(), 'good');
 }

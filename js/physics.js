@@ -5,7 +5,8 @@ const HAZARD = 0.2;
 const WAIT_DRAG = 0.1;   // extra drag sat up with the lever shut while waiting
 // 接触による転覆: impulse threshold (j0, never below jMin), how much an unsettled hull lowers it, the impulse range to
 // the full chance, how much instability raises it, and the share of that chance the boat that did the hitting faces
-const CAPSIZE = { j0: 7.6, jMin: 2.6, unstJ: 3.5, span: 10, unstP: 2, hitter: 0.3 };
+// hitter: the boat that hit carries this share of the risk; at heavyJ and above it is as likely to go as the one it hit (d168, まえ: 多重事故は起きる)
+const CAPSIZE = { j0: 7.6, jMin: 2.6, unstJ: 3.5, span: 10, unstP: 2, hitter: 0.3, heavyJ: 8, both: true };
 // turning: how much leaning in adds grip, how much sitting up amplifies that and staying crouched spoils it,
 // how far full throttle pushes a turn wide without the body in it, how much easing the lever settles the hull,
 // and how much a flat-out, full-lock, deep hang-on at top speed (無茶) adds to the load
@@ -454,12 +455,14 @@ function step(dt) {
   const binp = SS.phase === 'count' ? { thr: input.thr, steer: clamp(input.steer, -PRE_SLIT.steer, PRE_SLIT.steer), roll: 0, pitch: input.pitch } : input;
   if ((soloKind === 'clock' || soloKind === 'ta') && SS.phase === 'count' && !B.logged && !runLog && input.thr >= 0.3) { B.logged = true; runLogBegin(B, '大時計スタート（1艇）', SS.t0 + CLOCK); }
   if (runLog && runLog.b === B && ((B.y < -4 && B.x < MK - 5) || time > SS.t0 + CLOCK + 30)) runLogEnd(`ST ${meas.st == null ? '—' : meas.st < 0 ? 'F' + fmtST(-meas.st) : fmtST(meas.st)} / チルト ${B.tilt}`);
+  if (VR) VR.inp(B, binp);
   const ev = boatPhysics(B, binp, dt);
   willieToast(B);
   if (runLog && runLog.b === B) runLogStep(B, binp, SS.t0 + CLOCK, '');
   harmony = B.harmony || 0;
   hitCool = Math.max(0, hitCool - dt);
   if (ev) {
+    if (VR) VR.ev(ev.startsWith('cap:') ? 'capsize' : 'hit', 1, ev.startsWith('cap:') ? { why: ev.slice(4) } : { what: ev });
     if (ev.startsWith('cap:')) { splash(B); T.on = false; toast('転覆', ev.slice(4), 'bad'); hapticShot(0.45, 1); sfxCapsize(B.x, B.y); }
     else {
       hapticShot(0.15, 0.7); sfxHit(B.x, B.y, 5);
@@ -468,6 +471,7 @@ function step(dt) {
   }
   slitCapture(practiceSlit,time-(SS.t0+CLOCK),[{no:1,b:B,trait:{course:1}}]);
   if (soloKind === 'ta') taStep();
+  if (VR) VR.frame();
   if (B.cap > 0) return;
   boatFx(B, wake, dt);
 

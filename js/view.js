@@ -161,6 +161,7 @@ function finishP6() {
   setTimeout(() => slitOpen(fleet && fleet.slit), 600);
 }
 function quitFleet() {
+  if (VR) VR.discard();
   if (runLog) runLogEnd('途中で終了'); fleet = null; waterEnv = null; input.thr = input.steer = input.roll = input.pitch = 0; $('order').hidden = true; refreshFleetUi(); }
 function slitClose(){
   $('slitPhoto').hidden=true;paused=slitWasPaused;keys.clear();last=performance.now();
@@ -564,9 +565,15 @@ const BOUNCE_VIEW = { hMax: 0.45, splashT: 0.4, wil: 0.22 };   // wil: ウィリ
 function boatBounce(b) {
   return { h: b.cap > 0 ? 0 : clamp(Math.max(b.hop || 0, (b.wil || 0) * BOUNCE_VIEW.wil), 0, BOUNCE_VIEW.hMax), wil: b.cap > 0 ? 0 : b.wil || 0, ls: b.landAge ?? 9, sp: clamp((b.landV || 0) / 4, 0, 1), stuck: (b.stuckAge ?? 9) < 0.3 };
 }
+/* 尻の流れ (d166, まえ): drawn only — the race, the hull's collision shape and the CPU are untouched. Coming into a turn
+   fast, the stern is drawn swung further out than the physics slide (the bow pointed further in, toward the mark);
+   as the boat slows through the turn it settles back onto the real angle. */
+const DRIFT_VIEW = { on: true, gain: 2.4, vLo: 13, vHi: 17, max: 0.6 };
+const driftViewA = b => !DRIFT_VIEW.on || b.cap > 0 ? 0 : -clamp(DRIFT_VIEW.gain * (b.slip || 0) * clamp((b.v - DRIFT_VIEW.vLo) / (DRIFT_VIEW.vHi - DRIFT_VIEW.vLo), 0, 1), -DRIFT_VIEW.max, DRIFT_VIEW.max);
 function drawBoatAt(b, inp, sty, focused) {
   ctx.save();
-  ctx.translate(b.x, b.y); ctx.rotate(b.a);
+  const da = b.a + driftViewA(b);
+  ctx.translate(b.x, b.y); ctx.rotate(da);
   if (focused) {
     ctx.setLineDash([0.6, 0.6]); ctx.strokeStyle = C.lever; ctx.lineWidth = 0.2;
     ctx.beginPath(); ctx.arc(0, 0, 3.4, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
@@ -629,7 +636,7 @@ function drawBoatAt(b, inp, sty, focused) {
       ctx.beginPath(); ctx.ellipse(2.0 + h * 1.4 + k, side * (0.3 + h * 0.9 + k * 0.6), 0.22 + h * 0.15, 0.12, 0, 0, Math.PI * 2); ctx.fill(); }
   }
   const lf = lift / BOUNCE_VIEW.hMax;   // in the air the shadow stays on the water, falls away down-screen and sharpens, the hull comes up at the camera
-  const ox = lf * 1.6, oy = lf * 2.2, ca = Math.cos(b.a), sa = Math.sin(b.a), sx = ox * ca + oy * sa, sy = -ox * sa + oy * ca;
+  const ox = lf * 1.6, oy = lf * 2.2, ca = Math.cos(da), sa = Math.sin(da), sx = ox * ca + oy * sa, sy = -ox * sa + oy * ca;
   ctx.fillStyle = `rgba(0,22,30,${0.22 + 0.1 * lf})`;
   ctx.beginPath(); ctx.ellipse(0.12 + sx, 0.4 + inp.roll * 0.25 + sy, 2.55 * (1 - 0.08 * lf), 1.05 * (1 - 0.08 * lf), 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = `rgba(0,18,25,${0.25 + 0.1 * lf})`;

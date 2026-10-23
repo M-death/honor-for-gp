@@ -229,6 +229,8 @@ function pip(freq, dur, vol) {
 const earGain = (x, y) => clamp(1 - Math.hypot(x - cam.x, y - cam.y) / 140, 0, 1);
 function sfxHit(x, y, strength) { const e = earGain(x, y); if (e > 0.05) oneShot(0.25, 900, 180, 0.5 * e * clamp(strength / 6, 0.3, 1), 'lowpass', 2); }
 function sfxCapsize(x, y) { const e = earGain(x, y); if (e > 0.05) { oneShot(1.4, 3000, 200, 0.7 * e, 'bandpass', 0.6); oneShot(0.5, 300, 60, 0.6 * e, 'lowpass', 1); } }
+// エンジンの音の高さ (0–1.15): one formula for the sound and the video log, so the log has it with the sound off too
+const engineRpm = (b, thr) => clamp(0.15 + 0.55 * (IDLE + (1 - IDLE) * thr) + 0.35 * b.v / 23 - 0.1 * (b.turnLoadV || 0), 0, 1.15);
 function updateAudio() {
   if (!snd.ctx) return;
   const c = snd.ctx, t = c.currentTime;
@@ -243,7 +245,7 @@ function updateAudio() {
     let v = snd.engines.get(e.id);
     if (!v) { v = makeEngine(); snd.engines.set(e.id, v); }
     const b = e.b, thr = IDLE + (1 - IDLE) * (e.inp ? e.inp.thr : 0);
-    const rpm = clamp(0.15 + 0.55 * thr + 0.35 * b.v / 23 - 0.1 * (b.turnLoadV || 0), 0, 1.15);
+    const rpm = engineRpm(b, e.inp ? e.inp.thr : 0);
     const f0 = 58 + 150 * rpm + (e.id % 6) * 1.7;   // each engine a hair apart so six don't merge into one
     v.osc.frequency.setTargetAtTime(f0, t, 0.05);
     v.sub.frequency.setTargetAtTime(f0 / 2, t, 0.05);
@@ -440,6 +442,7 @@ $('measAgain').addEventListener('click', () => { $('meas').hidden = true; paused
 $('measClose').addEventListener('click', () => { $('meas').hidden = true; paused = false; last = performance.now(); });
 
 function resetBoat() {
+  if (VR && VR.rec && VR.rec.solo) VR.discard();
   resetVirtualPosture();
   Object.assign(B, { x: START.x, y: START.y, a: START.a, v: 4, vl: 0, yaw: 0, porp: 0, cap: 0, zig: null, zigTold: false, deashi: 1, nobi: 1, tilt: playerTilt, logged: false });
   if (runLog) runLogEnd('途中でやり直し');

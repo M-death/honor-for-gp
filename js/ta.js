@@ -14,7 +14,8 @@ const TA_EXTRA = ['レジェンド', 'GP覇者'];
 // (old d132/d136: レジェンド 1'43"0 GP覇者 1'44"0 記念 1'45"0 A1 1'46"5 A2 1'50"0 B1 1'54"0 B2 2'00"0)
 // d161 (まえ): タイムアタック keeps only a fifth of the race's lap fade — about 2 s faster, so every band moved 2 s with it
 // (CPU 1艇: 記念 1'43"3 A1★ 1'45"2 A1 1'45"7 A2 1'46"7 B1 1'49"1)
-const TA_RANKS = [['レジェンド', 101.0], ['GP覇者', 102.0], ['記念クラス', 103.0], ['A1', 105.0], ['A2', 108.0], ['B1', 112.0], ['B2', 116.0], ['ルーキー', Infinity]];
+// d165 (まえ): titles only, not race-time targets — レジェンド 1'42"0 GP覇者 1'43"0 記念 1'44"5 A1 1'46"0 A2 1'48"0 B1 1'52"0 B2 1'55"0
+const TA_RANKS = [['レジェンド', 102.0], ['GP覇者', 103.0], ['記念クラス', 104.5], ['A1', 106.0], ['A2', 108.0], ['B1', 112.0], ['B2', 115.0], ['ルーキー', Infinity]];
 const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false, log: [], ev: [], corners: [], cur: null, cSide: -1 };
 // the best run belongs to the player chosen in the practice menu (player.js)
 let taBest = null;
@@ -27,6 +28,7 @@ function beginTA() {
   beginStart();
   soloKind = 'ta'; waterEnv = null;
   Object.assign(ta, { on: true, zero: SS.t0 + CLOCK, lastAt: SS.t0 + CLOCK, laps: [], st: null, path: [], nextPt: SS.t0, done: false, log: [], ev: [], corners: [], cur: null, cSide: -1 });
+  if (VR) VR.begin('ta');
   toast('タイムアタック', `${playerName()}　大時計スタートから${TA.laps}周　${taBest ? '自己ベスト ' + fmtRT(taBest.t) : '走ったタイムで級を判定'}`, 'info');
 }
 // every physics step of the solo boat
@@ -65,10 +67,11 @@ const taGapJa = g => g <= 0.02 ? '接触' : `${g.toFixed(2)}m`;
 // per lap: "1周 1M 0.12m（中央）・2M 0.30m（艇首）"
 const taCornersJa = list => [1, 2, 3].map(l => { const cs = list.filter(k => k.lap === l); return cs.length ? `${l}周 ` + cs.map(k => `${k.m} ${taGapJa(k.gap)}（${TA_PART_JA[k.part]}）`).join('・') : ''; }).filter(Boolean).join('　');
 const taEv = msg => ta.ev.push(`${rpN(time - ta.zero, 2)} ${msg}`);
-function taStart(st) { if (!ta.on) return; ta.st = st; taEv(`ST ${st < 0 ? 'F' + fmtST(-st) : fmtST(st)}`); if (st < 0) taFail('フライング'); }
+function taStart(st) { if (!ta.on) return; ta.st = st; if (VR) VR.ev('st', 1, { st, flying: st < 0 }, ta.zero + st); taEv(`ST ${st < 0 ? 'F' + fmtST(-st) : fmtST(st)}`); if (st < 0) taFail('フライング'); }
 function taLap(at) {
   if (!ta.on) return;
   const lt = at - ta.lastAt, n = ta.laps.push(lt); ta.lastAt = at;
+  if (VR) VR.ev('lap', 1, { lap: n, lapTime: lt }, at);
   taEv(`lap${n} ${lt.toFixed(2)}`);
   const b = taBest && taBest.laps ? taBest.laps.slice(0, n).reduce((s, v) => s + v, 0) : null;
   const sum = at - ta.zero;
@@ -78,12 +81,14 @@ function taLap(at) {
 function taFail(why) {
   if (!ta.on) return;
   taEv(`fail ${why}`); ta.on = false;
+  if (VR) { VR.ev('fail', 1, { why }); VR.finish('no_record', time, why); }
   toast(why, '記録なし', 'bad');
   setTimeout(() => taShow(null, why), TA.failWait * 1000);
 }
 function taFinish(t) {
   if (ta.cur) taCornerEnd();
   ta.on = false; ta.done = true;
+  if (VR) { VR.ev('finish', 1, { time: t, place: 1 }, ta.zero + t); VR.finish('finished', ta.zero + t); }
   const prev = taBest, best = !prev || t < prev.t;
   const mt = taMeasNow();
   if (best) {
@@ -120,6 +125,8 @@ function taShow(run, why, ref = taBest, isBest = false) {
   $('taGaps').textContent = ta.corners.length ? 'マークとの間隔（艇体の端〜ブイ）　' + taCornersJa(ta.corners) : '';
   $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.filter(r => !TA_EXTRA.includes(r[0])).slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。エクストラ：' + TA_RANKS.filter(r => TA_EXTRA.includes(r[0])).reverse().map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '。タイムは針が0を指してからゴールまで。' + TA_MEAS_NOTE;
   $('taSlit').hidden = !(practiceSlit && practiceSlit.archived);
+  if ($('taVidMsg')) { $('taVidMsg').textContent = ''; $('taVidMsg').hidden = true; }
+  if (typeof vlUi === 'function') vlUi();
   paused = true; $('taBox').hidden = false;
 }
 // 区間タイム (展示・直線・まわり足・一周): the same gates as the practice 展示航走 (input.js GATES), every lap
@@ -167,7 +174,7 @@ function taLogOpen(back) {
 }
 $('taLog').addEventListener('click', () => { $('taBox').hidden = true; taLogOpen(() => { $('taBox').hidden = false; paused = true; }); });
 $('pmTALog').addEventListener('click', () => { $('pmenu').hidden = true; taLogOpen(() => { $('pmenu').hidden = false; paused = true; }); });
-const taClose = () => { $('taBox').hidden = true; paused = false; last = performance.now(); };
+const taClose = () => { $('taBox').hidden = true; if (VR) VR.discard(); paused = false; last = performance.now(); };   // 動画用ログ: closing the card drops it
 $('taAgain').addEventListener('click', () => { taClose(); beginTA(); });
 $('taClose').addEventListener('click', taClose);
 $('taSlit').addEventListener('click', () => slitOpen(practiceSlit));

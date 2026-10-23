@@ -138,7 +138,7 @@ function setsuBuildDay(d) {
     setsu.races.push(...setsuFill(5, rest, two, 1, 6, R => R >= 8 ? '特別選抜' : '一般戦'));
   } else if (d === 6) {
     const semis = setsu.races.filter(r => r.day === 5 && r.kind === '準優勝戦');
-    const ok = id => !(setsu.racers[id].runs.find(x => x.day === 5 && x.kind === '準優勝戦' && (x.mark === 'F' || x.mark === 'L')));
+    const ok = id => !(setsu.racers[id].runs.find(x => x.day === 5 && x.kind === '準優勝戦' && (x.mark === 'F' || x.mark === 'L' || x.furyo)));   // d167: 不良航法 in the 準優 also keeps you out of the 優勝戦
     const firsts = [], seconds = [], thirds = [];
     for (const r of semis) { const o = (r.result ? r.result.order : []).filter(ok); if (o[0] != null) firsts.push(o[0]); if (o[1] != null) seconds.push(o[1]); if (o[2] != null) thirds.push(o[2]); }
     const byRate = a => a.sort((x, y) => setsuRate(setsu.racers[y]) - setsuRate(setsu.racers[x]));
@@ -221,7 +221,8 @@ function setsuRecord(race, res) {
     if (res.fouls && res.fouls[id]) pts += SETSU.foulPts * res.fouls[id];
     const fr = res.furyo && res.furyo[id] || 0;
     if (fr) { pts += SETSU.furyoPts * fr; q.furyo = (q.furyo || 0) + fr; }
-    q.runs.push({ day: race.day, R: race.R, kind: race.kind, waku: i + 1, place, mark, pts, st: res.st[id], self: !!(q.player && res.self) });
+    if (mark === '失') pts += SETSU.dqPts;   // d167: 妨害失格 −15
+    q.runs.push({ day: race.day, R: race.R, kind: race.kind, waku: i + 1, place, mark, pts, st: res.st[id], furyo: fr || 0, self: !!(q.player && res.self) });
     if (mark === 'F' || mark === 'L' || mark === '失' || (q.furyo || 0) >= 2) q.excl = true;
     if (q.motor && q.motor.cond != null) q.motor.cond = Math.max(0.93, q.motor.cond - (SETSU.wear[q.motor.dur] || 0.004) - (mark === '転' || mark === '落' ? 0.015 : 0));
   });
@@ -344,7 +345,7 @@ function setsuRender() {
     }
   } else if (setsuTab === 'rank') {
     h += `<table class="race st"><thead><tr><th>順</th><th>選手</th><th>級</th><th>得点率</th><th>成績</th></tr></thead><tbody>` +
-      st.map((q, i) => `<tr class="${q.player ? 'me' : ''}"><td class="num">${q.excl ? '除' : i + 1}</td><td class="nm">${setsuEsc(q.name)}</td><td>${setsuClsJa(q.cls)}</td><td class="num">${setsuRate(q).toFixed(2)}</td><td class="num runs">${q.runs.map(setsuMark).join(' ')}</td></tr>`).join('') + `</tbody></table><p>予選は 1着10・2着8・3着6・4着4・5着2・6着1点の平均（得点率）。待機行動違反は1回につき${SETSU.foulPts}点、不良航法は${SETSU.furyoPts}点（2回で賞典除外）。妨害失格も賞典除外。フライング・出遅れは賞典除外（準優・優勝戦に乗れません）。上位18人が5日目の準優勝戦へ、準優の1・2着が優勝戦へ。</p>`;
+      st.map((q, i) => `<tr class="${q.player ? 'me' : ''}"><td class="num">${q.excl ? '除' : i + 1}</td><td class="nm">${setsuEsc(q.name)}</td><td>${setsuClsJa(q.cls)}</td><td class="num">${setsuRate(q).toFixed(2)}</td><td class="num runs">${q.runs.map(setsuMark).join(' ')}</td></tr>`).join('') + `</tbody></table><p>予選は 1着10・2着8・3着6・4着4・5着2・6着1点の平均（得点率）。不良航法は${SETSU.furyoPts}点（2回で賞典除外、準優勝戦なら優勝戦に乗れません）。妨害失格は${SETSU.dqPts}点で賞典除外。フライング・出遅れは賞典除外（準優・優勝戦に乗れません）。上位18人が5日目の準優勝戦へ、準優の1・2着が優勝戦へ。</p>`;
   } else if (setsuTab === 'seibi') {
     h += setsuMotorLine(me) + setsuSeibi();
   }

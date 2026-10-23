@@ -82,7 +82,7 @@ const venueOf = key => VENUES[key] || VENUES.standard;
 
 // ---- 節間：日程・得点・級の人数・ペラ・摩耗
 const SETSU = {
-  days: 6, perDay: 12, pts: [10, 8, 6, 4, 2, 1], foulPts: -5, furyoPts: -10,
+  days: 6, perDay: 12, pts: [10, 8, 6, 4, 2, 1], foulPts: -7, furyoPts: -10, dqPts: -15,
   cls: { A1: 8, A2: 10, B1: 24, B2: 5 },
   skill: { TOP: 1.0, A1: 0.7, A2: 0.35, B1: 0, B2: -0.45 },
   clsSG: { TOP: 10, A1: 38 },
