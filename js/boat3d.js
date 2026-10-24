@@ -140,7 +140,7 @@
     const capsized=finite(b.cap)>0&&!b.fallen;
     // The race's bank value is already smoothed by the physics engine.
     const bank=capsized?Math.PI:-limit(b.bank,-.65,.65);
-    const nose=capsized?0:-limit((b.wil||0)*.30+(b.porp||0)*.045*Math.sin(t*18)+(b.hv||0)*.025,-.12,.4);
+    const nose=capsized?0:-limit((b.wil||0)*.30+(b.trim||0)*.14+(b.porp||0)*.045*Math.sin(t*18)+(b.hv||0)*.025,-.12,.4);
     angles.BoatRoot=[nose,0,bank];
     angles.RacerHips=[0,0,-roll*.16];
     angles.RacerTorso=[pitch*.44,0,-roll*.30];

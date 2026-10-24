@@ -765,9 +765,15 @@ function hapticsFrame(dt, b) {
    in that window fires it (input.willie, read once by the physics). WILLIE_IN.needDrop: the lever must also have been
    let go (below `drop`) within `dropWin` s before — off for now. */
 const WILLIE_IN = { back: -0.55, rel: -0.25, gap: 0.35, win: 0.4, thr: 0.95, needDrop: false, drop: 0.6, dropWin: 1.0 };
-const willieIn = { t: 0, down: false, tap1: -9, armed: -9, dropAt: -9, prevThr: 0 };
+const willieIn = { t: 0, down: false, tap1: -9, armed: -9, dropAt: -9, prevThr: 0, fwdAt: -9, snapDown: false };
+/* 後ろ重心 (d173, まえ): the posture thrown back hard — from level or forward to well back within `within` s — lifts the bow
+   (input.trimSnap, read once by the physics). A slow lean back is just sitting up. */
+const TRIM_IN = { from: 0, back: -0.55, rel: -0.25, within: 0.18 };
 function willieDetect(tp, dt) {
   const w = willieIn, P = WILLIE_IN; w.t += dt;
+  if (tp >= TRIM_IN.from) w.fwdAt = w.t;
+  if (!w.snapDown && tp < TRIM_IN.back) { w.snapDown = true; if (w.t - w.fwdAt < TRIM_IN.within) input.trimSnap = true; }
+  else if (w.snapDown && tp > TRIM_IN.rel) w.snapDown = false;
   if (input.thr < P.drop) w.dropAt = w.t;
   if (!w.down && tp < P.back) { w.down = true; if (w.t - w.tap1 < P.gap) { w.armed = w.t; w.tap1 = -9; } else w.tap1 = w.t; }
   else if (w.down && tp > P.rel) w.down = false;

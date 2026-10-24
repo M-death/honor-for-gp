@@ -16,7 +16,7 @@ function tick(now) {
   }
   pollPadButtons(dt);
   if (running && !paused) {
-    if (fleet && playerActive()) { const sd = dt * (now < slowUntil ? CUTIN.slow : 1); updateInput(dt); fleetStep(sd / 2, input); fleetStep(sd / 2, input); cutinCheck(); const pr = playerRow(); if (pr && playerRacing(pr)) hapticsFrame(dt, pr.b); }   // practice runs in real time
+    if (fleet && playerActive()) { updateInput(dt); fleetStep(dt / 2, input); fleetStep(dt / 2, input); cutinCheck(); const pr = playerRow(); if (pr && playerRacing(pr)) hapticsFrame(dt, pr.b); }   // practice runs in real time
     else if (fleet) { const n = Math.ceil(simSpeed * 2); for (let i = 0; i < n; i++) fleetStep(dt * simSpeed / n, input); }
     else { updateInput(dt); step(dt / 2); step(dt / 2); hapticsFrame(dt, B); }
   }

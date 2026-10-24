@@ -92,6 +92,10 @@ const SETSU = {
   tilts: [-0.5, 0, 0.5, 1, 1.5, 2, 3],
   key: 'hfgp-setsu-v1',
   minWt: { m: 52, f: 47 },
+  // d172 体格 (まえ; the life-sim will go deeper): height in cm. 養成所 takes no one over 175 cm, but now and then a rider
+  // grew after debut. Taller = the monkey kick and reach (a touch more grip in the turn) but more body in the wind and a
+  // heavier natural weight to keep down (wPerCm); shorter = the reverse. Health cost of cutting weight: life-sim.
+  body: { hMean: { m: 165, f: 157 }, hSd: 4.5, hMax: 175, growP: 0.02, growMax: 4, wPerCm: 0.3, ref: 165, gripPerCm: 0.002, dragPerCm: 0.0004, femaleP: 0.13 },
   wear: { hi: 0.002, mid: 0.004, lo: 0.007 }, durJa: { hi: '高', mid: '並', lo: '低' }, recover: 0.6,
   get season() { return SEASONS; },
   dayJa: ['前検日', '初日', '2日目', '3日目', '4日目', '5日目（準優勝戦）', '最終日（優勝戦）'],

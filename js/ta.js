@@ -191,5 +191,9 @@ function taDrawGhost() {
   let da = g[j + 5] - g[j + 2]; da = Math.atan2(Math.sin(da), Math.cos(da));
   const gb = { x: g[j] + (g[j + 3] - g[j]) * f, y: g[j + 1] + (g[j + 4] - g[j + 1]) * f, a: g[j + 2] + da * f,
     v: Math.hypot(g[j + 3] - g[j], g[j + 4] - g[j + 1]) / TA.ghostDt, vl: 0, yaw: 0, porp: 0, cap: 0, load: 0 };
+  // d170 (まえ: the ghost didn't slide): only x, y, heading are stored, so the slip comes from the path — the way it travels
+  // against the way it points, as physics.js b.slip — and drawBoatAt swings the stern out the same as a live boat
+  const dx = g[j + 3] - g[j], dy = g[j + 4] - g[j + 1], fx = Math.cos(gb.a), fy = Math.sin(gb.a);
+  gb.slip = Math.atan2(-fy * dx + fx * dy, Math.max(0.05, fx * dx + fy * dy));
   ctx.save(); ctx.globalAlpha = 0.38; drawBoatAt(gb, GHOST_IN, GHOST_STYLE, false); ctx.restore();
 }

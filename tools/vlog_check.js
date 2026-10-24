@@ -50,5 +50,11 @@ console.log(`decided ${T.decidedSec}  post-roll ${T.postRoll ? `${T.postRoll.fro
 console.log(`boats ${o.boatOrder.join(',')}  events ${o.events.length}  ${Object.entries(kinds).map(([k, n]) => `${k}:${n}`).join(' ')}`);
 if (R.order) console.log(`result ${R.order.map(r => `${r.place}-${r.no}`).join(' ')}  決まり手 ${R.kimarite ?? '—'}  1着タイム ${R.winnerTime != null ? R.winnerTime.toFixed(2) : '—'}`);
 else if (R.mode === 'ta') console.log(`タイムアタック time ${R.time != null ? R.time.toFixed(2) : '記録なし'} rank ${R.rank ?? '—'}`);
+// d171: highlights (formatFeatures highlights-v1; older files have none)
+if (o.highlights && Array.isArray(o.highlights.list)) {
+  const L = o.highlights.list;
+  for (const h of L) if (!(h.t0 <= h.peak && h.peak <= h.t1)) fail(`highlight ${h.id} window out of order`);
+  console.log(`highlights ${L.length}  top: ` + L.filter(h => h.top).map(h => `${h.kind}${h.note ? '(' + h.note + ')' : ''} ${h.t0}–${h.t1}s [${h.boats.join(',')}] ${h.score}`).join(' / '));
+}
 const fi = process.argv.indexOf('--frame');
 if (fi > 0) { const f = o.frames[+process.argv[fi + 1]]; if (f) { console.log(`frame t=${f[0]}`); o.boatOrder.forEach((no, k) => console.log(`  ${no}: ` + FIELDS.map((n, j) => `${n}=${f[1 + k][j]}`).join(' '))); } }

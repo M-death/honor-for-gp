@@ -1,6 +1,6 @@
 # 動画用レースログ（hfgp-video-replay 形式 版1）
 
-d164 で実装。指示書 `HFGP_video_log_implementation_spec_v2.md`（動画制作用ログ強化・実装指示書【意見反映版】）に沿っています。リプレイ動画アプリはこのファイルを読みます。
+d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）を追加。指示書 `HFGP_video_log_implementation_spec_v2.md`（動画制作用ログ強化・実装指示書【意見反映版】）に沿っています。リプレイ動画アプリはこのファイルを読みます。
 
 ## 1. 使い方（ゲーム側）
 
@@ -27,15 +27,15 @@ d164 で実装。指示書 `HFGP_video_log_implementation_spec_v2.md`（動画�
 ## 4. ファイルの中身
 
 ```
-{ format: "hfgp-video-replay", formatVersion: 1, gameVersion, raceId, createdAt,
+{ format: "hfgp-video-replay", formatVersion: 1, formatFeatures: ["highlights-v1"], gameVersion, raceId, createdAt,
   header: { mode, sg, setsu, entryResult, entries[], playerNo, conditions, venue, units, flags, model, audio, effectSeed },
   timing: { sampleHz: 60, requestedStartSec: -20, sampleOriginSec, actualStartSec, actualEndSec, samples, decidedSec, postRoll },
-  boatOrder: [1,2,3,4,5,6], fields: [...26 項目], events: [...], results: {...}, terminalSnapshot, quality,
+  boatOrder: [1,2,3,4,5,6], fields: [...26 項目], events: [...], results: {...}, highlights: {...}, terminalSnapshot, quality,
   frames: [ [t, [艇1の26値], [艇2の26値], …], … ] }
 ```
 
 - `frames` の艇の並びは `boatOrder` の順です。値の並びは `fields` の順です。
-- `entries[]` には、艇番、名前、級、色（`colors` = [艇体, 番号]）、コース、スロー/ダッシュ、プレイヤーかどうか、モーター（deashi / mawari / nobi）、チルトが入ります。
+- `entries[]` には、艇番、名前、級、色（`colors` = [艇体, 番号]）、コース、スロー/ダッシュ、プレイヤーかどうか、モーター（deashi / mawari / nobi）、チルト、体格 `body` が入ります。`body = {sex: "m"/"f", heightCm, weightKg, rideWeightKg}`（d172。`rideWeightKg` は最低体重に満たないとき重りを足した乗艇時の重さ）。身長と性別でレーサーモデルの見た目を変えてください（体重は見た目には使わなくて構いません）。タイムアタックと、節間以外のレースのプレイヤーは標準の体格（男子・165cm・52kg）です。
 - `conditions` には、周回数（2周戦なら2）、風向き、風速、風ベクトル、潮流、波、雨、安定板、気温、潮位が入ります。
 - `effectSeed` は raceId から作ったハッシュです。しぶきなどの演出の乱数に使ってください（ゲームの乱数は進めていません）。
 - `terminalSnapshot` は最後の時刻（決着の5秒後）の全艇の状態です。
@@ -111,6 +111,7 @@ d164 で実装。指示書 `HFGP_video_log_implementation_spec_v2.md`（動画�
 | result_assigned | `{place}` 走らずに結果が割り当てられた |
 | skip | 結果へスキップ |
 | willie_start / willie_end | ウィリーの始まりと終わり |
+| trim_pop | d173：後ろ重心で舳先を上げた瞬間（`push` 0〜1 = ターン出口の加速が乗った度合い。0 は直線で上げただけ）。舳先は約0.25秒で最大（約6°）、前傾に戻すとすぐ下がる。姿勢の前後（`pitch`）でも舳先の高さは変わる（後ろ＝少し上がる、前＝少し下がる）。formatFeatures `trim-pop-v1` |
 | landing | `{v}` 着水（0.5 m/s 超） |
 | bow_dig | 艇首が刺さった |
 | wake_hit | `{bump}` 引き波の衝撃（0.3 超） |
@@ -119,11 +120,39 @@ d164 で実装。指示書 `HFGP_video_log_implementation_spec_v2.md`（動画�
 | discontinuity | `{dist}` 瞬間移動 |
 | race_end | `{reason, note}` |
 | postroll_start / coast_start / coast_end | 後走の区切り |
+| slit | （d171）`{boats: [{no, course, dash, gapM, kmh, flying}]}` 先頭艇がスタートラインに届いた瞬間の隊形。`no` = 先頭艇、`gapM` = 先頭艇の艇首から何m後ろか |
+| first_turn | （d171）`{kimarite, order}` 1周目1Mが終わった時点（結果画面の決まり手と同じ判定）。`no` = その時点の先頭 |
+| pass | （d171）`{other, place, lead, where, lap}` 順位の入れ替わり（1秒続いたものだけ、t は入れ替わった時刻）。`no` = 抜いた艇、`place` = 抜いた後の順位、`where` = 1M / 2M / straight |
+| bow_overlap | （d171）`{other, sec, depthM, level, where, lap}` 舳先がかかった（ターンの手前40mとターン中、内の艇の艇首が外の艇の艇尾より前）。`no` = 内の艇、`other` = 外の艇、`level` = bow / cockpit（操縦席まで入った）、t は始まり。d172 から `outerPlan`（外の艇：first 先に回る / sashi 内を先に回らせて差す / makuri まくる）と `innerPlan`（内の艇：early 先マイ / check けん制 / yield 引いて差す）、CPU でなければ null |
+| duel | （d171）`{other, sec, bestPlace}` 横並びの競り合い（前後4m・左右7m以内が1.5秒以上）。t は始まり |
 
 ### 4.4 結果（results）
 
 - レース：`order[]` = `{no, place, course, st, finishT, resultAssigned, dq, out, flying, relegated, fouls, finished}`、`kimarite`、`locked`、`caution`、`photo[]`、`winnerTime`。place は結果画面と同じ表記です（"1"〜、"F"、"L"、"転"、"落"、"失"）。
 - タイムアタック：`{mode: "ta", st, laps[], time, rank, noRecord}`。
+
+### 4.5 見どころ（highlights、d171）
+
+`highlights = { version: 1, scoreScale, top, list: [...] }`。`list` の1件は `{id, kind, t0, t1, peak, score, boats, note?, top}` です。
+
+| kind | 元になるイベント | 窓 | score |
+|---|---|---|---|
+| start | slit / st | −4 秒 〜 スリット+3 秒 | 7 |
+| first_turn | 1周目1Mの mark 〜 first_turn | 最初の艇の1M −2 秒 〜 判定+1 秒（最長12秒） | 10（`note` = 決まり手） |
+| pass | pass | −3 〜 +2 秒 | 先頭を奪う 9 / 2着争い 6 / 3着争い 5 / ほか 3 |
+| bow_overlap | bow_overlap | 始まり−1 〜 終わり+1 秒 | cockpit 6 / bow 4 |
+| duel | duel | 始まり−1 〜 終わり+1 秒 | 3 + 秒数/2（最大8）、2着以内の争いは+1 |
+| accident | capsize / fall | −4 〜 +3 秒 | 8 |
+| dump | dump | −2 〜 +2 秒 | 5 |
+| willie | willie_start | −1.5 〜 +2.5 秒 | 4 |
+| photo_finish | photo | −4 〜 +2 秒 | 9 |
+| winner_finish | finish（1着） | −4 〜 +3 秒 | 6 |
+
+- 1周目1Mの最中の pass は first_turn にまとめ、pass としては出しません（イベントには残ります）。
+- 同じ種類で時間が重なるものは1件にまとめます（pass は同じ艇が抜いたもの、accident は全部、ほかは同じ組）。
+- `top: true` は、score の高い順に時間が重ならないものを最大6件選んだものです（ダイジェスト用）。
+- `peak` はカメラを寄せたりスローにしたりする中心の時刻です。
+- 使い方の指示書：`REPLAY_HIGHLIGHTS.md`。
 
 ## 5. 音の作り直し
 
@@ -163,10 +192,13 @@ d164 で実装。指示書 `HFGP_video_log_implementation_spec_v2.md`（動画�
 
 `node tools/vlog_check.js <file.json.gz|file.json> [--frame N]`
 
+d171 から、見どころがあれば件数と top の一覧も表示します（窓の時刻の順番が正しいかも確認します）。
+
 形式名、版、fields、全フレームの形、1/60 の時刻、イベントの順番、件数とサイズの上限を確認し、要約を表示します。壊れた gzip、JSON でないもの、版違い、配列の長さが合わないもの、時刻が戻るものは NG として止めます。
 
 ## 9. 版の決まり
 
 - fields を足したり並べ替えたりしたら、`formatVersion` を上げます。
+- イベントの種類や `highlights` のように、読まなくても他が壊れない追加は版を上げず、`formatFeatures` に名前を足します（d171: `highlights-v1`）。読む側は知らない機能名とイベントの種類を無視してください。
 - 読む側は、知らない版は読まずに止めます（項目数を推測しない）。
 - 3Dモデルの仕様は `header.model.specId`（今は `boat3d-d163`、MODEL_3D.md 参照）、コースは `venue.venueId` と `courseVersion` です。

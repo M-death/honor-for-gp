@@ -5,7 +5,7 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
   audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163', venueId: 'standard', courseVersion: 1,
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
@@ -15,6 +15,11 @@ const VL_DEC = [2, 2, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3, 3, null, null
 const VL_ANGLE = new Set([2, 5]);                 // heading, slip: interpolate the short way round ±π
 const VL_STEP = new Set([18, 19, 20, 21, 22]);    // flags, lap, rank, fx, fy: never blended, nearest step
 const VL_FLAG = { capHull: 1, fallen: 2, retired: 4, dq: 8, flying: 16, finished: 32, relegated: 64, player: 128, jump: 256 };
+// d171 見どころ (まえ: make the replay log richer for the video app's camera and slow motion): the game writes down the
+// moments it already judges — the slit line-up, how the first turn went (決まり手), every change of place that held,
+// a bow in on the boat outside going into a turn (舳先がかかる), long side-by-side fights — and a scored list of
+// highlight windows built from all the events. Still read-only: nothing here touches the race.
+const VL_HL = { passHold: 1.0, near: 40, ovL: [0.5, 6], ovF: [-12, 2], ovMin: 0.3, duelF: 4, duelL: 7, duelMin: 1.5, top: 6 };
 let vlOn = true;
 try { vlOn = localStorage.getItem('honorGP.vlog') !== 'off'; } catch (e) {}
 let vlHold = false;   // 6艇デモ: wait on the result so this race can be saved (not saved by itself — the button still has to be pressed)
@@ -77,6 +82,7 @@ VR = (() => {
       const wil = (b.wilT || 0) > 0, bump = b.wakeBump || 0, vis = row.r ? row.r.vis || 0 : 0;
       if (wil && !p.wil) ev('willie_start', row.no, null);
       if (!wil && p.wil) ev('willie_end', row.no, null);
+      if (b.snapAt != null && p.snapAt != null && b.snapAt !== p.snapAt) ev('trim_pop', row.no, { push: +(b.kickK || 0).toFixed(2) });   // d173 後ろ重心: the bow thrown up
       if (b.landAge === 0 && p.landAge !== 0 && (b.landV || 0) > VLOG.landEv) ev('landing', row.no, { v: b.landV });
       if (b.stuckAge === 0 && p.stuckAge !== 0) ev('bow_dig', row.no, null);
       if (bump > VLOG.bumpEv && !(p.bump > VLOG.bumpEv)) ev('wake_hit', row.no, { bump });
@@ -88,8 +94,108 @@ VR = (() => {
         if (ret && !p.ret) ev('retire', row.no, null);
         p.ret = ret;
       }
-      Object.assign(p, { wil, bump, vis, landAge: b.landAge, stuckAge: b.stuckAge }); R.prevBoat.set(b, p);
+      Object.assign(p, { wil, bump, vis, landAge: b.landAge, stuckAge: b.stuckAge, snapAt: b.snapAt ?? -9 }); R.prevBoat.set(b, p);
     }
+  }
+  // 見どころ: the race's own judgements, read off the fleet each step (no RNG, no writes)
+  const runningNow = r => !r.out && !r.dq && !r.flying && !(r.b.cap > 0) && r.fin == null && !r.skipped;
+  const zoneOf = b => b.x > MK - VL_HL.near ? '1M' : b.x < -(MK - VL_HL.near) ? '2M' : 'straight';
+  function plays() {
+    if (R.solo || R.zeroT == null || time < R.zeroT || !fleet) return;
+    const P = R.pl || (R.pl = { pair: new Map(), ov: new Map(), duel: new Map(), slit: false, k1: false, live: false });
+    // スリット: the line-up the moment the first boat reaches the start line
+    if (!P.slit && fleet.boats.some(r => r.st != null)) {
+      P.slit = true;
+      const bx = new Map(fleet.boats.map(r => [r, boatBow(r.b).x])), lead = Math.max(...bx.values());
+      const first = fleet.boats.find(r => bx.get(r) === lead);
+      ev('slit', first.no, { boats: fleet.boats.map(r => ({ no: r.no, course: r.trait.course, dash: !r.trait.slow, gapM: +(lead - bx.get(r)).toFixed(2), kmh: +(r.b.v * 3.6).toFixed(1), flying: !!r.flying })) });
+    }
+    // 1周1M が終わった（決まり手の判定と同じ時点）
+    if (!P.k1 && fleet.k1) {
+      P.k1 = true; const L = fleet.k1.lead;
+      ev('first_turn', L.no, { kimarite: kimariteOf(L), order: fleet.rank.filter(r => !r.out && !r.dq && !r.flying).map(r => r.no) });
+    }
+    const run = fleet.boats.filter(runningNow), order = fleet.rank.filter(r => run.includes(r)), pos = new Map(order.map((r, i) => [r, i]));
+    // passes and fights count from the first boat reaching the 1M approach — before that it is the start's line-up (スリット)
+    if (!P.live) { if (!run.some(r => r.b.x > MK - VL_HL.near)) return; P.live = true; }
+    for (let i = 0; i < run.length; i++) for (let j = i + 1; j < run.length; j++) {
+      const a = run[i], b = run[j], k = a.no * 10 + b.no;
+      // 順位の入れ替わり: the new order has to hold for passHold s; the event is dated when it changed
+      const ahead = pos.get(a) < pos.get(b), s = P.pair.get(k);
+      if (!s) P.pair.set(k, { st: ahead, cand: null });
+      else if (ahead === s.st) s.cand = null;
+      else if (s.cand == null) s.cand = time;
+      else if (time - s.cand >= VL_HL.passHold) {
+        s.st = ahead; const w = ahead ? a : b, o = ahead ? b : a;
+        ev('pass', w.no, { other: o.no, place: pos.get(w) + 1, lead: pos.get(w) === 0, where: zoneOf(w.b), lap: w.laps + 1 }, s.cand); s.cand = null;
+      }
+      // 舳先がかかる (the CPU's own test, race.js): going into or through a turn, the inside boat's bow past the outside boat's stern
+      for (const [A, q] of [[a, b], [b, a]]) {
+        const ko = q.no * 10 + A.no, fx = Math.cos(A.b.a), fy = Math.sin(A.b.a), dx = q.b.x - A.b.x, dy = q.b.y - A.b.y;
+        const f = dx * fx + dy * fy, l = -dx * fy + dy * fx, qBow = f + BOW_TIP;
+        const on = zoneOf(A.b) !== 'straight' && l < -VL_HL.ovL[0] && l > -VL_HL.ovL[1] && f > VL_HL.ovF[0] && f < VL_HL.ovF[1] && qBow > -HESAKI.stern;
+        const o = P.ov.get(ko);
+        if (on) { const d = qBow + HESAKI.stern; if (!o) P.ov.set(ko, { T: time, d, cock: qBow >= HESAKI.deep, where: zoneOf(A.b), lap: A.laps + 1 }); else { o.d = Math.max(o.d, d); o.cock = o.cock || qBow >= HESAKI.deep; }
+          const po = P.ov.get(ko); if (A.b.hzPlan && A.b.hzPlan.side === 'out') po.outPlan = A.b.hzPlan.plan; if (q.b.hzPlan && q.b.hzPlan.side === 'in') po.inPlan = q.b.hzPlan.plan; }
+        else if (o) { closeOv(ko, o); P.ov.delete(ko); }
+      }
+      // 競り合い: hulls level (overlapping along the heading) and close side by side, kept up
+      const fx = Math.cos(a.b.a), fy = Math.sin(a.b.a), dx = b.b.x - a.b.x, dy = b.b.y - a.b.y;
+      const level = Math.abs(dx * fx + dy * fy) < VL_HL.duelF && Math.abs(-dx * fy + dy * fx) < VL_HL.duelL, du = P.duel.get(k);
+      const best = Math.min(pos.get(a), pos.get(b)) + 1;
+      if (level) { if (!du) P.duel.set(k, { T: time, a: a.no, b: b.no, best, last: time }); else { du.best = Math.min(du.best, best); du.last = time; } }
+      else if (du) { closeDuel(k, du); P.duel.delete(k); }
+    }
+    // a boat that drops out ends its overlaps and fights
+    for (const [k, o] of P.ov) if (!run.some(r => r.no === Math.floor(k / 10)) || !run.some(r => r.no === k % 10)) { closeOv(k, o); P.ov.delete(k); }
+    for (const [k, du] of P.duel) if (!run.some(r => r.no === du.a) || !run.some(r => r.no === du.b)) { closeDuel(k, du); P.duel.delete(k); }
+  }
+  function closeOv(k, o) { const sec = time - o.T; if (sec >= VL_HL.ovMin) ev('bow_overlap', Math.floor(k / 10), { other: k % 10, sec: +sec.toFixed(2), depthM: +o.d.toFixed(2), level: o.cock ? 'cockpit' : 'bow', where: o.where, lap: o.lap, outerPlan: o.outPlan || null, innerPlan: o.inPlan || null }, o.T); }
+  function closeDuel(k, du) { const sec = du.last - du.T; if (sec >= VL_HL.duelMin) ev('duel', du.a, { other: du.b, sec: +sec.toFixed(2), bestPlace: du.best }, du.T); }
+  function flushPlays() {
+    if (!R || !R.pl) return;
+    for (const [k, o] of R.pl.ov) closeOv(k, o);
+    for (const [k, du] of R.pl.duel) closeDuel(k, du);
+    R.pl.ov.clear(); R.pl.duel.clear();
+  }
+  // the highlight list for the video app: windows (t0–t1, peak) scored 1–10, the best few that do not overlap marked top
+  function highlights(E) {
+    const H = [], add = (kind, t0, t1, peak, score, boats, note) => H.push({ kind, t0, t1, peak, score, boats: [...new Set(boats)], ...(note ? { note } : {}) });
+    const first = (type, f = () => true) => E.find(e => e.type === type && f(e));
+    const p0 = e => e.payload || {};
+    const slit = first('slit'), sts = E.filter(e => e.type === 'st');
+    if (sts.length) { const tS = slit ? slit.t : Math.min(...sts.map(e => e.t)); add('start', -4, tS + 3, tS, 7, slit ? [slit.no] : sts.map(e => e.no)); }
+    const m1 = first('mark', e => p0(e).mark === '1M' && p0(e).lap === 1), ft = first('first_turn');
+    if (m1) add('first_turn', m1.t - 2, Math.min((ft ? ft.t : m1.t + 6) + 1, m1.t + 12), m1.t + 1.5, 10, ft ? [ft.no] : [m1.no], ft ? p0(ft).kimarite : null);
+    for (const e of E) {
+      const p = p0(e);
+      if (e.type === 'pass' && m1 && ft && e.t >= m1.t - 2 && e.t <= ft.t) continue;   // part of the first turn
+      if (e.type === 'pass') add('pass', e.t - 3, e.t + 2, e.t, p.place === 1 ? 9 : p.place === 2 ? 6 : p.place === 3 ? 5 : 3, [e.no, p.other], p.where);
+      else if (e.type === 'bow_overlap') add('bow_overlap', e.t - 1, e.t + p.sec + 1, e.t + p.sec / 2, p.level === 'cockpit' ? 6 : 4, [e.no, p.other], p.where);
+      else if (e.type === 'duel') add('duel', e.t - 1, e.t + p.sec + 1, e.t + p.sec / 2, Math.min(8, 3 + Math.round(p.sec / 2)) + (p.bestPlace <= 2 ? 1 : 0), [e.no, p.other]);
+      else if (e.type === 'capsize' || e.type === 'fall') add('accident', e.t - 4, e.t + 3, e.t, 8, [e.no]);
+      else if (e.type === 'dump') add('dump', e.t - 2, e.t + 2, e.t, 5, [e.no, p.other]);
+      else if (e.type === 'willie_start') add('willie', e.t - 1.5, e.t + 2.5, e.t + 0.5, 4, [e.no]);
+      else if (e.type === 'photo') add('photo_finish', e.t - 4, e.t + 2, e.t, 9, [e.no, p.other]);
+      else if (e.type === 'finish' && p.place === 1) add('winner_finish', e.t - 4, e.t + 3, e.t, 6, [e.no]);
+    }
+    // the same kind overlapping in time is one moment (a boat passing two at once, a pile-up)
+    H.sort((a, b) => a.t0 - b.t0);
+    const out = [];
+    for (const h of H) {
+      const m = out.find(o => o.kind === h.kind && h.t0 < o.t1 && (h.kind === 'accident' || (h.kind === 'pass' ? o.boats[0] === h.boats[0] : h.boats.every(n => o.boats.includes(n)))));
+      if (m) { m.t1 = Math.max(m.t1, h.t1); if (h.score > m.score) { m.score = h.score; m.peak = h.peak; if (h.note) m.note = h.note; } m.boats = [...new Set(m.boats.concat(h.boats))]; }
+      else out.push(h);
+    }
+    const lo = E.length ? Math.min(...E.map(e => e.t)) : -VLOG.pre, hi = R.endT != null ? rt(R.endT) + VLOG.post : Infinity;
+    out.forEach((h, i) => { h.id = i + 1; h.t0 = Math.max(lo, +h.t0.toFixed(2)); h.t1 = Math.min(hi, +h.t1.toFixed(2)); h.peak = +Math.min(h.t1, Math.max(h.t0, h.peak)).toFixed(2); h.top = false; });
+    const picked = [];
+    for (const h of out.slice().sort((a, b) => b.score - a.score || a.t0 - b.t0)) {
+      if (picked.length >= VL_HL.top) break;
+      if (picked.some(o => h.t0 < o.t1 && o.t0 < h.t1)) continue;
+      h.top = true; picked.push(h);
+    }
+    return out;
   }
   function store(vals, t) {
     if (!R.cur || R.curN === VLOG.chunk) {
@@ -131,6 +237,7 @@ VR = (() => {
     const V = new Float64Array(R.nb * VL_NF);
     rows.forEach((row, k) => snap(V, k, row, rankOf));
     watch(rows);
+    plays();
     const c = { T: time, V, jump: false };
     if (R.prev) {
       const dt = c.T - R.prev.T;
@@ -162,6 +269,7 @@ VR = (() => {
   function finish(reason, at, note) {
     if (!R || R.endT != null) return;
     R.endT = at != null ? at : time; R.endReason = reason; R.endNote = note || null;
+    flushPlays();
     ev('race_end', null, { reason, note: note || null }, R.endT);
     ev('postroll_start', null, null, R.endT);
     if (reason === 'ram_limit') { R.state = 'READY'; R.postSrc = 'none'; }
@@ -213,10 +321,12 @@ VR = (() => {
   const rnd = (v, d) => { if (!Number.isFinite(v)) return null; if (d == null) return Math.round(v); const m = 10 ** d; const r = Math.round(v * m) / m; return r === 0 ? 0 : r; };
   const boatJson = (V, k) => { const a = new Array(VL_NF), o = k * VL_NF; for (let i = 0; i < VL_NF; i++) a[i] = rnd(V[o + i], VL_DEC[i]); return a; };
   const rt = T => R.zeroT == null ? null : Math.round((T - R.zeroT) * 1e6) / 1e6;
+  // d172 体格 for the rider model (height and sex change the look; weight is the riding weight's source)
+  const bodyJson = bd => bd ? { sex: bd.sex, heightCm: bd.height, weightKg: bd.weight, rideWeightKg: bd.rideWt } : { sex: 'm', heightCm: SETSU.body.ref, weightKg: SETSU.minWt.m, rideWeightKg: SETSU.minWt.m };
   function header() {
-    const ents = R.solo ? [{ no: 1, name: playerName(), class: null, colors: [PLAYER_STYLE.hull, PLAYER_STYLE.num], course: 1, player: true, motor: { deashi: B.deashi ?? 1, mawari: B.mawari ?? 1, nobi: B.nobi ?? 1 }, tilt: B.tilt ?? 0 }]
+    const ents = R.solo ? [{ no: 1, name: playerName(), class: null, colors: [PLAYER_STYLE.hull, PLAYER_STYLE.num], course: 1, player: true, motor: { deashi: B.deashi ?? 1, mawari: B.mawari ?? 1, nobi: B.nobi ?? 1 }, tilt: B.tilt ?? 0, body: bodyJson(null) }]
       : fleet.boats.map(r => ({ no: r.no, name: r.name || (r.player ? playerName() : null), class: r.prof ? profJa(r.prof) : null, colors: r.col, course: r.trait.course, slow: !!r.trait.slow,
-        player: !!r.player, motor: { deashi: r.b.deashi ?? 1, mawari: r.b.mawari ?? 1, nobi: r.b.nobi ?? 1 }, tilt: r.b.tilt ?? 0 }));
+        player: !!r.player, motor: { deashi: r.b.deashi ?? 1, mawari: r.b.mawari ?? 1, nobi: r.b.nobi ?? 1 }, tilt: r.b.tilt ?? 0, body: bodyJson(r.body) }));
     const st = !R.solo && fleet.setsu && fleet.setsu.race;
     const env = R.solo || !waterEnv ? { calm: true, laps: R.solo ? TA.laps : 3 } : { laps: raceLaps(), dir: waterEnv.dir, wind: waterEnv.wind, windVec: { wx: waterEnv.wx, wy: waterEnv.wy },
       tideFlow: waterEnv.cx, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, tideLv: waterEnv.tideLv };
@@ -238,7 +348,7 @@ VR = (() => {
     };
   }
   async function build() {
-    const zr = R.zeroT, o = { format: VLOG.format, formatVersion: VLOG.formatVersion, gameVersion: GAME_VER, raceId: R.id, createdAt: R.createdAt.toISOString() };
+    const zr = R.zeroT, o = { format: VLOG.format, formatVersion: VLOG.formatVersion, formatFeatures: VLOG.formatFeatures, gameVersion: GAME_VER, raceId: R.id, createdAt: R.createdAt.toISOString() };
     if (!R.solo && fleet && fleet.resShown) R.results = results();
     o.header = header();
     const actualEnd = R.origin + (R.n - 1) / VLOG.hz;
@@ -248,6 +358,7 @@ VR = (() => {
     o.fields = VL_FIELDS;
     o.events = R.events.map(e => ({ t: rt(e.T), type: e.type, no: e.no, ...(e.payload ? { payload: e.payload } : {}) })).filter(e => e.t >= R.origin - 1e-6).sort((a, b) => a.t - b.t);
     o.results = R.results || results();
+    o.highlights = { version: 1, scoreScale: '1–10 (10 = the race-deciding moment)', top: 'the best few that do not overlap in time', list: highlights(o.events) };
     o.terminalSnapshot = R.terminal ? { t: Math.round(R.terminal.t * 1e6) / 1e6, boats: o.boatOrder.map((_, k) => boatJson(R.terminal.V, k)) } : null;
     o.quality = { complete: R.endT != null && !!R.terminal && !R.full, endReason: R.endReason, endNote: R.endNote, ramLimited: R.full, physicsSteps: R.q.steps, maxPhysicsStepSec: R.q.maxDt,
       samplesInterpolated: R.n, discontinuities: R.q.jumps, coastFromSec: R.q.coastFrom, missingLeadSec: Math.max(0, R.origin + VLOG.pre), method: 'resampled from physics steps (linear; angles the short way; states nearest)' };

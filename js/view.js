@@ -561,9 +561,9 @@ function drawWake(arr) {
 const PLAYER_STYLE = { hull: '#f4f7f6', num: '#0a2c38', label: '1', helmet: C.lever };
 /* バウンド: drawn from the hull's hop in the physics (d155; d154 was looks only). In the air the hull comes up at the
    camera and its shadow stays on the water; a landing throws a white burst. */
-const BOUNCE_VIEW = { hMax: 0.45, splashT: 0.4, wil: 0.22 };   // wil: ウィリー drawn as this much lift (bow up, riding on the tail)
+const BOUNCE_VIEW = { hMax: 0.45, splashT: 0.4, wil: 0.22, trim: 0.08 };   // wil: ウィリー drawn as this much lift (bow up, riding on the tail); trim: 後ろ重心 (d173) — a third of it
 function boatBounce(b) {
-  return { h: b.cap > 0 ? 0 : clamp(Math.max(b.hop || 0, (b.wil || 0) * BOUNCE_VIEW.wil), 0, BOUNCE_VIEW.hMax), wil: b.cap > 0 ? 0 : b.wil || 0, ls: b.landAge ?? 9, sp: clamp((b.landV || 0) / 4, 0, 1), stuck: (b.stuckAge ?? 9) < 0.3 };
+  return { h: b.cap > 0 ? 0 : clamp(Math.max(b.hop || 0, (b.wil || 0) * BOUNCE_VIEW.wil, Math.max(0, b.trim || 0) * BOUNCE_VIEW.trim), 0, BOUNCE_VIEW.hMax), wil: b.cap > 0 ? 0 : b.wil || 0, pop: b.cap > 0 ? 0 : clamp(b.trimPop || 0, 0, 1), ls: b.landAge ?? 9, sp: clamp((b.landV || 0) / 4, 0, 1), stuck: (b.stuckAge ?? 9) < 0.3 };
 }
 /* 尻の流れ (d166, まえ): drawn only — the race, the hull's collision shape and the CPU are untouched. Coming into a turn
    fast, the stern is drawn swung further out than the physics slide (the bow pointed further in, toward the mark);
@@ -624,6 +624,11 @@ function drawBoatAt(b, inp, sty, focused) {
         ctx.beginPath(); ctx.ellipse(1.6 - u * 3.8, side * (1.05 + h * 0.5 + sl * (0.4 + u * 1.2)), 0.18 + h * 0.18 + sl * 0.15, 0.1 + sl * 0.12, 0, 0, Math.PI * 2); ctx.fill(); }
     }
   }
+  if (bo.pop > 0.15 && bo.wil <= 0.05) {   // 後ろ重心 (d173): the bow pops up and the stern digs in — a short white wash off the transom
+    ctx.fillStyle = `rgba(240,255,250,${0.45 * bo.pop})`;
+    for (let n = 0; n < 5; n++) { const h = hash(n + 90, Math.floor(time * 14)), u = n / 5;
+      ctx.beginPath(); ctx.ellipse(-2.6 - u * 1.6 * bo.pop, (h - 0.5) * (0.5 + u * 0.8), 0.2 + u * 0.2, 0.12 + u * 0.12, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
   if (bo.wil > 0.05) {   // ウィリー: a tall rooster tail off the stern, the hull riding on it
     ctx.fillStyle = `rgba(240,255,250,${0.5 * bo.wil})`;
     for (let n = 0; n < 9; n++) { const h = hash(n + 40, Math.floor(time * 14)), u = n / 9;
@@ -641,6 +646,12 @@ function drawBoatAt(b, inp, sty, focused) {
   ctx.beginPath(); ctx.ellipse(0.12 + sx, 0.4 + inp.roll * 0.25 + sy, 2.55 * (1 - 0.08 * lf), 1.05 * (1 - 0.08 * lf), 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = `rgba(0,18,25,${0.25 + 0.1 * lf})`;
   ctx.beginPath(); ctx.ellipse(-0.15 + sx, 0.22 + sy, 2.15, 0.78, 0, 0, Math.PI * 2); ctx.fill();
+  const tr = b.cap > 0 ? 0 : clamp(b.trim || 0, 0, 1.2);
+  if (tr > 0.05) {   // 舳先が上がる (d173): the bow's shadow falls away from the hull (down-screen), and the bow spray starts further aft
+    const ty = tr * 1.1, tsx = ty * sa, tsy = ty * ca;
+    ctx.fillStyle = `rgba(0,18,25,${0.18 * Math.min(1, tr * 2)})`;
+    ctx.beginPath(); ctx.ellipse(1.1 + tr * 0.4 + tsx, 0.25 + tsy, 1.0, 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  }
   if (lift > 0.005) ctx.scale(1 + lf * 0.28, 1 + lf * 0.2);   // nearer the camera
   // Bow spray follows speed and lateral load; it is entirely visual.
   if (b.cap <= 0 && b.v > 5) {
@@ -648,13 +659,14 @@ function drawBoatAt(b, inp, sty, focused) {
     ctx.lineCap = 'round';
     for (const side of [-1, 1]) {
       ctx.strokeStyle = `rgba(232,255,248,${0.32 + speed * .35})`; ctx.lineWidth = .09 + speed * .1;
-      ctx.beginPath(); ctx.moveTo(1.65, side * .38);
-      ctx.bezierCurveTo(.8, side * .96, -.7, side * (1.02 + speed * .3), -2.55, side * (1.1 + speed * .5)); ctx.stroke();
+      const bx = 1.65 - 1.6 * tr;   // bow up: the water leaves the hull further back
+      ctx.beginPath(); ctx.moveTo(bx, side * .38);
+      ctx.bezierCurveTo(Math.min(.8, bx - .5), side * .96, -.7, side * (1.02 + speed * .3), -2.55, side * (1.1 + speed * .5)); ctx.stroke();
       for (let n = 0; n < 7; n++) {
         const h = hash(n + side * 15, Math.floor(time * 12));
         const u = n / 7;
         ctx.fillStyle = `rgba(243,255,250,${(.15 + h * .4) * speed})`;
-        ctx.beginPath(); ctx.ellipse(.8 - u * 3.6,
+        ctx.beginPath(); ctx.ellipse(.8 - 1.4 * tr - u * (3.6 - 1.4 * tr),
           side * (.87 + u * (.35 + Math.abs(b.vl) * .05) + h * .18), .06 + h * .07, .035, -.25 * side, 0, Math.PI * 2); ctx.fill();
       }
     }

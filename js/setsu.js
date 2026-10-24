@@ -37,7 +37,6 @@ function setsuBoatDraw() {
   const h = () => clamp(50 + gauss() * 16, 0, 100), turn = h(), ride = h(), drag = h();
   return { turn, ride, drag, m2: Math.round(clamp(33 + (turn - 50) * 0.18 + (drag - 50) * 0.08 + (ride - 50) * 0.04 + gauss() * 5, 12, 55)) };
 }
-function setsuWeightDraw(sex) { return Math.round((sex === 'f' ? 45.5 + Math.random() * 3 + Math.random() * 2.5 : 50.5 + Math.random() * 3.5 + Math.random() * 3) * 2) / 2; }
 // below the minimum you ride with the orange vest + weights (vest 0.5 kg, weights in 0.5 kg)
 // 個人パラメータ (仮): start / turn / judge around the class anchor, one overall talent, and a 0–100 affinity per course.
 // イン志向 riders like the inside, アウト志向 the outside (that's what makes an イン屋 / アウト屋); others have one pet course now and then
@@ -60,9 +59,9 @@ function setsuNew(name, cls, grade = 'ippan', opt = {}) {
   const racers = [], used = new Set();
   const nm = sex => { const fi = SETSU_MEI.indexOf('美咲'), pool = sex === 'f' ? SETSU_MEI.slice(fi) : SETSU_MEI.slice(0, fi); for (;;) { const s = SETSU_SEI[setsuRand(SETSU_SEI.length)] + ' ' + pool[setsuRand(pool.length)]; if (!used.has(s)) { used.add(s); return s; } } };
   const add = (c, player) => { const sex = player ? (opt.sex || 'm') : Math.random() < 0.13 ? 'f' : 'm'; racers.push({ id: racers.length, name: player ? (name || 'あなた') : nm(sex), cls: c, player: !!player,
-    sex, weight: player && opt.weight ? clamp(+opt.weight, 44, 62) : setsuWeightDraw(sex),
+    sex, height: player && opt.height ? clamp(Math.round(+opt.height), 145, 185) : heightDraw(sex),
     temper: player ? 'normal' : pickW([['calm', 3], ['normal', 5], ['aggr', 2]]), pref: player ? 'waku' : pickW([['waku', 9], ['in', 0.6], ['out', 0.6]]),
-    runs: [], excl: false, tilt: -0.5, prop: 'bal' }); const q = racers[racers.length - 1]; q.skill = setsuSkillDraw(c, q.pref, player); };
+    runs: [], excl: false, tilt: -0.5, prop: 'bal' }); const q = racers[racers.length - 1]; q.weight = player && opt.weight ? clamp(+opt.weight, 44, 62) : weightDraw(sex, q.height); q.skill = setsuSkillDraw(c, q.pref, player); };
   add(cls, true);
   // SG: the best in the country — all A1, with a handful of トップクラス
   for (const [c, n] of Object.entries(sg ? SETSU.clsSG : SETSU.cls)) for (let i = 0; i < n - (c === cls ? 1 : 0); i++) add(c, false);
@@ -182,7 +181,8 @@ function setsuRows(race) {
     const q = setsu.racers[id];
     return { no: i + 1, sid: id, name: q.name, prof: profFor(q.cls, q.player ? null : q.skill), skill: q.player ? null : q.skill, pref: q.player ? 'waku' : q.pref,
              key: i + 1 + (q.pref === 'in' && !q.player ? -2.6 : q.pref === 'out' && !q.player ? 2.6 : 0) + Math.random() * 0.1,
-             temper: q.temper, motor: setsuMotor(q, setsuRaceEnv(race), true), col: LANE_COL[i] };
+             temper: q.temper, motor: setsuMotor(q, setsuRaceEnv(race), true), col: LANE_COL[i],
+             body: { sex: q.sex, height: q.height || SETSU.body.ref, weight: q.weight, rideWt: setsuEffWt(q) } };
   });
 }
 // instant result: Plackett–Luce on course × skill × machine, with the odd フライング and 転覆
@@ -314,7 +314,7 @@ function setsuRaceTable(race) {
     const q = setsu.racers[id];
     const run = res ? q.runs.find(x => x.day === race.day && x.R === race.R) : null;
     const st = res && res.st[id] != null ? (res.st[id] < 0 ? 'F' + (-res.st[id]).toFixed(2).slice(1) : res.st[id].toFixed(2).replace(/^0/, '')) : '';
-    return `<tr class="${q.player ? 'me' : ''}"><td>${setsuChip(i)}</td><td class="nm">${setsuEsc(q.name)}<small> ${q.sex === 'f' ? '♀' : ''}${setsuEffWt(q)}kg${setsuBestCourse(q) ? ` 得意${setsuBestCourse(q)}c` : ''}</small></td><td>${setsuClsJa(q.cls)}</td><td class="num">${setsuRate(q).toFixed(2)}</td><td class="num">${setsuMotorTag(q)}<small>(${q.motor.m2}%)</small> <small>${['low', 'mid', 'top'].map(k => setsuEvMark(setsuEv(q, k))).join('')}</small></td><td class="num pl">${run ? setsuMark(run) : ''}</td><td class="num">${st}</td></tr>`;
+    return `<tr class="${q.player ? 'me' : ''}"><td>${setsuChip(i)}</td><td class="nm">${setsuEsc(q.name)}<small> ${q.sex === 'f' ? '♀' : ''}${q.height ? q.height + 'cm ' : ''}${setsuEffWt(q)}kg${setsuBestCourse(q) ? ` 得意${setsuBestCourse(q)}c` : ''}</small></td><td>${setsuClsJa(q.cls)}</td><td class="num">${setsuRate(q).toFixed(2)}</td><td class="num">${setsuMotorTag(q)}<small>(${q.motor.m2}%)</small> <small>${['low', 'mid', 'top'].map(k => setsuEvMark(setsuEv(q, k))).join('')}</small></td><td class="num pl">${run ? setsuMark(run) : ''}</td><td class="num">${st}</td></tr>`;
   }).join('');
   return `<table class="race st"><thead><tr><th>枠</th><th>選手</th><th>級</th><th>得点率</th><th>モーター<small>(2連率) 出回伸</small></th><th>着</th><th>ST</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -364,7 +364,7 @@ function setsuMotorLine(q) {
   return `<p>モーター ${q.motorNo}号機 2連率 ${mo.m2}% ・ ${rk}<br>`
     + `記者評価：出足 ${setsuEvMark(setsuEv(q, 'low'))} ・ 回り足 ${setsuEvMark(setsuEv(q, 'mid'))} ・ 伸び ${setsuEvMark(setsuEv(q, 'top'))}（◎上位 ○やや上 －並 △やや下 ×下位。あくまで外からの見立て）<br>`
     + `ボート ${q.boatNo}号艇 2連率 ${bt.m2 ?? '—'}%<br>`
-    + `体重 ${q.weight.toFixed(1)}kg${adj ? `（最低${SETSU.minWt[q.sex]}kg：ベスト＋重り ${adj.toFixed(1)}kg）` : ''}</p>`;
+    + `${q.height ? `身長 ${q.height}cm${q.height > SETSU.body.hMax ? '（デビュー後に伸びた）' : ''}　` : ''}体重 ${q.weight.toFixed(1)}kg${adj ? `（最低${SETSU.minWt[q.sex]}kg：ベスト＋重り ${adj.toFixed(1)}kg）` : ''}</p>`;
 }
 function setsuSeibi() {
   const me = setsuMe();
@@ -396,7 +396,7 @@ function setsuStart() {
 if (typeof document !== 'undefined' && document.getElementById('setsu')) {
   $('pmSetsu').addEventListener('click', () => { if (fleet) quitFleet(); setsuStart(); });
   $('pmReplay').addEventListener('click', () => { rpWasPaused = true; rpFromMenu = true; $('pmenu').hidden = true; rpOpen(0); });
-  $('setsuGo').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsuNew($('setsuName').value.trim().slice(0, 12), $('setsuCls').value, $('setsuGrade').value, { sex: $('setsuSex').value, weight: +$('setsuWt').value || 0, season: $('setsuSeason').value }); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
+  $('setsuGo').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsuNew($('setsuName').value.trim().slice(0, 12), $('setsuCls').value, $('setsuGrade').value, { sex: $('setsuSex').value, weight: +$('setsuWt').value || 0, height: +$('setsuHt').value || 0, season: $('setsuSeason').value }); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
   $('setsuResume').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsu = setsuLoad(); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
   $('setsuSex').addEventListener('change', e => { $('setsuWt').value = e.target.value === 'f' ? '48' : '53'; });
   $('setsuNewClose').addEventListener('click', () => { $('setsuNewBox').hidden = true; paused = false; last = performance.now(); });
