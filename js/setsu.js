@@ -175,6 +175,26 @@ function setsuDayEnv(d) { const E = setsu.envs || (setsu.envs = {}); return E[d]
 function setsuRaceEnv(race) { return race.env || (race.env = envRace(venueOf(setsu.venue), setsuDayEnv(race.day), race.R)); }
 const setsuWaterEnv = e => envPhysics(venueOf(setsu && setsu.venue), e);
 const setsuEnvTxt = e => envText(e);
+// 登録番号 (d175, for the replay log): fixed for a rider through the 節 — made from the rider (a hash, no dice), unique in the 節
+function setsuRegNos() {
+  if (setsu.racers.every(q => q.regNo)) return;
+  const used = new Set(setsu.racers.filter(q => q.regNo).map(q => q.regNo));
+  for (const q of setsu.racers) {
+    if (q.regNo) continue;
+    let n = 3001 + strHash(`${q.name}|${q.sex}|${q.height}|${q.cls}`) % 2300;
+    while (used.has(n)) n = n >= 5300 ? 3001 : n + 1;
+    used.add(n); q.regNo = n;
+  }
+}
+// what the replay log tells about a rider (d175, racer-profile-v1). Things the game doesn't have yet stay null
+function setsuProfile(id) {
+  setsuRegNos();
+  const q = setsu.racers[id];
+  return { racerId: q.regNo, name: q.name, nameKana: racerKana(q.name), branch: null, term: null, age: null,
+           stats: { winRate: null, localWinRate: null, top2Rate: null, avgST: null, flying: null, late: null },
+           motorNo: q.motorNo ?? null, boatNo: q.boatNo ?? null, motorTop2Rate: q.motor ? q.motor.m2 : null, boatTop2Rate: q.boat ? q.boat.m2 : null,
+           series: q.runs.map(x => ({ day: x.day, R: x.R, kind: x.kind, waku: x.waku, place: x.place ?? null, mark: x.mark || null, st: x.st != null ? Math.round(x.st * 1000) / 1000 : null })) };
+}
 // 出走表 → the rows the race engine takes
 function setsuRows(race) {
   return race.entries.map((id, i) => {

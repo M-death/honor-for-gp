@@ -5,7 +5,7 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
   audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163', venueId: 'standard', courseVersion: 1,
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
@@ -328,19 +328,43 @@ VR = (() => {
       : fleet.boats.map(r => ({ no: r.no, name: r.name || (r.player ? playerName() : null), class: r.prof ? profJa(r.prof) : null, colors: r.col, course: r.trait.course, slow: !!r.trait.slow,
         player: !!r.player, motor: { deashi: r.b.deashi ?? 1, mawari: r.b.mawari ?? 1, nobi: r.b.nobi ?? 1 }, tilt: r.b.tilt ?? 0, body: bodyJson(r.body) }));
     const st = !R.solo && fleet.setsu && fleet.setsu.race;
+    // d175 racer-profile-v1: who rides (name always, 登録番号, 読み, 成績, motor/boat numbers) and what race this is. Unknown = null
+    const noProf = { racerId: null, nameKana: null, branch: null, term: null, age: null, stats: { winRate: null, localWinRate: null, top2Rate: null, avgST: null, flying: null, late: null },
+                     motorNo: null, boatNo: null, motorTop2Rate: null, boatTop2Rate: null, series: null };
+    const inSetsu = st && typeof setsu !== 'undefined' && setsu && setsu.racers;
+    for (const e of ents) {
+      const r = R.solo ? null : fleet.boats.find(q => q.no === e.no);
+      let pr = { ...noProf, profileScope: 'race' };
+      if (inSetsu && r && r.sid != null && setsu.racers[r.sid]) {
+        pr = { ...setsuProfile(r.sid), profileScope: 'setsu' };
+        pr.series = pr.series.filter(x => !(x.day === st.day && x.R === st.R));   // the 節 so far, before this race
+      }
+      if (!pr.name) pr.name = e.name || (e.player ? playerName() : racerNameFromHash(strHash(R.id + '#' + e.no), e.body.sex));   // a one-off CPU rider gets a made-up name
+      if (pr.nameKana == null) pr.nameKana = racerKana(pr.name);
+      Object.assign(e, pr);
+    }
+    const race = st ? { title: st.kind || null, raceNo: st.R ?? null, grade: setsu.grade === 'sg' ? 'SG' : '一般', venueName: venueOf(setsu.venue).name, date: null, day: st.day ?? null,
+                        dayLabel: SETSU.dayJa[st.day] || null, startTime: st.env && st.env.time || null }
+      : { title: null, raceNo: null, grade: !R.solo && sgMode ? 'SG' : null, venueName: venueOf('standard').name, date: null, day: null, dayLabel: null, startTime: null };
     const env = R.solo || !waterEnv ? { calm: true, laps: R.solo ? TA.laps : 3 } : { laps: raceLaps(), dir: waterEnv.dir, wind: waterEnv.wind, windVec: { wx: waterEnv.wx, wy: waterEnv.wy },
       tideFlow: waterEnv.cx, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, tideLv: waterEnv.tideLv };
     let seedH = 2166136261; for (const ch of R.id) seedH = Math.imul(seedH ^ ch.charCodeAt(0), 16777619) >>> 0;
     return {
-      mode: R.mode, sg: !R.solo && !!sgMode, setsu: st ? { day: st.day, race: st.R, kind: st.kind || null } : null, entryResult: !R.solo && fleet.entryResult ? fleet.entryResult.text : null,
+      mode: R.mode, sg: !R.solo && !!sgMode, race, setsu: st ? { day: st.day, race: st.R, kind: st.kind || null } : null, entryResult: !R.solo && fleet.entryResult ? fleet.entryResult.text : null,
       entries: ents, playerNo: R.solo ? 1 : fleet.playerNo || null, conditions: env,
       venue: { name: '標準', venueId: VLOG.venueId, courseVersion: VLOG.courseVersion, markX: MK, startLineX: 0 },
       units: { x: 'm, +x = right on the 2D screen (toward 1M)', y: 'm, +y = down on the 2D screen', heading: 'rad, 0 = +x, positive turns toward +y', v: 'm/s along the heading',
         bank: 'rad, + = right side down', slip: 'rad, travel direction minus heading', roll: '-1..1 rider lean (+ = right)', pitch: '-1..1 rider posture (+ = crouched, - = sat up)',
         steer: '-1..1 applied rudder', thr: '0..1 applied lever', rpm: '0..1.15 engine pitch index (not revolutions per minute)', vl: 'm/s sideways', yaw: 'rad/s', hop: 'm', hv: 'm/s up', landV: 'm/s at the last landing',
         progress: 'race progress value (not a distance)', t: 's from the big clock reaching zero' },
-      view: typeof DRIFT_VIEW !== 'undefined' && DRIFT_VIEW.on ? { driftView: { gain: DRIFT_VIEW.gain, vLo: DRIFT_VIEW.vLo, vHi: DRIFT_VIEW.vHi, max: DRIFT_VIEW.max,
-        formula: 'drawnHeading = heading - clamp(gain * slip * clamp((v - vLo) / (vHi - vLo), 0, 1), -max, max)  (the game draws the hull at this angle; d166)' } } : null,
+      view: { driftView: typeof DRIFT_VIEW !== 'undefined' && DRIFT_VIEW.on ? { gain: DRIFT_VIEW.gain, vLo: DRIFT_VIEW.vLo, vHi: DRIFT_VIEW.vHi, max: DRIFT_VIEW.max,
+        formula: 'drawnHeading = heading - clamp(gain * slip * clamp((v - vLo) / (vHi - vLo), 0, 1), -max, max)  (the game draws the hull at this angle; d166)' } : null,
+        // d175: the bow's trim (d173), with this version's numbers, so an old log keeps its old look if the game is retuned
+        trim: { up: TRIM.up, down: TRIM.down, vRef: TRIM.vRef, rate: TRIM.rate, k: TRIM.k, c: TRIM.c, snap: TRIM.snap, snapThr0: 0.4, snapThrK: 0.6, downK: 1.5, min: -0.3, max: 1.2,
+          degPerUnit: 8, nose3dRadPerUnit: 0.14, liftMPerUnit: BOUNCE_VIEW.trim,
+          formula: { base: 'trimBase eases toward (up*max(0,-pitch) - down*max(0,pitch)) * clamp(v/vRef, 0, 1) at rate per s (pitch: + crouched, - sat up)',
+            pop: 'at each trim_pop event: popV += snap * (snapThr0 + snapThrK * thr); every step: popV += (-k * (1 + downK*max(0,pitch)) * pop - c * popV) * dt; pop = max(0, pop + popV*dt) (popV = 0 when pop hits 0 going down)',
+            total: 'trim = clamp(trimBase + pop, min, max); bow angle = trim * degPerUnit deg (the game 3D tilts the nose by trim * nose3dRadPerUnit rad and lifts the hull by max(0,trim) * liftMPerUnit m); willie (wil) takes over and zeroes pop' } } },
       flags: VL_FLAG, model: { specId: VLOG.modelSpecId, colorsFrom: 'entries[].colors' },
       audio: { audioProfileId: VLOG.audioProfileId, idle: IDLE, rpmFormula: 'clamp(0.15 + 0.55*(IDLE + (1-IDLE)*thr) + 0.35*v/23 - 0.1*turnLoad, 0, 1.15)',
         pitchHz: '58 + 150*rpm + (no % 6)*1.7', voices: R.solo ? [{ no: 1, detuneHz: 1.7 }] : fleet.boats.map(r => ({ no: r.no, detuneHz: (r.no % 6) * 1.7 })) },

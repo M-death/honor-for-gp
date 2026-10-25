@@ -1,6 +1,6 @@
 # 動画用レースログ（hfgp-video-replay 形式 版1）
 
-d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）を追加。指示書 `HFGP_video_log_implementation_spec_v2.md`（動画制作用ログ強化・実装指示書【意見反映版】）に沿っています。リプレイ動画アプリはこのファイルを読みます。
+d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）、d173 で `trim-pop-v1`、d175 で選手情報（`racer-profile-v1`）を追加。指示書 `HFGP_video_log_implementation_spec_v2.md`（動画制作用ログ強化・実装指示書【意見反映版】）に沿っています。リプレイ動画アプリはこのファイルを読みます。
 
 ## 1. 使い方（ゲーム側）
 
@@ -153,6 +153,48 @@ d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）�
 - `top: true` は、score の高い順に時間が重ならないものを最大6件選んだものです（ダイジェスト用）。
 - `peak` はカメラを寄せたりスローにしたりする中心の時刻です。
 - 使い方の指示書：`REPLAY_HIGHLIGHTS.md`。
+
+### 4.6 選手情報とレース情報（racer-profile-v1、d175）
+
+リプレイ動画アプリからの依頼で、テロップ・出走表・架空オッズ・結果画面に使う値を入れました。`formatFeatures` に `racer-profile-v1` があるファイルに入っています（`formatVersion` は1のまま）。ゲームにまだ無い値は null です。
+
+**`header.entries[]` に足したもの**
+
+| 項目 | 内容 |
+|---|---|
+| `name` | 選手名（全艇に必ず入る）。節間は節の選手名。節間以外のCPUは、このレース限りの仮の名前（raceId と艇番から作る） |
+| `nameKana` | 読み（ひらがな、姓と名の間に半角スペース）。名前の表に無い名前（プレイヤーが付けた名前など）は null |
+| `racerId` | 登録番号（3001〜5300 の整数）。節間では節を通して同じ選手は同じ番号。節間以外は null |
+| `profileScope` | `"setsu"`（節間の選手。racerId が使える）／`"race"`（このレース限りの選手） |
+| `branch`, `term`, `age` | 支部・期・年齢。今のゲームには無いので null |
+| `stats` | `{winRate, localWinRate, top2Rate, avgST, flying, late}`。全国・当地の成績は今のゲームには無いので全部 null |
+| `motorNo`, `boatNo` | モーター・ボートの番号（節間のみ。11〜70） |
+| `motorTop2Rate`, `boatTop2Rate` | モーター・ボートの2連対率（%、節間のみ） |
+| `series` | 節間のこのレースより前の今節成績。`[{day, R, kind, waku, place, mark, st}]`（`place` は着順、`mark` は F・L・転・落・失 など、`st` は秒）。節間以外は null |
+
+体格 `body` は以前から全艇に入っています（§4）。
+
+**`header.race`**
+
+| 項目 | 内容 |
+|---|---|
+| `title` | レース名（予選・ドリーム戦・一般戦・特別選抜・準優勝戦・優勝戦）。節間以外は null |
+| `raceNo` | 何R（節間のみ） |
+| `grade` | 節間：`"SG"` か `"一般"`。節間以外：SGモードなら `"SG"`、ほかは null |
+| `venueName` | 場名の表示（今は「標準水面」） |
+| `date` | ゲーム内の日付。今のゲームには無いので null |
+| `day`, `dayLabel` | 節の何日目（1〜6）と表示（初日・2日目…最終日（優勝戦）） |
+| `startTime` | 発走時刻（例 `"15:10"`、節間のみ） |
+
+**`header.view.trim`**（舳先の式と係数、d173 の値）
+
+`{up, down, vRef, rate, k, c, snap, snapThr0, snapThrK, downK, min, max, degPerUnit, nose3dRadPerUnit, liftMPerUnit, formula}`。式は `formula` に文で入っています。
+
+- 姿勢の舳先：`trimBase` は `(up×max(0,−pitch) − down×max(0,pitch)) × clamp(v/vRef, 0, 1)` へ毎秒 `rate` の速さで近づく。
+- 跳ね上げ：`trim_pop` の時刻に `popV += snap × (snapThr0 + snapThrK × thr)`。毎ステップ `popV += (−k × (1 + downK×max(0,pitch)) × pop − c × popV) × dt`、`pop = max(0, pop + popV×dt)`。
+- 合計：`trim = clamp(trimBase + pop, min, max)`。舳先の角度は `trim × degPerUnit` 度。
+
+ゲーム側で値を変えても、古いログはそのログに入っている値で昔の見た目を再現できます。`header.view` は d175 から常にオブジェクトで、`driftView` は描く向きの補正を切っているときだけ null です（以前は `view` 全体が null）。
 
 ## 5. 音の作り直し
 
