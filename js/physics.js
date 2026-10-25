@@ -97,7 +97,7 @@ function bounceStep(b, t, down, up, dt) {
   const rise = bump - b.bumpRef;
   if (rise > BOUNCE.rise && bump > BOUNCE.bumpMin && b.hop < 0.02 && b.landAge > BOUNCE.gap && b.v > 8) {
     const H = Math.min(BOUNCE.hMax, BOUNCE.h * clamp(bump / BOUNCE.bumpFull, 0, 1.5) * clamp((b.v - 8) / 14, 0, 1.2) * Math.max(0.2, 1 + BOUNCE.down * down - BOUNCE.up * up)
-      * (1 - BOUNCE.lever * (1 - t)) * (b.stabilizer ? BOUNCE.stab : 1) * (1 + BOUNCE.tilt * (b.tilt || 0)));
+      * (1 - BOUNCE.lever * (1 - t)) * (b.stabilizer ? BOUNCE.stab : 1) * (1 + BOUNCE.tilt * (b.tilt || 0)) * (1 + TRIM.bounce * (b.trimPop || 0)));
     b.hv = Math.max(b.hv, Math.sqrt(2 * BOUNCE.g * H)); b.bumpRef = bump;
   }
   if (b.hop <= 0 && b.hv <= 0) return;
@@ -139,7 +139,11 @@ const willieOdds = b => {
    after it: held up, the wind on the body eats it. Real boats: bow up = less wetted hull, prop deeper; too high = porpoise.
    Getting going from near stopped (起こし) the bow is better down, so the pop does nothing below vLo.
    b.trim: −0.3..1.2 (1 ≈ bow 8° up) = trimBase (the posture, looks only) + trimPop (the throw-back), b.kick: s of the pop's push left. ウィリー is the extreme of this. */
-const TRIM = { up: 0.35, down: 0.15, vRef: 12, rate: 4, k: 40, c: 9, snap: 9, cool: 2.0, kick: 0.6, kickT: 0.7, vLo: 7, vFull: 11, vTop: 18, vOff: 21.5, grip: 0.25, turnYaw: 0.3, exitT: 1.5, exitFade: 1.0 };
+const TRIM = { up: 0.35, down: 0.15, vRef: 12, rate: 4, k: 40, c: 9, snap: 9, cool: 2.0, kick: 0.6, kickT: 0.7, vLo: 7, vFull: 11, vTop: 18, vOff: 21.5, grip: 0.25, turnYaw: 0.3, exitT: 1.5, exitFade: 1.0,
+  // d174 リスク (まえ): thrown up too early (still turning hard) or while the hull is skating, the prop comes out and spins (キャビ) instead of
+  // biting; the pop always unsettles the hull a little (load), much more on a wake, sliding, or banked deep — enough to put it over;
+  // a bow up meets a wake and gets thrown higher; held up at speed it starts to porpoise
+  misYaw: 0.35, misSpan: 0.4, slip0: 0.25, slipSpan: 0.25, cavT: 0.5, risk0: 0.15, riskMis: 0.6, riskWake: 0.8, wakeRef: 0.3, riskBank: 0.4, bank0: 0.3, bankSpan: 0.2, load: 3.0, bounce: 1.0, porpTrim: 0.5, porpV: 19, porpRate: 1.5 };
 function trimStep(b, inp, t, down, up, dt) {
   const trimT = (TRIM.up * up - TRIM.down * down) * clamp(b.v / TRIM.vRef, 0, 1);
   if (b.trimBase == null) { b.trimBase = trimT; b.trimPop = 0; b.trimV = 0; b.kick = 0; b.snapAt = -9; b.turnAt = -99; }
@@ -150,7 +154,11 @@ function trimStep(b, inp, t, down, up, dt) {
     if (b.cap <= 0 && !(b.hop > 0.02) && !(b.wilT > 0) && time - b.snapAt > TRIM.cool && b.v > TRIM.vLo) {
       // the push only comes at a turn's exit (the hull still rolled, the prop slipping); on a straight the prop already bites
       const exit = clamp(1 - (time - (b.turnAt ?? -99) - TRIM.exitT) / TRIM.exitFade, 0, 1);
-      b.snapAt = time; b.trimV += TRIM.snap * (0.4 + 0.6 * t); b.kick = TRIM.kickT * exit; b.kickK = exit; b.snapEv = true;
+      const mis = Math.max(clamp((Math.abs(b.yaw || 0) - TRIM.misYaw) / TRIM.misSpan, 0, 1), clamp((Math.abs(b.slip || 0) - TRIM.slip0) / TRIM.slipSpan, 0, 1));
+      const wk = clamp((b.wakeBump || 0) / TRIM.wakeRef, 0, 1), bk = clamp((Math.abs(b.bank || 0) - TRIM.bank0) / TRIM.bankSpan, 0, 1);
+      b.snapAt = time; b.trimV += TRIM.snap * (0.4 + 0.6 * t); b.kick = TRIM.kickT * exit * (1 - mis); b.kickK = exit * (1 - mis); b.snapEv = true;
+      if (mis > 0.3) b.cav = Math.max(b.cav || 0, TRIM.cavT * mis);   // too soon / skating: the prop lets go
+      b.trimRisk = TRIM.risk0 + TRIM.riskMis * mis + TRIM.riskWake * wk + TRIM.riskBank * bk; b.trimMis = mis;
     }
   }
   b.trimBase += (trimT - b.trimBase) * (1 - Math.exp(-TRIM.rate * dt));   // the posture's own trim: looks only
@@ -158,6 +166,7 @@ function trimStep(b, inp, t, down, up, dt) {
   b.trimV += (-TRIM.k * (1 + 1.5 * down) * b.trimPop - TRIM.c * b.trimV) * dt;
   b.trimPop = Math.max(0, b.trimPop + b.trimV * dt); if (b.trimPop <= 0 && b.trimV < 0) b.trimV = 0;
   b.trim = clamp(b.trimBase + b.trimPop, -0.3, 1.2);
+  if (b.trim > TRIM.porpTrim && b.v > TRIM.porpV && b.cap <= 0 && simRandom() < TRIM.porpRate * (b.trim - TRIM.porpTrim) * dt) b.porp = Math.min(1, (b.porp || 0) + 0.35);   // bow held high at speed: it porpoises
 }
 // the pop's extra push: strongest at a turn's exit speed, nothing near the top end (the prop is already biting) or near stopped
 const trimKickK = (b, t) => b.kick > 0 && !(b.hop > 0.02) ? TRIM.kick * (b.kick / TRIM.kickT) * t * clamp((b.v - TRIM.vLo) / (TRIM.vFull - TRIM.vLo), 0, 1) * clamp((TRIM.vOff - b.v) / (TRIM.vOff - TRIM.vTop), 0, 1) : 0;
@@ -333,13 +342,13 @@ function boatPhysics(b, inp, dt) {
   // 無茶: a deep hang-on at full throttle and near top speed, rudder hard over, is past what the hull will take —
   // worse still done crouched. Easing the lever calms everything down.
   const mucha = ins * t * clamp((b.v / 22.8 - 0.7) / 0.3, 0, 1) * clamp(Math.abs(s) * 1.4 - 0.4, 0, 1) * (1 + 1.2 * down);
-  const load = (Math.max(0.85 * turnLoad, slideLoad, lowLean * 1.1) + TURN.mucha * mucha) * (1 - TURN.dropCalm * (1 - t)) + WAKE.unsettle * bump + 0.1 * wk + TURN.crouchLoad * crouchLock + WILLIE.load * wil + (BANK.on ? BANK.overLoad * tf * Math.max(0, bankIn - BANK.overFrom) / (1 - BANK.overFrom) : 0);   // a hull bucking on a wave is on the edge
+  const load = (Math.max(0.85 * turnLoad, slideLoad, lowLean * 1.1) + TURN.mucha * mucha) * (1 - TURN.dropCalm * (1 - t)) + WAKE.unsettle * bump + 0.1 * wk + TURN.crouchLoad * crouchLock + WILLIE.load * wil + TRIM.load * (b.trimPop || 0) * (b.trimRisk || 0) + (BANK.on ? BANK.overLoad * tf * Math.max(0, bankIn - BANK.overFrom) / (1 - BANK.overFrom) : 0);   // a hull bucking on a wave is on the edge
   b.load = (b.load || 0) + (load - (b.load || 0)) * (1 - Math.exp(-dt * 8));
   let ev = null;
   if (b.load > 1 || Math.abs(b.vl) > 11) {
     const haz = Math.abs(b.vl) > 11 ? 1e3 : HAZARD * Math.pow(b.load - 1, 1.5) * (b.hazMul || 1);
     if (simRandom() < haz * dt) {
-      ev = 'cap:' + (b.wilFail < 0.6 ? 'ウィリーに失敗してバランスを崩した' : wil > 0.3 ? 'ウィリー中にバランスを崩した' : b.stuckAge < 0.5 ? 'バウンドの着水で舳先が刺さった' : lowLean * 1.1 >= Math.max(0.85 * turnLoad, slideLoad) ? '速度がないのに内へ倒れ込んだ'
+      ev = 'cap:' + ((b.trimPop || 0) > 0.2 && (b.trimRisk || 0) > 0.3 ? '舳先を跳ね上げてバランスを崩した' : b.wilFail < 0.6 ? 'ウィリーに失敗してバランスを崩した' : wil > 0.3 ? 'ウィリー中にバランスを崩した' : b.stuckAge < 0.5 ? 'バウンドの着水で舳先が刺さった' : lowLean * 1.1 >= Math.max(0.85 * turnLoad, slideLoad) ? '速度がないのに内へ倒れ込んだ'
         : inside < -0.2 ? '外へ体重が逃げて振られた'
         : bump > 0.3 ? '引き波に乗り上げてバランスを崩した'
         : down > 0.5 ? '伏せたまま曲がって握りきれなかった'
