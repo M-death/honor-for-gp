@@ -155,6 +155,9 @@ function labSqueezeDecision(b,env,mem,mode,first,look){
  detail.targetY=targetY;
  return{targetY,detail,started:detail.active&&previous!==q};
 }
+// d181 (まえ: contact is racing): side-to-side (headings within sideAng) may close to sideClr and only an overlap past sideHard
+// counts as a crash; a bow into a side or a pile-up still keeps the full clearance
+const PRIO = { clr: 1.15, sideAng: 0.5, sideClr: 0.0, sideHard: -0.3 };
 function labPriorityPlan(b,env,desired,mem,prof,applied){
  const nearby=fleet.boats.filter(r=>r.b!==b&&Math.hypot(r.b.x-b.x,r.b.y-b.y)<40);
  if(!nearby.length){mem.labSafe=null;return{inputs:desired,detail:{enabled:true,intervened:false,threats:[]}};}
@@ -163,7 +166,7 @@ function labPriorityPlan(b,env,desired,mem,prof,applied){
   if(plan.detail.intervened){const inputs={...plan.inputs,thr:Math.min(desired.thr,plan.inputs.thr)};return{inputs,detail:{...plan.detail,beforePriority:{...desired},throttleCeiling:inputs.thr,intervened:['thr','steer','roll','pitch'].some(k=>Math.abs(inputs[k]-desired[k])>1e-6)}};}
   return{inputs:desired,detail:plan.detail};
  }
- const dt=.08,N=18,clearance=1.15;
+ const dt=.08,N=18,clearance=PRIO.clr;
  const others=[];lab.predicting=true;
  try{
   for(const r of nearby){const q={...r.b},o=r.out?IDLE_INPUT:r.inp;const path=[];for(let j=0;j<N;j++){boatPhysics(q,o,dt);path.push({...q});}others.push({boat:r.no,path});}
@@ -175,16 +178,18 @@ function labPriorityPlan(b,env,desired,mem,prof,applied){
     o.roll+=(target.roll-o.roll)*(1-Math.exp(-prof.react*dt));o.pitch+=(target.pitch-o.pitch)*(1-Math.exp(-prof.react*dt));
     const ev=boatPhysics(q,o,dt);if(ev){obstacle=true;risk+=25000;}
     if(q.y<COURSE.yMin+3||q.y>COURSE.yMax-3)risk+=1000;
-    for(const other of others){const gap=labHullClearance(q,other.path[j]);if(gap<minGap){minGap=gap;threat=other.boat;at=(j+1)*dt;}
-     if(gap<clearance)risk+=(clearance-gap)**2*100*(1.4-j/N);
-     if(gap<.05)risk+=3000*(1.5-j/N);
+    for(const other of others){const op=other.path[j],gap=labHullClearance(q,op),side=Math.abs(wrapRad(q.a-op.a))<PRIO.sideAng;
+     const clr=side?PRIO.sideClr:clearance,hard=side?PRIO.sideHard:.05;
+     if(gap<minGap){minGap=gap;threat=other.boat;at=(j+1)*dt;}
+     if(gap<clr)risk+=(clr-gap)**2*100*(1.4-j/N);
+     if(gap<hard)risk+=3000*(1.5-j/N);
     }
    }
    const deviation=(target.thr-desired.thr)**2*8+(target.steer-desired.steer)**2*18+(target.roll-desired.roll)**2*3+(target.pitch-desired.pitch)**2*2;
    return{score:risk+deviation,minGap,threat,at,obstacle,inputs:target};
   };
   const initial=evaluate({...desired});let best=initial;
-  if(initial.minGap<clearance){
+  if(initial.score>0){   // d181: any predicted conflict (initial has no deviation, so score = risk)
    const steers=[desired.steer,clamp(desired.steer+.35),clamp(desired.steer-.35),0,.6,-.6];
    for(const thr of [desired.thr,Math.min(desired.thr,.35),0])for(const steer of steers){
     const target={...desired,thr,steer};
@@ -194,7 +199,7 @@ function labPriorityPlan(b,env,desired,mem,prof,applied){
    }
   }
   const changed=['thr','steer','roll','pitch'].some(k=>Math.abs(best.inputs[k]-desired[k])>1e-6);
-  const detail={enabled:true,evaluatedAt:time,intervened:changed,throttleCeiling:best.inputs.thr,beforePriority:{...desired},predictedGapBefore:initial.minGap,predictedGapAfter:best.minGap,horizonSeconds:N*dt,clearanceM:clearance,threats:initial.minGap<clearance?[{boat:initial.threat,predictedGapM:initial.minGap,atSeconds:initial.at}]:[],reason:changed?'predicted_hull_conflict':'clear'};
+  const detail={enabled:true,evaluatedAt:time,intervened:changed,throttleCeiling:best.inputs.thr,beforePriority:{...desired},predictedGapBefore:initial.minGap,predictedGapAfter:best.minGap,horizonSeconds:N*dt,clearanceM:clearance,threats:initial.score>0?[{boat:initial.threat,predictedGapM:initial.minGap,atSeconds:initial.at}]:[],reason:changed?'predicted_hull_conflict':'clear'};
   mem.labSafe={until:time+.075,inputs:best.inputs,detail};return{inputs:best.inputs,detail};
  }finally{lab.predicting=false;}
 }

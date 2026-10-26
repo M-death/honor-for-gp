@@ -357,6 +357,7 @@ function cutDrive(b, mem, o, prof, gap, body, free) {
 }
 /* Shared first-mark CPU: used by applyCourse/makeDriver in demo and laboratory.
    These are game tuning values, not official racing rules or measured probabilities. */
+const PRIO_ZONE = { firstOnly: true, dumpFree: true };   // d181: the planner keeps the first 1M orderly; after it, racing contact as before
 const COURSE_CPU = {
  version:'course-v1', readEvery:.20, switchMargin:2.4, holdSeconds:.65,
  predictionSeconds:1.2, attackLeadM:2.5, slotWidthM:6.0, outerMarginM:4.0,
@@ -366,7 +367,7 @@ const COURSE_CPU = {
   3:{base:'makuri',label:'まくり／まくり差し',weights:{makuri:4,makurisashi:4,sashiWin:1}},
   4:{base:'makuri',label:'伸びを生かしてまくる',weights:{makuri:6,makurisashi:2,sashiWin:1}},
   5:{base:'makurisashi',label:'内の攻めに続いてまくり差し',weights:{makurisashi:6,sashiWin:3,makuri:0}},
-  6:{base:'sashiPlace',label:'空いた内を差す',weights:{sashiPlace:6,makurisashi:4,makuri:-1}}
+  6:{base:'makurisashi',label:'マークから離れて回り、出足で内へ斬り込む',weights:{makurisashi:6,sashiPlace:4,makuri:-1}}   // d181 (まえ)
  }
 };
 const CPU_REASON_JA={base:'コースの基本作戦',lead:'伸び・先行で外から攻める',slot:'艇間の開きを狙う',follow:'内艇の攻めに続く',wait:'内が塞がり差し構えで待つ',wall:'外の攻めに対して壁を作る',inside:'先マイを優先',hold:'旋回ラインを維持',closed:'狙った間が閉じたため待つ',forced:'指定戦法を使用'};
@@ -472,6 +473,8 @@ function cpuFirstLine(b,env,trait,mem,tactic,R,gap,dt){
 function makeDriver(prof, trait = {}) {
   const o = { thr: 0, steer: 0, roll: 0, pitch: 0 };
   const mem = { stTarget: 0, go: false, firstDone: false, dumpT: 0, dumpQ: null, dumpSeen: new Set(), wakeT: 0, wakeOff: 0, wakeOffT: 0, wakeAhead: 0, brace: 0, emergency: 0 };
+  // d181: the course-v1 safety planner (contactMode 'priority') — only through the first 1M if PRIO_ZONE.firstOnly, and never while dumping
+  const prioNow = () => trait.contactMode === 'priority' && !(PRIO_ZONE.firstOnly && mem.firstDone) && !(PRIO_ZONE.dumpFree && mem.dumpT > 0);
   function reset() {
     o.thr = o.steer = o.roll = o.pitch = 0;
     // Start judgement: the further out, the harder the timing is to read (stErr, ± spread by course),
@@ -534,7 +537,7 @@ function makeDriver(prof, trait = {}) {
   }
   function avoid(b, others) {
     let steerAdd = 0, thrMul = 1, giveWay = false;
-    const priority=trait.contactMode==='priority', threats=[];
+    const priority=prioNow(), threats=[];
     if (!others) return { steerAdd, thrMul };
     const fx = Math.cos(b.a), fy = Math.sin(b.a);
     const inTurn = nearMarkAt(b.x, b.y, 22);
@@ -1082,7 +1085,7 @@ function makeDriver(prof, trait = {}) {
         if(sq.targetY!=null){tx=b.x+look;ty=sq.targetY;}
         squeezing=sq.detail.active;
         if(sq.started)o.ev='squeeze';
-      } else if (!(trait.contactMode==='priority') && first && b.y > 0 && env.inner && b.x < MK - 45) {
+      } else if (!prioNow() && first && b.y > 0 && env.inner && b.x < MK - 45) {
         // スリットを越えたら一気に勝負: the intent is set at the slit, and it squeezes the moment it is clear ahead of
         // the boat inside (turning toward a boat it still overlaps would be 第19条)
         if (!mem.sqDecided && b.x > 0) {
@@ -1127,7 +1130,7 @@ function makeDriver(prof, trait = {}) {
       // being squeezed from outside: give way (引く — lift, tuck in behind) or, now and then, fight it (抵抗)
       if (mem.kabe && !mem.sqResp) { mem.sqResp = 'kabe'; mem.sqRespT = 0; }
       if (first && b.y > 0 && env.outerSqueeze && !mem.sqResp && b.x < MK - 45) {
-        mem.sqResp = trait.contactMode==='priority' ? 'yield' : simRandom() < (SQUEEZE.resist[trait.temper] ?? 0.15) ? 'resist' : 'yield';
+        mem.sqResp = prioNow() ? 'yield' : simRandom() < (SQUEEZE.resist[trait.temper] ?? 0.15) ? 'resist' : 'yield';
         mem.sqRespT = SQUEEZE.yieldTime;
         if (mem.sqResp === 'resist') mem.resistQ = env.outer;
         o.ev = mem.sqResp;
@@ -1199,7 +1202,7 @@ function makeDriver(prof, trait = {}) {
       }
       if(lab.active)Object.assign(mem.labTrace,{target:{x:tx,y:ty},R,gap});
       const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
-      if(trait.contactMode==='priority'){mem.dumpT=0;mem.dumpQ=null;}else considerDump(b, env.others, dt);
+      if(prioNow()&&!trait.dumpOk){mem.dumpT=0;mem.dumpQ=null;}else considerDump(b, env.others, dt);
       const dumping = mem.dumpT > 0;
       steerT = clamp(err * (prof.gain ?? 2.2) * (accelerating ? 0.75 : 1) + (dumping ? 0.65 : av.steerAdd) + (simRandom() * 2 - 1) * prof.wobble * (accelerating ? 0.5 : 1));
       // ターンから直線へ: don't crank the rudder to snap onto the straight — ease onto it
@@ -1327,7 +1330,7 @@ function makeDriver(prof, trait = {}) {
       // swerving against the lean (dodging outward mid-turn): take the body out of it too
       if (Math.abs(steerT) > 0.2 && rollT !== 0 && Math.sign(steerT) !== Math.sign(rollT)) rollT *= 0.6;
       if(lab.active){const targets=labTraceInputs(mem,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},b,prof,o);thrT=targets.thr;steerT=targets.steer;rollT=targets.roll;pitchT=targets.pitch;}
-      if(!lab.active&&trait.contactMode==='priority'){
+      if(!lab.active&&prioNow()){
         const safe=labPriorityPlan(b,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},mem,prof,o);
         ({thr:thrT,steer:steerT,roll:rollT,pitch:pitchT}=safe.inputs);mem.cpuSafety=safe.detail;
       }
@@ -1574,7 +1577,7 @@ const BN_CPU = { on: true, hard: 2.5, high: 0.25, wave: 8, TOP: { up: -0.3, hold
   A2: { up: -0.2, hold: 0.25, lever: 0.8, rough: 0.35 }, B1: { up: -0.1, hold: 0.2, lever: 0.75, rough: 0.3 }, B2: { up: 0, hold: 0.15, lever: 0.7, rough: 0.2 } };
 const CROWD_DROP = { on: true, r: 10, until: 0.45, lever: { TOP: 0.75, A1: 0.7, A2: 0.66, B1: 0.6, B2: 0.56 } };
 const NIGE_DROP = { at: 22, regrip: 0.2, lever: { TOP: 0.76, A1: 0.72, A2: 0.68, B1: 0.62, B2: 0.58 } };   // steady speed with the lever shut (m/s)   // demo: every boat takes its own number's course, 3 slow / 3 dash
-let demoCpuMode='legacy';   // 標準はd42までで調整したCPU。コース別作戦 v1 は試験中（設定で切替）
+let demoCpuMode='course-v1';   // d181 (まえ): コース別作戦 is the standard now; 'legacy' = the CPU up to d180 (設定で切替)
 let fleet = null, simSpeed = 1.5, sgMode = false;   // demo playback speed; the race clock always shows real race time
 
 function pickW(pairs) { let r = simRandom() * pairs.reduce((a, p) => a + p[1], 0); for (const [v, w] of pairs) { if ((r -= w) < 0) return v; } return pairs[0][0]; }
@@ -1631,7 +1634,7 @@ function applyCourse(r, course, slow, kado, okoshi) {
   const aff = r.skill && r.skill.course ? r.skill.course[course - 1] : 50, tMap = ['calm', 'normal', 'aggr'];
   const tEff = r.skill ? tMap[clamp(Math.round({ calm: 0, normal: 1, aggr: 2 }[r.temper] + (aff - 50) / 22), 0, 2)] : r.temper;
   const rT = r.temper; r.temper = tEff;
-  r.trait = { cpuMode:mode,contactMode:mode===COURSE_CPU.version?'priority':'normal',squeezeMode:mode===COURSE_CPU.version?'lead':'legacy',course, laneY, tactic, slow, kado, okoshi, temper: r.temper, lineOff: simRandom() * 2.5, dump: TEMPER[r.temper].dump, care: TEMPER[r.temper].care,
+  r.trait = { cpuMode:mode,contactMode:mode===COURSE_CPU.version?'priority':'normal',dumpOk:true,squeezeMode:mode===COURSE_CPU.version?'lead':'legacy',course, laneY, tactic, slow, kado, okoshi, temper: r.temper, lineOff: simRandom() * 2.5, dump: TEMPER[r.temper].dump, care: TEMPER[r.temper].care,
               tsuke: ({ TOP: 0.8, A1: 0.7, A2: 0.55, B1: 0.35, B2: 0.2 }[r.prof.name] || 0.4) + (r.temper === 'aggr' ? 0.15 : 0),
               pushMul: { calm: 0.5, normal: 1, aggr: 1.6 }[r.temper], flyRisk: (RISK[r.prof.name] || RISK.B1).fly,
               aff, stSdMul: 1.25 - aff / 200, affGrip: 1 + (aff - 50) * 0.0004 };
@@ -2352,7 +2355,8 @@ function nextRace() {
 const playerRow = () => fleet && fleet.playerNo ? fleet.boats.find(r => r.player) : null;
 // the player has the lever from the pits until the start line
 // レース練習: the player keeps the boat for the whole race (until the finish, an accident or a フライング retirement)
-const playerRacing = r => !!(r && fleet && fleet.fullControl && r.fin == null && !r.out && !(r.flying && r.passed1M));
+// d177 (まえ): a player who is disqualified (妨害失格) hands the boat to the CPU like a flying boat — it then slows and keeps outside the wreck
+const playerRacing = r => !!(r && fleet && fleet.fullControl && r.fin == null && !r.out && !(r.flying && r.passed1M) && !(r.dq && !r.flying) && !r.cauAuto);   // d178 (まえ): through the accident slow zone the CPU drives the player's boat too
 function playerActive() { const r = playerRow(); return !!(r && (fleet.entry || (r.st == null && !r.lateTold) || playerRacing(r))); }
 function startFleet() {
   if (runLog) runLogEnd('途中で終了');
@@ -2439,6 +2443,10 @@ function fleetStep(dt, playerInput) {
                     battle: r.battle, fight: !!r.fight, retire: r.flying && r.passed1M,
                     cruise: r.fin != null ? { ahead: fi > 0 ? fleet.finOrder[fi - 1].b : null } : null,
                     caution: fleet.caution && r.fin == null && !(r.flying && r.passed1M) && (fleet.locked || inCautionZone(r) || nearWreck(b, CAUTION_LOCK.near)) ? { ahead: r.dq ? dqAhead(r) : cautionAhead(r), wrecks: fleet.wrecks } : null };   // 失格艇も事故艇の外を徐行
+      if (r.player) {
+        const was = r.cauAuto; r.cauAuto = !!env.caution && !r.dq;
+        if (r.cauAuto && !was && fleet.fullControl) toast('事故艇あり', '徐行区間はCPUが操縦（抜けたら自分に戻る）', 'warn');
+      }
       env.finalStretch = r.laps === raceLaps() - 1 && (r.vis & 2) && b.y > 0;   // round the last mark, heading for the line
       if(lab.active)labBeforeDrive(r,env);
       o = r.drv.drive(b, env, dt);
@@ -3057,7 +3065,7 @@ function disqualify(r, why) {
   if(lab.active)labEvent('disqualified',r.no,{label:'妨害失格',reason:why});
   r.dq = true; fleet.dqs++;
   if (VR) VR.ev('dq', r.no, { why });
-  toast('妨害失格', `${r.no}号艇（${why}）`, 'bad');
+  toast('妨害失格', `${r.no}号艇（${why}）${r.player && fleet.fullControl ? '　CPUが引き継ぎ' : ''}`, 'bad');
 }
 
 function focusRow() {
@@ -3083,6 +3091,9 @@ function updateOrderStrip() {
     c.classList.toggle('on', fleet.focus === r.no);
     c.classList.toggle('f', r.flying);
     c.classList.toggle('dq', !!r.dq && !r.flying);
+    // d179 (まえ): a boat out of the race carries a mark — 転 転覆 / 落 落水 / 失 妨害失格 / F フライング
+    const mk = r.flying ? 'F' : r.out ? (/落水/.test(r.out) ? '落' : /転覆/.test(r.out) ? '転' : '失') : r.dq ? '失' : '';
+    if ((c.dataset.mark || '') !== mk) { if (mk) c.dataset.mark = mk; else delete c.dataset.mark; c.style.position = mk ? 'relative' : ''; }
     c.classList.toggle('top', !!r.prof.top);
     c.classList.toggle('foul', !r.dq && (!!r.fouls || !!(r.entryViol && r.entryViol.length)));
   });

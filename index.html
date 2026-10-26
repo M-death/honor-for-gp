@@ -64,7 +64,8 @@ table.race.res.noname td:nth-child(3),table.race.res.noname th:nth-child(3){disp
 .chip.on{outline:2px solid var(--lever);outline-offset:1px}
 .chip.f{text-decoration:line-through}
 .chip.foul{box-shadow:0 0 0 2px var(--warn)}
-.chip.dq{opacity:.35;text-decoration:line-through}
+.chip.dq{box-shadow:inset 0 0 0 20px rgba(0,0,0,.5);text-decoration:line-through;position:relative}
+.chip[data-mark]::before{content:attr(data-mark);position:absolute;left:-5px;top:-6px;padding:0 3px;border-radius:3px;background:#d7261e;color:#fff;font:700 9px/12px var(--f-num),sans-serif;white-space:nowrap;text-decoration:none;z-index:1}
 .chip:focus-visible{outline:2px solid var(--lever);outline-offset:1px}
 .tablewrap{overflow-x:auto;margin:10px 0}
 table.race{border-collapse:collapse;width:100%;font-size:13px;white-space:nowrap}
@@ -521,7 +522,7 @@ body.lab-running>#jk{display:none!important}
       <div class="row" style="margin-top:0"><label style="flex:1"><input type="checkbox" id="hapOn" checked> 振動（コントローラ／Androidスマホ）</label><button class="btn ghost" id="hapTest">振動テスト</button></div>
       <label>傾きの幅 <input type="range" id="sens" min="8" max="35" step="1" value="18"><output id="sensOut">18°</output></label>
       <p style="margin:0">この角度まで傾けると体重移動が最大になります。小さいほど敏感です。</p>
-      <label>デモのCPU基本判断 <select id="demoCpuMode"><option value="legacy">標準（d42までの調整）</option><option value="course-v1">コース別作戦 v1（試験中）</option></select></label>
+      <label>デモのCPU基本判断 <select id="demoCpuMode"><option value="course-v1" selected>コース別作戦（標準）</option><option value="legacy">旧CPU（d180まで）</option></select></label>
       <label>自艇のチルト <select id="tiltSel"><option value="-0.5" selected>−0.5（出足・回り足）</option><option value="0">0</option><option value="0.5">+0.5</option><option value="1">+1.0</option><option value="1.5">+1.5</option><option value="2">+2.0</option><option value="3">+3.0（伸び）</option></select></label>
       <p style="margin:0;font-size:12px">チルトを上げるほど直線の伸びが出て外のコース向き。代わりに出足が鈍り、ターンで流れやすくなります。</p>
       <label>艇の表示 <select id="boatRenderMode"><option value="3d">軽量3Dモデル</option><option value="2d">従来の2D</option></select></label>
