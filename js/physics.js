@@ -87,9 +87,10 @@ const ENV = { windDrift: 0.035, windAir: 0.025, waveBump: 0.012, waveStab: 6, st
    and it springs straight back up again. Sat back with the knees taking it, it lands flat and settles. A lever eased
    off, the tilt down and the 安定板 all keep it lower. h = hop in m, hv = its vertical speed. */
 const BOUNCE = { on: true, g: 15.7, h: 0.3, rise: 0.025, bumpMin: 0.04, bumpFull: 0.15, hMax: 0.5, gap: 0.12, down: 0.6, up: 0.45, lever: 0.65, stab: 0.6, tilt: 0.12,
-  airThr: 0.6, airDown: 0.4, airGrip: 0.35, stuck: 0.12, stuckFrom: 0.3, stuckLoad: 0.7, reb: 0.3, rebDown: 0.9, rebUp: 0.7, rebMin: 1.2, hRef: 0.25, stuckStraight: 0.1 };
+  airThr: 0.6, airDown: 0.4, airGrip: 0.35, stuck: 0.12, stuckFrom: 0.3, stuckLoad: 0.7, reb: 0.3, rebDown: 0.9, rebUp: 0.7, rebMin: 1.2, hRef: 0.25, stuckStraight: 0.1,
+  porp: 0.12 };   // d181 (まえ): a porpoise (tilt / bow held high) is a small hop, not a wake jump — before, one on a flat straight threw the hull 47 cm
 function bounceStep(b, t, down, up, dt) {
-  const bump = Math.max((b.wakeBump || 0) * (1 - (1 - WILLIE.wake) * (b.wil || 0)), b.porp || 0);
+  const bump = Math.max((b.wakeBump || 0) * (1 - (1 - WILLIE.wake) * (b.wil || 0)), (b.porp || 0) * BOUNCE.porp);
   if (b.hv == null) { b.hop = 0; b.hv = 0; b.bumpRef = bump; b.landAge = 9; b.landV = 0; b.stuckAge = 9; }
   b.landAge += dt; b.stuckAge += dt;
   b.bumpRef += (bump - b.bumpRef) * (1 - Math.exp(-dt * 4));
