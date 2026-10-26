@@ -217,7 +217,10 @@ function boatPhysics(b, inp, dt) {
     wallsFor(b); b.harmony = 0; return null;
   }
 
-  const t = inp.thr, s = inp.steer, r = inp.roll, p = inp.pitch;
+  // d176 押し出し: a boat shoved by another skates sideways for a moment and its rudder can't take it straight back
+  const shK = b.shoveT > 0 ? clamp(b.shoveT / SHOVE.t, 0, 1) : 0;
+  if (b.shoveT > 0) b.shoveT -= dt;
+  const t = inp.thr, s = inp.steer * (1 - SHOVE.steer * shK), r = inp.roll, p = inp.pitch;
   const sgn = Math.abs(s) > 0.08 ? Math.sign(s) : 0;
   const inside = sgn ? clamp(r * sgn) : 0;
 
@@ -301,7 +304,7 @@ function boatPhysics(b, inp, dt) {
     b.v = Math.max(0, v0 * c + l0 * sn); b.vl = l0 * c - v0 * sn;
     latNeed = DRIFT.kL * (1 + BANK.bite * tf * (bankIn - BANK.ref)) * Math.abs(b.vl);   // d159: the chine set deep catches the slide sooner
     const cap = grip * DRIFT.gripK * (1 - (1 - WILLIE.bite) * wil), aLat = Math.min(latNeed, cap);   // ウィリー: less hull in the water — less bite, it slides more
-    b.vl -= Math.sign(b.vl) * Math.min(Math.abs(b.vl), aLat * dt);
+    b.vl -= Math.sign(b.vl) * Math.min(Math.abs(b.vl), Math.min(aLat, cap * (1 - SHOVE.grip * shK)) * dt);   // d176: shoved, the hull bites less and is carried on sideways
     demand = aLat / DRIFT.gripK * YAW_OVER;   // the edge working at its limit reads like the old grip limit (~0.85)
     b.slideX = Math.max(0, latNeed - cap) / cap;   // more coming at it sideways than the edge can hold: it is skating out
     b.slip = Math.atan2(b.vl, Math.max(0.5, b.v));
@@ -309,7 +312,7 @@ function boatPhysics(b, inp, dt) {
     demand = b.v * Math.abs(b.yaw);
     const excess = demand - grip;
     if (excess > 0 && Math.abs(b.yaw) > 0.05) b.vl += -Math.sign(b.yaw) * excess * 0.9 * dt;
-    b.vl *= Math.exp(-dt * 1.6 * grip / GRIP_BASE);
+    b.vl *= Math.exp(-dt * 1.6 * grip / GRIP_BASE * (1 - SHOVE.grip * shK));
   }
 
   b.harmony = sgn ? clamp(0.5 * Math.max(0, inside) + 0.3 * pose + 0.2 * t, 0, 1) : 0;
@@ -405,6 +408,11 @@ function wallsFor(b) {
    when its sideways speed runs away). Returns one event per new touch. */
 const HULL_R = 0.8, HULL_AFT = 1.4, HULL_FWD = 1.6;
 const SIDE_PUSH = { k: 0.3, yawMax: 0.15 };
+/* d176 押し出し・押し込み (まえ: a hit only killed both boats' speed — side to side and ダンプ should knock a boat off its line).
+   The boat pressing harder into the other (closing speed, rider weight, a little more if it is ahead) keeps its line and most of
+   its speed; the other is thrown sideways (kick per unit impulse) and skates for up to t s with its bite cut (grip) and its rudder
+   weak (steer), so it is really carried out wide or pressed in. Only for boats running roughly the same way (not rear-ends). */
+const SHOVE = { on: true, k: 0.7, t: 0.8, jRef: 2.5, grip: 0.6, steer: 0.35, keep: 0.6, ahead: 0.3, same: 0.3, vlMax: 9 };
 const CONTACT_SCRUB = { k: 0.015, jRef: 3 };   // a real knock (impulse jRef) still costs 1.5 %; a rub costs next to nothing   // share of the closing speed passed on; only while both run straight
 function closestSegSeg(ax, ay, bx, by, cx, cy, dx, dy) {
   const d1x = bx - ax, d1y = by - ay, d2x = dx - cx, d2y = dy - cy, rx = ax - cx, ry = ay - cy;
@@ -444,9 +452,22 @@ function boatContacts(list) {
     // hulls shed most of a sideways shove into the water; only a hard hit sends a boat skating
     // d172 (まえ: two boats rubbing side by side both died): the scrub is per hit, by how hard — it was a flat 1.5 % every
     // physics step, so a long rub (a bow in alongside) took 16 % a second off both boats
+    const va0 = a.v, vla0 = a.vl, vc0 = c.v, vlc0 = c.vl;
     const scrub = 1 - CONTACT_SCRUB.k * Math.min(1, J / CONTACT_SCRUB.jRef);
     a.v = Math.max(0, nax * fax + nay * fay) * scrub; a.vl = clamp(a.vl + ((-nax * fay + nay * fax) - a.vl) * 0.6, -7, 7);
     c.v = Math.max(0, ncx * fcx + ncy * fcy) * scrub; c.vl = clamp(c.vl + ((-ncx * fcy + ncy * fcx) - c.vl) * 0.6, -7, 7);
+    if (SHOVE.on && fax * fcx + fay * fcy > SHOVE.same && !(fax * fcx + fay * fcy > 0.8 && (nx * fax + ny * fay > 0.75 || -(nx * fcx + ny * fcy) > 0.75))) {
+      const mx = fax + fcx, my = fay + fcy, aAhead = ((a.x - c.x) * mx + (a.y - c.y) * my) > 0 ? 1 : 0;
+      const sA = (aInto + 0.3) * (a.weightGrip || 1) * (1 + SHOVE.ahead * aAhead), sC = (cInto + 0.3) * (c.weightGrip || 1) * (1 + SHOVE.ahead * (1 - aAhead));
+      const P = sA >= sC ? a : c, V = P === a ? c : a, share = Math.abs(sA - sC) / (sA + sC);
+      const P0 = P === a ? [va0, vla0] : [vc0, vlc0];
+      P.v += (P0[0] - P.v) * SHOVE.keep * (0.5 + share); P.vl += (P0[1] - P.vl) * SHOVE.keep * (0.5 + share);   // the pusher holds its line
+      const ox = P === a ? nx : -nx, oy = P === a ? ny : -ny, fvx = Math.cos(V.a), fvy = Math.sin(V.a);   // away from the pusher
+      const kick = SHOVE.k * J * (0.5 + share);
+      V.vl = clamp(V.vl + kick * (-ox * fvy + oy * fvx), -SHOVE.vlMax, SHOVE.vlMax);
+      V.shoveT = Math.max(V.shoveT || 0, SHOVE.t * clamp(J / SHOVE.jRef, 0.3, 1));
+      V.shoveBy = P;
+    }
     // an off-centre hit swings the hull
     a.yaw += ((px - a.x) * (-ny * JA) - (py - a.y) * (-nx * JA)) * 0.05;
     c.yaw += ((qx - c.x) * (ny * JC) - (qy - c.y) * (nx * JC)) * 0.05;

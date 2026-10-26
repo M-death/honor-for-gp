@@ -569,7 +569,10 @@ function boatBounce(b) {
    fast, the stern is drawn swung further out than the physics slide (the bow pointed further in, toward the mark);
    as the boat slows through the turn it settles back onto the real angle. */
 const DRIFT_VIEW = { on: true, gain: 2.4, vLo: 13, vHi: 17, max: 0.6 };
-const driftViewA = b => !DRIFT_VIEW.on || b.cap > 0 ? 0 : -clamp(DRIFT_VIEW.gain * (b.slip || 0) * clamp((b.v - DRIFT_VIEW.vLo) / (DRIFT_VIEW.vHi - DRIFT_VIEW.vLo), 0, 1), -DRIFT_VIEW.max, DRIFT_VIEW.max);
+const driftViewRaw = b => !DRIFT_VIEW.on || b.cap > 0 ? 0 : -clamp(DRIFT_VIEW.gain * (b.slip || 0) * clamp((b.v - DRIFT_VIEW.vLo) / (DRIFT_VIEW.vHi - DRIFT_VIEW.vLo), 0, 1), -DRIFT_VIEW.max, DRIFT_VIEW.max);
+// d176: a boat just shoved by another shudders for a moment (looks only)
+const SHOVE_VIEW = { amp: 0.09, hz: 7 };
+const driftViewA = b => driftViewRaw(b) + (b.shoveT > 0 && !(b.cap > 0) ? SHOVE_VIEW.amp * clamp(b.shoveT / SHOVE.t, 0, 1) * Math.sin(time * Math.PI * 2 * SHOVE_VIEW.hz) : 0);
 function drawBoatAt(b, inp, sty, focused) {
   ctx.save();
   const da = b.a + driftViewA(b);
