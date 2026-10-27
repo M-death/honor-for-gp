@@ -82,11 +82,14 @@
     return {model,parent,names,vertices:new Float32Array(vertices)};
   }
   const api={ready:false,mode:'3d',reason:'',count:0,drawCalls:0,tiles:new WeakMap(),span:8};
-  try{api.mode=localStorage.getItem('honorGP.boatRender')==='2d'?'2d':'3d';}catch(e){}
+  // d183: 'new3d' = まえ's game assets via Three.js (js/boat3dx.js); until it is ready (or where it can't load) the light model draws
+  const modeOf=m=>m==='2d'||m==='new3d'?m:'3d';
+  try{api.mode=modeOf(localStorage.getItem('honorGP.boatRender'));}catch(e){}
   let canvas,gl,program,data,buffer,uniforms,tile=0;
   const status=()=>{
     const el=document.getElementById('boatRenderStatus');
-    if(el)el.textContent=api.mode==='2d'?'従来の2D表示':api.ready?'3D表示中：6艇の色・姿勢をレースに連動':`2D表示で継続中${api.reason?'（'+api.reason+'）':''}`;
+    const X=window.Boat3DX;
+    if(el)el.textContent=api.mode==='2d'?'従来の2D表示':api.mode==='new3d'&&X&&X.ready?'3D（新モデル）表示中':api.mode==='new3d'?`新モデルは${X?X.reason||'準備中':location.protocol==='file:'?'ファイルを直接開いたときは使えません':'準備中'}（軽量3Dで表示）`:api.ready?'3D表示中：6艇の色・姿勢をレースに連動':`2D表示で継続中${api.reason?'（'+api.reason+'）':''}`;
   };
   function fail(reason){api.ready=false;api.reason=reason;api.tiles=new WeakMap();status();}
   function compile(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
@@ -169,8 +172,9 @@
   }
   const digits={1:[0,1,1,0,0,0,0],2:[1,1,0,1,1,0,1],3:[1,1,1,1,0,0,1],4:[0,1,1,0,0,1,1],5:[1,0,1,1,0,1,1],6:[1,0,1,1,1,1,1]};
   api.prepare=function(rows,scale,dpr,t){
-    api.tiles=new WeakMap();api.drawCalls=0;api.count=0;
-    if(!api.ready||api.mode!=='3d')return;
+    api.tiles=new WeakMap();api.drawCalls=0;api.count=0;api.via='';
+    if(api.mode==='new3d'&&window.Boat3DX&&Boat3DX.ready&&Boat3DX.prepare(rows,scale,dpr,t)){api.via='x';return;}
+    if(!api.ready||api.mode==='2d')return;
     try{
       const next=Math.min(384,Math.max(96,Math.ceil(scale*dpr*api.span/32)*32));
       const cols=Math.min(3,rows.length),rowCount=Math.ceil(rows.length/cols);
@@ -190,10 +194,12 @@
     }catch(e){console.warn('3D boat fallback:',e);fail('3D描画を利用できません');}
   };
   api.draw=function(ctx,b){
-    const q=api.tiles.get(b);if(!api.ready||api.mode!=='3d'||!q)return false;
+    if(api.via==='x')return Boat3DX.draw(ctx,b);
+    const q=api.tiles.get(b);if(!api.ready||api.mode==='2d'||!q)return false;
     ctx.drawImage(canvas,q.x,q.y,q.tile,q.tile,-api.span/2,-api.span/2,api.span,api.span);return true;
   };
-  api.setMode=function(mode){api.mode=mode==='2d'?'2d':'3d';try{localStorage.setItem('honorGP.boatRender',api.mode);}catch(e){}status();};
+  api.status=status;
+  api.setMode=function(mode){api.mode=modeOf(mode);if(api.mode==='new3d'&&window.Boat3DX)Boat3DX.start();try{localStorage.setItem('honorGP.boatRender',api.mode);}catch(e){}status();};
   // Read-only diagnostics for smoke/regression checks. Poses are copied, never written to boats.
   api.inspectPose=(b,inp,t=0)=>api.ready?{matrices:Array.from(pose(b,inp,t)),names:{...data.names}}:null;
   api.inspectAtlas=()=>canvas;

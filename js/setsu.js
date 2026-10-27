@@ -279,7 +279,9 @@ function setsuNextDay() {
   if (setsu.day >= SETSU.days) return;
   setsu.day++; setsuBuildDay(setsu.day);
   for (const q of setsu.racers) if (q.motor && q.motor.cond != null) q.motor.cond += (1 - q.motor.cond) * SETSU.recover;
-  { const me = setsuMe(); if (me) me.form = Math.round(clamp(me.form == null ? 50 + gauss() * 18 : me.form * 0.5 + 25 + gauss() * 16, 5, 95)); }   // 調子（仮）: drifts day to day   // 整備 overnight (AP later) setsuPre = null; setsuTab = 'ban'; setsuSave(); setsuRender();
+  { const me = setsuMe(); if (me) me.form = Math.round(clamp(me.form == null ? 50 + gauss() * 18 : me.form * 0.5 + 25 + gauss() * 16, 5, 95)); }   // 調子（仮）: drifts day to day
+  // 整備 overnight (AP later)
+  setsuPre = null; setsuTab = 'ban'; setsuSave(); setsuRender();   // d182: these had slipped into the comment above, so 翌日へ moved the day without redrawing or saving it
 }
 // on the water: my race (I ride) or a race I watch
 function setsuRun(race, ride) {

@@ -1,4 +1,4 @@
-# Honor for GP 波の向こうに — 引き継ぎ資料（d181 時点）
+# Honor for GP 波の向こうに — 引き継ぎ資料（d183 時点）
 
 この資料は、別の会話（AI）や将来の自分が開発を続けるための引き継ぎです。
 **本体は `index.html`（1ファイル）**。この資料と一緒に渡してください。
@@ -262,6 +262,8 @@
 | d179 （まえ：失格したら失格マークを付けて）先頭からの艇番チップ（#order）に、レースから外れた艇のマークを左上に赤で表示：転＝転覆、落＝落水、失＝妨害失格、F＝フライング（race.js updateOrderStrip が data-mark を付け、index.html の .chip[data-mark]::before で描く）。失格艇のチップは暗くして取り消し線（前は全体を薄くしていたのでマークまで薄くなった）。体験版の index.html も同じ変更。体験版 t50。 |
 | d180 コース別作戦を標準に（まえ：節間は1マークのインが混む。3・4コースはまくり／まくり差しでマークから離れたクリッピングポイント、5は4について まくり差し、6もまくり差しで離れて回り出足で内へ、全員がマークぎりぎりで回らない）。原因調査：1Mの接触（SG無風192R）はデモ（進入なし）1.02、デモに進入を入れると1.20、節間SG 1.24 → 混むのは進入（待機行動・起こし）のせい。試験中だった race.js COURSE_CPU（コース別作戦 v1、cpuChooseFirstMark／cpuFirstLine）がまえの案に近い。v1 そのままは安全装置（lab.js labPriorityPlan、contactMode priority）がレース中ずっと当たりを全部避けるので接触0.04・事故0.02（競り合い・ダンプが消える）、v1の作戦＋今の当たり方は1Mの接触1.77で悪化。採用：demoCpuMode 既定を course-v1、安全装置は1周1マークだけ（race.js PRIO_ZONE.firstOnly、prioNow）・ダンプ中は外す（dumpFree、trait.dumpOk）。lab.js PRIO：同じ向きの艇同士（sideAng 0.5）は側面の当たりを許す。6コースの基本を sashiPlace→makurisashi。設定の「デモのCPU基本判断」は「コース別作戦（標準）／旧CPU（d180まで）」。結果：進入あり192R 事故0.21・接触1.47（1M 0.07）・1着 59/16/14/7/3/1%；進入なし384R 事故0.20・接触1.09・1着タイム中央108.2s・53/15/10/16/4/2%；節間一般（天候あり）192R 事故0.22・1M接触0.18・中央111.4s；SG 192R 1着平均106.4（d179 107.2）；荒天 0.15；t_stuck 96Rで5艇（徐行中、岸壁で止まる艇なし）。テスト work/t_j2e.js・runs2e.sh（デモ＋進入）、t_j2s.js・runs2s.sh（節間）。体験版 t51。 |
 | d181 直線のポーポイズを小さく（まえ：直線で波がなくてもぴょんぴょん跳ねる）。チルト+2以上（と舳先を上げたまま）のポーポイズが引き波と同じ強さで bounceStep に入り、静水の直線で47cm跳ねていた。physics.js BOUNCE.porp 0.12（ポーポイズは跳ね判定に×0.12）→ 跳ねは15cm程度・回数も減。減速・グリップ低下・見た目の揺れはそのまま。384R 事故0.22（d180 0.20、誤差内）中央108.2s、stuck 0 |
+| d182 節間：「翌日へ」で日付は進むのに画面が前日のまま・保存もされていなかった（setsu.js setsuNextDay の setsuPre/setsuTab/setsuSave/setsuRender が「調子（仮）」行のコメントに入っていた）→ 直した。レースの中身は変更なし |
+| d183 艇の表示に「3D（新モデル）」を追加（まえ作のゲーム用アセット HFGP_game_assets v1.0、スマホ版）。hfgp3d/（runtime・Three.js r180・mobile GLB・艇番画像）＋ js/boat3dx.js（module、importmap で three を解決）。boat3d.js と同じ「艇ごとのタイルを真上から描いて view.js が回して貼る」方式で、boat3d.js の mode 'new3d' から委譲。準備中・読めないとき（file:// で開いたとき等）は軽量3Dで表示。見た目だけでレース結果は d182 と完全一致。初期値は軽量3Dのまま。公開ページは .glb を配信できないので GLB は js/hfgp3d-glb.js に base64 で埋め込み（tools/embed_hfgp3d.py、GLTFLoader.loadAsync を差し替えて読む）。新モデルを選んだときだけ読み込む |
 
 ---
 
