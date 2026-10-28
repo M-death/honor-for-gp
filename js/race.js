@@ -357,6 +357,7 @@ function cutDrive(b, mem, o, prof, gap, body, free) {
 }
 /* Shared first-mark CPU: used by applyCourse/makeDriver in demo and laboratory.
    These are game tuning values, not official racing rules or measured probabilities. */
+const ROAD_FIGHT = { on: true, markR: 35, lean: { calm: 0, normal: 0.04, aggr: 0.1 } };   // d188 道中の横並び: hold the line, lean in (steer per temper)
 const PRIO_ZONE = { firstOnly: true, dumpFree: true };   // d181: the planner keeps the first 1M orderly; after it, racing contact as before
 const COURSE_CPU = {
  version:'course-v1', readEvery:.20, switchMargin:2.4, holdSeconds:.65,
@@ -588,6 +589,11 @@ function makeDriver(prof, trait = {}) {
         steerAdd += side * (0.35 + 0.65 * urg);
         if (b.v > q.v - 1) thrMul = Math.min(thrMul, 1 - 0.95 * urg);
         if (urg > 0.5) mem.emergency = 0.4;
+      } else if (ROAD_FIGHT.on && !priority && sameWay && !nearMarkAt(b.x, b.y, ROAD_FIGHT.markR) && q.cap <= 0) {
+        // d188 (まえ: CPUs ran away from a bow coming alongside): on the straights (道中) side by side is racing — neither boat
+        // lifts or steers off; each holds its line on full drive, and the bolder ones lean on the other (SHOVE decides who gives)
+        const lean = ROAD_FIGHT.lean[trait.temper] ?? ROAD_FIGHT.lean.normal;
+        if (gapMin > 0) steerAdd += Math.sign(lat || 1) * lean * (0.5 + 0.5 * urg);
       } else if (lat < 0) {
         // I'm the outside boat: open the gap and drop back
         steerAdd += (0.4 + 0.6 * urg) * Math.max(0.8, care);
