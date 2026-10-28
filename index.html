@@ -251,6 +251,7 @@ body.lab-running>#jk{display:none!important}
   <div class="best" id="best">ベスト —</div>
   <div class="demotag" id="demoTag" hidden>6艇デモ</div>
   <div class="padtag" id="padTag" hidden>コントローラ接続中</div>
+  <div class="padtag" id="fpsTag" hidden>— fps</div>
   <div class="order" id="order" hidden></div>
   <div class="corder" id="corder" hidden></div>
 </div>
@@ -527,6 +528,7 @@ body.lab-running>#jk{display:none!important}
       <p style="margin:0;font-size:12px">チルトを上げるほど直線の伸びが出て外のコース向き。代わりに出足が鈍り、ターンで流れやすくなります。</p>
       <label>艇の表示 <select id="boatRenderMode"><option value="new3d">3D（新モデル）</option><option value="3d">軽量3Dモデル</option><option value="2d">従来の2D</option></select></label>
       <p id="boatRenderStatus" role="status" style="margin:0;font-size:12px">3Dモデルを準備中</p>
+      <label><input type="checkbox" id="fpsOn"> fps（1秒あたりの描画回数）を左上に表示</label>
       <label>カメラ <select id="camMode"><option value="follow">追いかけ</option><option value="close">拡大追尾（艇を大きく見る）</option><option value="auto">自動ズーム（PC向け・全艇が入るまで引く）</option></select></label>
       <label>天候 <select id="wxMode"><option value="auto">いつも通り</option><option value="storm">荒天にする（安定板・2周戦）</option></select></label>
       <label><input type="checkbox" id="vlogOn" checked> 動画用ログを記録する</label>

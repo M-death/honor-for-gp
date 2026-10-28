@@ -80,7 +80,7 @@ function slitRender(exactTime){
   for(const b of frame.boats){
     const col=LANE_COL[b.no-1]||LANE_COL[0],r=rec.boats.find(r=>r.no===b.no);
     const x=sx(b.x),y=sy(b.y);
-    g.save();g.translate(x,y);g.rotate(b.a);g.scale(scale,scale);
+    g.save();g.translate(x,y);g.rotate(b.a);g.scale(scale,scale);hullDrawTf(g);
     g.drawImage(boatSprite({hull:col[0],num:col[1],label:String(b.no),helmet:col[0]},b.cap>0),-2.65,-1.1,5.3,2.2);g.restore();
     g.beginPath();g.arc(sx(boatBow(b).x),sy(boatBow(b).y),3.2,0,Math.PI*2);g.fillStyle='#fff';g.fill();g.lineWidth=1.5;g.strokeStyle='#071824';g.stroke();
     g.textAlign='center';g.font='bold 15px sans-serif';g.fillStyle=r&&r.st<0?'#ffb0a6':'#fff';g.fillText(`${b.no}号艇${b.v!=null?'  '+Math.round(b.v*3.6)+'km/h':''}`,x,y-14);
@@ -98,7 +98,7 @@ function slitRender(exactTime){
 // TIME (later to the left), so a boat shows up as long as it takes to pass the line: fast boats short, slow boats long.
 // The 合図 (0.00) line marks the signal; a bow right of it is a フライング, the distance left of it is the ST.
 function slitCrossing(rec,no,off){
-  // time the point `off` m along the hull (2.25 = bow, -2.04 = stern) crosses x=0, interpolated between frames
+  // time the point `off` m along the hull (BOW_TIP = bow, -HULL_STERN = stern) crosses x=0, interpolated between frames
   const P=f=>{const b=f.boats.find(q=>q.no===no);return b&&{x:b.x+off*Math.cos(b.a),v:b.v,y:b.y};};
   for(let i=1;i<rec.frames.length;i++){
     const a=P(rec.frames[i-1]),c=P(rec.frames[i]);
@@ -123,11 +123,11 @@ function slitRenderCam(rec,frame,g,when){
   const rows=[];
   for(const r of rec.boats){
     const bow=slitCrossing(rec,r.no,BOW_TIP);if(!bow)continue;
-    const st=slitCrossing(rec,r.no,-2.04),v=Math.max(0.5,bow.v),tEnd=st?st.t:bow.t+4.29/v;
+    const st=slitCrossing(rec,r.no,-HULL_STERN),v=Math.max(0.5,bow.v),tEnd=st?st.t:bow.t+(BOW_TIP+HULL_STERN)/v;
     rows.push({r,bow,tEnd,v});
   }
   for(const q of rows){
-    const col=LANE_COL[q.r.no-1]||LANE_COL[0],x1=tx(q.bow.t),x2=tx(q.tEnd),y=sy(q.bow.y),h=(2.2/(maxY-minY))*430;
+    const col=LANE_COL[q.r.no-1]||LANE_COL[0],x1=tx(q.bow.t),x2=tx(q.tEnd),y=sy(q.bow.y),h=(2.2*DRAW_HULL.w/(maxY-minY))*430;
     // wake: churned water passing the line after the stern, fading
     const wl=Math.min(220,0.45*K),wg=g.createLinearGradient(x2,0,x2-wl,0);wg.addColorStop(0,'rgba(240,255,250,.75)');wg.addColorStop(1,'rgba(240,255,250,0)');
     g.fillStyle=wg;g.fillRect(x2-wl,y-h*0.32,wl,h*0.64);
@@ -337,7 +337,7 @@ function drawWindsock(x, y) {
 }
 // 自動ズーム (PC): pull back just far enough to keep every boat still racing on screen — close in when they are
 // bunched, out to the whole course when they spread. min: the closest it comes in (m across the short side).
-const CAM_AUTO = { margin: 22, min: 60, ease: 2.2 };
+const CAM_AUTO = { margin: 22, min: 40, ease: 2.2 };   // d187: closest 60 → 40 m (real-size boats)
 let camMode = 'follow';
 try { camMode = localStorage.getItem('honorGP.camera') || 'follow'; } catch (e) {}
 if ($('camMode')) { $('camMode').value = camMode; $('camMode').addEventListener('change', e => { camMode = e.target.value; try { localStorage.setItem('honorGP.camera', camMode); } catch (x) {} }); }
@@ -348,7 +348,7 @@ function camAutoTargets() {
 }
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  let S = Math.min(W, H) / (camMode === 'close' ? 20 : fleet ? 44 : 34); // px per metre
+  let S = Math.min(W, H) / (camMode === 'close' ? 13 : fleet ? 29 : 23); // px per metre   // d187: ×1.5 closer, the boats are real size now
   const fr = focusRow(), vb = fr ? fr.b : B;
   const look = camMode === 'close' ? Math.min(5, 3 + vb.v * .12) : 5 + vb.v * 0.45;
   // camera follow eased by real elapsed time, so an uneven frame doesn't make the view lurch
@@ -579,8 +579,9 @@ function drawBoatAt(b, inp, sty, focused) {
   ctx.translate(b.x, b.y); ctx.rotate(da);
   if (focused) {
     ctx.setLineDash([0.6, 0.6]); ctx.strokeStyle = C.lever; ctx.lineWidth = 0.2;
-    ctx.beginPath(); ctx.arc(0, 0, 3.4, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(0.66, 0, 2.4, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
   }
+  hullDrawTf(ctx);   // d187: everything below (hull, rider, spray, rings) drawn at real size
   const bo = boatBounce(b), lift = bo.h, ls = bo.ls;
   const bob = 1 + 0.07 * Math.sin(time * 18) * Math.max(b.porp, (b.wakeBump || 0) * 1.3);
   ctx.scale(bob, 1);

@@ -169,8 +169,8 @@ const KINEN = { gap: 0.2, pT: 0.35, Lmax: 0.91, kl: 3.4, rel: 42, exR: 0.47, exT
 const KINEN_MARKS = () => OBSTACLES.filter(o => o.kind === 'mark'), KINEN_BOOMS = () => OBSTACLES.filter(o => o.kind === 'boom');
 function kinenGap(c, ob) {
   const fx = Math.cos(c.a), fy = Math.sin(c.a);
-  const [px, py, qx, qy] = closestSegSeg(c.x - fx * HULL_AFT, c.y - fy * HULL_AFT, c.x + fx * HULL_FWD, c.y + fy * HULL_FWD, ob.x1, ob.y1, ob.x2, ob.y2);
-  return Math.hypot(px - qx, py - qy) - HULL_R - ob.r;
+  const [px, py, qx, qy] = closestSegSeg(c.x - fx * PLAN_HULL.aft, c.y - fy * PLAN_HULL.aft, c.x + fx * PLAN_HULL.fwd, c.y + fy * PLAN_HULL.fwd, ob.x1, ob.y1, ob.x2, ob.y2);
+  return Math.hypot(px - qx, py - qy) - PLAN_HULL.r - ob.r;
 }
 // a flat-out, full-lean turn at rudder sv from now: the closest it comes to the mark (−1 = it would cut inside or stall).
 // With the rider's current inputs `o` it also plays out how fast the hands and body get there (the ramp-in and the
@@ -334,7 +334,7 @@ function cutDrive(b, mem, o, prof, gap, body, free) {
     if (lx < MK - ONECUT.from || lx > MK || ly < 0 || Math.abs(la) > 0.9) { cs.run = false; return null; }   // (level with the buoy and still no cut: the line-follower turns it)
     if (time < cs.next) return null;
     cs.next = time + 1 / ONECUT.hz;
-    if (cs.aim == null) cs.aim = Math.max(0.1, gap - HULL_R - 1.5 + gauss() * P.g);   // the clearance it means to take — as truly as it can judge it
+    if (cs.aim == null) cs.aim = Math.max(0.1, gap - PLAN_HULL.r - 1.5 + gauss() * P.g);   // the clearance it means to take — as truly as it can judge it
     if (lx < MK - ONECUT.late && cutPredict(b, m, 1, o, prof, body) < cs.aim) { cs.run = true; return null; }   // d162: level with the buoy and the wide line it wanted never came — cut now rather than run on past it   // not yet: run on straight to the cut point (caller holds it)
     cs.run = false; cs.ph = 'hold'; cs.sv = clamp(1 - Math.abs(gauss()) * P.d, ONECUT.svMin, 1); cs.go = time + Math.abs(gauss()) * P.t;
     cs.rel = -Math.PI + (ONECUT.rel + gauss() * P.r) * D2R; cs.chk = time + P.chk; cs.cuts = 1; mem.cutTurns = (mem.cutTurns || 0) + 1;
@@ -518,9 +518,9 @@ function makeDriver(prof, trait = {}) {
   }
   function hullGap(ax, ay, aa, bx, by, ba) {
     const ca = Math.cos(aa), sa = Math.sin(aa), cb = Math.cos(ba), sb = Math.sin(ba);
-    const [px, py, qx, qy] = closestSegSeg(ax - ca * HULL_AFT, ay - sa * HULL_AFT, ax + ca * HULL_FWD, ay + sa * HULL_FWD,
-                                           bx - cb * HULL_AFT, by - sb * HULL_AFT, bx + cb * HULL_FWD, by + sb * HULL_FWD);
-    return Math.hypot(qx - px, qy - py) - 2 * HULL_R;
+    const [px, py, qx, qy] = closestSegSeg(ax - ca * PLAN_HULL.aft, ay - sa * PLAN_HULL.aft, ax + ca * PLAN_HULL.fwd, ay + sa * PLAN_HULL.fwd,
+                                           bx - cb * PLAN_HULL.aft, by - sb * PLAN_HULL.aft, bx + cb * PLAN_HULL.fwd, by + sb * PLAN_HULL.fwd);
+    return Math.hypot(qx - px, qy - py) - 2 * PLAN_HULL.r;
   }
   // 回りしろ: is there water to my inside (the course runs anticlockwise) — clear of the buoy, the boom and other hulls?
   function insideRoom(b, others, except) {
@@ -1450,9 +1450,9 @@ function turnRoleOf(b, env, style) {
   for (const o of env.others) {
     if (sameBoat(o, b) || o.cap > 0 || o.y < -3 || o.x < MK - 70 || Math.abs(o.y - b.y) > TURN_ORDER.lat) continue;
     // an outside boat clearly in front — or one going flat out round the outside (叩き／まくり) with its nose in front: I turn after it
-    if (o.y > b.y + 0.5) { const oc = (o.src || o).commitTurn; if (((o.x - 2.2) - (b.x + BOW_TIP) >= CLEAR_AHEAD + TURN_ORDER.yieldMargin || (oc && o.x - b.x > TURN_ORDER.commitLead)) && (!yieldTo || o.x > yieldTo.x)) yieldTo = o; continue; }   // clearly in front — not just a nose
+    if (o.y > b.y + 0.5) { const oc = (o.src || o).commitTurn; if (((o.x - PLAN_HULL.stern) - (b.x + BOW_TIP) >= CLEAR_AHEAD + TURN_ORDER.yieldMargin || (oc && o.x - b.x > TURN_ORDER.commitLead)) && (!yieldTo || o.x > yieldTo.x)) yieldTo = o; continue; }   // clearly in front — not just a nose
     if (o.y >= b.y - 0.5) continue;
-    if ((b.x - 2.2) - (o.x + BOW_TIP) >= CLEAR_AHEAD + TURN_ORDER.yieldMargin) continue;
+    if ((b.x - PLAN_HULL.stern) - (o.x + BOW_TIP) >= CLEAR_AHEAD + TURN_ORDER.yieldMargin) continue;
     if (style === 'commit' && b.x - o.x > TURN_ORDER.commitLead) continue;   // going flat out with my nose in front: it turns after me (the same test it uses)   // clearly in front of it (the same test it uses to give way): no obstacle
     ins.push(o);
     const d = (b.y - o.y) + Math.max(0, b.x - o.x) * 0.5;

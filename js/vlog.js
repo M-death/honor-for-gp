@@ -5,7 +5,7 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
   audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163', venueId: 'standard', courseVersion: 1,
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
@@ -357,6 +357,10 @@ VR = (() => {
         bank: 'rad, + = right side down', slip: 'rad, travel direction minus heading', roll: '-1..1 rider lean (+ = right)', pitch: '-1..1 rider posture (+ = crouched, - = sat up)',
         steer: '-1..1 applied rudder', thr: '0..1 applied lever', rpm: '0..1.15 engine pitch index (not revolutions per minute)', vl: 'm/s sideways', yaw: 'rad/s', hop: 'm', hv: 'm/s up', landV: 'm/s at the last landing',
         progress: 'race progress value (not a distance)', t: 's from the big clock reaching zero' },
+      // d187 (まえ: everything real size): the hull the race uses for contact and the size the game draws every boat at
+      hull: { lengthM: +(BOW_TIP + HULL_STERN).toFixed(2), beamM: 2 * HULL_R, bowTipM: BOW_TIP, sternM: HULL_STERN,
+        capsule: { r: HULL_R, aft: HULL_AFT, fwd: HULL_FWD },
+        note: 'x along the heading from the boat position (x, y): bow tip +bowTipM, transom -sternM; contact = capsule from -aft to +fwd with radius r. Draw the boat at this size, bow tip on +bowTipM (the motor hangs off the transom).' },
       view: { driftView: typeof DRIFT_VIEW !== 'undefined' && DRIFT_VIEW.on ? { gain: DRIFT_VIEW.gain, vLo: DRIFT_VIEW.vLo, vHi: DRIFT_VIEW.vHi, max: DRIFT_VIEW.max,
         formula: 'drawnHeading = heading - clamp(gain * slip * clamp((v - vLo) / (vHi - vLo), 0, 1), -max, max)  (the game draws the hull at this angle; d166)' } : null,
         // d175: the bow's trim (d173), with this version's numbers, so an old log keeps its old look if the game is retuned

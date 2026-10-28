@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd183';
+const GAME_VER = 'd187';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -73,8 +73,15 @@ const RULE19 = { vy: 1.3, overlap: 4.6, gap: 4.5 };
 // a boat is clear ahead (no overlap at all) when its stern is this far past the other's bow
 const CLEAR_AHEAD = 0.5;
 // 舳先がかかる (m along the hull): stern is this far behind the centre; a bow this far past the other's centre is at its cockpit
-const HESAKI = { stern: 2.2, deep: 0, outOff: 3 };
-const clearAhead = (b, q) => (b.x - 2.2) - (q.x + BOW_TIP) >= CLEAR_AHEAD;
+const HULL_STERN = 0.9;   // d187: the transom, m behind the pivot (real-size hull)
+// d187: the CPUs still judge room and 舳先 with the old, larger hull (their margins were tuned on it); only contact and the pictures are real size
+const PLAN_HULL = { r: 0.8, aft: 1.4, fwd: 1.6, stern: 2.2 };
+const HESAKI = { stern: PLAN_HULL.stern, deep: 0, outOff: 3 };
+const clearAhead = (b, q) => (b.x - PLAN_HULL.stern) - (q.x + BOW_TIP) >= CLEAR_AHEAD;
+// d187 (まえ: every model real size): the boat pictures (2D sprite, light 3D, new model) were drawn ≈5 m × 1.6 m around the pivot;
+// squeeze them to the real hull (≈3.1 m × 1.3 m) with the bow tip kept at BOW_TIP.
+const DRAW_HULL = { k: 0.63, w: 0.8, x: 0.83 };
+const hullDrawTf = c => { c.translate(DRAW_HULL.x, 0); c.scale(DRAW_HULL.k, DRAW_HULL.w); };
 const SS = { phase: 'off', t0: 0, hideAt: 0 };
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const diag = { ori: 0, oriNull: 0, mot: 0, framed: (() => { try { return window.self !== window.top; } catch (e) { return true; } })() };

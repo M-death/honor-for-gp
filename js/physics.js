@@ -402,12 +402,12 @@ function wallsFor(b) {
 }
 
 /* ---------- boat-to-boat contact ----------
-   Each hull is a capsule (a 3 m spine with 0.8 m of rounding) so bow, side and stern all hit
+   Each hull is a capsule (a 1.8 m spine with 0.65 m of rounding, real size since d187) so bow, side and stern all hit
    where they look. On touch the hulls are pushed apart and trade an impulse along the contact
    normal; the boat driving harder into the other keeps more of its line, an off-centre hit
    spins the hull, and a big enough shove can put a boat over (the physics capsizes it
    when its sideways speed runs away). Returns one event per new touch. */
-const HULL_R = 0.8, HULL_AFT = 1.4, HULL_FWD = 1.6;
+const HULL_R = 0.65, HULL_AFT = 0.25, HULL_FWD = 1.58;   // d187 (まえ: real size): 3.1 m × 1.3 m, bow tip 2.23, stern −0.9 (was 0.8/1.4/1.6 = 4.6 × 1.6 m)
 const SIDE_PUSH = { k: 0.3, yawMax: 0.15 };
 /* d176 押し出し・押し込み (まえ: a hit only killed both boats' speed — side to side and ダンプ should knock a boat off its line).
    The boat pressing harder into the other (closing speed, rider weight, a little more if it is ahead) keeps its line and most of

@@ -15,15 +15,24 @@ const limit = (v, lo, hi) => Math.max(lo, Math.min(hi, finite(v)));
 const api = { ready: false, failed: false, reason: '読み込み中', span: 8, tiles: new WeakMap(), count: 0 };
 window.Boat3DX = api;
 let renderer, canvas, scene, camera, sun, set, tile = 0;
+const SIZE = { len: 1.5, wid: 1.25, bow: 2.23 };   // d185: drawn length ×1.5, width ×1.25; bow tip (m ahead of the pivot) stays put
 const actors = new Map();   // `${lane}|${sex}` → BoatActor
 
 function actorFor(row) {
   const body = row.body || {}, sex = body.sex === 'f' ? 'f' : 'm', lane = limit(Math.round(row.no || 1), 1, 6);
   const key = lane + '|' + sex;
   let a = actors.get(key);
-  if (!a) { a = set.create({ lane, sex, heightCm: 165 }); a.root.visible = false; scene.add(a.root); actors.set(key, a); }
+  if (!a) { a = set.create({ lane, sex, heightCm: 165 }); a.root.visible = false; scene.add(a.root); actors.set(key, a); hullColor(a, lane); }
   a.heightCm = limit(body.height || (sex === 'f' ? 157 : 165), 140, 200);
   return a;
+}
+// d186 (まえ: colour came and went): the far LOD (2) paints the whole hull in the lane colour, the near ones (0, 1) are white
+// with thin lane trim, so zooming flipped the look. Tint the near hulls' livery to the lane colour too (black kept a little
+// lighter so the shape still reads).
+const HULL_TINT = ['#ffffff', '#3a3f47', '#d73533', '#2867bd', '#e6c128', '#20844f'];
+function hullColor(a, lane) {
+  for (const l of [0, 1]) a.levels[l].boat.traverse(o => { if (!o.isMesh || o.isSkinnedMesh) return;
+    for (const m of [].concat(o.material)) if (m.name.split('.')[0] === 'BoatLivery') m.color.set(HULL_TINT[lane - 1]); });
 }
 api.prepare = function (rows, scale, dpr, t) {
   api.tiles = new WeakMap(); api.count = 0;
@@ -78,8 +87,10 @@ async function init() {
   scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xdfefff, 0x2a4a58, 1.4));
   sun = new THREE.DirectionalLight(0xffffff, 2.2); scene.add(sun); scene.add(sun.target);
-  const s = api.span / 2;
-  camera = new THREE.OrthographicCamera(-s, s, s, -s, 0.1, 40);
+  // d185 (まえ: same size as the light model): the real-size model (≈3.3 m) is drawn stretched to the light 3D's size
+  // (≈5 m × 1.6 m, close to the hit capsule) by narrowing the view, with the bow tip kept where it was. Looks only.
+  const s = api.span / 2, L = SIZE.len, W = SIZE.wid, cx = SIZE.bow - SIZE.bow / L;
+  camera = new THREE.OrthographicCamera(cx - s / L, cx + s / L, s / W, -s / W, 0.1, 40);
   camera.position.set(0, 20, 0); camera.up.set(0, 0, -1); camera.lookAt(0, 0, 0);   // bow (+x after the yaw) → right, starboard (+z) → down
   set = await loadAssetSet(new URL('../hfgp3d/', import.meta.url).href, 'mobile');
   for (const lane of [1, 2, 3, 4, 5, 6]) actorFor({ no: lane, body: { sex: 'm' } });
