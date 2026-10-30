@@ -21,6 +21,8 @@ const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt
 let taBest = null;
 function taReload() { taBest = null; try { taBest = JSON.parse(localStorage.getItem(playerKey(TA.key)) || 'null'); } catch (e) {} }
 taReload();
+// 羽美のヒント: the first whose class this run reaches (fastest first)
+const UMI_HINT = [['記念クラス', '全開のまま…体をぐっと倒すの。'], ['A1', 'わたし、ターンでレバーを離さないよ〜。']];
 const taRank = t => TA_RANKS.find(r => t <= r[1])[0];
 const taGap = d => (d < 0 ? '−' : '+') + Math.abs(d).toFixed(2);
 
@@ -114,6 +116,9 @@ function taShow(run, why, ref = taBest, isBest = false) {
       + (up ? `　${up[0]}まであと${(run.t - up[1]).toFixed(1)}秒。` : '　最高ランクです。');
   }
   $('taMsg').textContent = msg;
+  // d202 (まえ): 羽美 (the girl in the manual's manga) drops a hint about the full-speed turn once a run is fast enough
+  const hint = run && UMI_HINT.find(([rank]) => run.t <= TA_RANKS.find(r => r[0] === rank)[1]);
+  $('taHint').hidden = !hint; if (hint) $('taHintTxt').textContent = hint[1];
   const tb = $('taBody'); tb.textContent = '';
   const row = (name, a, b) => { const tr = document.createElement('tr'); [name, a, b].forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); }); tb.appendChild(tr); };
   const st = v => v == null ? '—' : v < 0 ? 'F ' + fmtST(-v) : fmtST(v);

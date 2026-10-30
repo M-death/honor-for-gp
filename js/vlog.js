@@ -20,8 +20,11 @@ const VL_FLAG = { capHull: 1, fallen: 2, retired: 4, dq: 8, flying: 16, finished
 // a bow in on the boat outside going into a turn (舳先がかかる), long side-by-side fights — and a scored list of
 // highlight windows built from all the events. Still read-only: nothing here touches the race.
 const VL_HL = { passHold: 1.0, near: 40, ovL: [0.5, 6], ovF: [-12, 2], ovMin: 0.3, duelF: 4, duelL: 7, duelMin: 1.5, top: 6 };
-let vlOn = true;
-try { vlOn = localStorage.getItem('honorGP.vlog') !== 'off'; } catch (e) {}
+// d199 (まえ): replay-video logs are a PC thing — on a phone or tablet nothing about them shows and nothing is recorded
+// (a mouse/trackpad as the main pointer counts as a PC, touch-screen laptops included)
+const vlPC = (() => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (e) { return false; } })();
+let vlOn = vlPC;
+try { vlOn = vlPC && localStorage.getItem('honorGP.vlog') !== 'off'; } catch (e) {}
 let vlHold = false;   // 6艇デモ: wait on the result so this race can be saved (not saved by itself — the button still has to be pressed)
 
 VR = (() => {
@@ -455,18 +458,23 @@ VR = (() => {
 function vlUi() {
   const has = !!(VR && VR.has()), r = VR && VR.rec;
   for (const id of ['resVid', 'taVid']) { const el = $(id); if (el) { el.hidden = !vlOn || (!has && !(r && r.state === 'RECORDING')); el.disabled = !!(r && r.state === 'EXPORTING'); } }
+  // 6艇レース (d198, まえ): the result asks whether to save the replay log — on a PC only
+  const rv = $('resVid'); if (rv) { const rm = vlRaceMode(); rv.textContent = rm ? '保存する' : 'リプレイ保存'; if (rm && !vlPC) rv.hidden = true; }
   const h = $('vlHold');
   if (h) { h.hidden = !vlOn || !fleet || !!fleet.playerNo || !!fleet.setsu; h.textContent = `結果で待つ：${vlHold ? 'オン' : 'オフ'}`; h.classList.toggle('alt', !vlHold); }
 }
+const vlRaceMode = () => !!(fleet && fleet.raceCfg);
 function vlResultNote(demoAuto) {
   const m = $('resVidMsg'); if (!m) return;
   m.textContent = ''; m.hidden = true;
   if (!vlOn) return;
+  if (vlRaceMode()) { if (vlPC && VR.has()) { m.textContent = 'リプレイ作成用のログを保存しますか？（保存しないときは「次へ」）'; m.hidden = false; } return; }
   if (!VR.has()) { m.textContent = '走行データがないためリプレイ保存できません'; m.hidden = false; return; }
   if (demoAuto) { m.textContent = `次へ進むと、このリプレイは保存できません（${demoAuto}秒後に次のレース）`; m.hidden = false; }
 }
 if ($('vlogOn')) {
   $('vlogOn').checked = vlOn;
+  if (!vlPC) { const l = $('vlogOn').closest('label'), nx = l && l.nextElementSibling; if (l) l.style.display = 'none'; if (nx && nx.tagName === 'P') nx.style.display = 'none'; }
   $('vlogOn').addEventListener('change', e => { vlOn = e.target.checked; try { localStorage.setItem('honorGP.vlog', vlOn ? 'on' : 'off'); } catch (x) {} vlUi(); });   // takes effect from the next race
 }
 if ($('vlHold')) $('vlHold').addEventListener('click', () => { vlHold = !vlHold; vlUi(); });

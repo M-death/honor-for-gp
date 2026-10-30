@@ -158,6 +158,7 @@ table.race.st tr.me td{background:rgba(255,180,46,.14)}
 .mtab td.best{color:var(--good)}
 .plrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 4px}.plrow select,.plrow input{font:inherit;padding:6px 8px;background:#132c39;color:var(--fg);border:1px solid var(--hud-line);border-radius:8px}.plrow input{width:9em}.plrow .btn{padding:6px 12px}
 .ta-big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:4px 0 2px}.ta-big b{font-family:var(--f-num);font-size:40px;font-variant-numeric:tabular-nums}
+.ta-hint{display:flex;gap:10px;align-items:center;margin:4px 0 8px}.ta-hint img{width:56px;height:56px;border-radius:50%;border:2px solid #e9f5f2;flex:none}.ta-hint p{position:relative;margin:0;background:#fffaf0;color:#1c2a30;border-radius:12px;padding:6px 12px;font-weight:700}.ta-hint p::before{content:"";position:absolute;left:-7px;top:50%;margin-top:-6px;border:6px solid transparent;border-right-color:#fffaf0;border-left:0}#taHint p,#taHint span{color:#1c2a30}.ta-hint small{display:block;font-size:11px;color:#8a6a3a;font-weight:700}
 .ta-rank{font-weight:700;font-size:20px;padding:2px 12px;border-radius:8px;background:#1d4a57;color:#bcf5e2}.ta-rank.top{background:#7a1d18;color:#ffd9d4}.ta-rank.ex{background:linear-gradient(135deg,#8a6a12,#e2b93b);color:#2a1d00}
 .calbox{position:relative;width:150px;height:150px;margin:6px auto 4px;border-radius:50%;border:2px solid rgba(233,245,242,.35);background:rgba(5,24,31,.5)}
 .calbox .calx,.calbox .caly{position:absolute;background:rgba(233,245,242,.25)}
@@ -338,9 +339,11 @@ body.lab-running>#jk{display:none!important}
     <p id="controlHelp" style="font-size:13px"></p>
     <div class="row">
       <button class="btn" id="go">スタート</button>
+      <button class="btn ghost" id="goRace">6艇レース</button>
       <button class="btn ghost" id="goDemo">6艇デモを見る</button>
+      <button class="btn ghost" id="goManual">操作説明</button>
       <button class="btn ghost" id="labLaunchStart">挙動検証（2〜6艇）</button>
-      <span style="font-size:12px;color:var(--muted)">PC：W/S＝スロットル　A/D＝舵　矢印＝体重移動（↑伏せる／↓起こす）<br>コントローラ：左トリガー＝スロットル　右スティック＝舵　左スティック＝体重移動</span>
+      <span style="font-size:12px;color:var(--muted)">PC：W/S＝スロットル　A/D＝舵　矢印＝体重移動（↑伏せる／↓起こす）<br>コントローラ：右トリガー＝スロットル（設定で左に変更可）　右スティック＝舵　左スティック＝体重移動</span>
     </div>
   </div>
 </div>
@@ -381,9 +384,11 @@ body.lab-running>#jk{display:none!important}
       <p style="margin:0 0 6px">バックストレッチから2マークを回り、スリットから2周。展示・直線・まわり足・一周タイムを計測。</p>
       <button class="btn ghost" id="pmClock">大時計スタート（1艇）</button>
       <button class="btn ghost" id="pmRace">レース練習（6艇・ピット離れから3周・全部自分で操作）</button>
+      <button class="btn" id="pmRaceMode">6艇レース（枠・スタート・相手を選ぶ）</button>
       <button class="btn" id="pmSetsu" style="margin-top:6px">節間モード（6日間・48人）</button>
       <button class="btn ghost" id="pmReplay" style="margin-top:6px">保存したリプレイログ</button>
       <p style="margin:0 0 6px">前検でモーター抽選、予選4日の得点率で準優・優勝戦へ。自分のレースは自分で走るか、おまかせ。他のレースは結果だけ、または観戦。</p>
+      <button class="btn ghost" id="pmManual">操作説明</button>
       <button class="btn ghost" id="pmClose">やめる</button>
     </div>
   </div>
@@ -443,6 +448,28 @@ body.lab-running>#jk{display:none!important}
   </div>
 </div>
 
+<div class="overlay" id="manualBox" hidden style="z-index:30">
+  <div class="card" style="max-width:820px;width:calc(100vw - 32px);height:calc(100vh - 48px);display:flex;flex-direction:column;gap:8px;padding:12px">
+    <iframe id="manualFrame" title="操作説明書" style="flex:1;width:100%;border:0;border-radius:8px;background:#fff"></iframe>
+    <div class="row" style="margin:0;justify-content:flex-end"><button class="btn" id="manualClose">閉じる</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="raceSetup" hidden>
+  <div class="card" style="max-width:480px">
+    <h1 style="font-size:22px"><small>6艇レース</small>レースの条件</h1>
+    <div class="set">
+      <p style="margin:0;font-size:13px">自分の枠</p>
+      <div class="wakus" id="rsWaku" style="margin:4px 0 6px"></div>
+      <label>スタート <select id="rsStart"><option value="pit">ピット離れから（進入あり）</option><option value="fixed">枠なりの並びから（大時計20秒前）</option></select></label>
+      <label>自艇のチルト <select id="rsTilt"><option value="-0.5">−0.5（標準）</option><option value="0">0</option><option value="0.5">+0.5</option><option value="1">+1.0</option><option value="1.5">+1.5</option><option value="2">+2.0</option><option value="3">+3.0</option></select></label>
+      <p style="margin:6px 0 0;font-size:13px">相手（選ばない枠はおまかせ）</p>
+      <div id="rsCpu" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px"></div>
+    </div>
+    <div class="row"><button class="btn" id="rsGo">レース開始</button><button class="btn ghost" id="rsClose">やめる</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="slitPhoto" hidden role="dialog" aria-modal="true" aria-labelledby="slitTitle">
   <div class="card">
     <h1 id="slitTitle">スリット判定写真</h1>
@@ -478,6 +505,7 @@ body.lab-running>#jk{display:none!important}
     <h1 style="font-size:22px"><small>タイムアタック（3周）</small>結果</h1>
     <div class="ta-big"><b id="taTime"></b><span id="taRank" class="ta-rank"></span></div>
     <p id="taMsg" style="color:var(--fg)"></p>
+    <div id="taHint" class="ta-hint" hidden><img src="manga/umi_face.webp" alt="羽美" width="56" height="56"><p><small>羽美</small><span id="taHintTxt"></span></p></div>
     <table class="mtab"><thead><tr><th></th><th>今回</th><th>自己ベスト</th></tr></thead><tbody id="taBody"></tbody></table>
     <p id="taGaps" style="font-size:13px;color:var(--fg);margin:4px 0"></p>
     <p id="taNote" style="font-size:12px;color:var(--muted)"></p>
@@ -517,7 +545,7 @@ body.lab-running>#jk{display:none!important}
       <button class="btn" id="zero">今の持ち方を基準にする</button>
       <label><input type="checkbox" id="invR"> 左右の傾きを反転</label>
       <label><input type="checkbox" id="invP"> 前後の傾きを反転</label>
-      <label><input type="checkbox" id="padRT"> コントローラのスロットルを右トリガーにする</label>
+      <label><input type="checkbox" id="padRT" checked> コントローラのスロットルを右トリガーにする</label>
       <label><input type="checkbox" id="sndOn" checked> 音</label>
       <label>音量 <input type="range" id="sndVol" min="0" max="100" step="5" value="70"><output id="sndVolOut">70</output></label>
       <div class="row" style="margin-top:0"><label style="flex:1"><input type="checkbox" id="hapOn" checked> 振動（コントローラ／Androidスマホ）</label><button class="btn ghost" id="hapTest">振動テスト</button></div>
@@ -529,6 +557,7 @@ body.lab-running>#jk{display:none!important}
       <label>艇の表示 <select id="boatRenderMode"><option value="new3d">3D（新モデル）</option><option value="3d">軽量3Dモデル</option><option value="2d">従来の2D</option></select></label>
       <p id="boatRenderStatus" role="status" style="margin:0;font-size:12px">3Dモデルを準備中</p>
       <label><input type="checkbox" id="fpsOn"> fps（1秒あたりの描画回数）を左上に表示</label>
+      <label id="screenModeRow">画面（PC） <select id="screenMode"><option value="full">全画面</option><option value="window">ウィンドウ</option></select></label>
       <label>カメラ <select id="camMode"><option value="follow">追いかけ</option><option value="close">拡大追尾（艇を大きく見る）</option><option value="auto">自動ズーム（PC向け・全艇が入るまで引く）</option></select></label>
       <label>天候 <select id="wxMode"><option value="auto">いつも通り</option><option value="storm">荒天にする（安定板・2周戦）</option></select></label>
       <label><input type="checkbox" id="vlogOn" checked> 動画用ログを記録する</label>
@@ -536,6 +565,7 @@ body.lab-running>#jk{display:none!important}
       <label>実況 <select id="jkMode"><option value="off">オフ</option><option value="std">標準</option><option value="hot">熱血（児島風）</option></select></label>
       <label>6艇デモの再生速度 <select id="simSpeed"><option value="1">1倍（実時間）</option><option value="1.5" selected>1.5倍</option><option value="2">2倍</option><option value="3">3倍</option></select></label>
       <div class="row" style="margin-top:0">
+        <button class="btn ghost" id="setManual">操作説明</button>
         <button class="btn ghost" id="reset">練習をやり直す</button>
         <button class="btn ghost" id="close">閉じる</button>
       </div>

@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Honor for GP 操作説明書</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* layout: one reading column; a tab strip picks the device; each control is a row: input on the left, what it does on the right */
+:root{
+  --bg:#eef4f6; --surface:#ffffff; --ink:#0f2530; --muted:#4f6873; --line:#c9d8de;
+  --lever:#e8890c; --water:#0e6f8f; --keycap:#f7fafb; --keyedge:#9fb4bd; --tip:#fff4e2;
+  --f-display:"Dela Gothic One","Hiragino Kaku Gothic StdN",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
+  --f-num:ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#08161d; --surface:#0f2330; --ink:#e3eff3; --muted:#9db4be; --line:#24404d;
+  --lever:#ffb03a; --water:#5cc4e4; --keycap:#18323f; --keyedge:#3b5a68; --tip:#2a2213; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#08161d; --surface:#0f2330; --ink:#e3eff3; --muted:#9db4be; --line:#24404d;
+  --lever:#ffb03a; --water:#5cc4e4; --keycap:#18323f; --keyedge:#3b5a68; --tip:#2a2213; color-scheme:dark}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.75;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+main{max-width:760px;margin:0 auto;display:grid;gap:28px}
+h1,h2,h3{font-family:var(--f-display);font-weight:400;text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:clamp(28px,6vw,40px)}
+h1 small{display:block;font-family:var(--f-body);font-weight:700;font-size:13px;letter-spacing:.12em;color:var(--lever)}
+h2{font-size:22px}
+h3{font-size:16px}
+p{margin:0}
+.lead{color:var(--muted);max-width:62ch}
+section{display:grid;gap:14px}
+.basics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.basic{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:4px;min-width:0}
+.basic b{font-size:15px}
+.basic span{font-size:13px;color:var(--muted)}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);padding-block:8px;z-index:5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.tabs button{font:inherit;font-weight:700;font-size:14px;padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--water);border-color:var(--water);color:var(--bg)}
+.tabs button:focus-visible,.modes button:focus-visible{outline:3px solid var(--lever);outline-offset:2px}
+.panel{display:grid;gap:18px}
+.rows{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.row{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr);gap:14px;padding:12px 16px;border-top:1px solid var(--line);align-items:start}
+.row:first-child{border-top:0}
+.row .in{font-weight:700;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.row .do{min-width:0}
+.row .do small{display:block;color:var(--muted);font-size:13px;line-height:1.6}
+.rowhead{padding:8px 16px;font-size:12px;letter-spacing:.1em;color:var(--muted);background:color-mix(in srgb,var(--line) 35%,var(--surface));font-weight:700}
+kbd{font-family:var(--f-num);font-size:13px;min-width:1.9em;text-align:center;padding:2px 7px;border-radius:6px;background:var(--keycap);border:1px solid var(--keyedge);border-bottom-width:3px;color:var(--ink);white-space:nowrap}
+.pill{font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;border:1px solid var(--lever);color:var(--lever);white-space:nowrap}
+.modes{display:flex;flex-wrap:wrap;gap:6px}
+.modes button{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.modes button[aria-pressed="true"]{border-color:var(--lever);background:color-mix(in srgb,var(--lever) 16%,transparent);font-weight:700}
+.figure{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;overflow-x:auto}
+.figure svg{display:block;width:100%;max-width:640px;height:auto;margin:0 auto}
+.figure svg text{font-family:var(--f-body);fill:var(--ink)}
+.figure .zone{fill:color-mix(in srgb,var(--water) 14%,transparent);stroke:var(--water);stroke-width:1.5}
+.figure .zone2{fill:color-mix(in srgb,var(--lever) 14%,transparent);stroke:var(--lever);stroke-width:1.5}
+.figure .frame{fill:none;stroke:var(--muted);stroke-width:2}
+.figure .sub{fill:var(--muted);font-size:12px}
+.figure .arrow{stroke:var(--ink);stroke-width:2;fill:none;marker-end:url(#ah)}
+.tip{background:var(--tip);border-radius:10px;padding:12px 16px;display:grid;gap:6px}
+.tip h3{color:var(--lever)}
+ul{margin:0;padding-left:1.2em;display:grid;gap:4px}
+footer{color:var(--muted);font-size:12px}
+.manga{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:10px;justify-items:center}
+.manga img{display:block;width:100%;max-width:560px;height:auto;aspect-ratio:2/3;border-radius:6px;background:var(--line);cursor:pointer}
+.mnav{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center}
+.mnav button{font:inherit;font-weight:700;font-size:13px;min-width:2.4em;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.mnav button[aria-current="true"]{background:var(--water);border-color:var(--water);color:var(--bg)}
+.mnav button:disabled{opacity:.35;cursor:default}
+.mnav button:focus-visible,.manga img:focus-visible{outline:3px solid var(--lever);outline-offset:2px}
+@media (max-width:520px){.row{grid-template-columns:1fr;gap:4px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head><body>
+<main>
+  <header style="display:grid;gap:8px">
+    <h1><small>HONOR FOR GP 波の向こうに</small>操作説明書</h1>
+    <p class="lead">ボートを動かす操作は4つだけです。スマホのタッチ、コントローラ、キーボードのどれでも同じ4つを操作します。</p>
+  </header>
+
+  <section aria-labelledby="h-manga">
+    <h2 id="h-manga">漫画で見る</h2>
+    <div class="manga">
+      <img id="mangaImg" src="manga/p1.webp" alt="操作説明の漫画 1ページ目" tabindex="0" width="1024" height="1536">
+      <div class="mnav" role="group" aria-label="漫画のページ">
+        <button type="button" id="mPrev" aria-label="前のページ">◀</button>
+        <span id="mPages" style="display:contents"></span>
+        <button type="button" id="mNext" aria-label="次のページ">▶</button>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-basic">
+    <h2 id="h-basic">基本の4つ</h2>
+    <div class="basics">
+      <div class="basic"><b>レバー（アクセル）</b><span>握るほど速くなる。ターンの手前で緩め、出口でまた握る。</span></div>
+      <div class="basic"><b>舵（ハンドル）</b><span>左右に切って曲がる。離すとまっすぐに戻る。</span></div>
+      <div class="basic"><b>体重移動（左右）</b><span>曲がる側に体重をかけると、艇が傾いて鋭く回れる。</span></div>
+      <div class="basic"><b>姿勢（前後）</b><span>前に伏せると直線が伸びる。後ろに起こすと安定する。</span></div>
+    </div>
+  </section>
+
+  <nav class="tabs" role="tablist" aria-label="操作方法">
+    <button role="tab" id="tab-touch" aria-controls="p-touch" aria-selected="true">スマホ（タッチ）</button>
+    <button role="tab" id="tab-pad" aria-controls="p-pad" aria-selected="false">コントローラ</button>
+    <button role="tab" id="tab-key" aria-controls="p-key" aria-selected="false">キーボード</button>
+  </nav>
+
+  <!-- タッチ -->
+  <section class="panel" id="p-touch" role="tabpanel" aria-labelledby="tab-touch">
+    <h2>スマホ（タッチ）</h2>
+    <p>スマホは横向きで遊びます。操作モードは3つあり、最初の画面か設定で選べます。</p>
+    <div class="modes" role="group" aria-label="操作モード">
+      <button type="button" data-mode="tilt" aria-pressed="true">1．傾きあり</button>
+      <button type="button" data-mode="pad" aria-pressed="false">2．傾きなし・姿勢パッド</button>
+      <button type="button" data-mode="wheel" aria-pressed="false">3．姿勢パッド＋右手アクセル</button>
+    </div>
+
+    <div class="figure" aria-hidden="true">
+      <svg viewBox="0 0 640 300" id="touchFig">
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+        <rect class="frame" x="10" y="10" width="620" height="280" rx="28"/>
+        <g data-fig="tilt">
+          <rect class="zone2" x="30" y="30" width="285" height="240" rx="14"/>
+          <rect class="zone" x="325" y="30" width="285" height="240" rx="14"/>
+          <text x="172" y="70" text-anchor="middle" font-size="18" font-weight="700">左半分：レバー</text>
+          <text x="172" y="92" text-anchor="middle" class="sub">上下になぞる</text>
+          <line class="arrow" x1="172" y1="230" x2="172" y2="120" style="color:var(--ink)"/>
+          <text x="467" y="70" text-anchor="middle" font-size="18" font-weight="700">右半分：舵</text>
+          <text x="467" y="92" text-anchor="middle" class="sub">左右になぞる・離すと中央</text>
+          <line class="arrow" x1="400" y1="170" x2="534" y2="170" style="color:var(--ink)"/>
+          <line class="arrow" x1="534" y1="170" x2="400" y2="170" style="color:var(--ink)"/>
+          <text x="320" y="262" text-anchor="middle" class="sub">スマホ本体を傾けて体重移動・姿勢</text>
+        </g>
+        <g data-fig="pad" hidden>
+          <rect class="zone2" x="30" y="30" width="285" height="240" rx="14"/>
+          <rect class="zone" x="325" y="30" width="285" height="240" rx="14"/>
+          <text x="172" y="66" text-anchor="middle" font-size="18" font-weight="700">左半分：レバー</text>
+          <line class="arrow" x1="230" y1="230" x2="230" y2="110" style="color:var(--ink)"/>
+          <circle cx="110" cy="190" r="52" class="zone" />
+          <circle cx="110" cy="190" r="16" fill="var(--water)"/>
+          <text x="110" y="122" text-anchor="middle" class="sub">姿勢パッド</text>
+          <text x="467" y="70" text-anchor="middle" font-size="18" font-weight="700">右半分：舵</text>
+          <text x="467" y="92" text-anchor="middle" class="sub">左右になぞる・離すと中央</text>
+          <line class="arrow" x1="400" y1="170" x2="534" y2="170" style="color:var(--ink)"/>
+          <line class="arrow" x1="534" y1="170" x2="400" y2="170" style="color:var(--ink)"/>
+        </g>
+        <g data-fig="wheel" hidden>
+          <rect class="zone" x="30" y="30" width="285" height="240" rx="14"/>
+          <rect class="zone2" x="325" y="30" width="285" height="240" rx="14"/>
+          <circle cx="150" cy="170" r="60" class="zone"/>
+          <circle cx="150" cy="170" r="18" fill="var(--water)"/>
+          <text x="172" y="70" text-anchor="middle" font-size="18" font-weight="700">左手：姿勢パッド</text>
+          <text x="467" y="70" text-anchor="middle" font-size="18" font-weight="700">右半分：レバー</text>
+          <line class="arrow" x1="467" y1="230" x2="467" y2="110" style="color:var(--ink)"/>
+          <text x="320" y="262" text-anchor="middle" class="sub">スマホ本体をハンドルのように回して舵</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="rows" id="touchRows"></div>
+
+    <div class="rows">
+      <div class="rowhead">画面のボタン（ピット離れのとき）</div>
+      <div class="row"><div class="in"><span class="pill">主張</span></div><div class="do">一つ内側のコースを狙う<small>押すたびに一つ内へ。押さなければ枠のまま。</small></div></div>
+      <div class="row"><div class="in"><span class="pill">引く</span></div><div class="do">ダッシュ位置へ下がる<small>2マークを回ってから、スタートラインに正対するまでの間に押す。</small></div></div>
+      <div class="row"><div class="in">右上の歯車</div><div class="do">設定を開く</div></div>
+    </div>
+  </section>
+
+  <!-- コントローラ -->
+  <section class="panel" id="p-pad" role="tabpanel" aria-labelledby="tab-pad" hidden>
+    <h2>コントローラ</h2>
+    <p>Xbox・PlayStation系のコントローラをPCやスマホにつなぐと使えます。スティックやトリガーに触れた時点でコントローラ操作に切り替わります。</p>
+    <div class="rows">
+      <div class="rowhead">走る</div>
+      <div class="row"><div class="in"><kbd>RT</kbd> 右トリガー</div><div class="do">レバー<small>引いた分だけ握る。離すと戻る。設定で左トリガー（<kbd>LT</kbd>）に変えられます。</small></div></div>
+      <div class="row"><div class="in">右スティック 左右</div><div class="do">舵</div></div>
+      <div class="row"><div class="in">左スティック 左右</div><div class="do">体重移動</div></div>
+      <div class="row"><div class="in">左スティック 上／下</div><div class="do">上で伏せる、下で起こす</div></div>
+      <div class="rowhead">スタート前・その他</div>
+      <div class="row"><div class="in"><kbd>A</kbd></div><div class="do">コースを主張（ピット離れのとき）</div></div>
+      <div class="row"><div class="in"><kbd>B</kbd> または <kbd>Y</kbd></div><div class="do">引く（ダッシュへ）</div></div>
+      <div class="row"><div class="in"><kbd>X</kbd></div><div class="do">今の練習を最初からやり直す</div></div>
+      <div class="row"><div class="in"><kbd>Start</kbd></div><div class="do">設定を開く／閉じる</div></div>
+      <div class="rowhead">メニュー</div>
+      <div class="row"><div class="in">十字キー・左スティック</div><div class="do">項目を選ぶ<small>選択肢のある項目は左右で値が変わります。</small></div></div>
+      <div class="row"><div class="in"><kbd>A</kbd> ／ <kbd>B</kbd></div><div class="do">決定 ／ キャンセル（閉じる）</div></div>
+    </div>
+  </section>
+
+  <!-- キーボード -->
+  <section class="panel" id="p-key" role="tabpanel" aria-labelledby="tab-key" hidden>
+    <h2>キーボード</h2>
+    <p>PC向けです。レバーはキーを押している間だけ少しずつ動き、離した位置で止まります。</p>
+    <div class="rows">
+      <div class="rowhead">走る</div>
+      <div class="row"><div class="in"><kbd>W</kbd></div><div class="do">レバーを握る<small>押している間、少しずつ上がる（全開まで約0.8秒）。</small></div></div>
+      <div class="row"><div class="in"><kbd>S</kbd></div><div class="do">レバーを緩める</div></div>
+      <div class="row"><div class="in"><kbd>A</kbd> <kbd>D</kbd></div><div class="do">舵（左・右）<small>離すとまっすぐに戻る。</small></div></div>
+      <div class="row"><div class="in"><kbd>←</kbd> <kbd>→</kbd></div><div class="do">体重移動（左・右）</div></div>
+      <div class="row"><div class="in"><kbd>↑</kbd></div><div class="do">伏せる</div></div>
+      <div class="row"><div class="in"><kbd>↓</kbd></div><div class="do">起こす</div></div>
+      <div class="rowhead">スタート前・その他</div>
+      <div class="row"><div class="in"><kbd>Space</kbd></div><div class="do">引く（ダッシュへ）</div></div>
+      <div class="row"><div class="in">マウスで「主張」</div><div class="do">コースを主張<small>キーは割り当てていません。画面のボタンをクリックします。</small></div></div>
+      <div class="row"><div class="in"><kbd>Esc</kbd></div><div class="do">全画面を抜けてウィンドウ表示にする<small>設定の「画面（PC）」で全画面に戻せます。</small></div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-tech" style="gap:12px">
+    <h2 id="h-tech">上級テクニック</h2>
+    <div class="tip">
+      <h3>ウィリーターン</h3>
+      <p>姿勢を後ろへ素早く2回（タタン）入れて、そのままレバーを全開に握ります。舳先を上げたまま回るので、引き波に強くターンの出口が速くなります。</p>
+      <ul>
+        <li>出足と回り足がどちらも「○」以上のモーターでないと出ません。</li>
+        <li>失敗すると減速したり、バランスを崩して転覆することがあります。</li>
+        <li>キーボードは <kbd>↓</kbd><kbd>↓</kbd>＋<kbd>W</kbd>、コントローラは左スティック下を2回＋トリガー。</li>
+      </ul>
+    </div>
+    <div class="tip">
+      <h3>舳先の跳ね上げ（後ろ重心）</h3>
+      <p>ターンの出口で、伏せた姿勢から一気に後ろへ起こすと舳先が跳ね上がり、一瞬だけ加速が強くなります。すぐ伏せ直すのがコツです。</p>
+      <ul>
+        <li>回っている最中に使うと、プロペラが空回りして外へ流れます。</li>
+        <li>引き波の上や、艇を深く傾けたままだと転覆しやすくなります。</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>操作の向きが逆に感じたら、設定で左右・前後の傾きを反転できます（体験版は「詳しい操作設定」の中）。</footer>
+</main>
+
+<script>
+const TOUCH = {
+  tilt: [
+    ['左半分を上下になぞる', 'レバー', '触れた位置から上へなぞるほど握る。指を離してもその位置で止まる。'],
+    ['右半分を左右になぞる', '舵', '指を離すとまっすぐに戻る。'],
+    ['スマホを左右に傾ける', '体重移動', ''],
+    ['スマホを前後に傾ける', '伏せる／起こす', '構えた姿勢が基準。設定の「今の持ち方を姿勢の基準にする」で取り直せる。']
+  ],
+  pad: [
+    ['左半分を上下になぞる', 'レバー', '触れた位置から上へなぞるほど握る。指を離してもその位置で止まる。'],
+    ['右半分を左右になぞる', '舵', '指を離すとまっすぐに戻る。'],
+    ['姿勢パッドを左右', '体重移動', 'パッドは左手側の丸いスティック。'],
+    ['姿勢パッドを上下', '上で伏せる、下で起こす', 'スマホの傾きセンサーは使わない。']
+  ],
+  wheel: [
+    ['スマホ本体を回す', '舵', 'ハンドルのように回す。中央は「今の持ち方を舵の中央にする」で決める。'],
+    ['右半分を上下になぞる', 'レバー', '指を離してもその位置で止まる。'],
+    ['姿勢パッドを左右', '体重移動', ''],
+    ['姿勢パッドを上下', '上で伏せる、下で起こす', '']
+  ]
+};
+function drawTouch(mode) {
+  const box = document.getElementById('touchRows');
+  box.textContent = '';
+  for (const [inp, what, note] of TOUCH[mode]) {
+    const row = document.createElement('div'); row.className = 'row';
+    const a = document.createElement('div'); a.className = 'in'; a.textContent = inp;
+    const b = document.createElement('div'); b.className = 'do'; b.textContent = what;
+    if (note) { const s = document.createElement('small'); s.textContent = note; b.appendChild(s); }
+    row.append(a, b); box.appendChild(row);
+  }
+  for (const g of document.querySelectorAll('#touchFig [data-fig]')) g.toggleAttribute('hidden', g.dataset.fig !== mode);   // SVG has no .hidden property
+  for (const bt of document.querySelectorAll('.modes button')) bt.setAttribute('aria-pressed', String(bt.dataset.mode === mode));
+}
+for (const bt of document.querySelectorAll('.modes button')) bt.addEventListener('click', () => drawTouch(bt.dataset.mode));
+drawTouch('tilt');
+// 漫画: 6 pages and the 番外編; tap the page (or ▶) for the next one
+const MANGA = [['p1', '1'], ['p2', '2'], ['p3', '3'], ['p4', '4'], ['p5', '5'], ['p6', '6'], ['extra', '番外編']];
+let mPage = 0;
+function showManga(i) {
+  mPage = Math.max(0, Math.min(MANGA.length - 1, i));
+  const img = document.getElementById('mangaImg');
+  img.src = 'manga/' + MANGA[mPage][0] + '.webp';
+  img.alt = '操作説明の漫画 ' + (MANGA[mPage][1] === '番外編' ? '番外編' : MANGA[mPage][1] + 'ページ目');
+  for (const b of document.querySelectorAll('#mPages button')) b.setAttribute('aria-current', String(+b.dataset.i === mPage));
+  document.getElementById('mPrev').disabled = mPage === 0;
+  document.getElementById('mNext').disabled = mPage === MANGA.length - 1;
+  const nx = MANGA[mPage + 1]; if (nx) new Image().src = 'manga/' + nx[0] + '.webp';   // the next page ready before the tap
+}
+MANGA.forEach(([, label], i) => {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.i = i;
+  b.addEventListener('click', () => showManga(i)); document.getElementById('mPages').appendChild(b);
+});
+document.getElementById('mPrev').addEventListener('click', () => showManga(mPage - 1));
+document.getElementById('mNext').addEventListener('click', () => showManga(mPage + 1));
+document.getElementById('mangaImg').addEventListener('click', () => showManga(mPage + 1 < MANGA.length ? mPage + 1 : 0));
+document.getElementById('mangaImg').addEventListener('keydown', e => { if (e.key === 'ArrowRight') showManga(mPage + 1); if (e.key === 'ArrowLeft') showManga(mPage - 1); });
+showManga(0);
+function showTab(id) {
+  for (const t of document.querySelectorAll('[role="tab"]')) {
+    const on = t.id === id; t.setAttribute('aria-selected', String(on));
+    document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+  }
+}
+for (const t of document.querySelectorAll('[role="tab"]')) t.addEventListener('click', () => showTab(t.id));
+</script>
+
+</body></html>

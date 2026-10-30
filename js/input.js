@@ -290,14 +290,26 @@ function lockLandscape() {
       o.lock(t).then(() => { orient.locked = true; }).catch(() => {});
     };
     if (document.fullscreenElement) { orient.full = true; lock(); return; }
-    if (orient.stayWindow) return;   // PC: the player left full screen once — keep the window
+    if (isPC() && screenMode === 'window') return;   // d198 (まえ): on a PC full screen or a window is a setting (phones always go full screen)
     if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { orient.full = true; lock(); }).catch(() => {});
   } catch (e) {}
 }
 const orient = { locked: false, full: false };   // full: the player had full screen (taken back on the next tap if lost)
 // on a PC (mouse, no touch), leaving full screen (Esc etc.) is the player's choice: don't go back into it
 const isPC = () => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches && !('ontouchstart' in window) && !(navigator.maxTouchPoints > 0); } catch (e) { return false; } };
-document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && orient.full && isPC()) { orient.full = false; orient.stayWindow = true; } });
+// leaving full screen on a PC (Esc etc.) sets the setting to ウィンドウ
+let screenMode = 'full';
+try { screenMode = localStorage.getItem('honorGP.screen') === 'window' ? 'window' : 'full'; } catch (e) {}
+function setScreenMode(m) { screenMode = m; try { localStorage.setItem('honorGP.screen', m); } catch (e) {} if ($('screenMode')) $('screenMode').value = m; }
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && orient.full && isPC()) { orient.full = false; setScreenMode('window'); } });
+if ($('screenMode')) {
+  $('screenMode').value = screenMode;
+  if (!isPC()) $('screenModeRow').hidden = true;
+  $('screenMode').addEventListener('change', e => {
+    setScreenMode(e.target.value);
+    try { if (screenMode === 'full' && !document.fullscreenElement) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => { orient.full = true; }).catch(() => {}); else if (screenMode === 'window' && document.fullscreenElement) { orient.full = false; document.exitFullscreen().catch(() => {}); } } catch (x) {}
+  });
+}
 async function enableTiltInput(){
   let ok = true;
   // both requests fire inside the same tap so iOS still counts it as a user gesture
@@ -332,6 +344,7 @@ function afterStartCheck(ok) {
   }, 1800);
 }
 $('go').addEventListener('click', () => { start(); });
+$('goRace').addEventListener('click', () => { start(() => { beginStart(); openRaceSetup(); }); });
 $('goDemo').addEventListener('click', () => { start(() => entryMode ? startEntry(null) : startFleet()); });
 $('stayPortrait').addEventListener('click', () => { portraitOk = true; $('rotate').hidden = true; });
 
@@ -339,7 +352,7 @@ $('stayPortrait').addEventListener('click', () => { portraitOk = true; $('rotate
 $('gear').addEventListener('click', () => { resetVirtualPosture();paused = true; $('settings').hidden = false; });
 $('close').addEventListener('click', () => { paused = false; last = performance.now(); $('settings').hidden = true; });
 $('zero').addEventListener('click', () => { $('settings').hidden = true; openCalib(() => toast('基準リセット', 'OKを押した持ち方が傾き0になりました', 'info')); });
-$('padRT').addEventListener('change', e => { pad.useRT = e.target.checked; });
+$('padRT').addEventListener('change', e => { pad.useRT = e.target.checked; try { localStorage.setItem('honorGP.padRT', pad.useRT ? '1' : '0'); } catch (_) {} });
 $('sndOn').addEventListener('change', e => { snd.on = e.target.checked; initAudio(); });
 $('sndVol').addEventListener('input', e => { snd.vol = e.target.value / 100; $('sndVolOut').textContent = e.target.value; });
 $('hapOn').addEventListener('change', e => { hap.on = e.target.checked; if (!hap.on) { hap.active = true; hapticsStop(); } });
@@ -370,15 +383,32 @@ function restartPractice() {
   if (!$('slitPhoto').hidden) $('slitPhoto').hidden = true;
   paused = false; last = performance.now();
   if (fleet && fleet.setsu) { toast('節間モード', '本番のレースはやり直せません', 'warn'); return; }
-  if (fleet && fleet.playerNo) startEntry(fleet.playerNo, fleet.practice6 ? 'p6' : 'race');
+  if (fleet && fleet.raceCfg) startRaceMode(fleet.raceCfg);
+  else if (fleet && fleet.playerNo) startEntry(fleet.playerNo, fleet.practice6 ? 'p6' : 'race');
   else if (fleet) nextRace();
   else soloRestart();
 }
 $('pm6').addEventListener('click', () => openWaku('p6'));
 $('pmRace').addEventListener('click', () => openWaku('race'));
+$('pmRaceMode').addEventListener('click', () => openRaceSetup());
 $('pmTenji').addEventListener('click', () => { closeMenu(); if (fleet) quitFleet(); beginTenji(); });
 $('pmClock').addEventListener('click', () => { closeMenu(); if (fleet) quitFleet(); beginStart(); });
 $('pmClose').addEventListener('click', closeMenu);
+// 操作説明書 (d200, まえ): manual.html in an overlay. Loaded as srcdoc where the page can fetch its own files (the hosted
+// build), else straight by src (opened as a local file)
+let manualWasPaused = false;
+async function openManual() {
+  const fr = $('manualFrame');
+  if (!fr.dataset.loaded) {
+    fr.dataset.loaded = '1';
+    try { const r = await fetch('manual.html'); if (!r.ok) throw 0; fr.srcdoc = await r.text(); } catch (e) { fr.src = 'manual.html'; }
+  }
+  manualWasPaused = paused; paused = true; $('manualBox').hidden = false;
+}
+$('goManual').addEventListener('click', openManual);
+$('pmManual').addEventListener('click', openManual);
+$('setManual').addEventListener('click', openManual);
+$('manualClose').addEventListener('click', () => { $('manualBox').hidden = true; paused = manualWasPaused; last = performance.now(); });
 $('note').addEventListener('click', () => { $('note').hidden = true; });
 
 /* ---------- オリジナル展示タイム style measurement (スタート練習, 2 laps) ----------
@@ -567,7 +597,9 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)resetVirtua
    LT = throttle lever (left hand, like the real boat; RT can be chosen in settings)
    right stick ←→ = rudder,  left stick ←→ = lean,  left stick ↑ = 伏せる / ↓ = 体を起こす
    A = start / OK / もう一度 / コース主張,  X = 練習をやり直す,  B = 引く（待機行動中。画面が開いていれば閉じる）,  Y = 引く,  Menu = settings */
-const pad = { idx: -1, seenAt: -1, useRT: false, prev: [] };
+// スロットルは右トリガーが標準（まえ d197）。設定で左に変えたらブラウザに覚える
+const pad = { idx: -1, seenAt: -1, useRT: (() => { try { return localStorage.getItem('honorGP.padRT') !== '0'; } catch (_) { return true; } })(), prev: [] };
+if ($('padRT')) $('padRT').checked = pad.useRT;
 const padDz = v => Math.abs(v) < 0.12 ? 0 : (v - Math.sign(v) * 0.12) / 0.88;
 // Embedded views (like the in-app preview) can forbid controller access outright; then getGamepads
 // throws. Treat that as "no controller" for the rest of the session instead of letting it stop the game.
