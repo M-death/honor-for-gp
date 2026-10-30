@@ -66,7 +66,7 @@ const raceFadeK = b => (1 - CHOP.thr * chopNow()) * (1 - HEAT.thr * fadeScale() 
 // 回り足 (quick races): extra pull and bite while the boat is turning; 1 = average motor
 const MAWARI = { yaw: 0.35, thr: 2.5, grip: 1.2 };
 const mawariK = (b, k) => b && b.mawari ? 1 + (b.mawari - 1) * k * clamp(Math.abs(b.yaw) / MAWARI.yaw, 0, 1) : 1;
-const TILT = { hop: 0.25, nobi: 0.006, deashi: 0.01, grip: 0.035, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };
+const TILT = { rough: 1.5, hop: 0.12, nobi: 0.025, deashi: 0.012, grip: 0.035, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };   // d191 (まえ: alone on clean water tilt up should pay): A1 solo 3 laps tilt 0/1/2/3 = 107.5/107.2/106.9/106.4 s, top 79.8/81.3/82.6/83.8 km/h; in a race the wake/chop penalty (rough) eats it. d189: nobi .006→.025, hop .25→.12
 function motorK(b, v = b.v) {
   if (!b || b.nobi == null) return 1;
   const t = b.tilt || 0;
@@ -88,7 +88,7 @@ const ENV = { windDrift: 0.035, windAir: 0.025, waveBump: 0.012, waveStab: 6, st
    off, the tilt down and the 安定板 all keep it lower. h = hop in m, hv = its vertical speed. */
 const BOUNCE = { on: true, g: 15.7, h: 0.3, rise: 0.025, bumpMin: 0.04, bumpFull: 0.15, hMax: 0.5, gap: 0.12, down: 0.6, up: 0.45, lever: 0.65, stab: 0.6, tilt: 0.12,
   airThr: 0.6, airDown: 0.4, airGrip: 0.35, stuck: 0.12, stuckFrom: 0.3, stuckLoad: 0.7, reb: 0.3, rebDown: 0.9, rebUp: 0.7, rebMin: 1.2, hRef: 0.25, stuckStraight: 0.1,
-  porp: 0.12 };   // d181 (まえ): a porpoise (tilt / bow held high) is a small hop, not a wake jump — before, one on a flat straight threw the hull 47 cm
+  porp: 0.08 };   // d189: 0.12 → 0.08, the tilt porpoise on flat water is a smaller hop   // d181 (まえ): a porpoise (tilt / bow held high) is a small hop, not a wake jump — before, one on a flat straight threw the hull 47 cm
 function bounceStep(b, t, down, up, dt) {
   const bump = Math.max((b.wakeBump || 0) * (1 - (1 - WILLIE.wake) * (b.wil || 0)), (b.porp || 0) * BOUNCE.porp);
   if (b.hv == null) { b.hop = 0; b.hv = 0; b.bumpRef = bump; b.landAge = 9; b.landV = 0; b.stuckAge = 9; }
@@ -255,7 +255,9 @@ function boatPhysics(b, inp, dt) {
   acc -= b.porp * (1.2 + simRandom() * 2.2);
   // 引き波: rough water from another boat. Riding in it drags; crossing it at an angle
   // (bump) makes the hull slam and hop, costing more speed and grip and knocking it off line.
-  const wk = (b.inWake || 0) * (1 - (1 - WILLIE.wake) * wil), bump = (b.wakeBump || 0) * (1 - (1 - WILLIE.wake) * wil);
+  // d190 (まえ): チルト2・3 ride high on the bow — wake and chop hit them much harder (×2.5 at 2, ×4 at 3: caught in a scrum or on rough water, no chance)
+  const tR = 1 + TILT.rough * Math.max(0, (b.tilt || 0) - 1);
+  const wk = (b.inWake || 0) * (1 - (1 - WILLIE.wake) * wil) * tR, bump = (b.wakeBump || 0) * (1 - (1 - WILLIE.wake) * wil) * tR;
   const wakeA = (wk * (b.wakeLine ? WAKE_LINE.along : 1) * (0.5 + b.v * 0.04) + bump * (0.8 + b.v * 0.07)) * WAKE.drag;
   acc -= wakeA;
   if (bump > 0.05) b.yaw += (simRandom() * 2 - 1) * bump * 6 * WAKE.kick * (0.3 + 0.7 * (b.wakeTurn || 0)) * dt;

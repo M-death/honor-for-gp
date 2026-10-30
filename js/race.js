@@ -369,7 +369,8 @@ const COURSE_CPU = {
   4:{base:'makuri',label:'伸びを生かしてまくる',weights:{makuri:6,makurisashi:2,sashiWin:1}},
   5:{base:'makurisashi',label:'内の攻めに続いてまくり差し',weights:{makurisashi:6,sashiWin:3,makuri:0}},
   6:{base:'makurisashi',label:'マークから離れて回り、出足で内へ斬り込む',weights:{makurisashi:6,sashiPlace:4,makuri:-1}}   // d181 (まえ)
- }
+ },
+ hane:{base:'makurisashi',attackLeadM:2.5,label:'チルト3.0：スリットで出たら一気にまくる',weights:{makuri:0,makurisashi:5,sashiPlace:4}}   // d192 (まえ): 勝つか大敗か
 };
 const CPU_REASON_JA={base:'コースの基本作戦',lead:'伸び・先行で外から攻める',slot:'艇間の開きを狙う',follow:'内艇の攻めに続く',wait:'内が塞がり差し構えで待つ',wall:'外の攻めに対して壁を作る',inside:'先マイを優先',hold:'旋回ラインを維持',closed:'狙った間が閉じたため待つ',forced:'指定戦法を使用'};
 function cpuGroundVelocity(b){return{x:b.v*Math.cos(b.a)-b.vl*Math.sin(b.a),y:b.v*Math.sin(b.a)+b.vl*Math.cos(b.a)};}
@@ -406,7 +407,7 @@ function cpuReadWater(b,env,trait){
   innerMaxY:inner.length?Math.max(...inner.filter(q=>Math.abs(q.x-b.x)<35).map(q=>q.y),0):0,observedAt:env.now};
 }
 function cpuChooseFirstMark(b,env,trait,mem){
- const rule=COURSE_CPU.courses[trait.course]||COURSE_CPU.courses[6];
+ const rule=(b.tilt>=HANE.tilt&&trait.course>=5&&COURSE_CPU.hane)||COURSE_CPU.courses[trait.course]||COURSE_CPU.courses[6];
  const phases=['slit','approach','turn','exit'];
  const observedPhase=b.a< -2.35?'exit':b.x>115&&b.a<-.18?'turn':b.x>=60?'approach':'slit';
  const phase=phases[Math.max(phases.indexOf(observedPhase),phases.indexOf(mem.cpuDecision?.phase))];
@@ -417,7 +418,7 @@ function cpuChooseFirstMark(b,env,trait,mem){
  if(scores.makuri!=null){
   scores.makuri+=clamp(obs.predictedLeadM,-6,6)*1.3+aggressive+(trait.kado?1.5:0)+(obs.stAdv>.04?.6:0);
   if(obs.innerCount&&obs.frontLeadM< -3)scores.makuri-=4;
-  if(obs.innerCount&&obs.predictedLeadM<COURSE_CPU.attackLeadM)scores.makuri-=4;
+  if(obs.innerCount&&obs.predictedLeadM<(rule.attackLeadM??COURSE_CPU.attackLeadM))scores.makuri-=rule.attackLeadM?9:4;
  }
  if(scores.makurisashi!=null)scores.makurisashi+=obs.slot?(obs.slot.following?6:5):-9;
  if(scores.sashiWin!=null)scores.sashiWin+=(obs.predictedLeadM<1?2:0)+(obs.innerOpen?3:0);
@@ -1653,6 +1654,7 @@ function raceFieldsInit(r) {
 }
 // チルト: CPU riders mostly sit at −0.5 inside; the dash courses go 0 / +0.5 for 伸び, and now and then a rider
 // gambles on a big tilt (はね). The player picks their own in the settings. Called again once the course is known.
+const HANE = { tilt: 3, p: 0.06, sgP: 0.03 };   // d192: share of races where the 6枠 CPU goes 3.0 (はね)
 function fitMotor(r, course, again) {
   const b = r.b;
   b.deashi = r.motor.deashi; b.nobi = r.motor.nobi; b.mawari = r.motor.mawari || 0;
@@ -1663,9 +1665,12 @@ function fitMotor(r, course, again) {
   b.stabilizer = !!(waterEnv && waterEnv.stabilizer);
   if (r.player) { b.tilt = playerTilt; return; }
   if (again && !r.tiltAuto) return;
+  if (r.hane) { b.tilt = HANE.tilt; return; }   // the はね boat keeps its 3.0 whatever course it ends up in
   r.tiltAuto = true;
+  // d192 (まえ): a 3.0 is a 6枠 rider's gamble — it stays out in 6コース and goes for one big まくり (win or lose big)
+  if (!again && r.no === 6 && course === 6 && simRandom() < (sgMode ? HANE.sgP : HANE.p)) { r.hane = true; r.pref = 'out'; b.tilt = r.tilt = HANE.tilt; return; }
   const out = course >= 4 || (r.trait && r.trait.kado);
-  b.tilt = out ? pickW([[-0.5, 2], [0, 4], [0.5, 3], [1, 1], [2, 0.3], [3, 0.15]]) : pickW([[-0.5, 8], [0, 2], [0.5, 0.4]]);
+  b.tilt = out ? pickW([[-0.5, 2], [0, 4], [0.5, 3], [1, 1], [2, 0.3]]) : pickW([[-0.5, 8], [0, 2], [0.5, 0.4]]);
   r.tilt = b.tilt;
 }
 function setupFleet() {
