@@ -752,7 +752,7 @@ function makeDriver(prof, trait = {}) {
       const tFull = timeToLine(Math.max(0, d), b.v, prof.cruise, true, b);   // its own motor's pull, as the rider knows it
       // it goes by its own read of the clock, which is off by stErr
       // lever lag makes it arrive a touch late; from a standstill (待機水面で止まっていた) the hull has to climb onto the plane too
-      const aim = rem + mem.stErr + mem.stTarget - 0.05 - (!trait.slow && b.v < 3 ? 0.08 : 0);
+      const aim = rem + mem.stErr + mem.stTarget - 0.05 - (!trait.slow && b.v < 3 ? START_REST : 0);
       if (!mem.go && tFull >= aim) mem.go = true;
       if (mem.go && tFull < aim - 0.35) mem.go = false;  // would jump the clock: back off
       // 放る: close to the line the clock reads true — if flat out from here would be a certain フライング,
@@ -1553,11 +1553,14 @@ const IDLE_V = 4.2;
 // and the flat-out ST below which a boat near the line throws the lever off (放る) instead of going early
 const ST_SPREAD = { 1: 0.05, 2: 0.11, 3: 0.11, 4: 0.08, 5: 0.10, 6: 0.10, kado: 0.08, def: 0.10 };   // 4カド (and 3カド) is the easiest start after the 1
 const ST_MARGIN = 0.5, HOU_AT = 0.01;
+// d195 (まえ: the slow start was worse than the dash): a dash boat starting from rest (進入あり) aimed 0.08 s early to make up for
+// climbing onto the plane, but its own read already covers that — it crossed ~0.045 s earlier than it meant to. Now 0.025.
+const START_REST = 0.025;
 const START_MODE = { shobu: 0.05, pin: 0.10, antei: 0.15 };
 // how hard each spot is to time (× sd), by course: the 1コース is the easiest to read, harder the further out.
 // A dash boat (any course) times it from a run-up — harder still, but it crosses with the speed on.
 // margin: how much later (× its extra error) an outside boat aims to stay clear of a フライング
-const START_COURSE = { by: [0.6, 0.85, 1.0, 1.2, 1.35, 1.5], dash: 1.15, margin: 0.5 };
+const START_COURSE = { by: [0.4, 0.75, 1.0, 1.2, 1.35, 1.5], dash: 1.15, margin: 0.5 };   // d195 (まえ: the 1コース is the easiest start): 1 .6→.4, 2 .85→.75
 const START_PICK = { calm: { shobu: 0.04, antei: 0.4 }, normal: { shobu: 0.12, antei: 0.25 }, aggr: { shobu: 0.25, antei: 0.1 } };
 const START_SHOBU_HOU = 0.75;   // going for 0.05, the chance it still throws the lever off when it would be early
 function startModeOf(trait) {
@@ -1746,12 +1749,16 @@ const ENTRY = {
   pitRun: [80, 100],                                // m run straight out of the pits flat out before turning for the buoy
   pitSteal: 9,                                      // m ahead of the inside boat at the end of that run: a late boat loses its course there
   dashSwing: 40,                                    // m further back than 2M a dash boat rounds (to come out ~200 m from the line)
-  dashDepth: 16,                                    // m of extra run-up for a dash called the moment the boat leaves the pits
+  dashDepth: 56,                                    // m of extra run-up for a dash called the moment the boat leaves the pits (d194: 16→56, an early dash sits behind 250 m)
   gap: 6, gapT: 1.2,                                // 艇2つ分: closer than this behind a boat for this long = 間隔不足
-  slowX: -117, dashX: -196,                         // waiting spots (m before the line); a dash called early sits deeper
+  slowX: -117, dashX: -205,                         // d194: dash -196→-205
+  slowSwing: 22,                                    // d194 (まえ): m further back than 2M the slow boats round, so they square up behind the 150 m line                         // waiting spots (m before the line); a dash called early sits deeper
   playerDashFace: 20,                               // s before the start: the player's dash (lever automatic once 引く is pressed) squares up about now, then the lever is theirs
   react: { TOP: 0.08, A1: 0.1, A2: 0.14, B1: 0.2, B2: 0.28 },   // pit reaction (s) by class
 };
+// d194 (まえ: a dash called early sits behind 250 m): in a race with 進入 the boats hand over to the start this long before the
+// clock hand moves, so a deep dash boat has the run-up it needs from rest (fixed-entry races keep PRE_RUN)
+const ENTRY_PRE = 6, ENTRY_RUNUP = CLOCK + ENTRY_PRE;
 const SMALL_TURN_BUOY = { x: -MK + 20, y: 0 };      // 小回り防止ブイ: 20 m from 2M toward the centre (its real place); boats leaving the pits go round outside it
 let onEntryHandoff = null;                          // UI hook
 
@@ -1801,7 +1808,20 @@ function entrySpot(r, nSlow, contested) {
     return { x: ENTRY.slowX - (c - 1) * 2.5 + (c === 1 ? 5 : 0) + deep * (1 - (c - 1) * 0.2), y: laneYOf(c) };   // イン sits 5 m deeper
   }
   // dash: the earlier the call, the deeper (longer run-up) the spot it takes
-  return { x: Math.max(COURSE.xMin + 10, ENTRY.dashX - Math.max(0, c - nSlow - 1) * 3 - (r.en.dashBonus || 0)), y: laneYOf(c) };
+  return { x: Math.max(COURSE.xMin + 10, ENTRY.dashX - Math.max(0, c - nSlow - 1) * 3 - (r.en.dashBonus || 0)) + tiltDashShift(r), y: laneYOf(c) };
+}
+// d193: a tilted-up boat is heavy below planing, so from a standstill it covers less water in the clock's run-up than
+// with its tilt at 0 — its rider takes the dash spot that much shallower (cached per tilt)
+function tiltDashShift(r) {
+  const b = r.b, t = b.tilt || 0;
+  if (t <= 0) return 0;
+  if (r.en.reachKey !== t) { r.en.reachKey = t; r.en.reachShift = Math.max(0, reachIn(ENTRY_RUNUP, 0.5, { ...b, tilt: 0, yaw: 0 }) - reachIn(ENTRY_RUNUP, 0.5, { ...b, yaw: 0 })); }
+  return r.en.reachShift;
+}
+function reachIn(T, v, boat) {
+  let x = 0, t = 0; const dk = 0.012 * 0.9 * (boat && boat.hullDrag || 1) * (boat && boat.bodyDrag || 1), wk = boat && boat.weightK || 1;
+  while (t < T) { const acc = THRUST * thrustK(v) * startK(v, true, boat) * motorK(boat, v) * wk - dk * v * v - 0.1 * v; v += acc * 0.05; x += v * 0.05; t += 0.05; }
+  return x;
 }
 // the player's dash: from 引く until squared up the boat paces itself to its spot (the lever does nothing)
 const playerDashAuto = r => r.player && r.en.dash && !r.en.rewind && !r.en.faced && r.en.stage !== 'pit';
@@ -1870,7 +1890,7 @@ const thrFor = (v, vT) => clamp(0.25 + (vT - v) * 0.35, 0, 1);
 // timing — the only way to kill time is to swing the bow off the line (it then moves slower toward it),
 // and only so far. Arrive too early, or hold the lever too long, and the boat ends up deep (起こし short).
 const WAIT_V = 1.8;   // m/s the hull settles at, lever shut and sat up (≈7 km/h)
-const creepAfter = ok => WAIT_V * Math.max(0, RUNUP - timeToLine(ok, WAIT_V) - 0.2) + 2;   // m still crept after the hand starts (till the lever opens)
+const creepAfter = ok => WAIT_V * Math.max(0, ENTRY_RUNUP - timeToLine(ok, WAIT_V) - 0.2) + 2;   // m still crept after the hand starts (till the lever opens)
 // steering for the pit-out loop: along the home side to the 小回り防止ブイ, round it (outside), back to 2M, round 2M
 function entryAim(b, R, stage, look, A = -MK) {
   const Bx = SMALL_TURN_BUOY.x;
@@ -1884,12 +1904,13 @@ function entryAim(b, R, stage, look, A = -MK) {
 }
 // pace from the buoy to 2M: come round 2M so that, after squaring up, the drift at idle carries the boat
 // onto its 起こし mark as the hand starts. Slow boats round earlier, dash boats later (with a little spare).
+const entrySwing = en => en.dash ? ENTRY.dashSwing + (en.dashBonus || 0) * 0.8 : ENTRY.slowSwing;   // d194: a deep dash rounds further back still
 function entryPace(r, R, nSlow, contested, leftOverride) {
   const E = fleet.entry, b = r.b, en = r.en;
   const sp = entrySpot(r, nSlow, contested), xh = sp.x - creepAfter(-sp.x);
-  const drift = Math.max(0, xh - (-MK + 2)) / 1.35;                 // s of idling from squaring up to the mark
-  const tA = E.zero - RUNUP - Math.PI * R / ENTRY.vTurn - drift - (en.dash ? 14 : 3);
-  const left = leftOverride ?? Math.max(0, b.x - (-MK - (en.dash ? ENTRY.dashSwing : 0) + 3));
+  const drift = Math.max(0, xh - (-MK - entrySwing(en) + 2)) / 1.35;                 // s of idling from squaring up to the mark
+  const tA = E.zero - ENTRY_RUNUP - Math.PI * R / ENTRY.vTurn - drift - (en.dash ? 14 : 3);
+  const left = leftOverride ?? Math.max(0, b.x - (-MK - entrySwing(en) + 3));
   return clamp(left / Math.max(0.5, tA - time), 1.8, 10);
 }
 function laneProg(r) {
@@ -2022,9 +2043,9 @@ function entryStep(dt, playerInput) {
       else { b.v = 0; b.vl = 0; b.yaw = 0; r.inp = { thr: 0, steer: 0, roll: 0, pitch: 0 }; continue; }
     }
     if (en.stage === 'out' && b.y < -5 && Math.cos(b.a) < -0.3 && b.x < SMALL_TURN_BUOY.x + 3) { en.stage = 'back'; if (!r.player) cpuDashEarly(r); }
-    if (en.stage === 'back' && b.x < -MK - (en.dash ? ENTRY.dashSwing : 0) + 3) en.stage = 'turn';
-    if (en.stage === 'turn' && b.x < -MK - 4 && b.y > 0.55 * ENTRY.runR(en.slot)) { en.stage = 'approach'; }
-    if (en.stage === 'approach' && en.facing && Math.cos(b.a) > 0.97 && b.y > 2 && (Math.abs(laneYOf(en.course || en.slot) - b.y) < 2.5 || E.zero - RUNUP - time < 11)) {   // squared up only once on its course's line (it can't move across after)
+    if (en.stage === 'back' && b.x < -MK - entrySwing(en) + 3) en.stage = 'turn';
+    if (en.stage === 'turn' && b.x < -MK - entrySwing(en) - 4 && b.y > 0.55 * ENTRY.runR(en.slot)) { en.stage = 'approach'; }
+    if (en.stage === 'approach' && en.facing && Math.cos(b.a) > 0.97 && b.y > 2 && (Math.abs(laneYOf(en.course || en.slot) - b.y) < 2.5 || E.zero - ENTRY_RUNUP - time < 11)) {   // squared up only once on its course's line (it can't move across after)
       en.stage = 'wait'; en.faced = true; en.facedAt = time; E.faced.push(r); E.lastFacedAt = time;
       if (r.player && en.dash && !en.rewind) toast('ダッシュ位置', '正対した。ここからアクセルは自分で（起こしは自分のタイミング）', 'good');
       // 見透し線 priority: a slow boat squaring up after a boat outside it has already squared up
@@ -2048,8 +2069,8 @@ function entryStep(dt, playerInput) {
     const R = ENTRY.runR(en.slot);
     if (en.stage === 'out' || en.stage === 'back' || en.stage === 'turn') {
       // a dash boat swings wide round 2M (further back) to come out with a long run-up
-      [tx, ty] = entryAim(b, R, en.stage, 5 + b.v * 0.5, -MK - (en.dash ? ENTRY.dashSwing : 0));
-      const Bx = SMALL_TURN_BUOY.x, Aeff = -MK - (en.dash ? ENTRY.dashSwing : 0);
+      [tx, ty] = entryAim(b, R, en.stage, 5 + b.v * 0.5, -MK - entrySwing(en));
+      const Bx = SMALL_TURN_BUOY.x, Aeff = -MK - entrySwing(en);
       if (en.stage === 'turn') vT = en.rewind ? 7 : ENTRY.vTurn;
       else if (en.stage === 'out' && b.y < 5) vT = ENTRY.vBuoy;   // round the buoy under control
       else {
@@ -2075,7 +2096,7 @@ function entryStep(dt, playerInput) {
       // edging to its lane, and turns to face only when a straight idle from there lands it on its 起こし
       // mark as the hand starts. Face too soon (or come round 2M too early) and there's no undoing it: deep.
       const sp = entrySpot(r, nSlow, contested), ok = -sp.x, xh = sp.x - creepAfter(ok);
-      const T = Math.max(0.5, E.zero - RUNUP - time), D = xh - b.x;
+      const T = Math.max(0.5, E.zero - ENTRY_RUNUP - time), D = xh - b.x;
       cpuPullDecide(r, boats, sp, T);
       const dashAuto = playerDashAuto(r);
       const manual = r.player && playerInput && playerInput.thr >= 0.08 && !en.pulling && !dashAuto;
@@ -2215,7 +2236,7 @@ function entryStep(dt, playerInput) {
     entryFoul(who, '待機中の接触');
   }
   // the hand starts 12 s out: hand over to the race's own start
-  if (time >= E.zero - RUNUP) entryHandoff();
+  if (time >= E.zero - ENTRY_RUNUP) entryHandoff();
 }
 function cpuDashEarly(r) {
   // early 引き on the back straight (it then swings wide round 2M): the 6 now and then, the 5 more likely once
@@ -2225,7 +2246,7 @@ function cpuDashEarly(r) {
   const p = r.pref === 'out' && slot >= 3 ? 0.6 : slot === 6 ? 0.6 : slot === 5 ? (outerDash ? 0.7 : 0) : 0;
   if (p && boats.every(q => q.en.slot <= slot || q.en.dash) && simRandom() < p) {
     callDash(r);
-    r.en.dashBonus = ENTRY.dashDepth * (0.55 + simRandom() * 0.45);
+    r.en.dashBonus = ENTRY.dashDepth * (0.88 + simRandom() * 0.12);
   }
 }
 function cpuDashChoice(r, nSlowNow) {
@@ -2274,14 +2295,18 @@ function entryHandoff() {
     if (!r.player && r.tiltAuto) fitMotor(r, course, true);
   });
   // each boat runs in on the line it squared up on (it can't steer across now), kept in course order
-  let yPrev = 2;
-  for (const r of order) { r.trait.laneY = clamp(Math.max(r.b.y, yPrev + 4.5), 4, 46); yPrev = r.trait.laneY; r.b.y = r.trait.laneY; r.b.a = wrapRad(r.b.a) * 0.3; }   // settle each boat on its line, bow straight: from the 起こし on there's no rudder
+  // d194: lanes at least 4.5 m apart and inside 4–46 m; an outside boat squared up wide pushes the ones inside it in
+  // (before, a clamp at 46 could put the 5 and the 6 on the same line, the 6 running in the 5's wake from the 起こし)
+  const ys = []; let yPrev = 2;
+  for (const r of order) { yPrev = Math.max(r.b.y, yPrev + 4.5); ys.push(yPrev); }
+  for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.max(4 + 4.5 * i, Math.min(ys[i], i === ys.length - 1 ? 46 : ys[i + 1] - 4.5));
+  order.forEach((r, i) => { r.trait.laneY = ys[i]; r.b.y = r.trait.laneY; r.b.a = wrapRad(r.b.a) * 0.3; });   // settle each boat on its line, bow straight: from the 起こし on there's no rudder
   fleet.byCourse = {}; for (const r of fleet.boats) fleet.byCourse[r.trait.course] = r;
   fleet.rank = order;
   fleet.entryResult = { text: order.slice(0, nSlow).map(r => r.no).join('') + '/' + order.slice(nSlow).map(r => r.no).join(''), steals: E.steals, nSlow,
                         rewinds: fleet.boats.filter(r => r.en.rewind).length, viol: E.viol.slice() };
   fleet.entry = null;
-  SS.phase = 'count'; SS.t0 = time + PRE_RUN; SS.hideAt = 0;
+  SS.phase = 'count'; SS.t0 = time + ENTRY_PRE; SS.hideAt = 0;
   toast('進入', fleet.entryResult.text + (E.steals ? '　前付けあり' : '') + (E.pitSteals ? '　ピット離れでコース取り' : ''), 'info');
   // the player's own boat: its (shadow) CPU must not plan attacks that other boats would react to
   for (const r of fleet.boats) if (r.player && fleet.fullControl) Object.assign(r.trait, { pushMul: 0, dump: 0, tsuke: 0 });

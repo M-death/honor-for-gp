@@ -66,15 +66,23 @@ const raceFadeK = b => (1 - CHOP.thr * chopNow()) * (1 - HEAT.thr * fadeScale() 
 // 回り足 (quick races): extra pull and bite while the boat is turning; 1 = average motor
 const MAWARI = { yaw: 0.35, thr: 2.5, grip: 1.2 };
 const mawariK = (b, k) => b && b.mawari ? 1 + (b.mawari - 1) * k * clamp(Math.abs(b.yaw) / MAWARI.yaw, 0, 1) : 1;
-const TILT = { rough: 1.5, hop: 0.12, nobi: 0.025, deashi: 0.012, grip: 0.035, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };   // d191 (まえ: alone on clean water tilt up should pay): A1 solo 3 laps tilt 0/1/2/3 = 107.5/107.2/106.9/106.4 s, top 79.8/81.3/82.6/83.8 km/h; in a race the wake/chop penalty (rough) eats it. d189: nobi .006→.025, hop .25→.12
+const TILT = { rough: 1.5, hop: 0.12, nobi: 0.025, low: 0.07, mid: 0.015, planeV: [10.3, 12.5], deashi: 0.012, grip: 0.05, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };   // d191 (まえ: alone on clean water tilt up should pay): A1 solo 3 laps tilt 0/1/2/3 = 107.5/107.2/106.9/106.4 s, top 79.8/81.3/82.6/83.8 km/h; in a race the wake/chop penalty (rough) eats it. d189: nobi .006→.025, hop .25→.12
 function motorK(b, v = b.v) {
   if (!b || b.nobi == null) return 1;
-  const t = b.tilt || 0;
-  if (b.mMid == null) { const w = clamp((v - 14) / 8, 0, 1); return ((b.deashi - TILT.deashi * t) * (1 - w) + (b.nobi + TILT.nobi * t) * w) * (b.powerK || 1) * mawariK(b, MAWARI.thr); }
+  const tk = tiltPull(b.tilt || 0, v);
+  if (b.mMid == null) { const w = clamp((v - 14) / 8, 0, 1); return (b.deashi * (1 - w) + b.nobi * w + tk) * (b.powerK || 1) * mawariK(b, MAWARI.thr); }
   // 3つの速度域: 出足 (low), 回り足・行き足 (mid), 伸び (top), blended by speed; temperature hits the low end harder
   const wTop = clamp((v - 16) / 6, 0, 1), wLow = clamp((13 - v) / 6, 0, 1), wMid = Math.max(0, 1 - wTop - wLow);
-  const lo = b.deashi - TILT.deashi * t + (b.tempLow || 0), top = b.nobi + TILT.nobi * t + (b.tempTop || 0), mid = b.mMid + (b.tempLow || 0) * 0.5 + (b.tempTop || 0) * 0.5;
-  return (lo * wLow + mid * wMid + top * wTop) * (b.powerK || 1);
+  const lo = b.deashi + (b.tempLow || 0), top = b.nobi + (b.tempTop || 0), mid = b.mMid + (b.tempLow || 0) * 0.5 + (b.tempTop || 0) * 0.5;
+  return (lo * wLow + mid * wMid + top * wTop + tk) * (b.powerK || 1);
+}
+// d193 (まえ): tilt by speed band. Below planing (≈34–42 km/h) a tilted-up prop pushes upward and the bow rides high —
+// very heavy (pit departure, 起こし, and a boat knocked below 40 by a wake); once it planes it pulls far harder through
+// the middle and keeps going at the top. Tilt down (−0.5) the other way round, a little.
+function tiltPull(t, v) {
+  if (!t) return 0;
+  const u = clamp((v - TILT.planeV[0]) / (TILT.planeV[1] - TILT.planeV[0]), 0, 1), s = u * u * (3 - 2 * u), wTop = clamp((v - 16) / 6, 0, 1);
+  return t * (-TILT.low * (1 - s) + s * (TILT.mid * (1 - wTop) + TILT.nobi * wTop));
 }
 // その日の水面 (節間): wind (m/s, a vector: +x = blowing from 2M toward 1M = 追い風 on the home straight), tide current, wave height (cm)
 let waterEnv = null;
