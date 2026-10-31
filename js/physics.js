@@ -69,7 +69,8 @@ const mawariK = (b, k) => b && b.mawari ? 1 + (b.mawari - 1) * k * clamp(Math.ab
 const TILT = { rough: 1.5, hop: 0.12, nobi: 0.025, low: 0.07, mid: 0.015, planeV: [10.3, 12.5], deashi: 0.012, grip: 0.05, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };   // d191 (まえ: alone on clean water tilt up should pay): A1 solo 3 laps tilt 0/1/2/3 = 107.5/107.2/106.9/106.4 s, top 79.8/81.3/82.6/83.8 km/h; in a race the wake/chop penalty (rough) eats it. d189: nobi .006→.025, hop .25→.12
 function motorK(b, v = b.v) {
   if (!b || b.nobi == null) return 1;
-  const tk = tiltPull(b.tilt || 0, v);
+  let tk = tiltPull(b.tilt || 0, v);
+  if (tk > 0 && b.tiltFit != null) tk *= b.tiltFit;   // d203: a rider who can't set her motor up gets the tilt's pull only when it happens to suit it (羽美)
   if (b.mMid == null) { const w = clamp((v - 14) / 8, 0, 1); return (b.deashi * (1 - w) + b.nobi * w + tk) * (b.powerK || 1) * mawariK(b, MAWARI.thr); }
   // 3つの速度域: 出足 (low), 回り足・行き足 (mid), 伸び (top), blended by speed; temperature hits the low end harder
   const wTop = clamp((v - 16) / 6, 0, 1), wLow = clamp((13 - v) / 6, 0, 1), wMid = Math.max(0, 1 - wTop - wLow);
@@ -208,7 +209,7 @@ function willieToast(b) {
   if (e === 'ok') toast('ウィリー', '舳先が上がった！ 起こしたままレバーを握って', 'good');
   else toast('ウィリー失敗', { noturn: 'ターン中でないと上がらない', bite: 'ペラが水をつかんでいない（跳ね・引き波）', lever: 'レバーを握り込めていない', motor: '出足・回り足とも○以上のモーターでないと上がらない' }[e] || '舳先が上がらない（出足・回り足が足りない）', 'warn');
 }
-const tiltGrip = b => 1 - TILT.grip * Math.max(0, b.tilt || 0) + 0.02 * Math.max(0, -(b.tilt || 0));
+const tiltGrip = b => 1 - TILT.grip * Math.max(0, b.tilt || 0) * (1 - (+b.tiltTurn || 0)) + 0.02 * Math.max(0, -(b.tilt || 0));   // d203: a rider who can turn on a high tilt (羽美) doesn't slide out on it
 
 // 艇の傾き (d158, まえ): the hull's own bank (not the rider's body), + = right side down, radians. Rolled in by the rider's
 // weight to the inside (more when sat up — a monkey turn) and by the carve itself. Banked deep, the hull cuts the water
@@ -240,7 +241,7 @@ function boatPhysics(b, inp, dt) {
   b.porp = Math.max(0, b.porp - dt * 2);
   // チルト+2以上: the bow rides high and hops (ポーポイズ) — now and then on a flat straight, much more in waves, wake and turns
   if ((b.tilt || 0) >= 2 && b.v > 17 && b.cap <= 0) {
-    const rate = TILT.hop * ((b.tilt || 0) - 1.5) * clamp((b.v - 17) / 6, 0, 1) * (1 + (waterEnv ? waterEnv.wave / 3 : 0) + (b.wakeBump || 0) * 4) * (Math.abs(b.yaw) > 0.3 ? 3 : 1) * (b.hullRide || 1);
+    const rate = TILT.hop * ((b.tilt || 0) - 1.5) * clamp((b.v - 17) / 6, 0, 1) * (1 + (waterEnv ? waterEnv.wave / 3 : 0) + (b.wakeBump || 0) * 4) * (Math.abs(b.yaw) > 0.3 && !b.tiltTurn ? 3 : 1) * (b.hullRide || 1);
     if (simRandom() < rate * dt) b.porp = Math.min(1, b.porp + 0.35);
   }
 
@@ -671,7 +672,7 @@ function rpBegin(f, zero) {
     `#env ${e ? `${windJa(e)} wave=${e.wave}cm cx=${rpN(e.cx, 2)} stab=${e.stabilizer ? 1 : 0}${e.temp != null ? ` temp=${e.temp}` : ''}${e.tideJa ? ` tide=${e.tideJa}${e.tideLv}` : ''}` : 'calm'}`,
     '#boat no cls name temper pref motor(deashi/mid/nobi/power) hull(grip/ride/drag) weightK tilt skill(start/turn/judge) courseAff body(sex/cm/kg)'];
   for (const r of f.boats) { const b = r.b, k = r.skill;
-    head.push(`B ${r.no} ${r.prof.kinen ? 'KINEN' : r.prof.top ? 'TOP' : r.prof.name} ${(r.name || '-').replace(/\s+/g, '')} ${r.temper} ${r.pref} ${rpN(b.deashi, 3)}/${rpN(b.mMid, 3)}/${rpN(b.nobi, 3)}/${rpN(b.powerK || 1, 3)} ${rpN(b.hullGrip || 1, 3)}/${rpN(b.hullRide || 1, 2)}/${rpN(b.hullDrag || 1, 3)} ${rpN(b.weightK || 1, 3)} ${rpN(b.tilt, 1)} ${k ? `${Math.round(k.start)}/${Math.round(k.turn)}/${Math.round(k.judge)} ${k.course.join(',')}` : '-'} ${r.body ? `${r.body.sex}/${r.body.height}/${r.body.rideWt}` : '-'}${r.player ? ' PLAYER' : ''}`); }
+    head.push(`B ${r.no} ${r.prof.named ? r.prof.label : r.prof.kinen ? 'KINEN' : r.prof.top ? 'TOP' : r.prof.name} ${(r.name || '-').replace(/\s+/g, '')} ${r.temper} ${r.pref} ${rpN(b.deashi, 3)}/${rpN(b.mMid, 3)}/${rpN(b.nobi, 3)}/${rpN(b.powerK || 1, 3)} ${rpN(b.hullGrip || 1, 3)}/${rpN(b.hullRide || 1, 2)}/${rpN(b.hullDrag || 1, 3)} ${rpN(b.weightK || 1, 3)} ${rpN(b.tilt, 1)} ${k ? `${Math.round(k.start)}/${Math.round(k.turn)}/${Math.round(k.judge)} ${k.course.join(',')}` : '-'} ${r.body ? `${r.body.sex}/${r.body.height}/${r.body.rideWt}` : '-'}${r.player ? ' PLAYER' : ''}`); }
   head.push('#S t | no x y heading(deg) v(km/h) thr steer roll pitch flags…  (t = s from the start signal; flags: role=m mark/s sashi/o out/w wide/W wait, sty, C 叩き F 連動 K 壁 Q 絞り R 抵抗 Y 引く P 勝負 A 回避 cap 転覆 out dq Fly relegated fin)');
   f.rp = { head, rows: [], ev: [], next: -999, zero };
 }

@@ -42,7 +42,21 @@ function skillLerp(v, get) {   // value v → interpolate get(className) between
   const n = A.length - 1; return get(A[n][0]) + (get(A[n][0]) - get(A[n - 1][0])) * (v - A[n][1]) / (A[n][1] - A[n - 1][1]) * 0.5;
 }
 const DRV = name => DRIVERS.find(d => d.name === name);
-const profJa = p => p.kinen ? 'A1★記念' : p.top ? 'A1★' : p.name;   // short class tag (result table)
+// ---- ネームドレーサー (d203, まえ): a named rider can be put in a 枠 of the 6艇レース (one of each per race).
+// prof = the class table it drives by, plus its own ways (race.js / physics.js read the flags):
+//   umi — 瀬戸内羽美 (A2, 岡山・児島): pulls to 6コース from any 枠 but the 1 (and from the 1 at any hint of a 前付け);
+//   記念-level starts; A2 turns, but takes a clear mark flat out and wide like a 記念 rider (round the outside of a crowd
+//   rather than into it); tilt 3.0 always — turns on it without sliding out, still hops on wake; hard to capsize;
+//   all but never lets go of the lever, never gives way; leaves her motor as drawn (a bad one stays bad).
+const NAMED = [
+  { id: 'umi', name: '瀬戸内羽美', kana: 'せとうちうみ', cls: 'A2', branch: '岡山', body: { sex: 'f', height: 145, weight: 41 },
+    prof: { ...DRIVERS[1], kinen: true, named: 'umi', label: 'A2', stCls: { shift: -0.045, sd: 0.02, dent: 0.015 }, flyRisk: 0.004,
+            wideOut: true, kinenGap: 3, noLift: 0.9, tilt: 3.0, tiltTurn: 1, tiltFit: [0.95, 0.08, 0.35], hazMul: 0.3, trait: { pushMul: 2, care: 0.45, resistP: 0.9, shobuMul: 0.4, stSdMul: 0.6 },
+            slowTrait: { stShift: 0.05, stSdMul: 1.6, shobuMul: 0 } },   // in the 1コース (slow) her start loses its edge — the 1枠 takes away what makes her good
+    temper: 'aggr', out: true, motorLowK: 2 },
+];
+const NAMED_BY = id => NAMED.find(n => n.id === id);
+const profJa = p => p.named ? p.label : p.kinen ? 'A1★記念' : p.top ? 'A1★' : p.name;   // short class tag (result table)
 function profFor(cls, sk) {
   const base = DRV(cls) || DRIVERS[2], p = { ...base };
   if (!sk) return p;

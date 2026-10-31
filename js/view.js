@@ -803,7 +803,7 @@ function updateHud() {
     const STAGE = { pit: 'ピット', out: 'ピットアウト', back: '2マークへ', turn: '2マーク', approach: '正対へ', wait: '待機' };
     setTxt('lap', `進入　${STAGE[fr.en.stage]}${fr.en.rewind ? '（回り直し）' : ''}`);
     el.best.classList.toggle('top', !!fr.prof.top);
-    setTxt('best', `${fr.prof.kinen ? 'A1★記念クラス' : fr.prof.top ? 'A1★トップ' : fr.prof.name + '級'}・予定${fr.en.course || fr.en.slot}コース${fr.en.dash ? '（ダッシュ）' : ''}${fr.en.projOk != null && (fr.en.stage === 'wait' || fr.en.stage === 'approach') ? `・起こし見込み${Math.round(fr.en.projOk)}m` : ''}${fr.en.fightWith ? '・抵抗中' : ''}・調子${playerForm()}`);
+    setTxt('best', `${fr.prof.named ? fr.prof.label + '級' : fr.prof.kinen ? 'A1★記念クラス' : fr.prof.top ? 'A1★トップ' : fr.prof.name + '級'}・予定${fr.en.course || fr.en.slot}コース${fr.en.dash ? '（ダッシュ）' : ''}${fr.en.projOk != null && (fr.en.stage === 'wait' || fr.en.stage === 'approach') ? `・起こし見込み${Math.round(fr.en.projOk)}m` : ''}${fr.en.fightWith ? '・抵抗中' : ''}・調子${playerForm()}`);
     setTxt('demoTag', fr.player ? `自分 ${fr.no}号艇` : `追尾 ${fr.no}号艇${fleet.focus == null ? '（先頭を自動追尾）' : ''}`);
     updateOrderStrip();
     $('skipBtn').hidden = true;
@@ -811,7 +811,7 @@ function updateHud() {
     const lead = fleet.rank[0];
     setTxt('lap', SS.phase === 'count' ? '待機行動' : `${Math.min(raceLaps(), lead.laps + 1)}周目  ${fmtRT(Math.max(0, (lead.fin ?? time) - fleet.raceStart))}`);
     el.best.classList.toggle('top', !!fr.prof.top);
-    setTxt('best', `${fr.prof.kinen ? 'A1★記念クラス' : fr.prof.top ? 'A1★トップ' : fr.prof.name + '級'}・${fr.trait.course}コース・${fr.trait.kado ? `${fr.trait.course}カド` : fr.trait.slow ? 'スロー' : 'ダッシュ'}・${TACTIC_JA[fr.drv.mem.tacticNow || fr.trait.tactic]}`);
+    setTxt('best', `${fr.prof.named ? fr.prof.label + '級' : fr.prof.kinen ? 'A1★記念クラス' : fr.prof.top ? 'A1★トップ' : fr.prof.name + '級'}・${fr.trait.course}コース・${fr.trait.kado ? `${fr.trait.course}カド` : fr.trait.slow ? 'スロー' : 'ダッシュ'}・${TACTIC_JA[fr.drv.mem.tacticNow || fr.trait.tactic]}`);
     setTxt('demoTag', fr.player ? `自分 ${fr.no}号艇${fr.st == null || playerRacing(fr) ? '' : '（CPU操縦中）'}` : `追尾 ${fr.no}号艇${fleet.focus == null ? '（先頭を自動追尾）' : ''}`);
     updateOrderStrip();
     $('skipBtn').hidden = !(fleet.locked && !fleet.endAt);

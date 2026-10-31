@@ -1,4 +1,4 @@
-# Honor for GP 波の向こうに — 引き継ぎ資料（d202 時点）
+# Honor for GP 波の向こうに — 引き継ぎ資料（d204 時点）
 
 この資料は、別の会話（AI）や将来の自分が開発を続けるための引き継ぎです。
 **本体は `index.html`（1ファイル）**。この資料と一緒に渡してください。
@@ -283,6 +283,8 @@
 | d200 操作説明書をゲーム内から（まえ）。manual.html（d201 から説明書の元はこれ1つ）をオーバーレイ #manualBox の iframe で表示：公開版は fetch して srcdoc、ローカルファイルは src。入口：最初の画面・メニュー・設定の「操作説明」。体験版 t71（manual.html も同じフォルダに置く） | index.html・input.js・core.js・manual.html。レースの動きは変更なし。Playwright で本編・体験版とも開閉を確認 |
 | d201 説明書に「漫画で見る」（まえ作の漫画 6ページ＋番外編）。manga/p1–p6.webp・extra.webp（元PNGは manga/orig/、zipには入れない。WebP q82 で1枚約400KB）。manual.html の先頭にページ送り（▶・番号・画像タップで次へ、次のページを先読み）。manual/ フォルダは廃止。体験版 t72（manga/ も置く） | manual.html・manga/*.webp・core.js。レースの動きは変更なし。Playwright で単独・ゲーム内とも画像表示を確認 |
 | d202 羽美のヒント（まえ：全速ターンは答えを書かずに気づかせる）。羽美＝説明書の漫画の女の子。ta.js UMI_HINT：TA結果で今回のタイムが A1（1'46"0）以内なら「わたし、ターンでレバーを離さないよ〜。」、記念クラス（1'44"5）以内なら「全開のまま…体をぐっと倒すの。」。顔は manga/umi_face.webp（漫画1ページ目から切り出し 160px）。index.html #taHint。体験版 t73 | ta.js・index.html・core.js・manga/umi_face.webp。レースの動きは変更なし |
+| d203 ネームドレーサー（まえ）：6艇レースの相手選びに名前付き選手。data.js NAMED（1人目 瀬戸内羽美 A2・145cm/41kg→47kg）、race.js RACE_CLS 'n:umi'・namedRow（同じ人は1レース1人、選ぶと他の枠から外れる）。羽美：2〜6枠はピット離れ直後に引いて6コース（枠なり開始でも6コースへ）、1枠はイン残りだが前付けの気配で即引く・1枠のときは周りの前付け×0.35（NAMED_DETER）。スタート stCls shift −.045 sd .02・stSdMul .6（6コース平均ST .06〜.08、F少）、1コース（スロー）は slowTrait で鈍る。ターンは A2＋記念の全速ターン（prof.kinen）、wideOut＝内に艇がいても外を全速で回る。チルト3.0固定、tiltTurn＝旋回の滑りペナルティ（tiltGrip）とターン中の跳ね×3だけ無し、引き波・波の弱さはそのまま（timeToLine も3.0の波の重さを読む）。hazMul .3、レバー最低 .9（noLift、CROWD_DROPなし）、張り合い resistP .9・pushMul 2。モーターは平均以下の側だけ×2。テスト（ピット離れ24R）：6枠 1着38%・ST.083／3枠→6コース 46%／1枠 58%（2連62% 3連75%、A2は50/75/96）／比較 6コース A2 4% 記念 4%。デモ結果は d202 と同一。体験版 t74 | data.js・race.js・physics.js・view.js・core.js・index.html |
+| d204 羽美を少し弱く（まえ：6コース1着 38%→20〜25%）。切り分けの結果、強さの元はチルト3.0の伸び＋良いST（大回り・握りっぱなし・記念ターン・流れにくさは24Rのぶれ±10%に埋もれる）。整備下手を伸びに反映：physics.js motorK でチルトのプラス側だけ b.tiltFit 倍、tiltFit = clamp((伸び−0.95)/0.08, 0.35, 1)（data.js prof.tiltFit、低速の重さはそのまま）。全速ターンの余裕 prof.kinenGap 3m（記念は0.2m）。tiltTurn を 0〜1 の数値に。絞り抵抗の転覆も hazMul を使う。72R：6コース 1着24% 2連32% 3連47%（伸び≧1.0のモーター 48%、未満 7%）、ST .097。1枠24R：1着62% 3連67%（A2は 50/96）、1/3は前付けで6コースへ。デモ結果は d202 と同一。体験版 t75 | data.js・race.js・physics.js・core.js |
 
 ---
 

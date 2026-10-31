@@ -40,8 +40,8 @@ function turnInfo(R, s, gap) {
 function timeToLine(d, v, crouch = 0, pre = true, boat = null) {
   let x = 0, t = 0;
   const wk = boat && boat.weightK || 1, dk = 0.012 * (1 - 0.1 * crouch) * (boat && boat.stabilizer ? ENV.stabDrag : 1) * (boat && boat.hullDrag || 1) * (boat && boat.bodyDrag || 1), w = waterEnv ? ENV.windAir * waterEnv.wx : 0;
-  // the water as the rider reads it: the chop's average drag (waves × how the hull rides them) and the wind's push
-  const bump = waterEnv && waterEnv.wave ? waterEnv.wave * ENV.waveBump * waveHeadK(0) * (boat && boat.hullRide || 1) * (boat && boat.stabilizer ? ENV.stabBump : 1) * 1.0 : 0, drift = waterEnv ? ENV.windDrift * waterEnv.wx : 0;
+  // the water as the rider reads it: the chop's average drag (waves × how the hull rides them) and the wind's push (d203: a high-tilt specialist (羽美) also counts how much harder the chop holds her back)
+  const bump = waterEnv && waterEnv.wave ? waterEnv.wave * ENV.waveBump * waveHeadK(0) * (boat && boat.hullRide || 1) * (boat && boat.stabilizer ? ENV.stabBump : 1) * (boat && boat.tiltTurn != null ? 1 + TILT.rough * Math.max(0, (boat.tilt || 0) - 1) : 1) : 0, drift = waterEnv ? ENV.windDrift * waterEnv.wx : 0;
   while (x < d && t < 20) { const vr = v - w, acc = THRUST * thrustK(v) * startK(v, pre, boat) * motorK(boat, v) * wk - dk * vr * Math.abs(vr) - 0.1 * v - bump * (0.8 + v * 0.07) * WAKE.drag; v += acc * 0.05; x += (v + drift) * 0.05; t += 0.05; }
   return t;
 }
@@ -253,9 +253,10 @@ function kinenDrive(b, env, mem, dt, o, prof) {
     let S = kinenScan(b, env, m, lx, ly, Ly0);
     let Ly = S.inner.length ? Math.max(Ly0, S.innerY + KINEN.over) : Ly0;
     if (Ly > Ly0) S = kinenScan(b, env, m, lx, ly, Ly);
-    if (S.block || !kinenMakuriOk(b, S)) { kn.ph = 'skip'; return null; }
+    if (S.block || !(prof && prof.wideOut) && !kinenMakuriOk(b, S)) { kn.ph = 'skip'; return null; }   // d203 羽美: round the outside of them flat out, paying or not
     if (S.wide) Ly = Math.min(Ly, Math.max(ly, 0));   // someone out wide: no swing out, turn from the lane it is in
-    kn.need = S.inner.length ? Math.max(KINEN.gap, KINEN.mkR + Math.max(0, S.innerY - KINEN.mkY) * KINEN.mkK) : KINEN.gap;
+    const g0 = prof && prof.kinenGap || KINEN.gap;   // d203: a rider who swings it wider than the 記念 line (羽美)
+    kn.need = S.inner.length ? Math.max(g0, KINEN.mkR + Math.max(0, S.innerY - KINEN.mkY) * KINEN.mkK) : g0;
     const want = KINEN.ks * (Ly - ly) - KINEN.ka * la;
     const run = { thr: 1, steer: clamp(want * 0.5, -KINEN.sMax, KINEN.sMax), roll: clamp(want, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free), pitch: 1 };
     if (lx > MK - 5) { kn.ph = 'skip'; return null; }   // d153: never ran past the buoy on the run in (the A1★ driving turns it)
@@ -490,7 +491,7 @@ function makeDriver(prof, trait = {}) {
     mem.stMode = mode;
     const sc = prof.stCls || START_CLASS[prof.name] || START_CLASS.B1;
     const cf = (START_COURSE.by[trait.course - 1] ?? 1.5) * (trait.slow ? 1 : START_COURSE.dash);
-    mem.stTarget = START_MODE[mode] + sc.shift + START_COURSE.margin * sc.sd * Math.max(0, cf - START_COURSE.by[0]);
+    mem.stTarget = START_MODE[mode] + sc.shift + (trait.stShift || 0) + START_COURSE.margin * sc.sd * Math.max(0, cf - START_COURSE.by[0]);
     const ge = gauss() * sc.sd * cf * (trait.stSdMul || 1);
     mem.stErr = mode === 'shobu' ? ge : (ge < 0 ? ge * 0.6 : ge);   // a safe start's early misses mostly get caught (放る)
     if (simRandom() < sc.dent * cf * (mode === 'antei' ? 0.5 : 1)) mem.stErr += 0.06 + simRandom() * 0.15;   // ミス／凹み
@@ -675,7 +676,7 @@ function makeDriver(prof, trait = {}) {
     o.ev = null;
     b.gripBoost = mem.push && mem.push.ok ? 1.35 : 1;
     b.gripSkill = (prof.grip ?? 1) * (trait.affGrip || 1);
-    b.hazMul = (RISK[prof.name] || RISK.B1).hit;
+    b.hazMul = prof.hazMul ?? (RISK[prof.name] || RISK.B1).hit;
     b.pushing = !!mem.push;
     b.commitTurn = !!(mem.commit || mem.follow || mem.kabe);   // others read this: a boat going round flat out
 
@@ -1137,7 +1138,7 @@ function makeDriver(prof, trait = {}) {
       // being squeezed from outside: give way (引く — lift, tuck in behind) or, now and then, fight it (抵抗)
       if (mem.kabe && !mem.sqResp) { mem.sqResp = 'kabe'; mem.sqRespT = 0; }
       if (first && b.y > 0 && env.outerSqueeze && !mem.sqResp && b.x < MK - 45) {
-        mem.sqResp = prioNow() ? 'yield' : simRandom() < (SQUEEZE.resist[trait.temper] ?? 0.15) ? 'resist' : 'yield';
+        mem.sqResp = trait.resistP != null ? (simRandom() < trait.resistP ? 'resist' : 'yield') : prioNow() ? 'yield' : simRandom() < (SQUEEZE.resist[trait.temper] ?? 0.15) ? 'resist' : 'yield';   // d203: a named rider answers in her own way
         mem.sqRespT = SQUEEZE.yieldTime;
         if (mem.sqResp === 'resist') mem.resistQ = env.outer;
         o.ev = mem.sqResp;
@@ -1283,7 +1284,7 @@ function makeDriver(prof, trait = {}) {
       // 込み合うターンは落として回る (d149, まえ): with a boat close by going into or through the first half of a turn,
       // lift the lever and sit up — a smaller, calmer arc that keeps out of the others' way. A boat set on a 全速ターン
       // (まくり・壁・抵抗・回り順の commit) or with the turn to itself still goes round flat out.
-      if (CROWD_DROP.on && leanIn && !exiting && !avoiding && !dumping && !mem.resistQ && !(ro && ro.commit) && !(first && (tactic === 'makuri' || tactic === 'wall' || tactic === 'tsuke' || mem.kabe))
+      if (CROWD_DROP.on && !prof.noLift && leanIn && !exiting && !avoiding && !dumping && !mem.resistQ && !(ro && ro.commit) && !(first && (tactic === 'makuri' || tactic === 'wall' || tactic === 'tsuke' || mem.kabe))
         && (!ti.inTurn || 1 - ti.left / (Math.PI * R) < CROWD_DROP.until) && env.others
         && env.others.some(q => q !== b && !(q.cap > 0) && Math.hypot(q.x - b.x, q.y - b.y) < CROWD_DROP.r)) {
         thrT = Math.min(thrT, CROWD_DROP.lever[prof.name] ?? 0.65); pitchT = Math.min(pitchT, 0); mem.crowdDrop = time;
@@ -1397,6 +1398,7 @@ function makeDriver(prof, trait = {}) {
         }
         if (mem.tpUp > 0) { mem.tpUp -= dt; pitchT = Math.min(pitchT, TRIM_CPU.pitch); }
       }
+      if (prof.noLift && fleet && fleet.raceOn && !env.caution && !env.cruise && !env.retire && !(mem.emergency > 0)) thrT = Math.max(thrT, prof.noLift);   // d203 羽美: hardly ever lets go of the lever
       if (b.cap > 0) { thrT = 0; rollT = 0; pitchT = 0; }
       o.thr += (thrT - o.thr) * (1 - Math.exp(-6 * dt));
     }
@@ -1646,9 +1648,11 @@ function applyCourse(r, course, slow, kado, okoshi) {
   const rT = r.temper; r.temper = tEff;
   r.trait = { cpuMode:mode,contactMode:mode===COURSE_CPU.version?'priority':'normal',dumpOk:true,squeezeMode:mode===COURSE_CPU.version?'lead':'legacy',course, laneY, tactic, slow, kado, okoshi, temper: r.temper, lineOff: simRandom() * 2.5, dump: TEMPER[r.temper].dump, care: TEMPER[r.temper].care,
               tsuke: ({ TOP: 0.8, A1: 0.7, A2: 0.55, B1: 0.35, B2: 0.2 }[r.prof.name] || 0.4) + (r.temper === 'aggr' ? 0.15 : 0),
-              pushMul: { calm: 0.5, normal: 1, aggr: 1.6 }[r.temper], flyRisk: (RISK[r.prof.name] || RISK.B1).fly,
+              pushMul: { calm: 0.5, normal: 1, aggr: 1.6 }[r.temper], flyRisk: r.prof.flyRisk ?? (RISK[r.prof.name] || RISK.B1).fly,
               aff, stSdMul: 1.25 - aff / 200, affGrip: 1 + (aff - 50) * 0.0004 };
   r.temper = rT;   // the rider's own nature stays; the race's mood is in trait.temper
+  if (r.prof.trait) Object.assign(r.trait, r.prof.trait);   // d203: a named rider's own ways
+  if (r.prof.slowTrait && slow) Object.assign(r.trait, r.prof.slowTrait);   // (and how she rides a slow start she doesn't like)
   r.drv = makeDriver(r.prof, r.trait);
   if (!r.player) r.inp = r.drv.out;
 }
@@ -1667,6 +1671,7 @@ function fitMotor(r, course, again) {
   Object.assign(b, bodyRace(r.body ? r.body.height : SETSU.body.ref));
   b.stabilizer = !!(waterEnv && waterEnv.stabilizer);
   if (r.player) { b.tilt = playerTilt; return; }
+  if (r.prof.tilt != null) { b.tilt = r.tilt = r.prof.tilt; b.tiltTurn = r.prof.tiltTurn || 0; if (r.prof.tiltFit) b.tiltFit = clamp((b.nobi - r.prof.tiltFit[0]) / r.prof.tiltFit[1], r.prof.tiltFit[2], 1); return; }   // d203: a named rider rides her own tilt
   if (again && !r.tiltAuto) return;
   if (r.hane) { b.tilt = HANE.tilt; return; }   // the はね boat keeps its 3.0 whatever course it ends up in
   r.tiltAuto = true;
@@ -1696,6 +1701,14 @@ function setupFleet(rowsIn, runup = RUNUP) {
     applyCourse(r, course, slow, kado, okoshi);
     r.b = { x: x0, y: r.trait.laneY, a: 0, v: IDLE_V, vl: 0, yaw: 0, porp: 0, cap: 0 };
     fitMotor(r, course);
+    // d203: a named rider on her own high tilt is heavy from idle — she lines up shallower, so the same run-up takes her
+    // the same time it would take on tilt 0 (demo boats keep their spots, so demo races are unchanged)
+    if (r.prof.tilt > 0 && !slow) {
+      const t0 = timeToLine(okoshi, IDLE_V, r.prof.cruise, true, { ...r.b, tilt: 0 });
+      let lo = okoshi * 0.4, hi = okoshi;
+      for (let k = 0; k < 14; k++) { const mid = (lo + hi) / 2; if (timeToLine(mid, IDLE_V, r.prof.cruise, true, r.b) > t0) hi = mid; else lo = mid; }
+      r.trait.okoshi = lo; r.b.x = -(lo + IDLE_V * creep) - BOW_TIP;
+    }
     raceFieldsInit(r);
   });
   rows.sort((a, b) => a.no - b.no);
@@ -1778,7 +1791,7 @@ function makeEntryFleet(playerNo, opts = {}) {
     r.entryViol = [];
   });
   // 前付け race: one CPU rider (an イン志向 one if there is) goes for a course further in
-  const mae = !opts.noMae && simRandom() < ENTRY.maeRate;
+  const mae = !opts.noMae && simRandom() < ENTRY.maeRate * namedDeter(rows);
   if (mae) {
     const cand = rows.filter(r => !r.player && r.no >= 2);
     const inPref = cand.filter(r => r.pref === 'in');
@@ -1793,6 +1806,10 @@ function makeEntryFleet(playerNo, opts = {}) {
   return f;
 }
 const laneYOf = course => LANE.y0 + (course - 1) * LANE.step;
+// d203 (まえ): with 羽美 in the 1枠 the others think twice about a 前付け — at the first hint of one she pulls right out
+// to dash, and nobody wants her coming over the top of them on a 3.0
+const NAMED_DETER = 0.35;
+const namedDeter = rows => (rows || (fleet && fleet.boats) || []).some(q => q.named && q.named.out && !q.player && (q.en ? q.en.slot === 1 && !q.en.dash : q.no === 1)) ? NAMED_DETER : 1;
 // provisional courses from the current lane order: slow boats inside first, then dash boats, then 回り直し
 function entryOrder(E, boats) {
   const bySlot = boats.slice().sort((a, b) => a.en.slot - b.en.slot);
@@ -1942,7 +1959,7 @@ function pitOutSteal(r, boats) {
     const i = boats.find(q => q.en.slot === en.slot - 1);
     if (i && (i.en.stage === 'pit' || (i.en.stage === 'out' && !i.en.straightDone)) && r.b.x - i.b.x >= ENTRY.pitSteal) {
       // a CPU rider decides there and then whether to claim the late boat's course; the player has to press コース主張
-      if (!r.player && en.claimLeft <= 0 && !en.oppSeen.has(i.no)) { en.oppSeen.add(i.no); if (simRandom() < (ENTRY.opp.p[r.temper] ?? 0.4) + 0.3) { en.claimLeft = 1; en.wantIn = true; } }
+      if (!r.player && en.claimLeft <= 0 && !en.oppSeen.has(i.no)) { en.oppSeen.add(i.no); if (simRandom() < ((ENTRY.opp.p[r.temper] ?? 0.4) + 0.3) * namedDeter()) { en.claimLeft = 1; en.wantIn = true; } }
       if (en.claimLeft > 0) en.stealFrom = i;
     }
   }
@@ -1988,6 +2005,7 @@ const hikuP = (r, p) => { const inner = fleet.boats.filter(q => q !== r && !q.en
 // an inside boat challenged for its course: fight it, let it in, or pull back to dash rather than be squeezed deep
 function entryAnswer(r, nSlowNow) {
   const en = r.en;
+  if (r.named && r.named.out && !en.faced) { callDash(r); en.decided = true; en.how = 'named'; toast('引く', `${r.no}号艇 ${r.name}、すっと引いてダッシュへ`, 'info'); return 'hiku'; }
   const pRes = (ENTRY.resist[r.temper] ?? 0.55) + (en.slot === 1 ? 0.25 : 0) - Math.max(0, nSlowNow - 3) * 0.15;
   if (simRandom() < pRes) return 'resist';
   if (en.slot >= 2 && simRandom() < hikuP(r, 0.55 + Math.max(0, nSlowNow - 3) * 0.2)) {   // (the crowd-inside push only when 3 stay slow)
@@ -2019,7 +2037,7 @@ function entryStep(dt, playerInput) {
     if (laneProg(o) - laneProg(i) < ENTRY.opp.gap || i.b.v > o.b.v) continue;   // a real gap: the inside boat is behind and not closing
     o.en.oppSeen.add(i.no);
     if ((o.en.slot > 3 || i.en.slot === 1) && o.pref !== 'in') continue;   // the 1コース is only gone for by イン志向; dash-minded outside boats leave the slow courses alone   // the dash-minded outside boats don't fight for the slow courses
-    if (simRandom() < (ENTRY.opp.p[o.temper] ?? 0.4)) { o.en.wantIn = true; o.en.opp = true; o.en.claimLeft = 1; }
+    if (simRandom() < (ENTRY.opp.p[o.temper] ?? 0.4) * namedDeter()) { o.en.wantIn = true; o.en.opp = true; o.en.claimLeft = 1; }
   }
   for (let k = 1; k < inLanes.length; k++) {
     const o = inLanes[k], i = inLanes[k - 1];
@@ -2047,6 +2065,14 @@ function entryStep(dt, playerInput) {
       if (r.player && en.pressAt == null && time > E.go + 2.5) { en.pressAt = time; en.react = time; toast('大きく出遅れ', 'ピット離れの合図でアクセル', 'bad'); }
       if (en.react != null && time >= en.react) en.stage = 'out';
       else { b.v = 0; b.vl = 0; b.yaw = 0; r.inp = { thr: 0, steer: 0, roll: 0, pitch: 0 }; continue; }
+    }
+    // d203 羽美: out of the pits she goes straight for the dash (first to pull = 6コース); from the 1枠 she stays in —
+    // unless anyone so much as looks like coming inside her, and then she's gone too
+    if (r.named && r.named.out && !r.player && !en.dash && !en.faced && !en.pulling
+        && (en.slot >= 2 || boats.some(q => q !== r && !q.en.dash && ((q.en.wantIn && !q.en.gaveUp && q.en.claimLeft > 0) || q.en.stealFrom === r || q.en.fightWith === r)))) {
+      if (en.fightWith) { en.fightWith.en.fightWith = null; en.fightWith = null; }
+      callDash(r); en.decided = true; en.how = en.slot >= 2 ? 'named' : 'namedHiku';
+      if (en.slot < 2 || en.stage !== 'out') toast('引く', `${r.no}号艇 ${r.name}、すっと引いてダッシュへ`, 'info');
     }
     if (en.stage === 'out' && b.y < -5 && Math.cos(b.a) < -0.3 && b.x < SMALL_TURN_BUOY.x + 3) { en.stage = 'back'; if (!r.player) cpuDashEarly(r); }
     if (en.stage === 'back' && b.x < -MK - entrySwing(en) + 3) en.stage = 'turn';
@@ -2426,7 +2452,7 @@ function stopFleet() {
    The player picks the 枠, how the race starts — from the pits (進入あり) or lined up 枠なり with 20 s on the big clock —
    their own tilt, and the class of each CPU rider (an unpicked 枠 is drawn as usual). Later a 枠 can take a named rider. */
 const RACE_MODE = { fixedLead: 20 };   // s before the start a 枠なり race begins
-const RACE_CLS = [['', 'おまかせ'], ['3', 'B2'], ['2', 'B1'], ['1', 'A2'], ['0', 'A1'], ['4', 'A1★トップ'], ['5', 'A1★記念']];   // value = DRIVERS index
+const RACE_CLS = [['', 'おまかせ'], ['3', 'B2'], ['2', 'B1'], ['1', 'A2'], ['0', 'A1'], ['4', 'A1★トップ'], ['5', 'A1★記念'], ...NAMED.map(n => ['n:' + n.id, `${n.name}（${n.cls}）`])];   // value = DRIVERS index, or n:<id> a named rider (d203)
 let raceCfg = { no: 1, start: 'pit', tilt: -0.5, cls: [null, null, null, null, null, null] };
 try { const c = JSON.parse(localStorage.getItem('honorGP.raceCfg') || 'null'); if (c && c.no >= 1 && c.no <= 6 && Array.isArray(c.cls)) raceCfg = Object.assign(raceCfg, c); } catch (e) {}
 function raceModeRows(cfg, fixed) {
@@ -2436,9 +2462,21 @@ function raceModeRows(cfg, fixed) {
     if (r.no === cfg.no) {
       r.player = true; r.prof = DRIVERS[0];   // the player rides as an A1 (only its shadow CPU uses it)
       r.body = { sex: 'm', height: SETSU.body.ref, weight: SETSU.minWt.m, rideWt: SETSU.minWt.m }; r.motor.weightK = 1; r.motor.weightGrip = 1;
-    } else if (c != null && DRIVERS[c]) r.prof = DRIVERS[c];
+    } else if (typeof c === 'string' && c.startsWith('n:') && NAMED_BY(c.slice(2))) namedRow(r, NAMED_BY(c.slice(2)), fixed);
+    else if (c != null && DRIVERS[c]) r.prof = DRIVERS[c];
   }
   return rows;
+}
+// d203: a named rider in this row — her class table and ways, her own body, and the motor as drawn
+// (a rider who never touches it: what's below par stays well below it, motorLowK times as far)
+function namedRow(r, N, fixed) {
+  r.named = N; r.prof = N.prof; r.name = N.name; r.temper = N.temper || r.temper;
+  if (N.out && r.no >= 2) { r.pref = 'out'; r.key = 6.5 + r.no * 0.01; }   // 羽美: from any 枠 but the 1 she goes right out (in a 枠なり race too)
+  else { r.pref = 'waku'; r.key = r.no; }
+  const min = SETSU.minWt[N.body.sex];
+  r.body = { ...N.body, rideWt: Math.max(N.body.weight, min) };
+  r.motor.weightK = 1 - (r.body.rideWt - min) * 0.003; r.motor.weightGrip = 1 + (r.body.rideWt - min) * 0.005;
+  if (N.motorLowK) for (const k of ['deashi', 'nobi', 'mawari']) if (r.motor[k] < 1) r.motor[k] = 1 - (1 - r.motor[k]) * N.motorLowK;
 }
 function startRaceMode(cfg) {
   cfg = JSON.parse(JSON.stringify(cfg));
@@ -2469,7 +2507,11 @@ function rsDraw() {
   for (const bt of $('rsWaku').children) bt.setAttribute('aria-pressed', String(+bt.dataset.no === raceCfg.no)), bt.style.outline = +bt.dataset.no === raceCfg.no ? '3px solid var(--fg)' : '', bt.style.opacity = +bt.dataset.no === raceCfg.no ? 1 : 0.55;
   $('rsStart').value = raceCfg.start; $('rsTilt').value = String(raceCfg.tilt);
   for (const lb of $('rsCpu').children) lb.hidden = +lb.dataset.no === raceCfg.no;
-  for (const sel of $('rsCpu').querySelectorAll('select')) sel.value = raceCfg.cls[+sel.dataset.no - 1] == null ? '' : String(raceCfg.cls[+sel.dataset.no - 1]);
+  for (const sel of $('rsCpu').querySelectorAll('select')) {
+    const i = +sel.dataset.no - 1, c = raceCfg.cls[i];
+    sel.value = c == null || (typeof c === 'string' && !NAMED_BY(c.slice(2))) ? '' : String(c);
+    for (const op of sel.options) if (op.value.startsWith('n:')) op.textContent = RACE_CLS.find(x => x[0] === op.value)[1] + (raceCfg.cls.some((x, j) => j !== i && j !== raceCfg.no - 1 && x === op.value) ? '（他の枠）' : '');
+  }
 }
 function rsSave() { try { localStorage.setItem('honorGP.raceCfg', JSON.stringify(raceCfg)); } catch (e) {} }
 function openRaceSetup(fromResult) {
@@ -2488,7 +2530,12 @@ if ($('raceSetup')) {
     const tag = document.createElement('b'); tag.textContent = no; Object.assign(tag.style, { background: LANE_COL[no - 1][0], color: LANE_COL[no - 1][1], borderRadius: '4px', padding: '0 6px', fontFamily: 'var(--f-num)' });
     const sel = document.createElement('select'); sel.dataset.no = no; sel.setAttribute('aria-label', `${no}号艇の相手`);
     for (const [v, t] of RACE_CLS) { const op = document.createElement('option'); op.value = v; op.textContent = t; sel.appendChild(op); }
-    sel.addEventListener('change', () => { raceCfg.cls[no - 1] = sel.value === '' ? null : +sel.value; });
+    sel.addEventListener('change', () => {
+      const v = sel.value === '' ? null : sel.value.startsWith('n:') ? sel.value : +sel.value;
+      if (typeof v === 'string') raceCfg.cls.forEach((c, i) => { if (c === v) raceCfg.cls[i] = null; });   // one of each named rider per race
+      raceCfg.cls[no - 1] = v; rsDraw();
+    });
+    Object.assign(lb.style, { display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }); Object.assign(sel.style, { flex: 1, minWidth: 0 });
     lb.append(tag, sel); $('rsCpu').appendChild(lb);
   }
   $('rsStart').addEventListener('change', e => { raceCfg.start = e.target.value; });
@@ -2686,7 +2733,7 @@ function fleetStep(dt, playerInput) {
     if (fighter && !fighter.out && time > (fighter.fightRollT || 0)) {
       fighter.fightRollT = time + 0.5;
       const other = fighter === A ? Bt : A;
-      if (simRandom() < SQUEEZE.fightCap * (RISK[fighter.prof.name] || RISK.B1).hit) accident(fighter, simRandom() < 0.5 ? '転覆' : '落水', `${other.no}号艇の絞りに抵抗して接触`);
+      if (simRandom() < SQUEEZE.fightCap * (fighter.prof.hazMul ?? (RISK[fighter.prof.name] || RISK.B1).hit)) accident(fighter, simRandom() < 0.5 ? '転覆' : '落水', `${other.no}号艇の絞りに抵抗して接触`);
     }
     if (e.J < 1.5) continue;
     for (let n = 0; n < Math.min(14, 4 + e.J * 2); n++) {
@@ -2726,7 +2773,7 @@ function fleetStep(dt, playerInput) {
       const jLim = Math.max(CAPSIZE.jMin, CAPSIZE.j0 - 6 * vb - CAPSIZE.unstJ * unst);
       if (e.J <= jLim) continue;
       const sh = x === other && e.J >= CAPSIZE.heavyJ ? 1 : share;
-      const p = clamp((e.J - jLim) / CAPSIZE.span * (1 + 2 * vb + CAPSIZE.unstP * unst), 0, 0.6) * sh * (RISK[x.prof.name] || RISK.B1).hit;
+      const p = clamp((e.J - jLim) / CAPSIZE.span * (1 + 2 * vb + CAPSIZE.unstP * unst), 0, 0.6) * sh * (x.prof.hazMul ?? (RISK[x.prof.name] || RISK.B1).hit);
       if (simRandom() < p) { accident(x, simRandom() < 0.5 ? '転覆' : '落水', `${y.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : unst > 0.2 ? '（姿勢が乱れていた）' : x === other ? '（当てた側）' : ''}`); if (!CAPSIZE.both) break; }
     }
   }
@@ -3231,7 +3278,7 @@ function buildCard() {
     const nb = !r.motor || r.motor.nobi == null ? '—' : r.motor.nobi >= 1.015 ? '◎' : r.motor.nobi >= 0.985 ? '○' : '△';
     const mw = !r.motor || r.motor.mawari == null ? '—' : r.motor.mawari >= 1.02 ? '◎' : r.motor.mawari > 1 ? '○' : r.motor.mawari >= 0.98 ? '－' : '△';
     const tl = r.b && r.b.tilt != null ? (r.b.tilt > 0 ? '+' : '') + r.b.tilt.toFixed(1) : '—';
-    const cells = [r.no, (r.name ? r.name + ' ' : '') + (r.prof.kinen ? 'A1 ★記念クラス' : r.prof.top ? 'A1 ★トップ' : r.prof.name), (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh, mw, nb, tl];
+    const cells = [r.no, (r.name ? r.name + ' ' : '') + (r.prof.named ? r.prof.label : r.prof.kinen ? 'A1 ★記念クラス' : r.prof.top ? 'A1 ★トップ' : r.prof.name), (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh, mw, nb, tl];
     cells.forEach((v, i) => {
       const td = document.createElement('td'); td.textContent = v;
       if (i === 0) { td.className = 'no'; td.style.background = r.col[0]; td.style.color = r.col[1]; }
