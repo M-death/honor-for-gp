@@ -51,7 +51,8 @@ const DRV = name => DRIVERS.find(d => d.name === name);
 const NAMED = [
   { id: 'umi', name: '瀬戸内羽美', kana: 'せとうちうみ', cls: 'A2', branch: '岡山', body: { sex: 'f', height: 145, weight: 41 },
     prof: { ...DRIVERS[1], kinen: true, named: 'umi', label: 'A2', stCls: { shift: -0.045, sd: 0.02, dent: 0.015 }, flyRisk: 0.004,
-            wideOut: true, kinenGap: 3, noLift: 0.9, tilt: 3.0, tiltTurn: 1, tiltFit: [0.95, 0.08, 0.35], hazMul: 0.3, trait: { pushMul: 2, care: 0.45, resistP: 0.9, shobuMul: 0.4, stSdMul: 0.6 },
+            wideOut: true, kinenGap: 3, sweep: { from: 30, late: 8, gap: 10, mkR: 12, mkK: 0.6, svMin: 0.3, svEnd: 0, lyMax: 44, wakeDx: [3, 25], wakeDy: [-25, -3], wakeA: 0.25, wakeDx2: 99, leanFrom: 0.4, leanK: 1.6, crouchFrom: 0.5, grid: [0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1], wall: 8, slack: 3, minLy: 15 }, softGo: { lead: 1.2, thr: 0.55, hold: 0.4, ahead: 2, calm: 4, roughSd: 0.012, stAdj: 0.045 },
+                 noLift: 0.9, tilt: 3.0, tiltTurn: 1, hazMul: 0.3, trait: { pushMul: 2, care: 0.45, resistP: 0.9, shobuMul: 0.4, stSdMul: 0.6 },
             slowTrait: { stShift: 0.05, stSdMul: 1.6, shobuMul: 0 } },   // in the 1コース (slow) her start loses its edge — the 1枠 takes away what makes her good
     temper: 'aggr', out: true, motorLowK: 2 },
 ];
