@@ -2699,7 +2699,8 @@ function fleetStep(dt, playerInput) {
     }
     if (VR) VR.inp(b, o);
     const ev = boatPhysics(b, o, dt);
-    if (r.player) willieToast(b); else b.wilEv = null;
+    if (b.wilEv === 'ok' && !(time < (r.wilJkAt || -99) + 10)) { r.wilJkAt = time; jkSay('willie', r.no); if (!(r.player || r === focusRow())) sfxWillie(b.x, b.y); }   // d210: 実況 + 音 for anyone's ウィリー
+    if (r.player || r === focusRow()) willieToast(b); else b.wilEv = null;
     if (r.player && runLog && runLog.b === b) runLogStep(b, o, zero, r.st != null && !r.logSt ? (r.logSt = true, 'スリット通過') : '');
     if(lab.active&&ev)labEvent('physics',r.no,{label:ev});
     if (ev && ev.startsWith('cap:') && !r.out) accident(r, '転覆', ev.slice(4));
@@ -3012,7 +3013,8 @@ const JK_LINES = {
     goal: n => `${n}号艇、1着でゴール`,
     photo: (pl, a, b) => `${pl}着争い、${a}号艇と${b}号艇はほぼ並んでゴール。写真判定です`,
     acc: (n, k) => `${n}号艇、${k}。事故艇が出ています`,
-    lock: () => '着順が確定しました' },
+    lock: () => '着順が確定しました',
+    willie: n => `${n}号艇、舳先を上げてウィリーターン` },
   hot: {
     entry: a => `さあ、進入は ${a}！`,
     wx: (sh, st) => sh ? `この荒れ水面、周回短縮の2周戦！${st ? ' 安定板装着！' : ''}` : '水面は荒れ模様、安定板装着！',
@@ -3030,7 +3032,8 @@ const JK_LINES = {
     goal: n => `${n}号艇、そのまま、そのまま、ゴールイン！`,
     photo: (pl, a, b) => `際どい！ ${pl}着争い、${a}号艇と${b}号艇、並んでゴール！ 写真判定だー！`,
     acc: (n, k) => `ああっと${n}号艇${k}！ 事故艇が出ています！`,
-    lock: () => '着順確定！' }
+    lock: () => '着順確定！',
+    willie: n => `${n}号艇、ウィリーだー！ 舳先が上がった、伸びる伸びる！` }
 };
 const jk = { q: [], t: 0 };
 function jkSay(key, ...args) {

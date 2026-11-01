@@ -780,6 +780,47 @@ const windJa = e => { if (!e) return ''; const w = Math.hypot(e.wx, e.wy); if (w
 // the water badge by the clock: one entry per reading that is switched on (tide and temperature join later)
 const ENV_BADGE = { wind: true, wave: true, tide: false, temp: false };
 const envBadge = e => [e.rain ? '雨' : '', ENV_BADGE.wind && windJa(e), ENV_BADGE.wave && e.wave ? `波${e.wave}cm` : '', ENV_BADGE.tide && e.tideJa ? `${e.tideJa}` : '', ENV_BADGE.temp && e.temp != null ? `${Math.round(e.temp)}℃` : '', e.laps === 2 ? '2周戦' : e.stabilizer ? '安定板' : ''].filter(Boolean).join(' ');
+/* 速度の数字の演出 (d210, まえ): no words — the km/h figure itself shows what the boat just did.
+   drop  : a hard loss of speed (ウィリー失敗, 衝突, キャビテーション, any unnatural sudden slowing): the figure shakes and turns
+           purple while the speed is falling, and goes back once the boat starts picking up again
+   surge : a ウィリー that came off: the figure goes red and bounces until the speed settles
+   pop   : 後ろ重心 (trim pop) after a turn: a light red tint and a small lift, in proportion to the extra pull */
+const SPD_FX = { tau: 0.1, dropA: -9, dropMax: 4, recoverA: 0.5, settleA: 1.2, settleT: 0.4, surgeMax: 5, popA: 2.2, popK: 0.18, purple: [179, 102, 255], red: [255, 59, 48] };
+const spdS = { b: null, v: 0, a: 0, t: 0, mode: null, k: 0, since: 0, calm: 0, cav: false };
+function spdEvent(b, mode, k = 1) { if (b !== spdS.b) return; if (mode === 'drop' && spdS.mode === 'surge') return; spdS.mode = mode; spdS.k = Math.max(mode === spdS.mode ? spdS.k : 0, k); spdS.since = 0; spdS.calm = 0; }
+function spdFx(b) {
+  const el = $('spd'); if (!el) return;
+  const now = performance.now() / 1000, dt = clamp(now - (spdS.t || now), 0, 0.1); spdS.t = now;
+  if (b !== spdS.b) { Object.assign(spdS, { b, v: b.v, a: 0, mode: null, k: 0 }); }
+  if (paused || !dt) return;
+  const a = (b.v - spdS.v) / dt; spdS.v = b.v;
+  spdS.a += (a - spdS.a) * (1 - Math.exp(-dt / SPD_FX.tau));
+  const A = spdS.a;
+  // events the physics leaves on the boat
+  const cav = b.cav > 0 && b.v > 8; if (cav && !spdS.cav) spdEvent(b, 'drop', 0.7); spdS.cav = cav;
+  if (b.cap > 0) spdS.mode = null;
+  else if (A < SPD_FX.dropA && spdS.mode !== 'surge' && b.v > 8 && !(fleet && (fleet.entry || time < SS.t0 + CLOCK))) spdEvent(b, 'drop', clamp((SPD_FX.dropA - A) / 8 + 0.5, 0.5, 1));
+  spdS.since += dt;
+  if (spdS.mode === 'drop' && ((A > SPD_FX.recoverA && spdS.since > 0.3) || spdS.since > SPD_FX.dropMax)) spdS.mode = null;
+  if (spdS.mode === 'surge') {
+    spdS.calm = !(b.wilT > 0) && Math.abs(A) < SPD_FX.settleA ? spdS.calm + dt : 0;
+    if ((spdS.calm > SPD_FX.settleT && spdS.since > 1.2) || spdS.since > SPD_FX.surgeMax) spdS.mode = null;
+  }
+  let col = '', tf = '';
+  if (spdS.mode === 'drop') {
+    const k = spdS.k, j = 3 * k;
+    col = `rgb(${SPD_FX.purple})`; tf = `translate(${((Math.random() * 2 - 1) * j).toFixed(1)}px,${((Math.random() * 2 - 1) * j * 0.6).toFixed(1)}px)`;
+  } else if (spdS.mode === 'surge') {
+    const ph = spdS.since * 9, up = Math.abs(Math.sin(ph)) * 6 * Math.exp(-spdS.since * 0.5);
+    col = `rgb(${SPD_FX.red})`; tf = `translateY(${(-up).toFixed(1)}px) scale(${(1 + 0.12 * Math.exp(-spdS.since * 2)).toFixed(3)})`;
+  } else if ((b.trimPop || 0) > 0.05 && A > SPD_FX.popA && b.cap <= 0) {
+    const k = clamp((A - SPD_FX.popA) * SPD_FX.popK + 0.25 * clamp(b.trimPop, 0, 1), 0, 0.6);
+    const base = [234, 246, 243], c = base.map((x, i) => Math.round(x + (SPD_FX.red[i] - x) * k));
+    col = `rgb(${c})`; tf = `translateY(${(-2.5 * k).toFixed(1)}px)`;
+  }
+  if (el.dataset.c !== col) { el.style.color = col; el.dataset.c = col; }
+  el.style.transform = tf; el.style.display = 'inline-block';
+}
 function updateHud() {
   { const wh = $('windHud'); if (wh) { const on = !!(fleet && waterEnv); if (wh.hidden === on) wh.hidden = !on;
       if (on) { const a = Math.atan2(waterEnv.wy, waterEnv.wx) * 180 / Math.PI, t = envBadge(waterEnv); if (wh.dataset.t !== t) { wh.dataset.t = t; $('windTxt').textContent = t; $('windArrow').setAttribute('transform', `rotate(${a.toFixed(0)})`); } } } }
@@ -792,7 +833,7 @@ function updateHud() {
   if(controlMode==='wheel')$('phoneSteerReadout').textContent=phoneWheel.value<-.03?`スマホ舵：左 ${Math.round(-phoneWheel.value*100)}%`:phoneWheel.value>.03?`スマホ舵：右 ${Math.round(phoneWheel.value*100)}%`:'スマホ舵：中央';
   const fr = focusRow();
   const vb = fr ? fr.b : B, vi = fr ? fr.inp : input, vh = fr ? (fr.b.harmony || 0) : harmony;
-  setTxt('spd', String(kmh(vb.v)));
+  setTxt('spd', String(kmh(vb.v))); spdFx(vb);
   const pr = playerRow();
   $('dashBtn').hidden = !(fleet && fleet.entry && pr);
   $('claimBtn').hidden = !(fleet && fleet.entry && pr && !fleet.noMae);

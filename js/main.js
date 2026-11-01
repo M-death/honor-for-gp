@@ -29,7 +29,7 @@ function tick(now) {
       lab.accumulator+=dt*lab.rate;
       while(lab.accumulator>=1/120&&!paused&&!lab.finished){labStep();lab.accumulator-=1/120;}
     }
-    pollPadButtons(dt);hapticsStop();updateAudio();draw();labUpdate();return;
+    pollPadButtons(dt);hapticsStop();updateAudioAll();draw();labUpdate();return;
   }
   pollPadButtons(dt);
   if (running && !paused) {
@@ -38,7 +38,7 @@ function tick(now) {
     else { updateInput(dt); step(dt / 2); step(dt / 2); hapticsFrame(dt, B); }
   }
   if (!running || paused || (fleet && !playerRacing(playerRow()))) hapticsStop();
-  updateAudio();
+  updateAudioAll();
   draw(); updateHud();
 }
 document.addEventListener('visibilitychange', () => { last = performance.now(); keys.clear(); });

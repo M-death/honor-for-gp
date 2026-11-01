@@ -1,0 +1,11 @@
+{
+  "enabled": false,
+  "note": "BGMの設定。enabled を true にすると鳴る。曲を差し替えるときは mp3 を bgm/ に置いて file を書き換え、秒数を合わせる。説明は bgm/BGM.md",
+  "tracks": {
+    "menu":  { "file": "menu.mp3",  "loop": [16.373, 40.077] },
+    "race":  { "file": "race.mp3",  "loop": [108.215, 172.215], "startAt": 100 },
+    "race2": { "file": "race2.mp3", "loop": [100.645, 138.539], "startAt": 22.7, "from": 2.7 },
+    "ta":    { "file": "ta.mp3",    "loop": [4.067, 52.067] },
+    "goal":  { "file": "goal.mp3" }
+  }
+}

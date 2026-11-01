@@ -206,8 +206,9 @@ function willieStep(b, inp, t, s, down, up, dt) {
 function willieToast(b) {
   if (!b.wilEv) return;
   const e = b.wilEv; b.wilEv = null;
-  if (e === 'ok') toast('ウィリー', '舳先が上がった！ 起こしたままレバーを握って', 'good');
-  else toast('ウィリー失敗', { noturn: 'ターン中でないと上がらない', bite: 'ペラが水をつかんでいない（跳ね・引き波）', lever: 'レバーを握り込めていない', motor: '出足・回り足とも○以上のモーターでないと上がらない' }[e] || '舳先が上がらない（出足・回り足が足りない）', 'warn');
+  // d210 (まえ): no explaining words either way — the speed figure shows it (red and bouncing / purple and shaking), plus a sound
+  if (e === 'ok') { spdEvent(b, 'surge'); sfxWillie(b.x, b.y); }
+  else spdEvent(b, 'drop', 1);
 }
 const tiltGrip = b => 1 - TILT.grip * Math.max(0, b.tilt || 0) * (1 - (+b.tiltTurn || 0)) + 0.02 * Math.max(0, -(b.tilt || 0));   // d203: a rider who can turn on a high tilt (羽美) doesn't slide out on it
 

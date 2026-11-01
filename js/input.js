@@ -229,6 +229,18 @@ function pip(freq, dur, vol) {
 const earGain = (x, y) => clamp(1 - Math.hypot(x - cam.x, y - cam.y) / 140, 0, 1);
 function sfxHit(x, y, strength) { const e = earGain(x, y); if (e > 0.05) oneShot(0.25, 900, 180, 0.5 * e * clamp(strength / 6, 0.3, 1), 'lowpass', 2); }
 function sfxCapsize(x, y) { const e = earGain(x, y); if (e > 0.05) { oneShot(1.4, 3000, 200, 0.7 * e, 'bandpass', 0.6); oneShot(0.5, 300, 60, 0.6 * e, 'lowpass', 1); } }
+// ウィリー (d210): the engine flares as the prop bites with the bow up, and the tail kicks the water
+function sfxWillie(x, y) {
+  if (!snd.ctx || !snd.on) return;
+  const e = fleet ? earGain(x, y) : 1; if (e < 0.05) return;
+  const c = snd.ctx, t = c.currentTime, o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(170, t); o.frequency.exponentialRampToValueAtTime(330, t + 0.18); o.frequency.exponentialRampToValueAtTime(240, t + 0.6);
+  f.type = 'lowpass'; f.frequency.setValueAtTime(900, t); f.frequency.linearRampToValueAtTime(2600, t + 0.15); f.frequency.linearRampToValueAtTime(1200, t + 0.6);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16 * e, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+  o.connect(f); f.connect(g); g.connect(snd.master); o.start(t); o.stop(t + 0.7);
+  oneShot(0.45, 2400, 500, 0.4 * e, 'bandpass', 0.8);   // the rooster tail
+  oneShot(0.2, 380, 90, 0.35 * e, 'lowpass', 1.5);      // the stern digging in
+}
 // エンジンの音の高さ (0–1.15): one formula for the sound and the video log, so the log has it with the sound off too
 const engineRpm = (b, thr) => clamp(0.15 + 0.55 * (IDLE + (1 - IDLE) * thr) + 0.35 * b.v / 23 - 0.1 * (b.turnLoadV || 0), 0, 1.15);
 function updateAudio() {
@@ -274,6 +286,124 @@ function updateAudio() {
     const rem = SS.t0 + CLOCK - time, sec = Math.ceil(rem);
     if (sec !== snd.lastSec) { if (sec >= 1 && sec <= 3) pip(880, 0.12, 0.25); else if (sec === 0) pip(1320, 0.5, 0.3); snd.lastSec = sec; }
   } else snd.lastSec = null;
+}
+function updateAudioAll() { updateAudio(); try { updateBgm(); } catch (e) {} }
+/* ---------- BGM (d208, まえ's own tracks, see game/bgm/specs) ----------
+   Each track is decoded into a Web Audio buffer so loops are gapless and a jump lands exactly where it should.
+   race   ピット離れから: the pit signal is 0 s, the start (slit) is always 100 s later — the track is kept on the game's clock
+   race2  枠なり (no 待機行動): the race begins 20 s before the start; the file's first 2.7 s are silent and skipped,
+          so the start is at 22.7 s in the file
+   menu   title / menus / race setup / results after the fanfare (loops)
+   ta     タイムアタック and 展示航走 (loops, plays on across retries)
+   goal   the fanfare: once, the moment the player finishes (or, if out of the race, when it's over), or a タイムアタック ends
+   A track that runs out loops its [loopA, loopB] (bar-aligned, chosen by ear-free analysis of the files). */
+const BGM = { sync: 0.3, fade: 1.0, goalFade: 0.25,
+  enabled: false, tr: {},   // d209: everything about the tracks lives in bgm/bgm.json (enabled, file, loop, startAt, from) — swap music there, see bgm/BGM.md
+  keep: ['menu', 'goal'] };   // buffers kept decoded; the long ones are dropped when not in use (a 3-minute track is ~70 MB decoded)
+function bgmConfig() {
+  const show = on => { for (const id of ['bgmOn', 'bgmVol']) { const el = $(id); if (el && el.closest('label')) el.closest('label').hidden = !on; } };
+  show(false);
+  try { fetch('bgm/bgm.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.tracks) return;
+    const tr = {};
+    for (const k of ['menu', 'race', 'race2', 'ta', 'goal']) { const t = j.tracks[k]; if (t && t.file) tr[k] = { file: 'bgm/' + t.file, loop: Array.isArray(t.loop) && t.loop[1] > t.loop[0] ? t.loop : null, startAt: +t.startAt || 0, from: +t.from || 0, once: k === 'goal' }; }
+    BGM.tr = tr; BGM.enabled = !!j.enabled; show(BGM.enabled);
+  }).catch(() => {}); } catch (e) {}
+}
+const bgm = { on: true, vol: 0.6, buf: {}, loading: {}, cur: null, out: null, goal: null, goalKey: null, mem: {} };
+try { const v = localStorage.getItem('honorGP.bgm'); if (v === '0') bgm.on = false; const w = localStorage.getItem('honorGP.bgmVol'); if (w != null && isFinite(+w)) bgm.vol = clamp(+w / 100, 0, 1); } catch (e) {}
+function bgmLoad(key) {
+  if (!snd.ctx || !BGM.tr[key] || bgm.buf[key] || bgm.loading[key]) return;
+  bgm.loading[key] = fetch(BGM.tr[key].file).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then(ab => new Promise((ok, ng) => { const p = snd.ctx.decodeAudioData(ab, ok, ng); if (p && p.then) p.then(ok, ng); }))
+    .then(b => { bgm.buf[key] = b; }).catch(() => {}).finally(() => { bgm.loading[key] = null; });
+}
+function bgmPos(c) {   // where the playing track is now (seconds into the file)
+  let p = c.off + (snd.ctx.currentTime - c.t0) * (c.rate || 1);
+  const L = BGM.tr[c.key].loop;
+  if (L && p >= L[1]) p = L[0] + (p - L[0]) % (L[1] - L[0]);
+  return p;
+}
+function bgmStop(c, fade) {
+  if (!c) return;
+  const t = snd.ctx.currentTime;
+  try { c.g.gain.cancelScheduledValues(t); c.g.gain.setValueAtTime(c.g.gain.value, t); c.g.gain.linearRampToValueAtTime(0, t + fade); c.src.stop(t + fade + 0.05); } catch (e) {}
+  if (!BGM.tr[c.key].once) bgm.mem[c.key] = bgmPos(c);
+}
+function bgmStart(key, pos, fade) {
+  const b = bgm.buf[key]; if (!b || !BGM.tr[key]) return false;
+  const c = snd.ctx, tr = BGM.tr[key], L = tr.loop;
+  if (L && pos >= L[1]) pos = L[0] + (pos - L[0]) % (L[1] - L[0]);
+  if (pos >= b.duration - 0.05) { if (tr.once) return false; pos = 0; }
+  if (!bgm.out) { bgm.out = c.createGain(); bgm.out.connect(c.destination); }
+  const src = c.createBufferSource(); src.buffer = b;
+  if (L) { src.loop = true; src.loopStart = L[0]; src.loopEnd = Math.min(L[1], b.duration); }
+  const g = c.createGain(), t = c.currentTime;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + fade);
+  src.connect(g); g.connect(bgm.out); src.start(t, Math.max(0, pos));
+  const cur = { key, src, g, t0: t, off: Math.max(0, pos), ended: false };
+  src.onended = () => { cur.ended = true; };
+  bgmStop(bgm.cur, fade); bgm.cur = cur;
+  return true;
+}
+const BGM_MENU = ['start', 'pmenu', 'setsu', 'setsuNewBox', 'waku', 'manualBox', 'raceSetup'];
+const bgmShown = id => $(id) && !$(id).hidden;
+// what should be playing now: { key, pos (synced tracks only) } or null
+function bgmWant() {
+  if (!BGM.enabled || !bgm.on || !snd.on || !snd.ctx || document.hidden) return null;
+  const pr = typeof playerRow === 'function' && fleet ? playerRow() : null;
+  // the fanfare: latched once per race / per タイムアタック run
+  if (fleet && pr && !lab.active) {
+    const done = fleet.order && fleet.order.length && fleet.order.length >= fleet.boats.filter(r => !r.out && !r.flying).length;
+    if (bgm.goalKey !== fleet && (pr.fin != null || ((pr.out || pr.flying) && done))) { bgm.goalKey = fleet; bgm.goal = 'start'; }
+  } else if (soloKind === 'ta' && ta.done && bgm.goalKey !== ta.zero) { bgm.goalKey = ta.zero; bgm.goal = 'start'; }
+  if (bgm.goal === 'start' || bgm.goal === 'play') return { key: 'goal' };
+  const afterGoal = bgm.goal === 'done' && (bgm.goalKey === fleet || bgm.goalKey === ta.zero);
+  if (afterGoal || BGM_MENU.some(bgmShown) || bgmShown('resBox') || bgmShown('taBox')) {
+    if (bgmShown('raceSetup')) bgmLoad(raceCfg.start === 'pit' ? 'race' : 'race2');   // decode the race track while the player picks
+    return { key: 'menu' };
+  }
+  if (!running || paused) return null;
+  if (fleet && pr && !lab.active) {
+    const key = fleet.autoIdle ? 'race2' : 'race', tr = BGM.tr[key];
+    if (!tr) return null;
+    bgmLoad('goal');
+    let pos = null;
+    if (SS.phase === 'entry') { if (fleet.entry && fleet.entry.go != null && time >= fleet.entry.go) pos = time - fleet.entry.go; else bgmLoad(key); }
+    else if (SS.t0 != null) pos = tr.startAt + (time - (SS.t0 + CLOCK));
+    if (pos == null || pos < (tr.from || 0)) return pos == null ? null : { key: 'wait:' + key };
+    return { key, pos };
+  }
+  if (!fleet && (soloKind === 'ta' || soloKind === 'tenji')) { bgmLoad('goal'); return { key: 'ta' }; }
+  return null;
+}
+function updateBgm() {
+  if (!snd.ctx) return;
+  if (bgm.out) bgm.out.gain.setTargetAtTime(bgm.vol, snd.ctx.currentTime, 0.05);
+  if (fleet !== bgm.fleetSeen) { bgm.fleetSeen = fleet; if (bgm.goal && bgm.goalKey !== fleet && bgm.goalKey !== ta.zero) bgm.goal = null; }
+  const w = bgmWant(), cur = bgm.cur;
+  // drop the big buffers nobody needs now
+  for (const k in bgm.buf) {
+    if (!bgm.buf[k] || BGM.keep.includes(k)) continue;
+    const need = (w && (w.key === k || w.key === 'wait:' + k)) || (cur && cur.key === k) || (bgmShown('raceSetup') && k === (raceCfg.start === 'pit' ? 'race' : 'race2'))
+      || (fleet && playerRow() && !bgm.goal && k === (fleet.autoIdle ? 'race2' : 'race')) || (!fleet && k === 'ta' && (soloKind === 'ta' || soloKind === 'tenji'));   // kept through a pause
+    if (!need) bgm.buf[k] = null;
+  }
+  if (!w || w.key.startsWith('wait:')) { if (w) bgmLoad(w.key.slice(5)); if (cur) { bgmStop(cur, BGM.fade * 0.5); bgm.cur = null; } return; }
+  bgmLoad(w.key);
+  if (w.key === 'goal') {
+    if (bgm.goal === 'start') { if (bgmStart('goal', 0, BGM.goalFade)) bgm.goal = 'play'; return; }
+    if (!cur || cur.key !== 'goal' || cur.ended || bgmPos(cur) >= bgm.buf.goal.duration - 0.02) { bgm.goal = 'done'; }
+    return;
+  }
+  if (w.pos == null) {   // free-running loop (menu, タイムアタック)
+    if (!cur || cur.key !== w.key) bgmStart(w.key, bgm.mem[w.key] || 0, BGM.fade);
+    return;
+  }
+  // kept on the game's clock; when spectating faster than real time only big slips are put right
+  const thr = playerActive() || simSpeed === 1 ? BGM.sync : 3;
+  if (!cur || cur.key !== w.key) bgmStart(w.key, w.pos, cur && cur.key === 'goal' ? 0.05 : 0.3);
+  else if (Math.abs(bgmPos(cur) - (BGM.tr[w.key].loop && w.pos >= BGM.tr[w.key].loop[1] ? BGM.tr[w.key].loop[0] + (w.pos - BGM.tr[w.key].loop[0]) % (BGM.tr[w.key].loop[1] - BGM.tr[w.key].loop[0]) : w.pos)) > thr) bgmStart(w.key, w.pos, 0.08);
 }
 // browsers only allow sound after the viewer interacts: wake it up on any tap, click or key
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { if (snd.ctx && snd.ctx.state === 'suspended') snd.ctx.resume().catch(() => {}); }, true);
@@ -354,6 +484,12 @@ $('close').addEventListener('click', () => { paused = false; last = performance.
 $('zero').addEventListener('click', () => { $('settings').hidden = true; openCalib(() => toast('基準リセット', 'OKを押した持ち方が傾き0になりました', 'info')); });
 $('padRT').addEventListener('change', e => { pad.useRT = e.target.checked; try { localStorage.setItem('honorGP.padRT', pad.useRT ? '1' : '0'); } catch (_) {} });
 $('sndOn').addEventListener('change', e => { snd.on = e.target.checked; initAudio(); });
+bgmConfig();
+if ($('bgmOn')) {
+  $('bgmOn').checked = bgm.on; $('bgmVol').value = Math.round(bgm.vol * 100); $('bgmVolOut').textContent = $('bgmVol').value;
+  $('bgmOn').addEventListener('change', e => { bgm.on = e.target.checked; initAudio(); try { localStorage.setItem('honorGP.bgm', bgm.on ? '1' : '0'); } catch (_) {} });
+  $('bgmVol').addEventListener('input', e => { bgm.vol = e.target.value / 100; $('bgmVolOut').textContent = e.target.value; try { localStorage.setItem('honorGP.bgmVol', e.target.value); } catch (_) {} });
+}
 $('sndVol').addEventListener('input', e => { snd.vol = e.target.value / 100; $('sndVolOut').textContent = e.target.value; });
 $('hapOn').addEventListener('change', e => { hap.on = e.target.checked; if (!hap.on) { hap.active = true; hapticsStop(); } });
 $('hapTest').addEventListener('click', () => {
