@@ -251,27 +251,54 @@ function kinenWakeAhead(b, env, m, lx, ly, sw) {
   }
   return false;
 }
+// d211 羽美の叩き: how far in she may go — down past every boat inside that she is clear ahead of (her stern ahead of its bow by
+// tk.clear m), and no further than tk.gap m outside the first one she has not beaten; all = she is clear of every one
+const STAB_TILT = 0;   // d212: the tilt a 3.0 rider comes back to when the 安定板 goes on
+const stormDay = () => !!(waterEnv && waterEnv.stabilizer);   // d212 羽美: on a 安定板 day she rides it safe (no 叩き, lets go of the lever in a crowd, a safer start)
+function tataki(b, env, ly, tk) {
+  const sx = boatBow(b).x - 3.15 * Math.cos(b.a);
+  const ins = env.others.filter(q => q !== b && q.cap <= 0 && q.y < ly - 1 && q.y > -4 && Math.abs(q.x - b.x) < 40).sort((p, q) => q.y - p.y);
+  let lane = tk.minLy;
+  for (const q of ins) {
+    if (sx > boatBow(q).x + tk.clear) continue;           // beaten: she can cut across its bow
+    return { lane: Math.min(ly, Math.max(tk.minLy, q.y + tk.gap)), all: false };
+  }
+  return { lane, all: true };
+}
 // someone in the path of the turn right now (just ahead of my bow, within a hull or so either side)
 function kinenInPath(b, env) {
   const fx = Math.cos(b.a), fy = Math.sin(b.a);
   for (const q of env.others) {
     if (q === b || q.cap > 0) continue;
     const ex = q.x - b.x, ey = q.y - b.y, f = ex * fx + ey * fy, s = -ex * fy + ey * fx;
-    if (f > 0 && f < KINEN.pathF && s < KINEN.pathS && s > -KINEN.pathS - 3) return true;   // more room kept on the inside, where the lock takes it
+    if (f > 0 && f < KINEN.pathF && s < KINEN.pathS && s > -KINEN.pathS - 3) return s;   // more room kept on the inside, where the lock takes it (returns which side: < 0 inside)
   }
-  return false;
+  return null;
 }
 // returns inputs while it is flying the line itself, else null (the A1★ driving carries on).
 // d141 (まえ): turn flat out whenever it can; with boats inside, go round outside them flat out if that pays (全速まくり)
 function kinenDrive(b, env, mem, dt, o, prof) {
-  const kn = mem.kn || (mem.kn = { m: b.y >= 0 ? 0 : 1, ph: 'str', next: 0, sv: 1, tt: 0, t0: 0, need: KINEN.gap });
+  const kn = mem.kn || (mem.kn = { m: b.y >= 0 ? 0 : 1, ph: 'str', next: 0, sv: 1, tt: 0, t0: 0, need: KINEN.gap, pe: 0 });
   if (env.caution || env.cruise || env.retire || b.cap > 0) { kn.ph = 'str'; return null; }
   const m = kn.m, sg = m ? -1 : 1, lx = sg * b.x, ly = sg * b.y, la = wrapRad(b.a + (m ? Math.PI : 0));
   if (kn.ph === 'str') {
     if (sg * b.y < 0 && lx > MK - 40) { kn.m = m ^ 1; return null; }   // already round this one (taken by the A1★ driving)
     if (ly < 0 || !fleet.raceOn) return null;
-    const sw = prof && prof.sweep && ly >= prof.sweep.minLy ? prof.sweep : null;   // (from the inside — 1コース — she turns it like any 記念 rider)
-    const Ly0 = Math.max(m ? KINEN.Ly2 : KINEN.Ly, sw ? Math.min(ly, sw.lyMax) : -Infinity);   // d205 羽美: never swings in toward the others' wakes on the run in
+    const sw = prof && prof.sweep && ly >= prof.sweep.minLy && !(prof.tataki && !m && !mem.firstDone && mem.tkAll && lx >= MK - prof.tataki.endX) ? prof.sweep : null;   // (from the inside — 1コース — she turns it like any 記念 rider; d211: in front of them all after a 叩き she turns it as the leader)
+    let Ly0 = Math.max(m ? KINEN.Ly2 : KINEN.Ly, sw ? Math.min(ly, sw.lyMax) : -Infinity);   // d205 羽美: never swings in toward the others' wakes on the run in
+    // d211 叩き (まえ): out of the start on the first run to 1M, a boat she is clear ahead of is one she can cut across — she works in
+    // over every one she has beaten (bow to stern, with room) and turns first, before anyone's wake is down. Not clear of one: she
+    // stays outside it (and goes round the outside of them all, as before)
+    const tk = prof && prof.tataki;
+    if (tk && !(prof.storm && stormDay()) && !m && !mem.firstDone && lx > tk.fromX && lx < MK - tk.endX) {
+      const t = tataki(b, env, ly, tk); mem.tkLane = t.lane; mem.tkAll = t.all;
+      if (t.lane < ly - 0.5 || mem.tkOn) {
+        mem.tkOn = true;
+        const want = tk.ks * (t.lane - ly) - tk.ka * la;
+        return { thr: 1, steer: clamp(want * tk.kS, -tk.sMax, tk.sMax), roll: clamp(want, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free), pitch: 1 };
+      }
+    }
+    if (tk && mem.tkOn && !m && !mem.firstDone) Ly0 = Math.min(Ly0, Math.max(mem.tkLane, sw ? 0 : -Infinity));
     if (lx < MK - KINEN.app) {   // the straight: flat out on the TA line, held by lean alone, while no one is close ahead or alongside
       if (lx < -MK + 10 || !kinenClear(b, env, KINEN.near)) return null;
       const want = KINEN.ks * (Ly0 - ly) - KINEN.ka * la;
@@ -280,20 +307,20 @@ function kinenDrive(b, env, mem, dt, o, prof) {
     let S = kinenScan(b, env, m, lx, ly, Ly0);
     let Ly = S.inner.length ? Math.max(Ly0, S.innerY + KINEN.over) : Ly0;
     if (Ly > Ly0) S = kinenScan(b, env, m, lx, ly, Ly);
-    if (S.block || !(prof && prof.wideOut) && !kinenMakuriOk(b, S)) { kn.ph = 'skip'; return null; }   // d203 羽美: round the outside of them flat out, paying or not
+    if (S.block || !(prof && prof.wideOut) && !kinenMakuriOk(b, S)) { kn.ph = 'skip'; kn.why = S.block ? 'block' : 'pay'; return null; }   // d203 羽美: round the outside of them flat out, paying or not
     if (S.wide) Ly = Math.min(Ly, Math.max(ly, 0));   // someone out wide: no swing out, turn from the lane it is in
     const g0 = sw ? sw.gap : prof && prof.kinenGap || KINEN.gap;   // d203: a rider who swings it wider than the 記念 line (羽美)
     kn.need = S.inner.length ? Math.max(g0, (sw ? sw.mkR : KINEN.mkR) + Math.max(0, S.innerY - KINEN.mkY) * (sw ? sw.mkK : KINEN.mkK)) : g0;
     const want = KINEN.ks * (Ly - ly) - KINEN.ka * la;
     const run = { thr: 1, steer: clamp(want * 0.5, -KINEN.sMax, KINEN.sMax), roll: clamp(want, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free), pitch: 1 };
-    if (lx > MK - 5) { kn.ph = 'skip'; return null; }   // d153: never ran past the buoy on the run in (the A1★ driving turns it)
+    if (lx > MK - 5) { kn.ph = 'skip'; kn.why = 'past'; return null; }   // d153: never ran past the buoy on the run in (the A1★ driving turns it)
     if (sw) {   // d205 (まえ's own 3.0 runs): a long sweep — in early, ~30 m before the buoy, on part rudder that tightens as it comes round, flat out, outside everyone
       if (lx < MK - sw.from || time < kn.next) return run;
       kn.next = time + 1 / KINEN.hz;
       if (lx < MK - sw.late && kinenWakeAhead(b, env, m, lx, ly, sw)) return run;   // a boat just ahead and inside is laying its wake across my arc: run on and go round after it
       const sv0 = sweepRudder(b, m, sw, kn.need);
       if (sv0 == null) return run;
-      kn.ph = 'turn'; kn.tt = time; kn.next = 0; kn.mk = S.inner.length > 0; kn.sweep = true; kn.sv = sv0;
+      kn.ph = 'turn'; kn.tt = time; kn.next = 0; kn.mk = S.inner.length > 0; kn.sweep = true; kn.sv = sv0; kn.pe = 0;
     } else {
     if (lx < MK - KINEN.from || time < kn.next) return run;
     kn.next = time + 1 / KINEN.hz;
@@ -308,7 +335,14 @@ function kinenDrive(b, env, mem, dt, o, prof) {
     if (ly < 0 && la < -Math.PI * 0.75) { kn.ph = 'str'; kn.m = m ^ 1; }
     return null;
   }
-  if (kn.ph === 'turn' && kinenInPath(b, env)) { kn.ph = 'skip'; return null; }
+  if (kn.ph === 'turn') {
+    const ps = kinenInPath(b, env);
+    if (ps != null) {   // d211 羽美 (まえ: 引き波を避けて外を回る作戦を徹底): one coming out of the turn inside her, in her path — she opens the arc and goes round the outside of it, flat out, instead of tucking in behind into its wake
+      const pe = kn.sweep && prof.sweep.pathEase;
+      if (pe && ps < pe.sIn && (kn.pe = (kn.pe || 0) + dt) < pe.T) { kn.sv = Math.max(pe.sv, kn.sv - pe.dv * dt); kn.next = time + pe.hold; kn.why = 'ease'; }
+      else { kn.ph = 'skip'; kn.why = 'path'; return null; }
+    }
+  }
   if (kn.ph === 'turn') {
     if (kn.sweep && time >= kn.next && la > -Math.PI + 0.9) { kn.next = time + 1 / KINEN.hz; const v = sweepRudder(b, m, prof.sweep, kn.need, kn.sv); kn.sv = v == null ? 1 : v; }   // (the rudder only ever comes in further)
     else if (!KINEN.oneCut && !kn.sweep && time >= kn.next && la > -Math.PI / 2 - 0.2) {
@@ -531,13 +565,13 @@ function makeDriver(prof, trait = {}) {
     mem.stMode = mode;
     const sc = prof.stCls || START_CLASS[prof.name] || START_CLASS.B1;
     const cf = (START_COURSE.by[trait.course - 1] ?? 1.5) * (trait.slow ? 1 : START_COURSE.dash);
-    mem.stTarget = START_MODE[mode] + sc.shift + (trait.stShift || 0) + START_COURSE.margin * sc.sd * Math.max(0, cf - START_COURSE.by[0]);
+    mem.stTarget = START_MODE[mode] + sc.shift + (trait.stShift || 0) + (prof.storm && stormDay() ? prof.storm.st : 0) + START_COURSE.margin * sc.sd * Math.max(0, cf - START_COURSE.by[0]);
     const ge = gauss() * sc.sd * cf * (trait.stSdMul || 1);
     mem.stErr = mode === 'shobu' ? ge : (ge < 0 ? ge * 0.6 : ge);   // a safe start's early misses mostly get caught (放る)
     if (simRandom() < sc.dent * cf * (mode === 'antei' ? 0.5 : 1)) mem.stErr += 0.06 + simRandom() * 0.15;   // ミス／凹み
-    mem.misread = false; mem.soft = false; mem.softNo = false; mem.hou = false; mem.houed = false;
+    mem.misread = false; mem.tkOn = false; mem.tkLane = null; mem.tkAll = false; mem.soft = false; mem.softNo = false; mem.hou = false; mem.houed = false;
     mem.houSure = mode !== 'shobu' || simRandom() < START_SHOBU_HOU;   // going for it, it doesn't always pull out in time
-    if (simRandom() < (trait.flyRisk || 0)) { mem.stTarget = -0.01 - simRandom() * 0.05; mem.stErr = 0; mem.misread = true; }   // reads the clock wrong and never notices
+    if (simRandom() < (prof.storm && stormDay() ? prof.storm.fly : trait.flyRisk || 0)) { mem.stTarget = -0.01 - simRandom() * 0.05; mem.stErr = 0; mem.misread = true; }   // reads the clock wrong and never notices
     mem.cpuDecision=null;mem.cpuLine=null;mem.cpuWide=null;mem.cpuThreaded=false;mem.cpuSlotGap=null;mem.cpuReadAt=0;mem.cpuChangedAt=0;
     mem.push = null; mem.pushDecided = false;
     mem.go = false; mem.firstDone = false; mem.dumpT = 0; mem.dumpQ = null; mem.dumpSeen.clear();
@@ -1337,7 +1371,7 @@ function makeDriver(prof, trait = {}) {
       // 込み合うターンは落として回る (d149, まえ): with a boat close by going into or through the first half of a turn,
       // lift the lever and sit up — a smaller, calmer arc that keeps out of the others' way. A boat set on a 全速ターン
       // (まくり・壁・抵抗・回り順の commit) or with the turn to itself still goes round flat out.
-      if (CROWD_DROP.on && !prof.noLift && leanIn && !exiting && !avoiding && !dumping && !mem.resistQ && !(ro && ro.commit) && !(first && (tactic === 'makuri' || tactic === 'wall' || tactic === 'tsuke' || mem.kabe))
+      if (CROWD_DROP.on && !(prof.noLift && !(prof.storm && stormDay())) && leanIn && !exiting && !avoiding && !dumping && !mem.resistQ && !(ro && ro.commit) && !(first && (tactic === 'makuri' || tactic === 'wall' || tactic === 'tsuke' || mem.kabe))
         && (!ti.inTurn || 1 - ti.left / (Math.PI * R) < CROWD_DROP.until) && env.others
         && env.others.some(q => q !== b && !(q.cap > 0) && Math.hypot(q.x - b.x, q.y - b.y) < CROWD_DROP.r)) {
         thrT = Math.min(thrT, CROWD_DROP.lever[prof.name] ?? 0.65); pitchT = Math.min(pitchT, 0); mem.crowdDrop = time;
@@ -1451,7 +1485,7 @@ function makeDriver(prof, trait = {}) {
         }
         if (mem.tpUp > 0) { mem.tpUp -= dt; pitchT = Math.min(pitchT, TRIM_CPU.pitch); }
       }
-      if (prof.noLift && fleet && fleet.raceOn && !env.caution && !env.cruise && !env.retire && !(mem.emergency > 0)) thrT = Math.max(thrT, prof.noLift);   // d203 羽美: hardly ever lets go of the lever
+      if (prof.noLift && !(prof.storm && stormDay()) && fleet && fleet.raceOn && !env.caution && !env.cruise && !env.retire && !(mem.emergency > 0)) thrT = Math.max(thrT, prof.noLift);   // d203 羽美: hardly ever lets go of the lever
       if (b.cap > 0) { thrT = 0; rollT = 0; pitchT = 0; }
       o.thr += (thrT - o.thr) * (1 - Math.exp(-6 * dt));
     }
@@ -1724,12 +1758,13 @@ function fitMotor(r, course, again) {
   Object.assign(b, bodyRace(r.body ? r.body.height : SETSU.body.ref));
   b.stabilizer = !!(waterEnv && waterEnv.stabilizer);
   if (r.player) { b.tilt = playerTilt; return; }
-  if (r.prof.tilt != null) { b.tilt = r.tilt = r.prof.tilt; b.tiltTurn = r.prof.tiltTurn || 0; if (r.prof.tiltFit) b.tiltFit = clamp((b.nobi - r.prof.tiltFit[0]) / r.prof.tiltFit[1], r.prof.tiltFit[2], 1); return; }   // d203: a named rider rides her own tilt
+  if (r.prof.tilt != null) { b.tilt = r.tilt = b.stabilizer ? Math.min(r.prof.tilt, STAB_TILT) : r.prof.tilt;   // d212 (まえ): 安定板の日に3.0は怒られる — tilt back to 0
+    b.tiltTurn = r.prof.tiltTurn || 0; if (r.prof.tiltFit) b.tiltFit = clamp((b.nobi - r.prof.tiltFit[0]) / r.prof.tiltFit[1], r.prof.tiltFit[2], 1); return; }   // d203: a named rider rides her own tilt
   if (again && !r.tiltAuto) return;
-  if (r.hane) { b.tilt = HANE.tilt; return; }   // the はね boat keeps its 3.0 whatever course it ends up in
+  if (r.hane) { b.tilt = b.stabilizer ? STAB_TILT : HANE.tilt; return; }   // the はね boat keeps its 3.0 whatever course it ends up in
   r.tiltAuto = true;
   // d192 (まえ): a 3.0 is a 6枠 rider's gamble — it stays out in 6コース and goes for one big まくり (win or lose big)
-  if (!again && r.no === 6 && course === 6 && simRandom() < (sgMode ? HANE.sgP : HANE.p)) { r.hane = true; r.pref = 'out'; b.tilt = r.tilt = HANE.tilt; return; }
+  if (!again && !b.stabilizer && r.no === 6 && course === 6 && simRandom() < (sgMode ? HANE.sgP : HANE.p)) { r.hane = true; r.pref = 'out'; b.tilt = r.tilt = HANE.tilt; return; }
   const out = course >= 4 || (r.trait && r.trait.kado);
   b.tilt = out ? pickW([[-0.5, 2], [0, 4], [0.5, 3], [1, 1], [2, 0.3]]) : pickW([[-0.5, 8], [0, 2], [0.5, 0.4]]);
   r.tilt = b.tilt;
@@ -1878,8 +1913,9 @@ function entrySpot(r, nSlow, contested) {
 // with its tilt at 0 — its rider takes the dash spot that much shallower (cached per tilt)
 function tiltDashShift(r) {
   const b = r.b, t = b.tilt || 0;
-  if (t <= 0) return 0;
-  if (r.en.reachKey !== t) { r.en.reachKey = t; r.en.reachShift = Math.max(0, reachIn(ENTRY_RUNUP, 0.5, { ...b, tilt: 0, yaw: 0 }) - reachIn(ENTRY_RUNUP, 0.5, { ...b, yaw: 0 })); }
+  if (t <= 0 && b.tiltTurn == null) return 0;   // (d212: 羽美 on a 安定板 day rides tilt 0 but still reads the chop for her spot)
+  const key = t + ':' + (waterEnv ? waterEnv.wave : 0);
+  if (r.en.reachKey !== key) { r.en.reachKey = key; r.en.reachShift = Math.max(0, reachIn(ENTRY_RUNUP, 0.5, { ...b, tilt: 0, tiltTurn: undefined, yaw: 0 }) - reachIn(ENTRY_RUNUP, 0.5, { ...b, yaw: 0 })); }
   return r.en.reachShift;
 }
 function reachIn(T, v, boat) {
