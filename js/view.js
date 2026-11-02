@@ -261,6 +261,49 @@ function boatSprite(sty, overturned) {
   boatSprites.set(key, cvb); return cvb;
 }
 
+// d217 ナイトレース (まえ): looks only — the race is the same. The water goes dark except where the floodlights along both
+// banks light it; the boats themselves stay lit (they are in the lights). Setting 「時間帯」 honorGP.tod: day / night.
+let todMode = 'day';
+try { todMode = localStorage.getItem('honorGP.tod') || 'day'; } catch (e) {}
+const isNight = () => todMode === 'night';
+if ($('todMode')) { $('todMode').value = todMode; $('todMode').addEventListener('change', e => { todMode = e.target.value; try { localStorage.setItem('honorGP.tod', todMode); } catch (x) {} }); }   // d217 ナイトレース
+const NIGHT = { dark: 'rgba(3,8,24,0.72)', tint: 'rgba(10,18,48,0.16)', poleDx: 40, poleOut: 7, lightR: 72, lightA: 0.10, poleCol: 'rgba(255,244,214,0.95)' };
+function nightPoles() {
+  const P = [];
+  for (let x = COURSE.xMin + 10; x <= COURSE.xMax + 5; x += NIGHT.poleDx) { P.push([x, COURSE.yMax + NIGHT.poleOut]); P.push([x, COURSE.yMin - NIGHT.poleOut]); }
+  for (const y of [-30, 0, 30]) { P.push([COURSE.xMax + NIGHT.poleOut + 4, y]); P.push([COURSE.xMin - NIGHT.poleOut, y]); }
+  return P;
+}
+const NIGHT_POLES = nightPoles();
+function drawNightWater(S) {
+  // world coords (the caller has the camera transform on); cover well past what the screen shows
+  const vw = W / S, vh = H / S, x0 = cam.x - vw, y0 = cam.y - vh;
+  ctx.save();
+  ctx.fillStyle = NIGHT.dark; ctx.fillRect(x0, y0, vw * 2, vh * 2);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.beginPath(); ctx.rect(COURSE.xMin, COURSE.yMin, COURSE.xMax - COURSE.xMin, COURSE.yMax - COURSE.yMin); ctx.clip();   // the lights fall on the water; the banks stay dark
+  for (const [px, py] of NIGHT_POLES) {
+    if (px < x0 - NIGHT.lightR || px > x0 + vw * 2 + NIGHT.lightR || py < y0 - NIGHT.lightR || py > y0 + vh * 2 + NIGHT.lightR) continue;
+    // the pool of light falls on the water a little in from the pole
+    const cx = px, cy = py - Math.sign(py) * 22 * (Math.abs(py) > 40 ? 1 : 0), g = ctx.createRadialGradient(cx, cy, 0, cx, cy, NIGHT.lightR);
+    g.addColorStop(0, `rgba(255,238,200,${NIGHT.lightA})`); g.addColorStop(0.55, `rgba(200,215,240,${NIGHT.lightA * 0.45})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, NIGHT.lightR, 0, Math.PI * 2); ctx.fill();
+    // a shimmering reflection of the lamp on the water
+    const sh = 0.5 + 0.5 * Math.sin(time * 3 + px * 0.13);
+    ctx.fillStyle = `rgba(255,236,190,${0.05 + 0.05 * sh})`; ctx.beginPath(); ctx.ellipse(px, py - Math.sign(py) * 6, 1.1, 5, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawNightPoles(S) {
+  ctx.save();
+  for (const [px, py] of NIGHT_POLES) {
+    const g = ctx.createRadialGradient(px, py, 0, px, py, 4);
+    g.addColorStop(0, 'rgba(255,248,225,0.9)'); g.addColorStop(1, 'rgba(255,240,200,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = NIGHT.poleCol; ctx.beginPath(); ctx.arc(px, py, 0.7, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
 function drawWaterSurface(S, cw, ch) {
   ctx.save(); ctx.beginPath(); ctx.rect(COURSE.xMin, COURSE.yMin, cw, ch); ctx.clip();
   const water = ctx.createLinearGradient(0, COURSE.yMin, 0, COURSE.yMax);
@@ -435,7 +478,7 @@ function draw() {
     tick(GATES.mawari.from, 'まわり足 始'); tick(GATES.mawari.to, 'まわり足 終', -2.6);
     ctx.setLineDash([]);
   }
-  if (fleet) for (const r of fleet.boats) drawWake(r.wake); else drawWake(wake);
+  if (fleet) for (const r of fleet.boats) { if (!r.gone) drawWake(r.wake); } else drawWake(wake);
 
   // ピット and 小回り防止ブイ (shown in ピット離れ mode)
   if (entryMode || (fleet && fleet.pitMode)) {
@@ -479,6 +522,7 @@ function draw() {
     ctx.fillText(m.name, m.x, m.y - 2.6);
   }
 
+  if (isNight()) drawNightWater(S);
   // spray
   for (let i = spray.length - 1; i >= 0; i--) {
     const s = spray[i], age = time - s.t;
@@ -495,10 +539,11 @@ function draw() {
     ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 0.35;
     ctx.beginPath(); ctx.ellipse(0, 0, 3.3, 1.8, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
-  if (window.Boat3D) Boat3D.prepare(fleet ? fleet.boats : [{b:B, inp:input, no:1, col:[PLAYER_STYLE.hull,PLAYER_STYLE.num]}], S, DPR, time);
+  if (window.Boat3D) Boat3D.prepare(fleet ? fleet.boats.filter(r => !r.gone) : [{b:B, inp:input, no:1, col:[PLAYER_STYLE.hull,PLAYER_STYLE.num]}], S, DPR, time);
   if (fleet) {
-    for (const r of fleet.boats) drawBoatAt(r.b, r.inp, { hull: r.col[0], num: r.col[1], label: String(r.no), helmet: r.col[0], top: !!r.prof.top }, r === fr);
+    for (const r of fleet.boats) if (!r.gone) drawBoatAt(r.b, r.inp, { hull: r.col[0], num: r.col[1], label: String(r.no), helmet: r.col[0], top: !!r.prof.top }, r === fr);
   } else { taDrawGhost(); drawBoatAt(B, input, PLAYER_STYLE, false); }
+  if (isNight()) { drawNightPoles(S); ctx.fillStyle = NIGHT.tint; const vw = W / S, vh = H / S; ctx.fillRect(cam.x - vw, cam.y - vh, vw * 2, vh * 2); }
   ctx.restore();
   if (fleet && waterEnv && waterEnv.rain) drawRain();
   drawMini();
@@ -745,7 +790,7 @@ function drawMini() {
   mctx.fillStyle = C.buoy;
   for (const m of COURSE.marks) { mctx.beginPath(); mctx.arc(X(m.x), Y(m.y), 2.5 * DPR, 0, Math.PI * 2); mctx.fill(); }
   if (fleet) {
-    for (const r of fleet.boats) { mctx.fillStyle = r.col[0]; mctx.strokeStyle = 'rgba(233,245,242,.8)'; mctx.lineWidth = DPR; mctx.beginPath(); mctx.arc(X(r.b.x), Y(r.b.y), 2.6 * DPR, 0, Math.PI * 2); mctx.fill(); mctx.stroke(); }
+    for (const r of fleet.boats) { if (r.gone) continue; mctx.fillStyle = r.col[0]; mctx.strokeStyle = 'rgba(233,245,242,.8)'; mctx.lineWidth = DPR; mctx.beginPath(); mctx.arc(X(r.b.x), Y(r.b.y), 2.6 * DPR, 0, Math.PI * 2); mctx.fill(); mctx.stroke(); }
     return;
   }
   mctx.fillStyle = '#f4f7f6';
@@ -779,7 +824,7 @@ function updateCourseOrder() {
 const windJa = e => { if (!e) return ''; const w = Math.hypot(e.wx, e.wy); if (w < 0.3) return '無風'; const a = Math.abs(e.wx) >= Math.abs(e.wy) ? (e.wx > 0 ? '追い風' : '向かい風') : (e.wy > 0 ? '横風(外向き)' : '横風(内向き)'); return `${a} ${w.toFixed(1)}m`; };
 // the water badge by the clock: one entry per reading that is switched on (tide and temperature join later)
 const ENV_BADGE = { wind: true, wave: true, tide: false, temp: false };
-const envBadge = e => [e.rain ? '雨' : '', ENV_BADGE.wind && windJa(e), ENV_BADGE.wave && e.wave ? `波${e.wave}cm` : '', ENV_BADGE.tide && e.tideJa ? `${e.tideJa}` : '', ENV_BADGE.temp && e.temp != null ? `${Math.round(e.temp)}℃` : '', e.laps === 2 ? '2周戦' : e.stabilizer ? '安定板' : ''].filter(Boolean).join(' ');
+const envBadge = e => [isNight() ? 'ナイター' : '', e.rain ? '雨' : '', ENV_BADGE.wind && windJa(e), ENV_BADGE.wave && e.wave ? `波${e.wave}cm` : '', ENV_BADGE.tide && e.tideJa ? `${e.tideJa}` : '', ENV_BADGE.temp && e.temp != null ? `${Math.round(e.temp)}℃` : '', e.laps === 2 ? '2周戦' : e.stabilizer ? '安定板' : ''].filter(Boolean).join(' ');
 /* 速度の数字の演出 (d210, まえ): no words — the km/h figure itself shows what the boat just did.
    drop  : a hard loss of speed (ウィリー失敗, 衝突, キャビテーション, any unnatural sudden slowing): the figure shakes and turns
            purple while the speed is falling, and goes back once the boat starts picking up again

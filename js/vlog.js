@@ -5,7 +5,7 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
   audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163', venueId: 'standard', courseVersion: 1,
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
@@ -14,7 +14,7 @@ const VL_NF = VL_FIELDS.length;
 const VL_DEC = [2, 2, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3, 3, null, null, null, 2, 2, 3, 3, 2];
 const VL_ANGLE = new Set([2, 5]);                 // heading, slip: interpolate the short way round ±π
 const VL_STEP = new Set([18, 19, 20, 21, 22]);    // flags, lap, rank, fx, fy: never blended, nearest step
-const VL_FLAG = { capHull: 1, fallen: 2, retired: 4, dq: 8, flying: 16, finished: 32, relegated: 64, player: 128, jump: 256 };
+const VL_FLAG = { capHull: 1, fallen: 2, retired: 4, dq: 8, flying: 16, finished: 32, relegated: 64, player: 128, jump: 256, gone: 512 };
 // d171 見どころ (まえ: make the replay log richer for the video app's camera and slow motion): the game writes down the
 // moments it already judges — the slit line-up, how the first turn went (決まり手), every change of place that held,
 // a bow in on the boat outside going into a turn (舳先がかかる), long side-by-side fights — and a scored list of
@@ -45,10 +45,12 @@ VR = (() => {
       if (r.fin != null && !r.skipped) fl |= VL_FLAG.finished;
       if (r.relegated) fl |= VL_FLAG.relegated;
       if (r.player) fl |= VL_FLAG.player;
+      if (r.gone) fl |= VL_FLAG.gone;
     } else { fl |= VL_FLAG.player; if (ta.done) fl |= VL_FLAG.finished; }
     const v = [b.x, b.y, b.a, b.v, b.bank || 0, b.slip || 0, b.hop || 0, b.wil || 0, b.porp || 0, inp.roll || 0, inp.pitch || 0, inp.steer || 0, inp.thr || 0,
       b.splashK || 0, engineRpm(b, inp.thr || 0), b.vl || 0, b.yaw || 0, b.wakeBump || 0, fl, r ? r.laps : lap.n, rankOf(row),
       b.fallen ? b.fx : NaN, b.fallen ? b.fy : NaN, b.hv || 0, b.landV || 0, r ? r.prog : NaN];
+    if (r && r.gone) v.forEach((_, i) => { if (i > 1 && i !== 18) v[i] = i === 21 || i === 22 || i === 25 ? NaN : 0; });   // d216: off the water — only where it left (x, y) and the flags
     for (let i = 0; i < VL_NF; i++) out[o + i] = i === 21 || i === 22 || i === 25 ? fin(v[i]) : (Number.isFinite(v[i]) ? v[i] : 0);
   }
   function begin(mode) {
@@ -56,7 +58,7 @@ VR = (() => {
     if (!vlOn || lab.active) return;
     gen++; seq++;
     const at = new Date();
-    R = { gen, mode, solo: mode === 'ta', id: `${at.getTime().toString(36)}${seq}`, createdAt: at, inp: new WeakMap(), prevBoat: new Map(), contactAt: new Map(),
+    R = { gen, mode, night: typeof isNight === 'function' && isNight(), solo: mode === 'ta', id: `${at.getTime().toString(36)}${seq}`, createdAt: at, inp: new WeakMap(), prevBoat: new Map(), contactAt: new Map(),
       zeroT: null, ring: [], prev: null, origin: null, n: 0, chunks: [], cur: null, curN: 0, nb: 0, events: [],
       endT: null, endReason: null, endNote: null, results: null, state: 'RECORDING', full: false, terminal: null,
       q: { steps: 0, maxDt: 0, jumps: 0, firstT: null, lastT: null, coastFrom: null }, blob: null, file: null };
@@ -349,8 +351,8 @@ VR = (() => {
     const race = st ? { title: st.kind || null, raceNo: st.R ?? null, grade: setsu.grade === 'sg' ? 'SG' : '一般', venueName: venueOf(setsu.venue).name, date: null, day: st.day ?? null,
                         dayLabel: SETSU.dayJa[st.day] || null, startTime: st.env && st.env.time || null }
       : { title: null, raceNo: null, grade: !R.solo && sgMode ? 'SG' : null, venueName: venueOf('standard').name, date: null, day: null, dayLabel: null, startTime: null };
-    const env = R.solo || !waterEnv ? { calm: true, laps: R.solo ? TA.laps : 3 } : { laps: raceLaps(), dir: waterEnv.dir, wind: waterEnv.wind, windVec: { wx: waterEnv.wx, wy: waterEnv.wy },
-      tideFlow: waterEnv.cx, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, tideLv: waterEnv.tideLv };
+    const env = Object.assign(R.solo || !waterEnv ? { calm: true, laps: R.solo ? TA.laps : 3 } : { laps: raceLaps(), dir: waterEnv.dir, wind: waterEnv.wind, windVec: { wx: waterEnv.wx, wy: waterEnv.wy },
+      tideFlow: waterEnv.cx, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, tideLv: waterEnv.tideLv }, { timeOfDay: R.night ? 'night' : 'day', lighting: R.night ? 'floodlights' : 'daylight' });   // d217 ナイトレース
     let seedH = 2166136261; for (const ch of R.id) seedH = Math.imul(seedH ^ ch.charCodeAt(0), 16777619) >>> 0;
     return {
       mode: R.mode, sg: !R.solo && !!sgMode, race, setsu: st ? { day: st.day, race: st.R, kind: st.kind || null } : null, entryResult: !R.solo && fleet.entryResult ? fleet.entryResult.text : null,

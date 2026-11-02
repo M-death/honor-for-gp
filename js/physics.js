@@ -631,7 +631,7 @@ function playerForm() {
 }
 function cutinCheck() {
   const pr = playerRow();
-  if (!fleet || !pr || pr.st != null || fleet.cutinDone || SS.phase !== 'count' || pr.out) return;
+  if (!fleet || !pr || pr.st != null || fleet.cutinDone || SS.phase !== 'count' || pr.out || startAssist) return;   // (d214: no cut-in with the スタートアシスト on)
   const rem = SS.t0 + CLOCK - time;
   if (fleet.cutinAt == null) fleet.cutinAt = CUTIN.to + Math.random() * (CUTIN.from - CUTIN.to);
   if (rem > fleet.cutinAt) return;

@@ -37,6 +37,7 @@ d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）�
 - `frames` の艇の並びは `boatOrder` の順です。値の並びは `fields` の順です。
 - `entries[]` には、艇番、名前、級、色（`colors` = [艇体, 番号]）、コース、スロー/ダッシュ、プレイヤーかどうか、モーター（deashi / mawari / nobi）、チルト、体格 `body` が入ります。`body = {sex: "m"/"f", heightCm, weightKg, rideWeightKg}`（d172。`rideWeightKg` は最低体重に満たないとき重りを足した乗艇時の重さ）。身長と性別でレーサーモデルの見た目を変えてください（体重は見た目には使わなくて構いません）。タイムアタックと、節間以外のレースのプレイヤーは標準の体格（男子・165cm・52kg）です。
 - `conditions` には、周回数（2周戦なら2）、風向き、風速、風ベクトル、潮流、波、雨、安定板、気温、潮位が入ります。
+- d217 ナイトレース（formatFeatures `night-v1`）：`conditions.timeOfDay` が `"night"` か `"day"`、`conditions.lighting` が `"floodlights"`（照明）か `"daylight"`。レースの中身は昼と同じで、見た目だけの違いです。ゲーム内の夜は、水面を暗くし、コースの両岸に40m間隔で並ぶ照明の光が水面に落ちる描き方です（照明柱は岸から7m外、光の輪は半径約72m）。動画アプリは timeOfDay が night なら夜の表現にしてください。
 - `effectSeed` は raceId から作ったハッシュです。しぶきなどの演出の乱数に使ってください（ゲームの乱数は進めていません）。
 - `terminalSnapshot` は最後の時刻（決着の5秒後）の全艇の状態です。
 
@@ -86,6 +87,7 @@ d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）�
 | 64 | relegated | 着順の繰り下げ |
 | 128 | player | プレイヤーの艇 |
 | 256 | jump | このサンプルで瞬間移動した（補間していない） |
+| 512 | gone | d216：フライング艇が返還でコースの外側の端に着き、水面から消えた。以後この艇は描かないでください。x, y は消えた位置のまま、ほかの値は 0（fx, fy, progress は null）。イベント `gone` がその瞬間。結果（results）には F として残ります。formatFeatures `gone-v1` |
 
 ### 4.3 イベント
 
@@ -107,6 +109,7 @@ d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）�
 | foul | `{kind: 不良航法 / 待機行動違反, other, why}` |
 | dq | `{why}` |
 | retire | フライング艇の帰投 |
+| gone | d216：返還中のフライング艇がコースの端に着いて水面から消えた（以後 flags に gone） |
 | order_locked | `{order: [艇番…]}` 事故後の着順確定 |
 | result_assigned | `{place}` 走らずに結果が割り当てられた |
 | skip | 結果へスキップ |

@@ -2534,7 +2534,12 @@ function stopFleet() {
 /* ---------- 6艇レース (d198, まえ) ----------
    The player picks the 枠, how the race starts — from the pits (進入あり) or lined up 枠なり with 20 s on the big clock —
    their own tilt, and the class of each CPU rider (an unpicked 枠 is drawn as usual). Later a 枠 can take a named rider. */
-const RACE_MODE = { fixedLead: 20 };   // s before the start a 枠なり race begins
+// d214 スタートアシスト (まえ: 選べる、ST .40〜.50、使っている間は勝てないのが鉄則): the CPU opens the lever on its own 起こし,
+// aimed late, until the player takes the lever; no イケる／早い cut-in while it is on
+const START_ASSIST = { st: 0.40, spread: 0.08 };
+let startAssist = false;
+try { startAssist = localStorage.getItem('honorGP.stAssist') === 'on'; } catch (e) {}
+const RACE_MODE = { fixedLead: 20, dashEarly: 6 };   // d213: a dash boat's lever is the player's from 18 s out (the CPU's own 起こし from a deep dash came at 13–16 s, before the old 12 s hand-over)   // s before the start a 枠なり race begins
 const RACE_CLS = [['', 'おまかせ'], ['3', 'B2'], ['2', 'B1'], ['1', 'A2'], ['0', 'A1'], ['4', 'A1★トップ'], ['5', 'A1★記念'], ...NAMED.map(n => ['n:' + n.id, `${n.name}（${n.cls}）`])];   // value = DRIVERS index, or n:<id> a named rider (d203)
 let raceCfg = { no: 1, start: 'pit', tilt: -0.5, cls: [null, null, null, null, null, null] };
 try { const c = JSON.parse(localStorage.getItem('honorGP.raceCfg') || 'null'); if (c && c.no >= 1 && c.no <= 6 && Array.isArray(c.cls)) raceCfg = Object.assign(raceCfg, c); } catch (e) {}
@@ -2642,13 +2647,19 @@ function refreshFleetUi() {
 }
 
 const IDLE_INPUT = { thr: 0, steer: 0, roll: 0, pitch: 0 };
+// d216 (まえ: フライング艇がコースの端に残り続ける): a flying boat past 1M is a ghost to the others (no contact, no wake, not avoided)
+// and is taken off the water once it reaches the outside edge (r.gone: not run, not drawn, not logged — only its result stays)
+const RETIRE_GONE = { edge: 7, v: 4, maxT: 30 };
+const retiring = r => !!(r.flying && r.passed1M);
+const GHOST_B = { x: 1e6, y: 1e6, a: 0, v: 0, cap: 0 };
 function fleetStep(dt, playerInput) {
   if (fleet.entry) { entryStep(dt, playerInput); if (VR) VR.frame(); return; }
   const timingBefore=fleet.boats.map(r=>timingPose(r.b,time));
   time += dt;
   const zero = SS.t0 + CLOCK;
   if(!lab.active && !fleet.slit)fleet.slit=slitCreate(fleet.playerNo?'レース練習':'6艇デモ');
-  const all = fleet.boats.map(r => r.b);
+  const all = fleet.boats.filter(r => !retiring(r)).map(r => r.b);
+  const allC = fleet.boats.map(r => retiring(r) ? GHOST_B : r.b);   // contacts by fleet index; a ghost is parked far away
   // 引き波: how much wake is under each hull, and how square it is crossing it
   for (const r of fleet.boats) {
     setWake(r.b, wakeAt(r.b.x, r.b.y, r.wakesOthers, time));
@@ -2660,7 +2671,7 @@ function fleetStep(dt, playerInput) {
     // 航跡: a boat ahead on (nearly) my line
     let tr = 0; const fx = Math.cos(r.b.a), fy = Math.sin(r.b.a);
     for (const q of fleet.boats) {
-      if (q === r || q.b.cap > 0 || q.b.v < 8) continue;
+      if (q === r || q.b.cap > 0 || q.b.v < 8 || retiring(q)) continue;
       const dx = q.b.x - r.b.x, dy = q.b.y - r.b.y, f = dx * fx + dy * fy;
       if (f < 3 || f > TRAIL.range) continue;
       const l = Math.abs(-dx * fy + dy * fx);
@@ -2680,6 +2691,7 @@ function fleetStep(dt, playerInput) {
   racing.forEach(r => { r.fight = racing.some(q => q !== r && Math.abs(q.prog - r.prog) < TRIM_CPU.fight); });
   for (const r of fleet.boats) {
     const b = r.b;
+    if (r.gone) continue;
     let o = IDLE_INPUT;
     if (!r.out) {
       const fi = r.fin != null ? fleet.finOrder.indexOf(r) : -1;
@@ -2710,8 +2722,11 @@ function fleetStep(dt, playerInput) {
         const ps = playerInput ? playerInput.steer : 0;
         if (SS.phase === 'count') zigCheck(b, ps, r);
         // 6艇レース 枠なり: the CPU idles the boat in until the clock hand starts or the player takes the lever
-        if (fleet.autoIdle && (time >= SS.t0 || (playerInput && playerInput.thr >= 0.08))) { fleet.autoIdle = false; if (time >= SS.t0) toast('大時計', 'ここからレバーは自分で', 'info'); }
-        o = { thr: fleet.autoIdle ? o.thr : playerInput ? playerInput.thr : 0, steer: clamp(ps, -PRE_SLIT.steer, PRE_SLIT.steer), roll: 0, pitch: playerInput ? playerInput.pitch : 0, ev: null };   // スリットまでは舵は微調整だけ、傾きなし
+        if (fleet.autoIdle && (time >= SS.t0 - (r.trait && r.trait.slow === false ? RACE_MODE.dashEarly : 0) || (playerInput && playerInput.thr >= 0.08))) { fleet.autoIdle = false; if (time >= SS.t0 - RACE_MODE.dashEarly) toast('大時計', 'ここからレバーは自分で', 'info'); }
+        const am = r.drv.mem, pThr = playerInput ? playerInput.thr : 0;
+        if (startAssist && !r.asSet) { r.asSet = true; am.stTarget = START_ASSIST.st + START_ASSIST.spread * ((r.no * 0.618 + time * 0.37) % 1); am.stErr = 0; am.misread = false; }
+        const asThr = startAssist && am.go && pThr < 0.08 ? o.thr : null;   // the assist's lever whenever the player isn't squeezing (d214b まえ: 出遅れは破綻 — letting go never makes it late)
+        o = { thr: asThr != null ? asThr : fleet.autoIdle ? (am.go ? 0 : o.thr) : pThr, steer: clamp(ps, -PRE_SLIT.steer, PRE_SLIT.steer), roll: 0, pitch: startAssist && am.go && !(playerInput && Math.abs(playerInput.pitch) > 0.2) ? 1 : playerInput ? playerInput.pitch : 0, ev: null };   // (the assist crouches too while it has the lever) スリットまでは舵は微調整だけ、傾きなし   // d213 (まえ: 勝手にレバーが入る): the idling CPU never makes the player's 起こし (on a deep dash its go came just before the hand-over)
         r.inp = o;
       } else if (r.player && playerRacing(r)) {
         // past the slit: rudder, lean, posture and lever are all the player's
@@ -2749,7 +2764,10 @@ function fleetStep(dt, playerInput) {
     }
     r.prevY = b.y;
     boatFx(b, r.wake, dt);
-    if (r.flying && !r.passed1M && b.y < -5 && b.x < MK - 10) r.passed1M = true;
+    if (r.flying && !r.passed1M && b.y < -5 && b.x < MK - 10) { r.passed1M = true; r.retireAt = time; r.wake = []; }   // a fresh trail the others never read (theirs hold the old array)
+    if (retiring(r) && (Math.abs(b.y) > COURSE.yMax - RETIRE_GONE.edge && b.v < RETIRE_GONE.v || time - r.retireAt > RETIRE_GONE.maxT)) {
+      r.gone = true; b.v = 0; b.vl = 0; r.wake = []; if (VR) VR.ev('gone', r.no, null);
+    }
     if (b.x > MK - 15) r.vis |= 1;
     if (b.x < -MK + 15) r.vis |= 2;
   }
@@ -2808,7 +2826,7 @@ function fleetStep(dt, playerInput) {
     }
   }
   // hull contact
-  for (const e of boatContacts(all)) {
+  for (const e of boatContacts(allC)) {
     const A = fleet.boats[e.i], Bt = fleet.boats[e.j];
     if(lab.active)labEvent('contact',A.no,{label:'艇間接触',other:Bt.no,x:e.x,y:e.y,impulse:e.J});
     if (VR) VR.contact(A.no, Bt.no, e);
@@ -2839,9 +2857,11 @@ function fleetStep(dt, playerInput) {
     // d168 (まえ): racing contact is not called by itself — side by side (舳先をかけた競り合い, ダンプ) it is part of racing.
     // Only a hard hit that is not side to side is 不良航法; if the boat hit goes over, it is 妨害失格 either way (interfere).
     for (const [x, y] of [[A, Bt], [Bt, A]]) if (x.lastCut && x.lastCut.q === y && time - x.lastCut.t < CUT.window && !x.dq) {
-      x.interfere = { q: y, t: time }; x.lastCut = null;
+      const lc = x.lastCut; x.interfere = { q: y, t: time }; x.lastCut = null;
       const side = Math.abs(wrapRad(x.b.a - y.b.a)) < CONTACT_RULE.sideAng;
-      if (CONTACT_RULE.strict || (!side && e.J >= CONTACT_RULE.hardJ)) furyo(x, y, `${y.no}号艇に${side ? '' : '強く'}接触`);
+      const cutK = lc.kind === '斜行' ? '斜行' : '転舵';
+      if (lc.steep) furyo(x, y, `${y.no}号艇の前へ${cutK}して接触`);   // d213: a steep cut that ends in contact
+      else if (CONTACT_RULE.strict || (!side && e.J >= CONTACT_RULE.hardJ)) furyo(x, y, `${y.no}号艇に${side ? '' : '強く'}接触`);
     }
     const dumper = A.drv.dumping(Bt.b) ? A : Bt.drv.dumping(A.b) ? Bt : null;
     if (dumper) { const vic = dumper === A ? Bt : A; fleet.dumps++; if (VR) VR.ev('dump', dumper.no, { other: vic.no }); toast('ダンプ', `${dumper.no}号艇が${vic.no}号艇を外へ押し出した`, 'warn'); }
@@ -3287,12 +3307,15 @@ function zigCheck(b, steer, r) {
 // 不良航法 only when it actually gets in the way: the boat cut across is hit (or forced off) within a couple
 // of seconds, or the cut is so steep and so close that it plainly endangers it. If the boat hit goes over: 妨害失格.
 // 不良航法 costs points (節間: −10, twice in a 節 = 賞典除外) but the race result stands.
-const CUT = { window: 2.0, steep: 4.2, steepGap: 2.6 };
+// d213 (まえ: 斜行が内側叩きに厳しい): no contact → only a reckless cut (very steep, nearly touching) costs points; a steep cut that ends in contact is 不良航法; sinking the boat is 妨害失格 as before
+const CUT = { window: 2.0, steep: 4.2, steepGap: 2.6, wildV: 6.5, wildGap: 1.0 };
 // d168: contact after a cut — side by side (heading within sideAng rad) is never 不良航法 by itself; a hit from another angle only at hardJ+
 const CONTACT_RULE = { strict: false, sideAng: 0.6, hardJ: 6 };
 function cutAcross(r, q, vy, gap, kind) {
-  r.lastCut = { q, t: time, kind };
-  if (Math.abs(vy) >= CUT.steep && Math.abs(gap) < CUT.steepGap) {
+  const steep = Math.abs(vy) >= CUT.steep && Math.abs(gap) < CUT.steepGap;
+  if (!(r.lastCut && r.lastCut.q === q && r.lastCut.steep && time - r.lastCut.t < CUT.window)) r.lastCut = { q, t: time, kind, steep };
+  else r.lastCut.t = time;
+  if (Math.abs(vy) >= CUT.wildV && Math.abs(gap) < CUT.wildGap) {
     const key = r.no * 10 + q.no + 200;
     if ((fleet.cutCool[key] || 0) > time) return;
     fleet.cutCool[key] = time + 3;
@@ -3328,7 +3351,8 @@ function disqualify(r, why) {
 
 function focusRow() {
   if (!fleet) return null;
-  return fleet.boats.find(r => r.no === fleet.focus) || fleet.rank[0];
+  const f = fleet.boats.find(r => r.no === fleet.focus);
+  return f && !f.gone ? f : fleet.rank.find(r => !r.gone) || fleet.rank[0];   // d216: a フライング boat taken off the water hands the camera on
 }
 function buildOrderStrip() {
   const box = $('order'); box.hidden = false; box.textContent = '';
@@ -3401,6 +3425,7 @@ for (let no = 1; no <= 6; no++) {
 }
 $('wakuClose').addEventListener('click', () => { $('waku').hidden = true; paused = false; last = performance.now(); });
 $('dashBtn').addEventListener('click', () => playerDash());
+if ($('stAssistOn')) { $('stAssistOn').checked = startAssist; $('stAssistOn').addEventListener('change', e => { startAssist = e.target.checked; try { localStorage.setItem('honorGP.stAssist', startAssist ? 'on' : 'off'); } catch (x) {} }); }
 $('claimBtn').addEventListener('click', () => playerClaim());
 onEntryHandoff = () => { $('clock').hidden = false; buildCard(); };
 $('demoBtn').addEventListener('click', () => { initAudio(); if (!running || paused) return;
