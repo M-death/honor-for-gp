@@ -25,7 +25,8 @@ const STRAIGHT_LEAN = { free: 0.35, ok: 0.5, drag: 0.035 };
 // CPU on a straight (next mark more than `from` m ahead): rudder held within ±steer, the rest of the wanted turn goes to the lean
 const STRAIGHT_RUN = { from: 55, steer: 0.06, leanK: 1.5, crouch: 1 };   // crouch: on a clean straight every rider lies flat — the speed is the motor's
 const YAW_OVER = 1.15;       // how far past the grip limit the nose may be forced round (the excess slides)       // sideways grip before a slide; lower = turns swing wider at speed
-const THRUST = 7.785;         // full-lever push: top speed 81.0 km/h crouched (average motor, tilt 0, calm, no fade; d148), idle ≈ 16 km/h
+// d225 (まえ: an average motor tops out about 80 km/h): 7.785 → 7.667, top speed 81.0 → 80.0 km/h
+const THRUST = 7.667;         // full-lever push: top speed 80.0 km/h crouched (average motor, tilt 0, calm, no fade), idle ≈ 16 km/h
 // 推進の乗り (d151, まえ): the push is best crouched and running straight. With the rudder over, sat up, or leaned
 // (past a small trim) the boat picks up speed more slowly — this is what dulls the exit of a turn (the net gain is scaled, so a turn's own speed is kept).
 const DRIVE = { steer: 0.3, up: 0.2, lean: 0.2, leanFree: 0.1 };

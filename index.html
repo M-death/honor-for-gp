@@ -378,8 +378,8 @@ body.lab-running>#jk{display:none!important}
     <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
       <button class="btn" id="pm6">6艇スタート練習</button>
       <p style="margin:0 0 6px">ピット離れから。舵は自動でアクセルだけ調整して待機位置へ。「引く」でダッシュ。スタートしたら自動で1マークを回り、スリット写真で終了（前付けなし）。</p>
-      <div class="plrow" id="rivalRow"><span id="rivalTxt" style="font-size:13px">相手：なし</span><button class="btn ghost" id="rivalLoad">ゴーストを読み込む</button><button class="btn ghost" id="rivalOff" hidden>外す</button><input type="file" id="rivalFile" accept=".json,application/json" hidden></div>
-      <button class="btn ghost" id="pmRank">端末内ランキング（タイムアタック）</button>
+      <div class="plrow" id="rivalRow"><span id="rivalTxt" style="font-size:13px">相手：なし</span><button class="btn ghost" id="rivalLoad">ゴーストを読み込む</button><button class="btn ghost" id="codeLoad">合言葉で受け取る</button><button class="btn ghost" id="shareCode">合言葉で渡す</button><button class="btn ghost" id="rivalOff" hidden>外す</button><span id="shareTxt" hidden style="font-size:13px;flex-basis:100%"></span><input type="file" id="rivalFile" accept=".json,application/json" hidden></div>
+      <button class="btn ghost" id="pmRank">ランキング（タイムアタック）</button>
       <button class="btn" id="pmTA">タイムアタック（1艇・大時計スタートから3周・級判定）</button>
       <p style="margin:0 0 6px">タイムで級（ルーキー〜B2・B1・A2・A1・記念クラス、エクストラにGP覇者・レジェンド）を判定。自己ベストはゴーストになって一緒に走ります。走りきった回はログ（位置・速度・操作を0.1秒ごと）が残ります。</p>
       <button class="btn ghost" id="pmTALog">タイムアタックのログ</button>
@@ -505,10 +505,11 @@ body.lab-running>#jk{display:none!important}
 
 <div class="overlay" id="rankBox" hidden>
   <div class="card">
-    <h1 style="font-size:22px"><small>タイムアタック（3周）</small>端末内ランキング</h1>
-    <p style="font-size:12px;margin:0 0 6px">この端末で走った速い順に10位まで。プレイヤーの名前はメニューで登録できます。</p>
+    <h1 style="font-size:22px"><small>タイムアタック（3周）</small>ランキング</h1>
+    <div class="row" id="rankTabs"><button class="btn" data-tab="local">端末内</button><button class="btn ghost" data-tab="net">全体</button><button class="btn ghost" data-tab="official">公式ゴースト</button><select id="rankVer" hidden title="版"></select></div>
+    <p id="rankNote" style="font-size:12px;margin:0 0 6px"></p>
     <div id="rankList"></div>
-    <div class="row"><button class="btn" id="rankClose">閉じる</button></div>
+    <div class="row"><button class="btn" id="rankClose">閉じる</button><button class="btn ghost" id="rankReset" title="開発用">この表をリセット（開発用）</button></div>
   </div>
 </div>
 <div class="overlay" id="taBox" hidden>
@@ -519,6 +520,7 @@ body.lab-running>#jk{display:none!important}
     <div id="taHint" class="ta-hint" hidden><img src="manga/umi_face.webp" alt="羽美" width="56" height="56"><p><small>羽美</small><span id="taHintTxt"></span></p></div>
     <table class="mtab"><thead><tr><th></th><th>今回</th><th>自己ベスト</th></tr></thead><tbody id="taBody"></tbody></table>
     <p id="taGaps" style="font-size:13px;color:var(--fg);margin:4px 0"></p>
+    <div id="netRow" hidden><p id="netMsg" style="font-size:13px;color:var(--fg);margin:6px 0 2px"></p><div class="row"><button class="btn" id="netSend">全体ランキングに送る</button><button class="btn ghost" id="netSendG">ゴーストも付けて送る</button></div></div>
     <p id="taNote" style="font-size:12px;color:var(--muted)"></p>
     <div class="row"><button class="btn" id="taAgain">もう一度</button><button class="btn ghost" id="taGhostOut">ゴーストを書き出す</button><button class="btn ghost" id="taLog">ログ</button><button class="btn ghost" id="taSlit" hidden>スリット写真</button><button class="btn ghost" id="taVid" hidden>リプレイ保存</button><button class="btn ghost" id="taClose">閉じる</button></div>
     <p id="taVidMsg" hidden style="margin:6px 0 0;font-size:12px;color:var(--muted,#9bb)"></p>
@@ -626,6 +628,7 @@ body.lab-running>#jk{display:none!important}
 <script src="js/setsu.js"></script>
 <script src="js/player.js"></script>
 <script src="js/ta.js"></script>
+<script src="js/net.js"></script>
 <script src="js/vlog.js"></script>
 <script src="js/main.js"></script>
 <script type="importmap">{"imports":{"three":"./hfgp3d/viewer/vendor/three.module.js"}}</script>

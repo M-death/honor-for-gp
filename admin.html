@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>HFGP 運営</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1b1f24;--card:#fff;--line:#d9dde3;--acc:#0b63c9;--sub:#5b6470;--bad:#c62828}
+@media (prefers-color-scheme:dark){:root{--bg:#111418;--fg:#e8eaed;--card:#1b2026;--line:#2f3640;--acc:#6aa8ff;--sub:#9aa3ad;--bad:#ff7b7b}}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:16px;margin:24px 0 8px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 0 12px}
+label{display:block;margin:6px 0}input,select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);max-width:100%}
+button{font:inherit;padding:6px 12px;border-radius:6px;border:1px solid var(--line);background:var(--acc);color:#fff;cursor:pointer}
+button.g{background:transparent;color:var(--fg)}button.x{background:transparent;color:var(--bad);border-color:var(--bad)}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left}
+#msg{min-height:1.6em;color:var(--sub)}small{color:var(--sub)}
+</style></head><body><main>
+<h1>Honor for GP　運営ページ</h1>
+<p><small>公式ゴーストの登録・削除と、不正な記録の削除。運営の合言葉（ADMIN_KEY）はこの画面を閉じると消えます（保存しません）。</small></p>
+<div class="c">
+  <label>サーバー <input id="url" size="48" value="https://hfgp-ranking.maesrmax300.workers.dev"></label>
+  <label>運営の合言葉（ADMIN_KEY） <input id="key" type="password" size="32" autocomplete="off"></label>
+  <label>タイムアタックの決まり（TA.key） <input id="rules" size="24" value="honorGP.ta.d225"></label>
+</div>
+<p id="msg" role="status"></p>
+
+<h2>公式ゴーストを登録</h2>
+<div class="c">
+  <label>ゴーストのファイル（ゲームの「ゴーストを書き出す」で作ったもの） <input id="gfile" type="file" accept=".json,application/json"></label>
+  <label>表示名 <input id="title" size="24" value="作者ゴースト"></label>
+  <label>期限 <select id="days"><option value="0">なし（ずっと）</option><option value="7">7日</option><option value="14">14日</option><option value="30">30日</option><option value="90">90日</option></select></label>
+  <button id="up">登録する</button>
+</div>
+
+<h2>公式ゴースト一覧</h2>
+<div class="c"><button class="g" id="loadOff">読み込む</button><div id="offList"></div></div>
+
+<h2>全体ランキング（不正な記録の削除）</h2>
+<div class="c"><button class="g" id="loadRank">読み込む</button><div id="rankList"></div></div>
+</main>
+<script>
+const $ = id => document.getElementById(id), msg = $('msg');
+const base = () => $('url').value.replace(/\/+$/, ''), rules = () => $('rules').value.trim();
+const fmt = t => { const d = Math.round(t * 10), m = Math.floor(d / 600), s = Math.floor(d / 10) % 60; return `${m}'${String(s).padStart(2, '0')}"${d % 10}`; };
+const day = ms => ms ? new Date(ms).toLocaleDateString('ja-JP') : 'なし';
+async function call(path, opt = {}) {
+  const h = { 'Content-Type': 'application/json' }; if (opt.admin) h.Authorization = 'Bearer ' + $('key').value;
+  const r = await fetch(base() + path, { method: opt.method || (opt.body ? 'POST' : 'GET'), headers: h, body: opt.body ? JSON.stringify(opt.body) : undefined, cache: 'no-store' });
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || r.status);
+  return j;
+}
+function table(box, head, rows) {
+  box.textContent = ''; if (!rows.length) { box.textContent = 'ありません'; return; }
+  const t = document.createElement('table'), tr = (cells, th) => { const r = document.createElement('tr'); for (const v of cells) { const c = document.createElement(th ? 'th' : 'td'); v instanceof Node ? c.appendChild(v) : c.textContent = v; r.appendChild(c); } t.appendChild(r); };
+  tr(head, true); rows.forEach(r => tr(r)); box.appendChild(t);
+}
+function delBtn(label, fn) { const b = document.createElement('button'); b.className = 'x'; b.textContent = label; b.onclick = fn; return b; }
+$('up').onclick = async () => {
+  const f = $('gfile').files[0]; if (!f) { msg.textContent = 'ゴーストのファイルを選んでください'; return; }
+  try {
+    const g = JSON.parse(await f.text());
+    if (g.rules !== rules()) { msg.textContent = `ファイルの決まり（${g.rules}）が上の TA.key と違います`; return; }
+    const j = await call('/official', { admin: true, body: { rules: rules(), title: $('title').value, days: +$('days').value, ghost: g } });
+    msg.textContent = `登録しました（番号 ${j.id}、${fmt(g.t)}、期限 ${day(j.exp)}）`; loadOff();
+  } catch (e) { msg.textContent = '登録できませんでした：' + e.message; }
+};
+async function loadOff() {
+  try {
+    const j = await call(`/official?rules=${encodeURIComponent(rules())}`);
+    table($('offList'), ['番号', '表示名', '名前', 'タイム', '期限', ''], j.list.map(e => [e.id, e.title, e.name, fmt(e.t), day(e.exp), delBtn('削除', async () => {
+      if (!confirm(`公式ゴースト「${e.title}」を削除しますか？`)) return;
+      try { await call(`/official/${e.id}`, { admin: true, method: 'DELETE' }); msg.textContent = '削除しました'; loadOff(); } catch (err) { msg.textContent = '削除できませんでした：' + err.message; }
+    })]));
+  } catch (e) { msg.textContent = '読み込めませんでした：' + e.message; }
+}
+async function loadRank() {
+  try {
+    const j = await call(`/ranking?rules=${encodeURIComponent(rules())}&limit=100`);
+    table($('rankList'), ['順位', '番号', '名前', 'タイム', '日付', 'ゴースト', ''], j.list.map(e => [e.rank, e.id, e.name, fmt(e.t), day(e.at), e.ghost ? 'あり' : '—', delBtn('記録を削除', async () => {
+      if (!confirm(`${e.rank}位 ${e.name} ${fmt(e.t)} の記録を削除しますか？（元に戻せません）`)) return;
+      try { await call(`/score/${e.id}`, { admin: true, method: 'DELETE' }); msg.textContent = '削除しました'; loadRank(); } catch (err) { msg.textContent = '削除できませんでした：' + err.message; }
+    })]));
+  } catch (e) { msg.textContent = '読み込めませんでした：' + e.message; }
+}
+$('loadOff').onclick = loadOff; $('loadRank').onclick = loadRank;
+</script></body></html>

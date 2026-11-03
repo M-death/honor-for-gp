@@ -5,7 +5,7 @@
    as a ghost boat. */
 // d148–d152: the turns (and the exits) got wider (GRIP_BASE), so the old bests were reset — a new key; the old 'honorGP.ta' is left unread
 // d157: the turns slide now (ドリフト) — the old bests were reset again (d158: more slide and the hull's bank; d159: deep bank pays; d161: less fade in タイムアタック — reset each time)
-const TA = { laps: 3, key: 'honorGP.ta.d161', ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
+const TA = { laps: 3, key: 'honorGP.ta.d225', ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
 // A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
 // d136: エクストラ (まえ) — GP覇者 and レジェンド sit above 記念クラス
@@ -15,7 +15,9 @@ const TA_EXTRA = ['レジェンド', 'GP覇者'];
 // d161 (まえ): タイムアタック keeps only a fifth of the race's lap fade — about 2 s faster, so every band moved 2 s with it
 // (CPU 1艇: 記念 1'43"3 A1★ 1'45"2 A1 1'45"7 A2 1'46"7 B1 1'49"1)
 // d165 (まえ): titles only, not race-time targets — レジェンド 1'42"0 GP覇者 1'43"0 記念 1'44"5 A1 1'46"0 A2 1'48"0 B1 1'52"0 B2 1'55"0
-const TA_RANKS = [['レジェンド', 102.0], ['GP覇者', 103.0], ['記念クラス', 104.5], ['A1', 106.0], ['A2', 108.0], ['B1', 112.0], ['B2', 115.0], ['ルーキー', Infinity]];
+// d225 (まえ: real times can't get that quick): top speed 81 → 80 km/h (physics.js THRUST) makes every run slower, and the titles move
+// 1.5 s from d165 — the fastest real 3-lap time since the reduced-output motors is 1'44"2 (芦屋 2018-12-09, boatrace.jp). Records reset (TA.key).
+const TA_RANKS = [['レジェンド', 103.5], ['GP覇者', 104.5], ['記念クラス', 106.0], ['A1', 107.5], ['A2', 109.5], ['B1', 113.5], ['B2', 116.5], ['ルーキー', Infinity]];
 const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false, log: [], ev: [], corners: [], cur: null, cSide: -1 };
 // the best run belongs to the player chosen in the practice menu (player.js)
 let taBest = null;
@@ -50,7 +52,7 @@ function taRankTable(box, mark) {
   tr(['順位', '名前', 'タイム', '級', 'ST', '日付'], true);
   const d2 = v => String(v).padStart(2, '0'), day = ms => { if (!ms) return '—'; const d = new Date(ms); return `${d.getMonth() + 1}/${d2(d.getDate())}`; };
   const st = v => v == null ? '—' : v < 0 ? 'F' : fmtST(v);
-  a.forEach((e, i) => tr([`${i + 1}`, e.n, fmtRT(e.t), e.rank || taRank(e.t), st(e.st), day(e.at)], false, mark && e.at === mark.at && e.t === mark.t));
+  a.forEach((e, i) => tr([`${i + 1}`, e.n, fmtRT(e.t), taRank(e.t), st(e.st), day(e.at)], false, mark && e.at === mark.at && e.t === mark.t));
   if (!a.length) { const p = document.createElement('p'); p.textContent = 'まだ記録がありません。タイムアタックを走ると、ここに並びます。'; p.style.fontSize = '13px'; box.appendChild(p); return; }
   box.appendChild(tab);
 }
@@ -161,6 +163,7 @@ function taShow(run, why, ref = taBest, isBest = false) {
   $('taMsg').textContent = msg;
   { let rb = $('taRankBox'); if (!rb) { rb = document.createElement('div'); rb.id = 'taRankBox'; const h = document.createElement('h2'); h.className = 'rk-h'; h.textContent = '端末内ランキング'; $('taNote').before(h); h.after(rb); }
     taRankTable(rb, run && ta.rankPlace ? ta.rankAt : null); }
+  netResultUi(run, isBest);   // d223 全体ランキング
   // d202 (まえ): 羽美 (the girl in the manual's manga) drops a hint about the full-speed turn once a run is fast enough
   const hint = run && UMI_HINT.find(([rank]) => run.t <= TA_RANKS.find(r => r[0] === rank)[1]);
   $('taHint').hidden = !hint; if (hint) $('taHintTxt').textContent = hint[1];
@@ -228,7 +231,7 @@ const taClose = () => { $('taBox').hidden = true; if (VR) VR.discard(); paused =
 $('taAgain').addEventListener('click', () => { taClose(); beginTA(); });
 $('taClose').addEventListener('click', taClose);
 $('taSlit').addEventListener('click', () => slitOpen(practiceSlit));
-$('pmRank').addEventListener('click', () => { taRankTable($('rankList')); $('pmenu').hidden = true; $('rankBox').hidden = false; });
+$('pmRank').addEventListener('click', () => { netShowTab('local'); $('pmenu').hidden = true; $('rankBox').hidden = false; });
 $('rankClose').addEventListener('click', () => { $('rankBox').hidden = true; $('pmenu').hidden = false; });
 $('pmTA').addEventListener('click', () => { closeMenu(); if (fleet) quitFleet(); beginTA(); });
 
