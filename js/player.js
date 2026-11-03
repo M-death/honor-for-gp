@@ -33,6 +33,7 @@ function playerDel() {
   $('pmenu').hidden = true;
   askConfirm(`${n} の記録（自己ベスト・ゴースト・ログ）をすべて消しますか？`, () => {
     for (const k of [TA.key, TA.logKey, RP.key]) { try { localStorage.removeItem(`${k}@${n}`); } catch (e) {} }
+    if (typeof taRankDrop === 'function') taRankDrop(n);
     players.list = players.list.filter(x => x !== n); playerSet('');
     $('pmenu').hidden = false;
   }, () => { $('pmenu').hidden = false; });

@@ -2900,6 +2900,12 @@ function fleetStep(dt, playerInput) {
   const stillRacing = fleet.boats.filter(r => !r.dq && r.fin == null).length;
   if (!fleet.endAt && time > zero + 5 && (stillRacing === 0 || (fleet.order.length && time > fleet.order[0].fin + 30))) {
     fleet.endAt = time + 7;
+    // d221 不完走 (まえ: a boat lost out there that won't make it home is out): 30 s after the winner, anyone still running is 失格
+    if (stillRacing > 0) for (const r of fleet.boats) if (!r.dq && r.fin == null) {
+      r.dq = true; r.unfinished = true; fleet.dqs++;
+      if (VR) VR.ev('dq', r.no, { why: '不完走' });
+      toast('不完走', `${r.no}号艇 1着から30秒以内にゴールできず　失格`, 'bad');
+    }
     if (VR) { const home = stillRacing === 0, ord = fleet.order.filter(r => !r.skipped); VR.finish(home ? (ord.length ? 'finished' : 'no_race') : 'timeout', home && ord.length ? Math.max(...fleet.finOrder.map(r => r.fin)) : time); }
     if (!lab.active) rpFinish(fleet);
     if(!lab.active)slitArchive(fleet.slit,fleet.boats,resultLine());
@@ -2937,12 +2943,8 @@ function fleetTimingStep(previous,zero){
     r.pgRaw=pg; r.prog=r.dq?-3e6+(r.out?0:1):r.relegated?-2e6+pg/1e3:pg;   // (pgRaw: where it really is — a 失格 boat still running is placed by it for the wreck zones)
   }
   if(finishedNow)fleet.rank=fleet.boats.slice().sort((a,b)=>b.prog-a.prog);
-  // 決まり手の材料: how each boat took the first 1M, and who led once it was over
-  if(!fleet.k1){
-    for(const r of fleet.boats){const b=r.b;if(r.apexR==null&&r.st!=null&&!r.dq&&b.y<0&&b.x>MK-8)r.apexR=Math.hypot(b.x-MK,b.y);}   // how wide each boat went round the first 1M
-    const run=fleet.boats.filter(r=>!r.dq&&r.st!=null);
-    if(time>zero+8&&(run.every(r=>r.drv.mem.firstDone)||time>zero+35)){const lead=fleet.boats.slice().sort((a,b)=>b.prog-a.prog).find(r=>!r.dq);fleet.k1={lead};}
-  }
+  // 決まり手の材料 (d222): who got past whom round the first 1M, and on which side — then who led on the back straight
+  if(!fleet.k1)kimariteWatch(zero);
   cautionCheck();
 }
 
@@ -2983,21 +2985,59 @@ function photoDraw(cv, groups) {
 }
 const photoGapJa = p => p.tie ? '同着' : (d => d < 0.3 ? `舳先わずか（約${Math.max(1, Math.round(d * 100))}cm）` : `約${d.toFixed(1)}m`)(p.dt * (p.b.finV || 20));
 
-// 決まり手 (from the winner's first 1M)
+// 決まり手 (d222, まえ: judge by what happened in the race, not by where boats ended up)
+// Round the first 1M every pair of boats is watched on a "radial line" progress around the mark (so a wide boat level
+// with an inside one is level, not ahead). When one gets past another we note the side: further from the mark = 外から, nearer = 内から.
+// A boat already in front when the turn begins (叩いて先に回る) counts as 外から over the boats inside it.
+// The lead is taken once the front boat is out on the back straight and clear by a boat length or so (K1_AT.clear m), or, if it is
+// still close, when it reaches the 2M approach — so a まくり that only gets past on the back straight still counts as the 1M move.
+//   1コースが先頭 = 逃げ / 内側の艇を全部外から = まくり / 全部内から = 差し / 混ざる = まくり差し
+//   その先頭が1着でない = 抜き（先頭が転覆・失格などでいなくなった = 恵まれ）
+const K1_AT = { open: MK - 40, clearX: MK - 60, clear: 4, judgeX: -MK + 40, R0: 15, cap: 40 };
+function turnS(b) {   // progress round 1M along radial lines, m (R0 per radian in the turn)
+  const p = boatBow(b), K = K1_AT;
+  if (p.x < MK && p.y >= 0 && !(b.y < 0)) return p.x - MK;   // on the way in
+  if (p.x < MK && p.y < 0) return K.R0 * Math.PI + (MK - p.x);   // out on the back straight
+  return K.R0 * clamp(Math.atan2(p.x - MK, p.y), 0, Math.PI);   // in the turn: 0 = level with the mark coming in, π = level going out
+}
+function kimariteWatch(zero) {
+  const f = fleet, K = f.k1w || (f.k1w = { on: false, ahead: {}, side: {} });
+  const run = f.boats.filter(r => r.st != null && !r.out);   // a flying boat still runs the 1M, so it is still there to be passed
+  const s = new Map(run.map(r => [r, turnS(r.b)]));
+  const key = (a, b) => a.no * 10 + b.no;
+  if (!K.on) {
+    if (!(time > zero + 1 && run.some(r => r.b.y > 0 && boatBow(r.b).x > K1_AT.open))) return;
+    K.on = true;
+    for (const a of run) for (const b of run) if (a !== b) { const ah = s.get(a) > s.get(b); K.ahead[key(a, b)] = ah; K.side[key(a, b)] = ah ? 'out' : null; }
+  } else {
+    for (const a of run) for (const b of run) {
+      if (a === b) continue; const k = key(a, b), ah = s.get(a) > s.get(b);
+      if (ah && !K.ahead[k]) K.side[k] = offLine(a.b) > offLine(b.b) ? 'out' : 'in';
+      K.ahead[k] = ah;
+    }
+  }
+  const live = f.boats.filter(r => !r.dq && r.st != null && !r.out);
+  const byS = live.slice().sort((a, b) => turnS(b.b) - turnS(a.b)), lead = byS[0], p = lead && boatBow(lead.b);
+  const clear = !byS[1] || turnS(lead.b) - turnS(byS[1].b) > K1_AT.clear;
+  if (lead && (p.y < 0 && (p.x < K1_AT.judgeX || clear && p.x < K1_AT.clearX) || time > zero + K1_AT.cap)) {
+    f.k1 = { lead, how: kimariteOf(lead) };
+  }
+}
 function kimarite() {
   const w = fleet.order[0]; if (!w) return '—';
   const L = fleet.k1 && fleet.k1.lead;
-  if (L && L !== w) return L.dq ? '恵まれ' : '抜き';
+  if (L && L !== w) return L.dq || L.out ? '恵まれ' : '抜き';
   return kimariteOf(w);
 }
-// how a boat took the first 1M
+// how a boat got to the front round the first 1M
 function kimariteOf(w) {
+  if (fleet.k1 && fleet.k1.lead === w && fleet.k1.how) return fleet.k1.how;
   if (w.trait.course === 1) return '逃げ';
-  // round the outside of every inside boat = まくり, inside all of them = 差し, between = まくり差し
-  const inner = fleet.boats.filter(r => r.trait.course < w.trait.course && r.apexR != null);
-  if (w.apexR == null || !inner.length) return 'まくり';
-  const inside = inner.filter(r => r.apexR < w.apexR).length;
-  return inside === inner.length ? 'まくり' : inside === 0 ? '差し' : 'まくり差し';
+  const K = fleet.k1w; if (!K) return 'まくり';
+  const sides = fleet.boats.filter(r => r.trait.course < w.trait.course).map(r => K.side[w.no * 10 + r.no]).filter(Boolean);
+  if (!sides.length) return 'まくり';
+  const out = sides.filter(v => v === 'out').length;
+  return out === sides.length ? 'まくり' : out === 0 ? '差し' : 'まくり差し';
 }
 // レース結果画面 (like the official result board): place, boat, rider, class, course, ST, time, 決まり手
 function resultShow(after) {
@@ -3155,7 +3195,7 @@ function jikkyo(zero, dt) {
 }
 function resultLine() {
   let place = 0;
-  return fleet.rank.map(r => r.flying ? `F ${r.no}` : r.out ? `${r.out} ${r.no}` : r.dq ? `失格 ${r.no}`
+  return fleet.rank.map(r => r.flying ? `F ${r.no}` : r.out ? `${r.out} ${r.no}` : r.unfinished ? `不完走 ${r.no}` : r.dq ? `失格 ${r.no}`
     : `${++place}着 ${r.no}` + (r.relegated ? '（内側航走）' : r.fin != null && !r.skipped ? ` ${fmtRT(r.fin - fleet.raceStart)}` : '')).join('  ');
 }
 // the boat directly ahead in the frozen order that is still out on the course

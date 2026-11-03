@@ -29,6 +29,7 @@ let vlHold = false;   // 6艇デモ: wait on the result so this race can be save
 
 VR = (() => {
   let R = null, gen = 0, seq = 0, url = null;
+  const curR = () => R;
   const nowZero = () => SS.t0 + CLOCK;
   const fin = v => Number.isFinite(v) ? v : NaN;
   const rowsOf = () => R.solo ? [{ no: 1, b: B, r: null }] : fleet.boats.map(r => ({ no: r.no, b: r.b, r }));
@@ -381,6 +382,7 @@ VR = (() => {
     };
   }
   async function build() {
+    const R = curR();   // d220: hold on to this race — the build yields between chunks, and a new race (demo auto-advance) replaces the recorder meanwhile
     const zr = R.zeroT, o = { format: VLOG.format, formatVersion: VLOG.formatVersion, formatFeatures: VLOG.formatFeatures, gameVersion: GAME_VER, raceId: R.id, createdAt: R.createdAt.toISOString() };
     if (!R.solo && fleet && fleet.resShown) R.results = results();
     o.header = header();
