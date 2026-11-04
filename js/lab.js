@@ -72,7 +72,7 @@ function labOpen(){
 }
 function labCloseSetup(){ $('labSetup').hidden=true;if(!lab.active)paused=lab.previousPaused||false;last=performance.now(); }
 function labBegin(c){
- c=labValidate(c);lab.config=c;lab.active=true;lab.finished=false;lab.accumulator=0;lab.steps=0;lab.rng=c.seed>>>0;lab.rate=Number($('labRate').value)||1;lab.view=$('labView').value||'all';lab.uiAt=-1;
+ $('pmenu').hidden=true;c=labValidate(c);lab.config=c;lab.active=true;lab.finished=false;lab.accumulator=0;lab.steps=0;lab.rng=c.seed>>>0;lab.rate=Number($('labRate').value)||1;lab.view=$('labView').value||'all';lab.uiAt=-1;
  lab.data={schema:'honor-for-gp.d42.behavior-log',version:1,engine:'d42 + shared course CPU v1 + bow timing v1',seed:c.seed,fixedStepSeconds:1/120,sampleHz:c.hz,config:structuredClone(c),
   aiRequest:'このログを分析してください。艇・段階ごとに、指定した戦法／CPUが選択した戦法／目標入力／実際の入力と結果を区別し、握る・落とす・切りすぎ・外へ膨らむ・内へ戻る原因を、時刻と記録値を引用して説明してください。まくりに行かない原因や速度を失う場面、修正候補を挙げてください。reasonFlagsはコードで観測した状態であり、人間の選手の心理や実際の競艇の正解を示すものではありません。未記録の意図を断定しないでください。',
   definitions:{timing:'All measured gate crossings use the deck bow tip (local x=2.25m), with position and heading interpolated within each physics step. Finishers are sorted by crossing time. Configured lab ST remains supplied, not measured.',phases:LAB_PHASES.map(([id,label,trigger])=>({id,label,trigger})),units:{time:'s',position:'m; x=0 start, 1M=(150,0), y>0 home straight',speed:'km/h; hypot(v,vl)*3.6',forwardSpeed:'m/s (hull longitudinal)',lateralSpeed:'m/s',heading:'deg; initial 0, left negative',yaw:'deg/s; hull angular velocity',acceleration:'m/s²; derivative of ground speed, averaged over sample interval',forwardAcceleration:'m/s²; derivative of hull longitudinal speed over sample interval',angularAcceleration:'deg/s²; difference of hull yaw rate over sample interval',input:'thr 0..1; steer/roll/pitch -1..1; negative = left/upright, positive = right/crouch',target:'world point m; R and gap describe d42 trajectory, not measured turning radius'},
@@ -291,7 +291,7 @@ function labDrawGuides(){
 }
 function labExit(){
  if(!lab.finished&&lab.active)labFinish('通常モードへ移動');lab.active=false;lab.inSim=false;fleet=null;running=false;paused=false;keys.clear();ptrs.clear();
- $('labRun').hidden=true;$('labSetup').hidden=true;document.body.classList.remove('lab-running');$('start').hidden=false;resetBoat();refreshFleetUi();resize();last=performance.now();
+ $('labRun').hidden=true;$('labSetup').hidden=true;document.body.classList.remove('lab-running');$('pmenu').hidden=false;resetBoat();refreshFleetUi();resize();last=performance.now();
 }
 $('labLaunch').addEventListener('click',labOpen);$('labLaunchStart').addEventListener('click',labOpen);
 $('labSetupClose').addEventListener('click',labCloseSetup);$('labConfigure').addEventListener('click',labOpen);

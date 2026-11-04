@@ -453,7 +453,27 @@ VR = (() => {
     el.textContent = text; el.hidden = false;
     if (href) { const a = document.createElement('a'); a.href = href; a.download = name; a.textContent = '　ファイルをダウンロード'; el.appendChild(a); }
   }
-  return { begin, discard, ev, contact, inp, frame, finish, coast, save, build, results,
+  // d228 ゲーム内リプレイ: the same file as リプレイ保存 makes, handed to the player instead of downloaded (null if moved on)
+  async function file(msgEl) {
+    if (!R) return null;
+    const g = gen;
+    if (R.state === 'RECORDING') {
+      if (R.endT == null) finish('partial', time, '再生時点で未決着');
+      say(msgEl, '終了後の映像を記録中…');
+      const until = performance.now() + VLOG.waitPost * 1000;
+      while (R && R.gen === g && R.state === 'RECORDING' && !paused && performance.now() < until) await new Promise(res => setTimeout(res, 150));
+      if (!R || R.gen !== g) return null;
+      if (R.state === 'RECORDING') coast();
+    }
+    if (!R || R.gen !== g || R.state !== 'READY') return null;
+    if (!R.file) { R.state = 'EXPORTING'; say(msgEl, 'リプレイを準備中…'); vlUi();
+      try { R.file = await build(); } catch (e) { if (R && R.gen === g) { R.state = 'READY'; vlUi(); } return null; }
+      if (!R || R.gen !== g) return null;
+      R.state = 'READY'; vlUi(); }
+    if (msgEl) { msgEl.textContent = ''; msgEl.hidden = true; }
+    return R.file;
+  }
+  return { begin, discard, ev, contact, inp, frame, finish, coast, save, build, results, file,
     get rec() { return R; }, has: () => !!R && R.zeroT != null && R.n > 0,
     refreshResults: () => { if (R && !R.solo && fleet) R.results = results(); } };
 })();
@@ -461,7 +481,7 @@ VR = (() => {
 // ---- the screen: the setting, the demo's 結果で待つ, the save buttons on the race result and on the タイムアタック card ----
 function vlUi() {
   const has = !!(VR && VR.has()), r = VR && VR.rec;
-  for (const id of ['resVid', 'taVid']) { const el = $(id); if (el) { el.hidden = !vlOn || (!has && !(r && r.state === 'RECORDING')); el.disabled = !!(r && r.state === 'EXPORTING'); } }
+  for (const id of ['resVid', 'taVid', 'resPlay', 'taPlay']) { const el = $(id); if (el) { el.hidden = !vlOn || (!has && !(r && r.state === 'RECORDING')); el.disabled = !!(r && r.state === 'EXPORTING'); } }
   // 6艇レース (d198, まえ): the result asks whether to save the replay log — on a PC only
   const rv = $('resVid'); if (rv) { const rm = vlRaceMode(); rv.textContent = rm ? '保存する' : 'リプレイ保存'; if (rm && !vlPC) rv.hidden = true; }
   const h = $('vlHold');

@@ -432,7 +432,7 @@ if (typeof document !== 'undefined' && document.getElementById('setsu')) {
   });
   $('setsuDay').addEventListener('click', () => setsuAdvance('day'));
   $('setsuAll').addEventListener('click', () => askConfirm('節の最後までおまかせで進めますか？（自分のレースもおまかせ）', () => setsuAdvance('setsu')));
-  $('setsuQuit').addEventListener('click', () => { setsuSave(); setsuHide(); paused = false; last = performance.now(); toast('節間モード', '中断しました。練習メニューの「節間モード」から続きができます', 'info'); });
+  $('setsuQuit').addEventListener('click', () => { setsuSave(); setsuHide(); paused = false; last = performance.now(); toast('節間モード', '中断しました。メニューの「節間モード」から続きができます', 'info'); });
   for (const b of document.querySelectorAll('#setsuTabs button')) b.addEventListener('click', () => { setsuPre = null; setsuTab = b.dataset.t; setsuRender(); });
 }
 

@@ -131,8 +131,8 @@ function showCalib(ang) {
 function closeCalib() {
   if (!calib.open) return;
   calib.open = false; $('calib').hidden = true;
-  zeroTilt();
-  paused = false; last = performance.now();
+  zeroTilt(); try { localStorage.setItem('honorGP.calibOk.' + controlMode, '1'); } catch (e) {}
+  paused = !$('pmenu').hidden; last = performance.now();
   const then = calib.then; calib.then = null;
   if (then) then();
 }
@@ -462,25 +462,30 @@ async function start(after) {
   $('start').hidden = true;
   try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
   // check the tilt and fix 傾き0, then the game begins
-  openCalib(() => { running = true; last = performance.now(); if (after) after(); else beginStart(); afterStartCheck(ok); });
+  const go = () => { running = true; last = performance.now(); if (after) after(); else beginStart(); afterStartCheck(ok); };
+  // d227 (まえ: fewer taps): the 持ち方 OK screen only the first time for each 操作モード (and never on PC); after that the
+  // posture at the tap is 傾き0 (合わせ直しは設定の「今の持ち方を基準にする」)
+  if (controlMode === 'pad' || !TOUCH_UI || calibSeen()) { zeroTilt(); go(); if (TOUCH_UI && controlMode !== 'pad') setTimeout(() => toast('持ち方', '今の持ち方を基準にしました（設定で合わせ直せます）', 'info'), 400); }
+  else openCalib(go);
 }
+const TOUCH_UI = (() => { try { return matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0; } catch (e) { return false; } })();
+function calibSeen() { try { return localStorage.getItem('honorGP.calibOk.' + controlMode) === '1'; } catch (e) { return false; } }
 function afterStartCheck(ok) {
   setTimeout(() => {
-    if (controlMode==='pad' || sensor.got || fleet) return;
+    if (controlMode==='pad' || sensor.got || fleet || !TOUCH_UI) return;
     const d = `診断：向き ${diag.ori}回（値なし ${diag.oriNull}）／加速度 ${diag.mot}回／${diag.framed ? '埋め込み表示' : '単独表示'}／${window.isSecureContext ? 'HTTPS' : '非HTTPS'}${ok ? '' : '／許可なし'}`;
     showNote((diag.framed
       ? '傾きが検知できていません。アプリ内の埋め込み表示ではセンサーが止められている可能性が高いです。単独のページとして開くと動くはずです。'
       : '傾きが検知できていません。ブラウザの設定で「モーションと画面の向き」へのアクセスを許可してください。') + '\n' + d + '\n（タップで閉じる）');
   }, 1800);
 }
-$('go').addEventListener('click', () => { start(); });
-$('goRace').addEventListener('click', () => { start(() => { beginStart(); openRaceSetup(); }); });
-$('goDemo').addEventListener('click', () => { start(() => entryMode ? startEntry(null) : startFleet()); });
+// d227: the menu is the first screen; its mode buttons call start() through menu.js on the first tap
+$('goDemo').addEventListener('click', () => { closeMenu(); entryMode ? startEntry(null) : startFleet(); });
 $('stayPortrait').addEventListener('click', () => { portraitOk = true; $('rotate').hidden = true; });
 
 /* ---------- settings ---------- */
 $('gear').addEventListener('click', () => { resetVirtualPosture();paused = true; $('settings').hidden = false; });
-$('close').addEventListener('click', () => { paused = false; last = performance.now(); $('settings').hidden = true; });
+$('close').addEventListener('click', () => { paused = !$('pmenu').hidden; last = performance.now(); $('settings').hidden = true; });
 $('zero').addEventListener('click', () => { $('settings').hidden = true; openCalib(() => toast('基準リセット', 'OKを押した持ち方が傾き0になりました', 'info')); });
 $('padRT').addEventListener('change', e => { pad.useRT = e.target.checked; try { localStorage.setItem('honorGP.padRT', pad.useRT ? '1' : '0'); } catch (_) {} });
 $('sndOn').addEventListener('change', e => { snd.on = e.target.checked; initAudio(); });
@@ -541,7 +546,6 @@ async function openManual() {
   }
   manualWasPaused = paused; paused = true; $('manualBox').hidden = false;
 }
-$('goManual').addEventListener('click', openManual);
 $('pmManual').addEventListener('click', openManual);
 $('setManual').addEventListener('click', openManual);
 $('manualClose').addEventListener('click', () => { $('manualBox').hidden = true; paused = manualWasPaused; last = performance.now(); });
@@ -695,7 +699,7 @@ async function setControlMode(mode,persist=true){
  for(const id of ptrs.keys())try{cv.releasePointerCapture(id);}catch(_){}ptrs.clear();steerTouch=false;keys.clear();sideOn('thr');sideOn('steer');
  raw.roll=raw.pitch=input.roll=input.pitch=input.steer=input.steerT=0;
  phoneWheel.base=phoneWheel.last=null;phoneWheel.kind=null;phoneWheel.value=phoneWheel.deg=0;
- $('controlMode').value=mode;for(const e of document.querySelectorAll('[name="startControlMode"]'))e.checked=e.value===mode;
+ $('controlMode').value=mode;if($('pmModeSel'))$('pmModeSel').value=mode;for(const e of document.querySelectorAll('[name="startControlMode"]'))e.checked=e.value===mode;
  $('postureStick').hidden=!virtualPosture.enabled;$('phoneSteerReadout').hidden=mode!=='wheel';$('wheelSettings').hidden=mode!=='wheel';
  document.body.classList.toggle('virtual-pad',virtualPosture.enabled);document.body.classList.toggle('phone-wheel',mode==='wheel');
  const help={tilt:'左手でアクセル、右手で舵。スマホの左右・前後の傾きで姿勢を操作します。',pad:'左手側にアクセルと姿勢パッド、右手側に舵。傾きセンサーは停止します。',wheel:'左手は姿勢パッド、右手はアクセル。スマホをハンドルのように時計回りで右舵、反時計回りで左舵。センサーは舵だけに使います。'};
@@ -761,7 +765,7 @@ function padMenuSurface() {
   return best;
 }
 function padMenuItems(surf) {
-  return [...surf.querySelectorAll('button, select, input, textarea, summary, [tabindex="0"]')].filter(e => !e.disabled && e.offsetParent !== null && !e.closest('[hidden]') && !(e.tagName === 'INPUT' && e.type === 'hidden') && !(e.tagName === 'TEXTAREA' && e.readOnly));
+  return [...surf.querySelectorAll('button, select, input, textarea, summary, [tabindex="0"]')].filter(e => !e.disabled && e.offsetParent !== null && !e.closest('[hidden]') && !(e.tagName !== 'SUMMARY' && e.closest('details:not([open])')) && !(e.tagName === 'INPUT' && e.type === 'hidden') && !(e.tagName === 'TEXTAREA' && e.readOnly));
 }
 function padMenuMark(el) {
   if (padNav.el && padNav.el !== el) padNav.el.classList.remove('padfocus');
@@ -829,9 +833,9 @@ function pollPadButtons(dt = 0) {
   else if (edge(0) && !$('rotate').hidden) { portraitOk = true; $('rotate').hidden = true; }
   else if (edge(0) && !$('meas').hidden) $('measAgain').click();   // 計測結果: A = もう一度
   else if (edge(0) && !$('taBox').hidden) $('taAgain').click();   // タイムアタック結果: A = もう一度
-  if (edge(9)) { if ($('settings').hidden) { if (running) { paused = true; $('settings').hidden = false; } } else { paused = false; last = performance.now(); $('settings').hidden = true; } }
+  if (edge(9)) { if ($('settings').hidden) { if (running) { paused = true; $('settings').hidden = false; } } else $('close').click(); }
   if (edge(1)) {
-    if (!$('settings').hidden) { paused = false; last = performance.now(); $('settings').hidden = true; }
+    if (!$('settings').hidden) $('close').click();
     else if (!$('card').hidden) { paused = false; last = performance.now(); $('card').hidden = true; }
     else if (!$('meas').hidden) $('measClose').click();
     else if (!$('taBox').hidden) $('taClose').click();

@@ -215,6 +215,33 @@ body.virtual-pad>.pad{left:calc(88px + var(--sl));bottom:calc(46px + var(--sb) +
 body.virtual-pad>.pad .box{display:none}body.virtual-pad>.pad .deg{white-space:normal;font-size:10px;text-align:center}
 body.virtual-pad>.wheel svg{width:min(30vw,38vh,150px);height:min(30vw,38vh,150px)}
 body.lab-running>.posture-stick{display:none!important}
+.menu-card{max-width:620px}
+.menu-card.ingame h1{font-size:20px}.menu-card.ingame h1 .sub{display:none}
+.menu-top{margin:6px 0 4px}.menu-help{font-size:12px!important;margin:2px 0!important}
+.menu-main{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin:8px 0}
+.btn.big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:14px 12px;font-size:17px;min-height:64px}
+.btn small{font-size:11px;font-weight:500;opacity:.8}
+.menu-list .btn{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left}
+.menu-wide{width:100%;margin:0 0 8px}
+.menu-sub{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+.menu-card summary{list-style:none;cursor:pointer}.menu-card summary::-webkit-details-marker{display:none}
+.menu-list{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0;padding:8px;border:1px solid var(--hud-line);border-radius:10px}
+.menu-dev{margin:10px 0 6px}.menu-dev>summary{font-size:12px;color:var(--muted)}
+@media (max-height:520px){.menu-card{padding:10px 16px}.menu-card h1{font-size:20px}.menu-card h1 .sub{display:inline;margin:0 0 0 10px;font-size:12px;letter-spacing:.2em}
+.menu-top{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin:4px 0}.menu-top .plrow{margin:0}.menu-top .plrow select,.menu-top .plrow input,.menu-top .plrow .btn{padding:4px 8px;font-size:13px}
+#controlHelp{display:none}.menu-main{margin:6px 0}.btn.big{min-height:50px;padding:8px 10px;font-size:16px}.menu-sub .btn{padding:7px 12px}.menu-dev{margin:6px 0 2px}}
+#rpv{position:fixed;inset:0;z-index:7;pointer-events:none}
+#rpv .rpv-info{position:absolute;left:calc(10px + var(--sl));top:calc(10px + var(--st));background:var(--hud);border:1px solid var(--hud-line);border-radius:10px;padding:8px 12px;font-size:12px;line-height:1.55;max-width:min(360px,60vw);pointer-events:auto}
+#rpv .rpv-info b{display:block;font-size:13px}#rpvClock{font-family:var(--f-num);font-size:20px;display:block}
+#rpvBoat{font-variant-numeric:tabular-nums}#rpvOrder span{display:inline-block;min-width:20px;text-align:center;border-radius:4px;margin:0 2px 0 0;font-weight:700}
+#rpv .rpv-bar{position:absolute;left:0;right:0;bottom:0;padding:8px calc(12px + var(--sr)) calc(8px + var(--sb)) calc(12px + var(--sl));background:linear-gradient(transparent,rgba(4,20,26,.85) 30%);pointer-events:auto}
+#rpvSeek{width:100%;accent-color:var(--lever)}
+.rpv-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}.rpv-row .btn{padding:6px 12px;font-size:13px}.rpv-row select{font:inherit;background:var(--hud);color:var(--fg);border:1px solid var(--hud-line);border-radius:6px;padding:4px}
+#rpvBoats button{width:30px;height:30px;border-radius:6px;border:2px solid transparent;font-weight:800;cursor:pointer;margin-right:2px}#rpvBoats button.on{border-color:#fff;outline:2px solid var(--lever)}
+body.replaying .hud.tl,body.replaying .pills,body.replaying #gear,body.replaying #lever,body.replaying #wheel,body.replaying .pad,body.replaying #postureStick,body.replaying #phoneSteerReadout,body.replaying #clock,body.replaying .dashbtn,body.replaying #order,body.replaying #corder,body.replaying #jk,body.replaying #cutin,body.replaying #rpChip{display:none!important}
+.set-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0}.set-tabs .btn{padding:7px 14px}
+.pills:not(.devopen) .devpill{display:none}
+.set[data-cur="op"]>[data-tab]:not([data-tab="op"]),.set[data-cur="snd"]>[data-tab]:not([data-tab="snd"]),.set[data-cur="view"]>[data-tab]:not([data-tab="view"]),.set[data-cur="dev"]>[data-tab]:not([data-tab="dev"]){display:none}
 .mode-choices{border:1px solid var(--hud-line);border-radius:10px;padding:10px 14px;margin:12px 0}.mode-choices legend{font-weight:700;padding:0 6px}.mode-choices label{display:flex;gap:9px;align-items:flex-start;padding:9px 0;cursor:pointer}.mode-choices input{margin-top:4px;accent-color:var(--lever)}.mode-choices small{display:block;font-size:12px;color:var(--muted);margin-top:3px}
 body.phone-wheel>#lever{left:auto;right:calc(16px + var(--sr))}
 body.phone-wheel>#wheel{display:none}
@@ -260,7 +287,8 @@ body.lab-running>#jk{display:none!important}
 
 <div class="hud tr">
   <div class="pills">
-    <button id="again" class="pill">練習メニュー</button>
+    <button id="again" class="pill">メニュー</button>
+    <button id="devBtn" class="pill alt" aria-expanded="false">開発 ▸</button>
     <button id="labLaunch" class="pill alt">挙動検証</button>
     <button id="demoBtn" class="pill">6艇デモ</button>
     <button id="entryBtn" class="pill" aria-pressed="false">進入：固定</button>
@@ -328,26 +356,7 @@ body.lab-running>#jk{display:none!important}
   <div class="deg" id="pdeg">体重移動</div>
 </div>
 
-<div class="overlay" id="start">
-  <div class="card">
-    <h1><small>開発版 <span id="verTag"></span></small>Honor for GP<span class="sub">波の向こうに</span></h1>
-    <p>スマホは横向きで。操作モードを選んでください。</p>
-    <fieldset class="mode-choices"><legend>最初に操作モードを選択</legend>
-      <label><input type="radio" name="startControlMode" value="tilt" checked><span><b>1．傾きあり</b><small>左：アクセル ／ 右：舵 ／ スマホの傾き：姿勢</small></span></label>
-      <label><input type="radio" name="startControlMode" value="pad"><span><b>2．傾きなし・姿勢パッドあり</b><small>左：アクセル＋姿勢パッド ／ 右：舵 ／ センサー停止</small></span></label>
-      <label><input type="radio" name="startControlMode" value="wheel"><span><b>3．姿勢パッド＋右手アクセル</b><small>左：姿勢パッドのみ ／ 右：アクセル ／ スマホ自体を回して舵</small></span></label>
-    </fieldset>
-    <p id="controlHelp" style="font-size:13px"></p>
-    <div class="row">
-      <button class="btn" id="go">スタート</button>
-      <button class="btn ghost" id="goRace">6艇レース</button>
-      <button class="btn ghost" id="goDemo">6艇デモを見る</button>
-      <button class="btn ghost" id="goManual">操作説明</button>
-      <button class="btn ghost" id="labLaunchStart">挙動検証（2〜6艇）</button>
-      <span style="font-size:12px;color:var(--muted)">PC：W/S＝スロットル　A/D＝舵　矢印＝体重移動（↑伏せる／↓起こす）<br>コントローラ：右トリガー＝スロットル（設定で左に変更可）　右スティック＝舵　左スティック＝体重移動</span>
-    </div>
-  </div>
-</div>
+<div class="overlay" id="start" hidden></div>
 
 <div class="overlay" id="calib" hidden>
   <div class="card" style="max-width:380px;text-align:center">
@@ -370,30 +379,45 @@ body.lab-running>#jk{display:none!important}
 <button class="dashbtn" id="dashBtn" hidden><b>引く</b><span>ダッシュ</span></button>
 <button class="dashbtn claimbtn" id="claimBtn" hidden><b>主張</b><span id="claimTxt">コース</span></button>
 
-<div class="overlay" id="pmenu" hidden>
-  <div class="card" style="max-width:480px">
-    <h1 style="font-size:22px"><small>練習</small>モードを選ぶ</h1>
-    <div class="plrow"><label>プレイヤー <select id="plSel" aria-label="記録するプレイヤー"></select></label><input id="plName" maxlength="12" placeholder="名前を追加" aria-label="追加する名前"><button class="btn ghost" id="plAdd">追加</button><button class="btn ghost" id="plDel">消す</button></div>
-    <p style="margin:0 0 8px;font-size:12px">選んだ人ごとに、自己ベスト・ゴースト・タイムアタックのログ・リプレイログを分けて記録します。</p>
-    <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
-      <button class="btn" id="pm6">6艇スタート練習</button>
-      <p style="margin:0 0 6px">ピット離れから。舵は自動でアクセルだけ調整して待機位置へ。「引く」でダッシュ。スタートしたら自動で1マークを回り、スリット写真で終了（前付けなし）。</p>
-      <div class="plrow" id="rivalRow"><span id="rivalTxt" style="font-size:13px">相手：なし</span><button class="btn ghost" id="rivalLoad">ゴーストを読み込む</button><button class="btn ghost" id="codeLoad">合言葉で受け取る</button><button class="btn ghost" id="shareCode">合言葉で渡す</button><button class="btn ghost" id="rivalOff" hidden>外す</button><span id="shareTxt" hidden style="font-size:13px;flex-basis:100%"></span><input type="file" id="rivalFile" accept=".json,application/json" hidden></div>
-      <button class="btn ghost" id="pmRank">ランキング（タイムアタック）</button>
-      <button class="btn" id="pmTA">タイムアタック（1艇・大時計スタートから3周・級判定）</button>
-      <p style="margin:0 0 6px">タイムで級（ルーキー〜B2・B1・A2・A1・記念クラス、エクストラにGP覇者・レジェンド）を判定。自己ベストはゴーストになって一緒に走ります。走りきった回はログ（位置・速度・操作を0.1秒ごと）が残ります。</p>
-      <button class="btn ghost" id="pmTALog">タイムアタックのログ</button>
-      <button class="btn ghost" id="pmTenji">展示航走（1艇・タイム計測）</button>
-      <p style="margin:0 0 6px">バックストレッチから2マークを回り、スリットから2周。展示・直線・まわり足・一周タイムを計測。</p>
-      <button class="btn ghost" id="pmClock">大時計スタート（1艇）</button>
-      <button class="btn ghost" id="pmRace">レース練習（6艇・ピット離れから3周・全部自分で操作）</button>
-      <button class="btn" id="pmRaceMode">6艇レース（枠・スタート・相手を選ぶ）</button>
-      <button class="btn" id="pmSetsu" style="margin-top:6px">節間モード（6日間・48人）</button>
-      <button class="btn ghost" id="pmReplay" style="margin-top:6px">保存したリプレイログ</button>
-      <p style="margin:0 0 6px">前検でモーター抽選、予選4日の得点率で準優・優勝戦へ。自分のレースは自分で走るか、おまかせ。他のレースは結果だけ、または観戦。</p>
-      <button class="btn ghost" id="pmManual">操作説明</button>
-      <button class="btn ghost" id="pmClose">やめる</button>
+<div class="overlay" id="pmenu">
+  <div class="card menu-card">
+    <h1 id="pmTitle"><small>開発版 <span id="verTag"></span></small>Honor for GP<span class="sub">波の向こうに</span></h1>
+    <div class="menu-top">
+      <div class="plrow"><label>プレイヤー <select id="plSel" aria-label="記録するプレイヤー"></select></label><input id="plName" maxlength="12" placeholder="名前を追加" aria-label="追加する名前"><button class="btn ghost" id="plAdd">追加</button><button class="btn ghost" id="plDel">消す</button></div>
+      <div class="plrow" id="pmModeRow"><label>操作 <select id="pmModeSel" aria-label="操作モード"><option value="tilt">1．傾きあり</option><option value="pad">2．傾きなし・姿勢パッドあり</option><option value="wheel">3．姿勢パッド＋右手アクセル</option></select></label></div>
+      <p id="controlHelp" class="menu-help"></p>
+      <p id="pmKeys" class="menu-help">PC：W/S＝スロットル　A/D＝舵　矢印＝体重移動／コントローラ：トリガー＝スロットル　右スティック＝舵　左スティック＝体重移動</p>
     </div>
+    <div class="menu-main">
+      <button class="btn big" id="pmTA" data-play>タイムアタック<small>1艇・3周・級判定</small></button>
+      <button class="btn big" id="pmRaceMode" data-play>6艇レース<small>枠・スタート・相手を選ぶ</small></button>
+      <button class="btn big" id="pmSetsu" data-play>節間モード<small>6日間・48人</small></button>
+    </div>
+    <button class="btn ghost menu-wide" id="pmRaceAgain" data-play hidden>前回と同じ条件で6艇レース</button>
+    <div class="menu-sub">
+      <button class="btn ghost" id="pmPracticeBtn" aria-expanded="false" data-panel="pmPractice">練習 ▸</button>
+      <button class="btn ghost" id="pmGhostBtn" aria-expanded="false" data-panel="pmGhost"><span id="rivalTxt">相手：なし</span> ▸</button>
+      <button class="btn ghost" id="pmRank">ランキング</button>
+      <button class="btn ghost" id="pmSet">設定</button>
+      <button class="btn ghost" id="pmManual">操作説明</button>
+    </div>
+    <div class="menu-list" id="pmPractice" hidden>
+      <button class="btn ghost" id="pm6" data-play>6艇スタート練習<small>ピット離れ〜1マーク</small></button>
+      <button class="btn ghost" id="pmRace" data-play>レース練習<small>6艇・ピット離れから3周</small></button>
+      <button class="btn ghost" id="pmTenji" data-play>展示航走<small>1艇・タイム計測</small></button>
+      <button class="btn ghost" id="pmClock" data-play>大時計スタート<small>1艇</small></button>
+    </div>
+    <div class="menu-list" id="pmGhost" hidden><div class="plrow" id="rivalRow" style="margin:0"><button class="btn ghost" id="rivalLoad">ゴーストを読み込む</button><button class="btn ghost" id="codeLoad">合言葉で受け取る</button><button class="btn ghost" id="shareCode">合言葉で渡す</button><button class="btn ghost" id="rivalOff" hidden>外す</button><span id="shareTxt" hidden style="font-size:13px;flex-basis:100%"></span><input type="file" id="rivalFile" accept=".json,application/json" hidden></div></div>
+    <details id="pmDev" class="menu-dev"><summary>開発用</summary>
+      <div class="menu-list">
+        <button class="btn ghost" id="goDemo" data-play>6艇デモを見る</button>
+        <button class="btn ghost" id="labLaunchStart">挙動検証（2〜6艇）</button>
+        <button class="btn ghost" id="pmTALog">タイムアタックのログ</button>
+        <button class="btn ghost" id="pmReplay">保存したリプレイログ</button>
+        <button class="btn ghost" id="rpvOpen">リプレイを再生（動画用ログのファイル）</button><input type="file" id="rpvFile" accept=".json,.gz,application/json,application/gzip" hidden>
+      </div>
+    </details>
+    <button class="btn menu-wide" id="pmClose" hidden>走行に戻る</button>
   </div>
 </div>
 
@@ -522,7 +546,7 @@ body.lab-running>#jk{display:none!important}
     <p id="taGaps" style="font-size:13px;color:var(--fg);margin:4px 0"></p>
     <div id="netRow" hidden><p id="netMsg" style="font-size:13px;color:var(--fg);margin:6px 0 2px"></p><div class="row"><button class="btn" id="netSend">全体ランキングに送る</button><button class="btn ghost" id="netSendG">ゴーストも付けて送る</button></div></div>
     <p id="taNote" style="font-size:12px;color:var(--muted)"></p>
-    <div class="row"><button class="btn" id="taAgain">もう一度</button><button class="btn ghost" id="taGhostOut">ゴーストを書き出す</button><button class="btn ghost" id="taLog">ログ</button><button class="btn ghost" id="taSlit" hidden>スリット写真</button><button class="btn ghost" id="taVid" hidden>リプレイ保存</button><button class="btn ghost" id="taClose">閉じる</button></div>
+    <div class="row"><button class="btn" id="taAgain">もう一度</button><button class="btn ghost" id="taGhostOut">ゴーストを書き出す</button><button class="btn ghost" id="taLog">ログ</button><button class="btn ghost" id="taSlit" hidden>スリット写真</button><button class="btn ghost" id="taPlay" hidden>リプレイを見る</button><button class="btn ghost" id="taVid" hidden>リプレイ保存</button><button class="btn ghost" id="taClose">閉じる</button></div>
     <p id="taVidMsg" hidden style="margin:6px 0 0;font-size:12px;color:var(--muted,#9bb)"></p>
   </div>
 </div>
@@ -544,10 +568,27 @@ body.lab-running>#jk{display:none!important}
     <div id="resPhoto" hidden><p id="resPhotoTxt" style="margin:0 0 6px;font-weight:700;color:#ffb02e"></p><canvas id="resPhotoCv" width="560" height="120" style="width:100%;max-width:560px;border-radius:6px;display:block"></canvas></div>
     <div class="tablewrap"><table class="race res"><thead><tr><th>着</th><th>艇</th><th>選手</th><th>級</th><th>進入</th><th>ST</th><th>タイム</th></tr></thead><tbody id="resBody"></tbody></table></div>
     <p id="resVidMsg" hidden style="margin:6px 0 0;font-size:12px;color:var(--muted,#9bb)"></p>
-    <div class="row"><button class="btn ghost" id="resVid" hidden>リプレイ保存</button><button class="btn" id="resNext">次へ</button></div>
+    <div class="row"><button class="btn ghost" id="resPlay" hidden>リプレイを見る</button><button class="btn ghost" id="resVid" hidden>リプレイ保存</button><button class="btn" id="resNext">次へ</button></div>
   </div>
 </div>
 
+<div id="rpv" hidden>
+  <div class="rpv-info"><b id="rpvTitle"></b><span id="rpvClock"></span><div id="rpvBoat"></div><div id="rpvOrder"></div><div id="rpvRes" hidden></div></div>
+  <div class="rpv-bar">
+    <input id="rpvSeek" type="range" min="0" max="1000" step="1" value="0" aria-label="再生位置">
+    <div class="rpv-row">
+      <button class="btn ghost" id="rpvBack" title="5秒戻る（←）">−5秒</button>
+      <button class="btn ghost" id="rpvPrev" title="1コマ戻る（,）">◀︎|</button>
+      <button class="btn" id="rpvPlay" title="再生／一時停止（スペース）">一時停止</button>
+      <button class="btn ghost" id="rpvNext" title="1コマ進む（.）">|▶︎</button>
+      <button class="btn ghost" id="rpvFwd" title="5秒進む（→）">+5秒</button>
+      <label>速さ <select id="rpvRate"><option value="0.1">0.1倍</option><option value="0.25">0.25倍</option><option value="0.5">0.5倍</option><option value="1" selected>1倍</option><option value="2">2倍</option><option value="4">4倍</option></select></label>
+      <label>カメラ <select id="rpvCam"><option value="follow">追いかけ</option><option value="close">拡大追尾</option><option value="auto">全艇（自動ズーム）</option><option value="mark1">1マーク</option><option value="mark2">2マーク</option><option value="start">スタート</option></select></label>
+      <span id="rpvBoats"></span>
+      <button class="btn ghost" id="rpvClose">閉じる</button>
+    </div>
+  </div>
+</div>
 <div class="overlay" id="settings" hidden>
   <div class="card" style="max-width:460px">
     <h1 style="font-size:22px">設定</h1>
@@ -630,6 +671,8 @@ body.lab-running>#jk{display:none!important}
 <script src="js/ta.js"></script>
 <script src="js/net.js"></script>
 <script src="js/vlog.js"></script>
+<script src="js/menu.js"></script>
+<script src="js/replay.js"></script>
 <script src="js/main.js"></script>
 <script type="importmap">{"imports":{"three":"./hfgp3d/viewer/vendor/three.module.js"}}</script>
 <script type="module" src="js/boat3dx.js"></script>

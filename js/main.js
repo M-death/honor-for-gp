@@ -24,6 +24,7 @@ function frame(now) {
 }
 function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (typeof RPV !== 'undefined' && RPV.on) { rpvFrame(dt); return; }   // d228 ゲーム内リプレイ: the recorded race is drawn, nothing runs
   if(lab.active){
     if(!paused&&!lab.finished&&$('labSetup').hidden){
       lab.accumulator+=dt*lab.rate;
