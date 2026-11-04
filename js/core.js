@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd229';
+const GAME_VER = 'd232';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -50,7 +50,7 @@ function gateCrossing(g,p,q){
   return Math.sign(at.y)===g.side?p.t+(q.t-p.t)*u:null;
 }
 // 隊形: 7 m centre to centre (about 5.5 m of water between hulls), as on a real start; the course is wide enough for it
-const LANE = { y0: 8, step: 7 };
+const LANE = { y0: 9, step: 7 };   // d232 (まえ: ほんの少しだけ全体を外へ — 1枠が窮屈にならないように、外は遠くなる): y0 8 → 9
 const COURSE = { xMin: -310, xMax: 200, yMin: -58, yMax: 58, marks: [{ x: MK, y: 0, name: '1M' }, { x: -MK, y: 0, name: '2M' }] };
 // 消波装置: a float boom running 30 m in from each turn mark along the course centreline,
 // so a boat can't cut inside a mark without hitting it

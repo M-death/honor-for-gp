@@ -564,7 +564,7 @@ function makeDriver(prof, trait = {}) {
     const mode = startModeOf(trait);
     mem.stMode = mode;
     const sc = prof.stCls || START_CLASS[prof.name] || START_CLASS.B1;
-    const cf = (START_COURSE.by[trait.course - 1] ?? 1.5) * (trait.slow ? 1 : START_COURSE.dash);
+    const cf = prof.wideOut && !trait.slow ? START_COURSE.outSpec : (START_COURSE.by[trait.course - 1] ?? 1.5) * (trait.slow ? 1 : START_COURSE.dash);
     mem.stTarget = START_MODE[mode] + sc.shift + (trait.stShift || 0) + (prof.storm && stormDay() ? prof.storm.st : 0) + START_COURSE.margin * sc.sd * Math.max(0, cf - START_COURSE.by[0]);
     const ge = gauss() * sc.sd * cf * (trait.stSdMul || 1);
     mem.stErr = mode === 'shobu' ? ge : (ge < 0 ? ge * 0.6 : ge);   // a safe start's early misses mostly get caught (放る)
@@ -1649,7 +1649,10 @@ const START_MODE = { shobu: 0.05, pin: 0.10, antei: 0.15 };
 // how hard each spot is to time (× sd), by course: the 1コース is the easiest to read, harder the further out.
 // A dash boat (any course) times it from a run-up — harder still, but it crosses with the speed on.
 // margin: how much later (× its extra error) an outside boat aims to stay clear of a フライング
-const START_COURSE = { by: [0.4, 0.75, 1.0, 1.2, 1.35, 1.5], dash: 1.15, margin: 0.5 };   // d195 (まえ: the 1コース is the easiest start): 1 .6→.4, 2 .85→.75
+const START_COURSE = { by: [0.3, 0.72, 1.0, 1.25, 1.45, 1.65], dash: 1.3, margin: 0.5, outSpec: 1.7 };   // outSpec ≈ the old 6コース dash (1.5 × 1.15): 羽美 keeps her start
+// d231 (まえ: 1コースはトップスタートを切りやすい — 外の艇が見えるから遅れにくい。ダッシュはスピードが乗っている分の微調整が
+// しにくく、大時計を見ていると内の動きが見えない。ただし羽美のような6枠専門はスタートに強い): 1 .4→.3, outer 1.2/1.35/1.5→1.25/1.45/1.65,
+// dash 1.15→1.3. A 6枠専門 (prof.wideOut) times it like it is home: outSpec (as before d231)   // d195 (まえ: the 1コース is the easiest start): 1 .6→.4, 2 .85→.75
 const START_PICK = { calm: { shobu: 0.04, antei: 0.4 }, normal: { shobu: 0.12, antei: 0.25 }, aggr: { shobu: 0.25, antei: 0.1 } };
 const START_SHOBU_HOU = 0.75;   // going for 0.05, the chance it still throws the lever off when it would be early
 function startModeOf(trait) {
@@ -3425,7 +3428,7 @@ function buildCard() {
   for (const r of fleet.boats) {
     const tr = document.createElement('tr');
     const dsh = !r.motor ? '—' : r.motor.deashi >= 1.03 ? '◎' : r.motor.deashi > 1 ? '○' : r.motor.deashi >= 0.98 ? '－' : '△';   // d160: ○ = above an average motor (ウィリーの最低条件)
-    const nb = !r.motor || r.motor.nobi == null ? '—' : r.motor.nobi >= 1.015 ? '◎' : r.motor.nobi >= 0.985 ? '○' : '△';
+    const nb = !r.motor || r.motor.nobi == null ? '—' : r.motor.nobi >= 1.02 ? '◎' : r.motor.nobi >= 1.005 ? '○' : r.motor.nobi >= 0.985 ? '－' : '△';   // d230: 無印（－）= an average motor
     const mw = !r.motor || r.motor.mawari == null ? '—' : r.motor.mawari >= 1.02 ? '◎' : r.motor.mawari > 1 ? '○' : r.motor.mawari >= 0.98 ? '－' : '△';
     const tl = r.b && r.b.tilt != null ? (r.b.tilt > 0 ? '+' : '') + r.b.tilt.toFixed(1) : '—';
     const cells = [r.no, (r.name ? r.name + ' ' : '') + (r.prof.named ? r.prof.label : r.prof.kinen ? 'A1 ★記念クラス' : r.prof.top ? 'A1 ★トップ' : r.prof.name), (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh, mw, nb, tl];

@@ -104,7 +104,7 @@ const SETSU = {
   clsSG: { TOP: 10, A1: 38 },
   courseW: [0.56, 0.14, 0.12, 0.11, 0.06, 0.04], skillK: 1.25, motorK: 17,
   fly: { TOP: 0.0015, A1: 0.002, A2: 0.003, B1: 0.004, B2: 0.006 }, acc: 0.004, omakase: -0.45,
-  props: { deashi: { ja: '出足型', low: 6, mid: 2, top: -5 }, bal: { ja: '前の形のまま', low: 0, mid: 0, top: 0 }, nobi: { ja: '伸び型', low: -5, mid: 0, top: 6 } },
+  props: { deashi: { ja: '出足型', low: 15, mid: 5, top: -12 }, bal: { ja: '前の形のまま', low: 0, mid: 0, top: 0 }, nobi: { ja: '伸び型', low: -12, mid: 0, top: 15 } },   // d230 (まえ: ペラの効果を上げて): ×2.5
   tilts: [-0.5, 0, 0.5, 1, 1.5, 2, 3],
   key: 'hfgp-setsu-v1',
   minWt: { m: 52, f: 47 },
