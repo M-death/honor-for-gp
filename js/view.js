@@ -266,6 +266,17 @@ function boatSprite(sty, overturned) {
 let todMode = 'day';
 try { todMode = localStorage.getItem('honorGP.tod') || 'day'; } catch (e) {}
 const isNight = () => todMode === 'night';
+// d229 夕方 (まえ: the replay-video app now has an evening; 秋・冬 the last races fall in the dusk): the setting 夕方, or a
+// 節間 race in autumn / winter that starts late in the day. ナイター wins over both.
+const EVENING = { from: { autumn: 15.5, winter: 15.0 }, tint: 'rgba(255,128,48,.13)' };
+function todNow() {
+  if (isNight()) return 'night';
+  if (todMode === 'evening') return 'evening';
+  const st = fleet && fleet.setsu && fleet.setsu.race, tm = st && st.env && st.env.time, from = typeof setsu !== 'undefined' && setsu && EVENING.from[setsu.season];
+  if (from && tm) { const [h, m] = tm.split(':').map(Number); if (h + (m || 0) / 60 >= from) return 'evening'; }
+  return 'day';
+}
+const isEvening = () => todNow() === 'evening';
 if ($('todMode')) { $('todMode').value = todMode; $('todMode').addEventListener('change', e => { todMode = e.target.value; try { localStorage.setItem('honorGP.tod', todMode); } catch (x) {} }); }   // d217 ナイトレース
 const NIGHT = { dark: 'rgba(3,8,24,0.72)', tint: 'rgba(10,18,48,0.16)', poleDx: 40, poleOut: 7, lightR: 72, lightA: 0.10, poleCol: 'rgba(255,244,214,0.95)' };
 function nightPoles() {
@@ -544,6 +555,7 @@ function draw() {
     for (const r of fleet.boats) if (!r.gone) drawBoatAt(r.b, r.inp, { hull: r.col[0], num: r.col[1], label: String(r.no), helmet: r.col[0], top: !!r.prof.top }, r === fr);
   } else { taDrawGhost(); drawBoatAt(B, input, PLAYER_STYLE, false); }
   if (isNight()) { drawNightPoles(S); ctx.fillStyle = NIGHT.tint; const vw = W / S, vh = H / S; ctx.fillRect(cam.x - vw, cam.y - vh, vw * 2, vh * 2); }
+  else if (isEvening()) { ctx.fillStyle = EVENING.tint; const vw = W / S, vh = H / S; ctx.fillRect(cam.x - vw, cam.y - vh, vw * 2, vh * 2); }
   ctx.restore();
   if (fleet && waterEnv && waterEnv.rain) drawRain();
   drawMini();

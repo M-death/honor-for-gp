@@ -1,4 +1,4 @@
-# Honor for GP 波の向こうに — 引き継ぎ資料（d228 時点）
+# Honor for GP 波の向こうに — 引き継ぎ資料（d229 時点）
 
 この資料は、別の会話（AI）や将来の自分が開発を続けるための引き継ぎです。
 **本体は `index.html`（1ファイル）**。この資料と一緒に渡してください。
@@ -309,6 +309,7 @@
 | d226 版ごとのランキング表示＋開発用リセット（まえ：走行物理は基本いじらないが、重大な穴は直す→そのとき TA.key を進める）：ランキング画面の全体・公式タブに版の選択（#rankVer、サーバー GET /rules の一覧、今の版以外はゴーストの「相手」なし）。開発版だけ「この表をリセット（開発用）」（#rankReset、体験版は trial.js で隠す）：端末内＝その表を空に（自己ベストは残る）、全体・公式＝運営の合言葉を毎回入力して DELETE /ranking?rules= ・ DELETE /official?rules=。サーバー server v2（貼り替えが必要）。体験版 t97 | net.js・index.html・server/worker.js・trial.js・core.js |
 | d227 メニュー・設定の簡略化（まえ：ボタンを押す回数を減らす）：最初の画面＝メニュー（#pmenu。#start は空の残骸）。data-play のボタンは未開始なら start() してから実行（menu.js）。主要3モード大ボタン、練習▸・相手▸は開閉パネル、開発用は details#pmDev（6艇デモ・挙動検証・TAログ・リプレイログ）。操作モードはタッチ端末だけメニューに表示（前回を記憶）、PCはキー説明。持ち方OKは操作モードごとに初回だけ（honorGP.calibOk.<mode>、PCは出さない）。「前回と同じ条件で6艇レース」。やめる/閉じる（枠・レース条件・節間・TA結果）はメニューへ戻る。Escでメニュー。上のボタンは メニュー＋開発▸（devpill）。設定は 操作/音/画面/開発 タブ（.set[data-cur]）。体験版 t98（開発タブ・練習・開発用を隠す） | index.html・menu.js（新）・input.js・lab.js・setsu.js・core.js・trial.js・tests/uisplit.js |
 | d228 ゲーム内リプレイ（まえ：動画用ログをゲーム内で再生して走りのチェックに使う、TAと6艇レース両方）：js/replay.js（RPV）。ログ（hfgp-video-replay）のフレームをそのまま描画、再計算しない（物理を変えても古いログは記録どおり）。再生中は fleet を記録から作った代わりのものに差し替え、main.js の tick は rpvFrame だけ（レースは進めない、BGMなし、エンジン音は記録の値で鳴る）。引き波は記録の直近3秒から毎フレーム作る（巻き戻しても正しい）。入口：結果画面・TA結果の「リプレイを見る」（VR.file()＝リプレイ保存と同じファイルを作ってそのまま再生）、メニュー›開発用「リプレイを再生（ファイル）」（.json/.json.gz）。操作：再生/一時停止・±5秒・±1コマ・0.1〜4倍・シーク・カメラ（追いかけ/拡大/全艇/1M/2M/スタート）・追う艇、キー Space ←→ , . 1-6 C Esc、パッド A B ←→ LB/RB ↑↓。情報：時刻、追う艇の速度・レバー・舵・姿勢、順位、決着後は結果。動画用ログはPCだけ記録（d199）なので結果のボタンもPCだけ。体験版 t99 | replay.js（新）・vlog.js・main.js・index.html・core.js・trial.js |
+| d229 夕方（まえ：リプレイ作成側 0.25 に夕方を追加、ログに夕方指定を）：動画用ログ header.conditions.timeOfDay に evening（lighting sunset）、formatFeatures に evening-v1。決め方 todNow()（view.js）：ナイター設定なら night、設定「時間帯」＝夕方なら evening、節間は秋で発走15:30以降・冬で15:00以降（秋11R・12R、冬10R〜12R）なら evening、それ以外 day。ゲーム画面も夕方は橙色を薄くかける（EVENING.tint）。リプレイ再生も timeOfDay を読む。ファイルを作るとき（header）に決める（VR.begin の時点では節間の情報がまだ無い）。体験版 t100 | view.js・vlog.js・replay.js・index.html・core.js・trial.js |
 
 ---
 

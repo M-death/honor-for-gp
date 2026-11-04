@@ -40,7 +40,7 @@ function rpvPrep(d) {
     stabilizer: !!c.stabilizer, temp: c.temp, tideLv: c.tideLv };
   const solo = H.mode === 'ta';
   const pit = !solo && fr.length && fr[0].slice(1).some(v => v && v[I.x] < -230);
-  return { d, I, fl, rows, hz, fr, n: fr.length, t0: fr[0][0], t1: fr[fr.length - 1][0], env, night: c.timeOfDay === 'night', solo, pit, trim: H.view && H.view.trim, playerNo: H.playerNo || null,
+  return { d, I, fl, rows, hz, fr, n: fr.length, t0: fr[0][0], t1: fr[fr.length - 1][0], env, night: c.timeOfDay === 'night' || (!c.timeOfDay && c.lighting === 'floodlights'), evening: ['evening', 'dusk', 'sunset', 'twilight'].includes(c.timeOfDay), solo, pit, trim: H.view && H.view.trim, playerNo: H.playerNo || null,
     decided: d.timing && d.timing.decidedSec };
 }
 // one boat at race time T, blended between the two recorded frames around it
@@ -85,7 +85,7 @@ function rpvStart(d) {
   for (const o of RPV.saved.ov) o.hidden = true;
   RPV.P = P; RPV.t = P.t0; RPV.play = true; RPV.on = true; RPV.rate = +$('rpvRate').value || 1;
   fleet = { replay: true, boats: P.rows, rank: P.rows.slice(), focus: P.playerNo || (P.rows[0] && P.rows[0].no), entry: false, pitMode: P.pit, order: [], setsu: null, raceCfg: null };
-  waterEnv = P.env; todMode = P.night ? 'night' : 'day';
+  waterEnv = P.env; todMode = P.night ? 'night' : P.evening ? 'evening' : 'day';
   running = true; paused = false;
   document.body.classList.add('replaying'); $('rpv').hidden = false;
   const H = d.header || {}, race = H.race || {};

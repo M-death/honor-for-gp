@@ -5,7 +5,7 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
   audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163', venueId: 'standard', courseVersion: 1,
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
@@ -59,7 +59,7 @@ VR = (() => {
     if (!vlOn || lab.active) return;
     gen++; seq++;
     const at = new Date();
-    R = { gen, mode, night: typeof isNight === 'function' && isNight(), solo: mode === 'ta', id: `${at.getTime().toString(36)}${seq}`, createdAt: at, inp: new WeakMap(), prevBoat: new Map(), contactAt: new Map(),
+    R = { gen, mode, night: typeof isNight === 'function' && isNight(), tod: null, solo: mode === 'ta', id: `${at.getTime().toString(36)}${seq}`, createdAt: at, inp: new WeakMap(), prevBoat: new Map(), contactAt: new Map(),
       zeroT: null, ring: [], prev: null, origin: null, n: 0, chunks: [], cur: null, curN: 0, nb: 0, events: [],
       endT: null, endReason: null, endNote: null, results: null, state: 'RECORDING', full: false, terminal: null,
       q: { steps: 0, maxDt: 0, jumps: 0, firstT: null, lastT: null, coastFrom: null }, blob: null, file: null };
@@ -352,8 +352,10 @@ VR = (() => {
     const race = st ? { title: st.kind || null, raceNo: st.R ?? null, grade: setsu.grade === 'sg' ? 'SG' : '一般', venueName: venueOf(setsu.venue).name, date: null, day: st.day ?? null,
                         dayLabel: SETSU.dayJa[st.day] || null, startTime: st.env && st.env.time || null }
       : { title: null, raceNo: null, grade: !R.solo && sgMode ? 'SG' : null, venueName: venueOf('standard').name, date: null, day: null, dayLabel: null, startTime: null };
+    // d229 夕方: decided when the file is made (a 節間 race's season and start time are set just after the recorder starts)
+    if (!R.tod) R.tod = R.night ? 'night' : typeof todNow === 'function' ? todNow() : 'day';
     const env = Object.assign(R.solo || !waterEnv ? { calm: true, laps: R.solo ? TA.laps : 3 } : { laps: raceLaps(), dir: waterEnv.dir, wind: waterEnv.wind, windVec: { wx: waterEnv.wx, wy: waterEnv.wy },
-      tideFlow: waterEnv.cx, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, tideLv: waterEnv.tideLv }, { timeOfDay: R.night ? 'night' : 'day', lighting: R.night ? 'floodlights' : 'daylight' });   // d217 ナイトレース
+      tideFlow: waterEnv.cx, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, tideLv: waterEnv.tideLv }, { timeOfDay: R.tod || (R.night ? 'night' : 'day'), lighting: { night: 'floodlights', evening: 'sunset' }[R.tod || (R.night ? 'night' : 'day')] || 'daylight' });   // d217 ナイトレース
     let seedH = 2166136261; for (const ch of R.id) seedH = Math.imul(seedH ^ ch.charCodeAt(0), 16777619) >>> 0;
     return {
       mode: R.mode, sg: !R.solo && !!sgMode, race, setsu: st ? { day: st.day, race: st.R, kind: st.kind || null } : null, entryResult: !R.solo && fleet.entryResult ? fleet.entryResult.text : null,
