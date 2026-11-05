@@ -21,7 +21,7 @@ for (const bt of document.querySelectorAll('#pmenu [data-panel]')) bt.addEventLi
 function menuRaceAgainUi() {
   let saved = null; try { saved = localStorage.getItem('honorGP.raceCfg'); } catch (e) {}
   const b = $('pmRaceAgain'); b.hidden = !saved || typeof raceCfg === 'undefined';
-  if (!b.hidden) b.textContent = `前回と同じ条件で6艇レース（${raceCfg.no}号艇・${raceCfg.start === 'fixed' ? '枠なり' : 'ピット離れ'}）`;
+  if (!b.hidden) b.textContent = `前回と同じ条件で6艇レース（${(VENUES_GEO[raceCfg.venue] || VENUE).name}・${raceCfg.no}号艇・${raceCfg.start === 'fixed' ? '枠なり' : 'ピット離れ'}）`;
 }
 function menuRefresh() {
   $('pmenu').querySelector('.menu-card').classList.toggle('ingame', running);
@@ -32,6 +32,9 @@ function menuRefresh() {
 new MutationObserver(() => { if (!$('pmenu').hidden) menuRefresh(); }).observe($('pmenu'), { attributes: true, attributeFilter: ['hidden'] });
 menuRefresh();
 $('pmModeSel').value = controlMode;
+// d236 コース: 練習コース / 住之江 (タイムアタック・6艇レース・デモ; 節間は練習コース)
+for (const sel of document.querySelectorAll('select.venue-sel')) { sel.value = VENUE.id; }
+$('pmVenue').addEventListener('change', e => { setVenue(e.target.value); raceCfg.venue = VENUE.id; try { localStorage.setItem('honorGP.raceCfg', JSON.stringify(raceCfg)); } catch (x) {} menuRaceAgainUi(); });
 $('pmModeSel').addEventListener('change', e => setControlMode(e.target.value));
 $('pmRaceAgain').addEventListener('click', () => {
   $('pmenu').hidden = true; paused = false; last = performance.now(); initAudio();

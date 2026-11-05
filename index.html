@@ -385,6 +385,7 @@ body.lab-running>#jk{display:none!important}
     <div class="menu-top">
       <div class="plrow"><label>プレイヤー <select id="plSel" aria-label="記録するプレイヤー"></select></label><input id="plName" maxlength="12" placeholder="名前を追加" aria-label="追加する名前"><button class="btn ghost" id="plAdd">追加</button><button class="btn ghost" id="plDel">消す</button></div>
       <div class="plrow" id="pmModeRow"><label>操作 <select id="pmModeSel" aria-label="操作モード"><option value="tilt">1．傾きあり</option><option value="pad">2．傾きなし・姿勢パッドあり</option><option value="wheel">3．姿勢パッド＋右手アクセル</option></select></label></div>
+      <div class="plrow" id="pmVenueRow"><label>コース <select id="pmVenue" class="venue-sel" aria-label="コース"><option value="standard">練習コース</option><option value="suminoe">住之江</option></select></label></div>
       <p id="controlHelp" class="menu-help"></p>
       <p id="pmKeys" class="menu-help">PC：W/S＝スロットル　A/D＝舵　矢印＝体重移動／コントローラ：トリガー＝スロットル　右スティック＝舵　左スティック＝体重移動</p>
     </div>
@@ -488,6 +489,7 @@ body.lab-running>#jk{display:none!important}
     <div class="set">
       <p style="margin:0;font-size:13px">自分の枠</p>
       <div class="wakus" id="rsWaku" style="margin:4px 0 6px"></div>
+      <label>コース <select id="rsVenue" class="venue-sel"><option value="standard">練習コース</option><option value="suminoe">住之江</option></select></label>
       <label>スタート <select id="rsStart"><option value="pit">ピット離れから（進入あり）</option><option value="fixed">枠なりの並びから（大時計20秒前）</option></select></label>
       <label>自艇のチルト <select id="rsTilt"><option value="-0.5">−0.5（標準）</option><option value="0">0</option><option value="0.5">+0.5</option><option value="1">+1.0</option><option value="1.5">+1.5</option><option value="2">+2.0</option><option value="3">+3.0</option></select></label>
       <p style="margin:6px 0 0;font-size:13px">相手（選ばない枠はおまかせ）</p>

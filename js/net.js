@@ -85,7 +85,8 @@ function netRivalBtn(label, load) {
 // d226 (まえ): the ranking can be shown by version (TA.key). The physics stays put, but a serious hole may get fixed — then TA.key moves on and
 // the old version's table stays readable here. Ghosts can only be raced on the version they were made on.
 let netVer = TA.key;
-const netVerName = k => k.replace(/^honorGP\.ta\./, '');
+const netVerName = k => { const m = k.replace(/^honorGP\.ta\./, '').split('.'); const v = m[1] && Object.values(VENUES_GEO).find(g => g.taSuffix === '.' + m[1]); return `${m[0]} ${v ? v.name : m[1] || VENUES_GEO.standard.name}`; };   // d236: the venue rides on the key
+venueHooks.push(() => { netVer = TA.key; const sel = $('rankVer'); if (sel) delete sel.dataset.loaded; });
 async function netVerUi() {
   const sel = $('rankVer'); if (!sel) return;
   sel.hidden = netTab === 'local';

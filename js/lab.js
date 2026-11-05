@@ -177,7 +177,7 @@ function labPriorityPlan(b,env,desired,mem,prof,applied){
     o.thr+=(target.thr-o.thr)*(1-Math.exp(-6*dt));o.steer+=(target.steer-o.steer)*(1-Math.exp(-prof.react*(mem.emergency>0?3:1.6)*dt));
     o.roll+=(target.roll-o.roll)*(1-Math.exp(-prof.react*dt));o.pitch+=(target.pitch-o.pitch)*(1-Math.exp(-prof.react*dt));
     const ev=boatPhysics(q,o,dt);if(ev){obstacle=true;risk+=25000;}
-    if(q.y<COURSE.yMin+3||q.y>COURSE.yMax-3)risk+=1000;
+    if(wallGap(q.x,q.y)<3)risk+=1000;
     for(const other of others){const op=other.path[j],gap=labHullClearance(q,op),side=Math.abs(wrapRad(q.a-op.a))<PRIO.sideAng;
      const clr=side?PRIO.sideClr:clearance,hard=side?PRIO.sideHard:.05;
      if(gap<minGap){minGap=gap;threat=other.boat;at=(j+1)*dt;}

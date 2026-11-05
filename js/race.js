@@ -189,7 +189,7 @@ function kinenPredict(b, m, sv, o, prof, body, wall) {
     }
     boatPhysics(c, inp, dt);
     g = Math.min(g, kinenGap(c, mk), kinenGap(c, bm) + 0.5);
-    if (wall && (sg * c.x > COURSE.xMax - wall || Math.abs(c.y) > COURSE.yMax - wall)) break;   // d205: (a sweep) runs out of water before it is round
+    if (wall && (c.x > COURSE.xMax - wall || c.x < COURSE.xMin + wall || wallGap(c.x, c.y) < wall)) break;   // d205: (a sweep) runs out of water before it is round
     if (sg * c.y < 0) { ok = sg * c.x > MK; break; }
     { const ha = wrapRad(c.a + (m ? Math.PI : 0)); if (ha < 0 && ha < -Math.PI * 0.9 && sg * c.x > MK) { ok = true; break; } }   // d153: from far out a tight turn comes round before it crosses the centreline
     if (c.v < 3) break;
@@ -756,8 +756,8 @@ function makeDriver(prof, trait = {}) {
 
     if (env.retire) {
       // フライング返還: past 1M, peel off to the outside edge and park against it
-      const edge = Math.abs(b.y) > COURSE.yMax - 7;
-      const [tx, ty] = edge ? [b.x - 5, COURSE.yMin - 10] : [b.x - 40, COURSE.yMin + 3];
+      const edge = wallGap(b.x, b.y) < 7;
+      const [tx, ty] = edge ? [b.x - 5, backY(b.x - 5) - 10] : [b.x - 40, backY(b.x - 40) + 3];
       const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
       steerT = clamp(err * 2 + av.steerAdd * 0.5);
       thrT = edge ? 0 : 0.2;
@@ -786,7 +786,7 @@ function makeDriver(prof, trait = {}) {
           const cd = b.y > 0 ? 1 : -1, along = (w.x - b.x) * cd;
           if (along > -10 && along < 70) {
             let wy = w.y + Math.sign(w.y || 1) * 9;              // 9 m outside the wreck
-            if (Math.abs(wy) > COURSE.yMax - 5) wy = w.y - Math.sign(w.y || 1) * 9;
+            if (wallGap(w.x, wy) < 5) wy = w.y - Math.sign(w.y || 1) * 9;
             if (Math.abs(ty) < Math.abs(wy) || Math.abs(wy) < Math.abs(w.y)) ty = wy;
           }
         }
@@ -823,7 +823,7 @@ function makeDriver(prof, trait = {}) {
       o.thr += (thrT - o.thr) * (1 - Math.exp(-3 * dt));
     } else if (env.clockZero != null) {
       // flying start: idle along the waiting lane, open up when the timing works out
-      const d = -boatBow(b).x, rem = env.clockZero - env.now;
+      const d = toSlit(boatBow(b)), rem = env.clockZero - env.now;
       const tFull = timeToLine(Math.max(0, d), b.v, prof.cruise, true, b);   // its own motor's pull, as the rider knows it
       // it goes by its own read of the clock, which is off by stErr
       // lever lag makes it arrive a touch late; from a standstill (待機水面で止まっていた) the hull has to climb onto the plane too
@@ -849,17 +849,17 @@ function makeDriver(prof, trait = {}) {
         const lead = env.inner ? boatBow(b).x - boatBow(env.inner).x : 99;
         thrT = lead >= sg.ahead && !env.innerGo ? sg.hold : sg.thr;
       }
-      const err = wrapRad(Math.atan2(env.laneY - b.y, 25) - b.a);
+      const err = wrapRad(Math.atan2(laneYAt(env.laneY, b.x + 25) - b.y, 25) - b.a);   // d235: a course runs square to the leaning start line
       // 起こしたらスリットまでは真っ直ぐ: 舵も体の左右の傾きも入れない
       if (!mem.go) steerT = clamp(err * 2.2 + av.steerAdd * 0.3);
       else {
         // straight on, a touch of rudder only to hold the heading; a boat that is clear ahead of the boat inside it
         // (not even overlapping) near the slit may already edge in toward it (スリット前の絞り)
-        let want = 0;
+        let want = laneA();
         const q = env.inner;
         if (q && b.x > -60 && b.y - q.y > SQUEEZE.gap + 1.5 && clearAhead(b, q)) {
           if (mem.preSq == null) mem.preSq = simRandom() < ((trait.kado ? SQUEEZE.p.kado : SQUEEZE.p[trait.course] ?? 0) * 0.6 * Math.min(1.3, trait.pushMul ?? 1));
-          if (mem.preSq) { want = -0.05; mem.preSqOn = true; }
+          if (mem.preSq) { want = laneA() - 0.05; mem.preSqOn = true; }
         }
         steerT = clamp((want - wrapRad(b.a)) * 2, -PRE_SLIT.steer, PRE_SLIT.steer);
       }
@@ -1153,7 +1153,7 @@ function makeDriver(prof, trait = {}) {
       }
       const accelerating = !!(mem.exitHold && !mem.exitHold.up);
       // first straight: hold the entry lane, then converge on the mark
-      if (first && b.y > 0 && b.x < MK - 45) { const w = clamp((b.x + 20) / (MK - 25), 0, 1); ty = env.laneY + (ty - env.laneY) * w; }
+      if (first && b.y > 0 && b.x < MK - 45) { const w = clamp(b.x / (MK - 45), 0, 1), ly = laneYAt(env.laneY, b.x); ty = ly + (ty - ly) * w; }   // d234 (まえ: 遠いけどスリットを越えればインに絞っていい): the lane holds to the slit, then closes in on the mark by 45 m before it
       // first straight: a boat right ahead on my line → ease just out of its 航跡 (a little, within my lane)
       if (first && b.y > 0 && b.x > -5 && b.x < MK - 45 && env.others) {
         let lead = null, best = 40;
@@ -1166,7 +1166,7 @@ function makeDriver(prof, trait = {}) {
           const pref = Math.sign(b.y - lead.y) || (mem.fsSide || 1);
           for (const sd of [pref, -pref]) {
             const y2 = lead.y + sd * (TRAIL.width + 0.6);
-            if (Math.abs(y2 - env.laneY) > 2.6 || y2 < 6) continue;
+            if (Math.abs(y2 - laneYAt(env.laneY, b.x)) > 2.6 || y2 < 6) continue;
             const blocked = env.others.some(q => q !== b && q !== lead && q.cap <= 0 && q.x - b.x > -12 && q.x - b.x < 6 && Math.sign(q.y - b.y) === Math.sign(y2 - b.y) && Math.abs(q.y - y2) < 3.2);
             if (!blocked) { ty = b.y + (y2 - b.y) * TRAIL.dodgeK; mem.fsSide = sd; break; }
           }
@@ -1263,7 +1263,7 @@ function makeDriver(prof, trait = {}) {
             const sides = accelerating ? (b.y * Math.sign(b.y) <= lead.y * Math.sign(b.y) + 1 ? [-Math.sign(b.y)] : [-Math.sign(b.y), Math.sign(b.y)]) : [-Math.sign(b.y), Math.sign(b.y)];
             for (const sd of sides) {
               const y2 = lead.y + sd * gapSide;
-              if (Math.abs(y2) < 5 || Math.abs(y2) > COURSE.yMax - 6 || Math.sign(y2) !== Math.sign(b.y)) continue;
+              if (Math.abs(y2) < 5 || wallGap(b.x, y2) < 6 || Math.sign(y2) !== Math.sign(b.y)) continue;
               const blocked = env.others.some(q => {
                 if (q === b || q === lead || q.cap > 0) return false;
                 const al = (q.x - b.x) * cd, dy = q.y - b.y;
@@ -1635,8 +1635,8 @@ const MAKURI_CHECK = { at: 35, lead: 1.5, behind: 4, pMs: 0.5 };   // m before 1
 const LREF = loopLen(13);
 const FIXED_ENTRY = true;
 // 起こし positions (m before the start line) by course, and the rare 3カド
-const OKOSHI = { 1: [95, 105], 2: [100, 115], 3: [110, 125], 4: [185, 200], 5: [195, 210], 6: [195, 210] };
-const KADO3_RATE = 0.03, KADO3_OKOSHI = [165, 180];   // d196: rate 0.08→0.03 (まえ: 3カド is rare)
+const OKOSHI = { 1: [119, 129], 2: [124, 139], 3: [134, 149], 4: [170, 185], 5: [180, 195], 6: [180, 195] };   // d233 (まえ: ダッシュが強すぎ): slow +24 m (slit 64→67 km/h), dash −15 m
+const KADO3_RATE = 0.03, KADO3_OKOSHI = [150, 165];   // d196: rate 0.08→0.03 (まえ: 3カド is rare)
 const IDLE_V = 4.2;
 // start timing: how far off each course reads the clock (± s), the share of that it adds as a safety margin,
 // and the flat-out ST below which a boat near the line throws the lever off (放る) instead of going early
@@ -1678,7 +1678,7 @@ const TRIM_CPU = { on: true, KINEN: 0.95, TOP: 0.85, A1: 0.6, inYaw: 0.45, outYa
 const BN_CPU = { on: true, hard: 2.5, high: 0.25, wave: 8, TOP: { up: -0.3, hold: 0.35, lever: 0.85, rough: 0.5 }, A1: { up: -0.25, hold: 0.3, lever: 0.85, rough: 0.4 },
   A2: { up: -0.2, hold: 0.25, lever: 0.8, rough: 0.35 }, B1: { up: -0.1, hold: 0.2, lever: 0.75, rough: 0.3 }, B2: { up: 0, hold: 0.15, lever: 0.7, rough: 0.2 } };
 const CROWD_DROP = { on: true, r: 10, until: 0.45, lever: { TOP: 0.75, A1: 0.7, A2: 0.66, B1: 0.6, B2: 0.56 } };
-const NIGE_DROP = { at: 22, regrip: 0.2, lever: { TOP: 0.76, A1: 0.72, A2: 0.68, B1: 0.62, B2: 0.58 } };   // steady speed with the lever shut (m/s)   // demo: every boat takes its own number's course, 3 slow / 3 dash
+const NIGE_DROP = { at: 12,   /* d233: 22→12 m — the 逃げ eases the lever later, so a dash boat can't sweep over it as easily */ regrip: 0.2, lever: { TOP: 0.76, A1: 0.72, A2: 0.68, B1: 0.62, B2: 0.58 } };   // steady speed with the lever shut (m/s)   // demo: every boat takes its own number's course, 3 slow / 3 dash
 let demoCpuMode='course-v1';   // d181 (まえ): コース別作戦 is the standard now; 'legacy' = the CPU up to d180 (設定で切替)
 let fleet = null, simSpeed = 1.5, sgMode = false;   // demo playback speed; the race clock always shows real race time
 
@@ -1731,7 +1731,7 @@ function applyCourse(r, course, slow, kado, okoshi) {
     : course === 4 && !slow ? pickW([['makuri', 7], ['sashi', 3]])
     : pickW([['sashi', 5], ['makuri', 5]]);
   if(mode===COURSE_CPU.version)tactic=COURSE_CPU.courses[course].base;
-  const laneY = LANE.y0 + (course - 1) * LANE.step;
+  const laneY = laneYOf(course);
   // コース相性: on a course it likes it rides to win (bolder), on one it doesn't it rides for a place (safer)
   const aff = r.skill && r.skill.course ? r.skill.course[course - 1] : 50, tMap = ['calm', 'normal', 'aggr'];
   const tEff = r.skill ? tMap[clamp(Math.round({ calm: 0, normal: 1, aggr: 2 }[r.temper] + (aff - 50) / 22), 0, 2)] : r.temper;
@@ -1788,9 +1788,9 @@ function setupFleet(rowsIn, runup = RUNUP) {
     const [okLo, okHi] = kado ? KADO3_OKOSHI : OKOSHI[course] || OKOSHI[6];
     const okoshi = okLo + simRandom() * (okHi - okLo);
     const creep = Math.max(0, runup - (timeToLine(okoshi, IDLE_V, r.prof.cruise) - 0.1));
-    const x0 = -(okoshi + IDLE_V * creep) - BOW_TIP;
+    const x0 = slitXAt(laneYOf(course)) - (okoshi + IDLE_V * creep) - BOW_TIP;   // d235: measured from the start line where this course crosses it
     applyCourse(r, course, slow, kado, okoshi);
-    r.b = { x: x0, y: r.trait.laneY, a: 0, v: IDLE_V, vl: 0, yaw: 0, porp: 0, cap: 0 };
+    r.b = { x: x0, y: laneYAt(r.trait.laneY, x0), a: laneA(), v: IDLE_V, vl: 0, yaw: 0, porp: 0, cap: 0 };
     fitMotor(r, course);
     raceFieldsInit(r);
   });
@@ -1821,7 +1821,7 @@ function freshFleet(boats) {
                   before the hand starts. Squaring up later than a boat outside you means
                   going outside it: no 割り込み. */
 const ENTRY = {
-  pitX: -280, pitY: [24, 28.5, 33, 37.5, 42, 46.5], // ピット: well behind 2M on the home side (130 m), bows toward 1M; 1号艇 innermost
+  get pitX() { return VENUE.pitX; }, pitY: [24, 28.5, 33, 37.5, 42, 46.5], // ピット: at the back of the water past 2M on the home side (d235 住之江: 2Mの後ろ120m → x −262, was −280), bows toward 1M; 1号艇 innermost
   lamp: 3,                                          // s of lamp countdown before the release
   runR: k => 11 + 4.2 * k,                          // lane radius for slot k on the way round: outer boats swing round wide (clear of the far bank)
   vPull: 4.5,                                       // m/s backing away to the dash spot (引く: bow away from the slit)
@@ -1845,10 +1845,11 @@ const ENTRY = {
   rewindBy: 30,                                     // s before the start: still not round 2M → 回り直し
   pitRun: [80, 100],                                // m run straight out of the pits flat out before turning for the buoy
   pitSteal: 9,                                      // m ahead of the inside boat at the end of that run: a late boat loses its course there
+  swingRoom: 50,                                    // d235: m of water a boat keeps between where it rounds and the end of the course behind 2M
   dashSwing: 40,                                    // m further back than 2M a dash boat rounds (to come out ~200 m from the line)
   dashDepth: 56,                                    // m of extra run-up for a dash called the moment the boat leaves the pits (d194: 16→56, an early dash sits behind 250 m)
   gap: 6, gapT: 1.2,                                // 艇2つ分: closer than this behind a boat for this long = 間隔不足
-  slowX: -117, dashX: -205,                         // d194: dash -196→-205
+  slowX: -141, dashX: -190,                         // d194: dash -196→-205; d233: slow -117→-141, dash -205→-190 (ダッシュが強すぎ)
   slowSwing: 22,                                    // d194 (まえ): m further back than 2M the slow boats round, so they square up behind the 150 m line                         // waiting spots (m before the line); a dash called early sits deeper
   playerDashFace: 20,                               // s before the start: the player's dash (lever automatic once 引く is pressed) squares up about now, then the lever is theirs
   react: { TOP: 0.08, A1: 0.1, A2: 0.14, B1: 0.2, B2: 0.28 },   // pit reaction (s) by class
@@ -1888,7 +1889,8 @@ function makeEntryFleet(playerNo, opts = {}) {
   f.focus = playerNo || null;
   return f;
 }
-const laneYOf = course => LANE.y0 + (course - 1) * LANE.step;
+const laneYOf = course => LANE.ys[clamp(course, 1, LANE.ys.length) - 1];   // (at the start line; d235 laneYAt gives it at any x)
+// d235/d236: laneA() (core.js) is the heading square to the start line; VENUE.laneMax is how far out the outside course may sit at the slit
 // d203 (まえ): with 羽美 in the 1枠 the others think twice about a 前付け — at the first hint of one she pulls right out
 // to dash, and nobody wants her coming over the top of them on a 3.0
 const NAMED_DETER = 0.35;
@@ -1907,10 +1909,12 @@ function entrySpot(r, nSlow, contested) {
   if (!r.en.dash && !r.en.rewind) {
     // more boats going slow, or a course taken by force, leaves the inside less room: shallower run-up (深イン)
     const deep = Math.max(0, nSlow - 3) * 7 + (contested ? 8 : 0);
-    return { x: ENTRY.slowX - (c - 1) * 2.5 + (c === 1 ? 5 : 0) + deep * (1 - (c - 1) * 0.2), y: laneYOf(c) };   // イン sits 5 m deeper
+    const x = slitXAt(laneYOf(c)) + ENTRY.slowX - (c - 1) * 2.5 + (c === 1 ? 5 : 0) + deep * (1 - (c - 1) * 0.2);
+    return { x, y: laneYAt(laneYOf(c), x) };   // イン sits 5 m deeper
   }
   // dash: the earlier the call, the deeper (longer run-up) the spot it takes
-  return { x: Math.max(COURSE.xMin + 10, ENTRY.dashX - Math.max(0, c - nSlow - 1) * 3 - (r.en.dashBonus || 0)) + tiltDashShift(r), y: laneYOf(c) };
+  const x = Math.max(COURSE.xMin + VENUE.spotRoom, slitXAt(laneYOf(c)) + ENTRY.dashX - Math.max(0, c - nSlow - 1) * 3 - (r.en.dashBonus || 0)) + tiltDashShift(r);
+  return { x, y: laneYAt(laneYOf(c), x) };
 }
 // d193: a tilted-up boat is heavy below planing, so from a standstill it covers less water in the clock's run-up than
 // with its tilt at 0 — its rider takes the dash spot that much shallower (cached per tilt)
@@ -2011,7 +2015,7 @@ function entryAim(b, R, stage, look, A = -MK) {
 }
 // pace from the buoy to 2M: come round 2M so that, after squaring up, the drift at idle carries the boat
 // onto its 起こし mark as the hand starts. Slow boats round earlier, dash boats later (with a little spare).
-const entrySwing = en => en.dash ? ENTRY.dashSwing + (en.dashBonus || 0) * 0.8 : ENTRY.slowSwing;   // d194: a deep dash rounds further back still
+const entrySwing = en => Math.min(en.dash ? ENTRY.dashSwing + (en.dashBonus || 0) * 0.8 : ENTRY.slowSwing, VENUE.behind2 - ENTRY.swingRoom);   // d235: never so deep it runs into the far end (住之江 2Mの後ろ120m)   // d194: a deep dash rounds further back still
 function entryPace(r, R, nSlow, contested, leftOverride) {
   const E = fleet.entry, b = r.b, en = r.en;
   const sp = entrySpot(r, nSlow, contested), xh = sp.x - creepAfter(-sp.x);
@@ -2163,7 +2167,7 @@ function entryStep(dt, playerInput) {
     if (en.stage === 'out' && b.y < -5 && Math.cos(b.a) < -0.3 && b.x < SMALL_TURN_BUOY.x + 3) { en.stage = 'back'; if (!r.player) cpuDashEarly(r); }
     if (en.stage === 'back' && b.x < -MK - entrySwing(en) + 3) en.stage = 'turn';
     if (en.stage === 'turn' && b.x < -MK - entrySwing(en) - 4 && b.y > 0.55 * ENTRY.runR(en.slot)) { en.stage = 'approach'; }
-    if (en.stage === 'approach' && en.facing && Math.cos(b.a) > 0.97 && b.y > 2 && (Math.abs(laneYOf(en.course || en.slot) - b.y) < 2.5 || E.zero - ENTRY_RUNUP - time < 11)) {   // squared up only once on its course's line (it can't move across after)
+    if (en.stage === 'approach' && en.facing && Math.cos(b.a) > 0.97 && b.y > 2 && (Math.abs(laneYAt(laneYOf(en.course || en.slot), b.x) - b.y) < 2.5 || E.zero - ENTRY_RUNUP - time < 11)) {   // squared up only once on its course's line (it can't move across after)
       en.stage = 'wait'; en.faced = true; en.facedAt = time; E.faced.push(r); E.lastFacedAt = time;
       if (r.player && en.dash && !en.rewind) toast('ダッシュ位置', '正対した。ここからアクセルは自分で（起こしは自分のタイミング）', 'good');
       // 見透し線 priority: a slow boat squaring up after a boat outside it has already squared up
@@ -2343,7 +2347,7 @@ function entryStep(dt, playerInput) {
       if (en.gapT > ENTRY.gapT) entryFoul(r, '間隔不足');
     }
     // over the start line before the hand has started
-    if ((en.stage === 'approach' || en.stage === 'wait') && boatBow(b).x >= 0 && boatBow(b).y > 0) entryFoul(r, '大時計前にスタートライン越え');
+    if ((en.stage === 'approach' || en.stage === 'wait') && toSlit(boatBow(b)) <= 0 && boatBow(b).y > 0) entryFoul(r, '大時計前にスタートライン越え');
   }
   for (const e of boatContacts(all)) {
     if (e.J < 0.8) continue;
@@ -2408,17 +2412,18 @@ function entryHandoff() {
   order.forEach((r, i) => {
     r.en.course = i + 1;
     const course = i + 1, slow = !r.en.dash && !r.en.rewind, kado = !slow && course === 3;
-    applyCourse(r, course, slow, kado, Math.round(-boatBow(r.b).x - creepAfter(Math.max(20, -boatBow(r.b).x))));
+    applyCourse(r, course, slow, kado, Math.round(toSlit(boatBow(r.b)) - creepAfter(Math.max(20, toSlit(boatBow(r.b))))));
     r.b.thrMul = 1; r.b.hold = true;
     if (!r.player && r.tiltAuto) fitMotor(r, course, true);
   });
   // each boat runs in on the line it squared up on (it can't steer across now), kept in course order
   // d194: lanes at least 4.5 m apart and inside 4–46 m; an outside boat squared up wide pushes the ones inside it in
   // (before, a clamp at 46 could put the 5 and the 6 on the same line, the 6 running in the 5's wake from the 起こし)
+  // d235: lanes are counted at the start line (a course is square to it), so each boat's y is read back to the slit first
   const ys = []; let yPrev = 2;
-  for (const r of order) { yPrev = Math.max(r.b.y, yPrev + 4.5); ys.push(yPrev); }
-  for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.max(4 + 4.5 * i, Math.min(ys[i], i === ys.length - 1 ? 46 : ys[i + 1] - 4.5));
-  order.forEach((r, i) => { r.trait.laneY = ys[i]; r.b.y = r.trait.laneY; r.b.a = wrapRad(r.b.a) * 0.3; });   // settle each boat on its line, bow straight: from the 起こし on there's no rudder
+  for (const r of order) { yPrev = Math.max(r.b.y + VENUE.slitK * r.b.x, yPrev + 4.5); ys.push(yPrev); }
+  for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.max(4 + 4.5 * i, Math.min(ys[i], i === ys.length - 1 ? VENUE.laneMax : ys[i + 1] - 4.5));
+  order.forEach((r, i) => { r.trait.laneY = ys[i]; r.b.y = laneYAt(ys[i], r.b.x); r.b.a = laneA() + wrapRad(r.b.a - laneA()) * 0.3; });   // settle each boat on its line, bow straight: from the 起こし on there's no rudder
   fleet.byCourse = {}; for (const r of fleet.boats) fleet.byCourse[r.trait.course] = r;
   fleet.rank = order;
   fleet.entryResult = { text: order.slice(0, nSlow).map(r => r.no).join('') + '/' + order.slice(nSlow).map(r => r.no).join(''), steals: E.steals, nSlow,
@@ -2488,6 +2493,7 @@ function wxAnnounce() {
 }
 function startEntry(playerNo, kind = 'race', opts = {}) {
   if (runLog) runLogEnd('途中でやり直し');
+  if (opts.setsu && VENUE.id !== 'standard') setVenue('standard', false);   // d236: 節間 stays on the 練習コース for now
   waterEnv = opts.env || wxForced() || (playerNo && !lab.active ? randomWaterEnv() : null);
   if (VR) { if (kind === 'p6') VR.discard(); else VR.begin(opts.setsu ? 'setsu' : playerNo ? 'race' : 'demo'); }
   fleet = makeEntryFleet(playerNo, { noMae: kind === 'p6', rows: opts.rows });
@@ -2544,7 +2550,7 @@ let startAssist = false;
 try { startAssist = localStorage.getItem('honorGP.stAssist') === 'on'; } catch (e) {}
 const RACE_MODE = { fixedLead: 20, dashEarly: 6 };   // d213: a dash boat's lever is the player's from 18 s out (the CPU's own 起こし from a deep dash came at 13–16 s, before the old 12 s hand-over)   // s before the start a 枠なり race begins
 const RACE_CLS = [['', 'おまかせ'], ['3', 'B2'], ['2', 'B1'], ['1', 'A2'], ['0', 'A1'], ['4', 'A1★トップ'], ['5', 'A1★記念'], ...NAMED.map(n => ['n:' + n.id, `${n.name}（${n.cls}）`])];   // value = DRIVERS index, or n:<id> a named rider (d203)
-let raceCfg = { no: 1, start: 'pit', tilt: -0.5, cls: [null, null, null, null, null, null] };
+let raceCfg = { no: 1, start: 'pit', tilt: -0.5, cls: [null, null, null, null, null, null], venue: null };   // d236 venue: null = the menu's コース
 try { const c = JSON.parse(localStorage.getItem('honorGP.raceCfg') || 'null'); if (c && c.no >= 1 && c.no <= 6 && Array.isArray(c.cls)) raceCfg = Object.assign(raceCfg, c); } catch (e) {}
 function raceModeRows(cfg, fixed) {
   const rows = newRows(fixed);
@@ -2571,6 +2577,8 @@ function namedRow(r, N, fixed) {
 }
 function startRaceMode(cfg) {
   cfg = JSON.parse(JSON.stringify(cfg));
+  if (cfg.venue && VENUES_GEO[cfg.venue] && cfg.venue !== VENUE.id) setVenue(cfg.venue);   // d236: the race's コース
+  cfg.venue = VENUE.id;
   playerTilt = cfg.tilt; B.tilt = playerTilt; if ($('tiltSel')) $('tiltSel').value = String(cfg.tilt);
   if (cfg.start === 'pit') startEntry(cfg.no, 'race', { rows: raceModeRows(cfg, false) });
   else startFixedRace(raceModeRows(cfg, true), cfg.no);
@@ -2596,7 +2604,7 @@ function startFixedRace(rows, no) {
 let rsFromResult = false;
 function rsDraw() {
   for (const bt of $('rsWaku').children) bt.setAttribute('aria-pressed', String(+bt.dataset.no === raceCfg.no)), bt.style.outline = +bt.dataset.no === raceCfg.no ? '3px solid var(--fg)' : '', bt.style.opacity = +bt.dataset.no === raceCfg.no ? 1 : 0.55;
-  $('rsStart').value = raceCfg.start; $('rsTilt').value = String(raceCfg.tilt);
+  $('rsStart').value = raceCfg.start; $('rsTilt').value = String(raceCfg.tilt); if ($('rsVenue')) $('rsVenue').value = raceCfg.venue || VENUE.id;
   for (const lb of $('rsCpu').children) lb.hidden = +lb.dataset.no === raceCfg.no;
   for (const sel of $('rsCpu').querySelectorAll('select')) {
     const i = +sel.dataset.no - 1, c = raceCfg.cls[i];
@@ -2630,6 +2638,7 @@ if ($('raceSetup')) {
     lb.append(tag, sel); $('rsCpu').appendChild(lb);
   }
   $('rsStart').addEventListener('change', e => { raceCfg.start = e.target.value; });
+  if ($('rsVenue')) $('rsVenue').addEventListener('change', e => { raceCfg.venue = e.target.value; });
   $('rsTilt').addEventListener('change', e => { raceCfg.tilt = +e.target.value; });
   $('rsGo').addEventListener('click', () => {
     rsSave(); $('raceSetup').hidden = true; paused = false; last = performance.now(); initAudio();
@@ -2768,7 +2777,7 @@ function fleetStep(dt, playerInput) {
     r.prevY = b.y;
     boatFx(b, r.wake, dt);
     if (r.flying && !r.passed1M && b.y < -5 && b.x < MK - 10) { r.passed1M = true; r.retireAt = time; r.wake = []; }   // a fresh trail the others never read (theirs hold the old array)
-    if (retiring(r) && (Math.abs(b.y) > COURSE.yMax - RETIRE_GONE.edge && b.v < RETIRE_GONE.v || time - r.retireAt > RETIRE_GONE.maxT)) {
+    if (retiring(r) && (wallGap(b.x, b.y) < RETIRE_GONE.edge && b.v < RETIRE_GONE.v || time - r.retireAt > RETIRE_GONE.maxT)) {
       r.gone = true; b.v = 0; b.vl = 0; r.wake = []; if (VR) VR.ev('gone', r.no, null);
     }
     if (b.x > MK - 15) r.vis |= 1;

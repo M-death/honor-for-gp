@@ -415,8 +415,9 @@ function wallsFor(b) {
   let hit = false;
   if (b.x < COURSE.xMin + 2) { b.x = COURSE.xMin + 2; hit = true; }
   if (b.x > COURSE.xMax - 2) { b.x = COURSE.xMax - 2; hit = true; }
-  if (b.y < COURSE.yMin + 2) { b.y = COURSE.yMin + 2; hit = true; }
-  if (b.y > COURSE.yMax - 2) { b.y = COURSE.yMax - 2; hit = true; }
+  const yS = standY(b.x) - 2, yB = backY(b.x) + 2;   // d235: the venue's banks (they lean)
+  if (b.y < yB) { b.y = yB; hit = true; }
+  if (b.y > yS) { b.y = yS; hit = true; }
   if (hit) { b.v *= 0.5; b.vl = 0; }
   return hit;
 }
@@ -645,7 +646,7 @@ function cutinCheck() {
   if (rem > fleet.cutinAt) return;
   fleet.cutinDone = true;
   const b = pr.b; if (Math.cos(b.a) < 0.9) return;   // not squared up to the line yet
-  const pred = timeToLine(Math.max(0, -boatBow(b).x), b.v, 1, true, b) - rem;
+  const pred = timeToLine(Math.max(0, toSlit(boatBow(b))), b.v, 1, true, b) - rem;
   const form = playerForm();
   const bias = form < 50 ? -(50 - form) * 0.0012 : form > 85 ? (form - 85) * 0.003 : 0;   // 弱気 sees it early, 浮つき sees it safe
   const n = gauss() * (0.015 + (100 - form) * 0.0004);

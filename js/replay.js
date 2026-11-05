@@ -81,10 +81,11 @@ function rpvApply() {
 }
 function rpvStart(d) {
   const P = rpvPrep(d);
-  RPV.saved = { fleet, running, paused, time, camMode, waterEnv, todMode, spray: spray.splice(0), cam: { x: cam.x, y: cam.y, s: cam.s }, ov: [...document.querySelectorAll('.overlay')].filter(o => !o.hidden) };
+  RPV.saved = { venue: VENUE.id, fleet, running, paused, time, camMode, waterEnv, todMode, spray: spray.splice(0), cam: { x: cam.x, y: cam.y, s: cam.s }, ov: [...document.querySelectorAll('.overlay')].filter(o => !o.hidden) };
   for (const o of RPV.saved.ov) o.hidden = true;
   RPV.P = P; RPV.t = P.t0; RPV.play = true; RPV.on = true; RPV.rate = +$('rpvRate').value || 1;
   fleet = { replay: true, boats: P.rows, rank: P.rows.slice(), focus: P.playerNo || (P.rows[0] && P.rows[0].no), entry: false, pitMode: P.pit, order: [], setsu: null, raceCfg: null };
+  { const v = d.header && d.header.venue; setVenue(v && VENUES_GEO[v.venueId] ? v.venueId : 'standard', false); }   // d236: the log's course (no venueId = the old 練習コース)
   waterEnv = P.env; todMode = P.night ? 'night' : P.evening ? 'evening' : 'day';
   running = true; paused = false;
   document.body.classList.add('replaying'); $('rpv').hidden = false;
@@ -102,6 +103,7 @@ function rpvStart(d) {
 function rpvClose() {
   if (!RPV.on) return;
   const s = RPV.saved; RPV.on = false; RPV.P = null; RPV.fixed = null;
+  if (s.venue !== VENUE.id) setVenue(s.venue, false);
   fleet = s.fleet; running = s.running; paused = s.paused; time = s.time; camMode = s.camMode; waterEnv = s.waterEnv; todMode = s.todMode;
   spray.length = 0; spray.push(...s.spray); cam.x = s.cam.x; cam.y = s.cam.y; cam.s = s.cam.s;
   document.body.classList.remove('replaying'); $('rpv').hidden = true;

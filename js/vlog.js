@@ -5,8 +5,8 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
-  audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163', venueId: 'standard', courseVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+  audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163',    // d236: venue fields come from VENUE (練習コース: 'standard' v1, 住之江: 'suminoe' v2)
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
 const VL_NF = VL_FIELDS.length;
@@ -360,7 +360,7 @@ VR = (() => {
     return {
       mode: R.mode, sg: !R.solo && !!sgMode, race, setsu: st ? { day: st.day, race: st.R, kind: st.kind || null } : null, entryResult: !R.solo && fleet.entryResult ? fleet.entryResult.text : null,
       entries: ents, playerNo: R.solo ? 1 : fleet.playerNo || null, conditions: env,
-      venue: { name: '標準', venueId: VLOG.venueId, courseVersion: VLOG.courseVersion, markX: MK, startLineX: 0 },
+      venue: { name: VENUE.name, venueId: VENUE.id, courseVersion: VENUE.courseVersion, markX: MK, startLineX: 0, startLineK: VENUE.slitK, stand: VENUE.stand, back: VENUE.back, behind1: VENUE.behind1, behind2: VENUE.behind2, outline: VENUE_OUTLINE.map(([x, y]) => [+x.toFixed(2), +y.toFixed(2)]), laneYAtSlit: LANE.ys },   // d235 venue-geometry-v1
       units: { x: 'm, +x = right on the 2D screen (toward 1M)', y: 'm, +y = down on the 2D screen', heading: 'rad, 0 = +x, positive turns toward +y', v: 'm/s along the heading',
         bank: 'rad, + = right side down', slip: 'rad, travel direction minus heading', roll: '-1..1 rider lean (+ = right)', pitch: '-1..1 rider posture (+ = crouched, - = sat up)',
         steer: '-1..1 applied rudder', thr: '0..1 applied lever', rpm: '0..1.15 engine pitch index (not revolutions per minute)', vl: 'm/s sideways', yaw: 'rad/s', hop: 'm', hv: 'm/s up', landV: 'm/s at the last landing',

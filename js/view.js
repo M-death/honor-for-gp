@@ -102,7 +102,8 @@ function slitCrossing(rec,no,off){
   const P=f=>{const b=f.boats.find(q=>q.no===no);return b&&{x:b.x+off*Math.cos(b.a),v:b.v,y:b.y};};
   for(let i=1;i<rec.frames.length;i++){
     const a=P(rec.frames[i-1]),c=P(rec.frames[i]);
-    if(a&&c&&a.x<0&&c.x>=0){const u=-a.x/(c.x-a.x);return{t:rec.frames[i-1].t+(rec.frames[i].t-rec.frames[i-1].t)*u,v:a.v+(c.v-a.v)*u,y:a.y+(c.y-a.y)*u};}
+    const da=a&&a.x-slitXAt(a.y),dc=c&&c.x-slitXAt(c.y);   // d235: the line leans
+    if(a&&c&&da<0&&dc>=0){const u=-da/(dc-da);return{t:rec.frames[i-1].t+(rec.frames[i].t-rec.frames[i-1].t)*u,v:a.v+(c.v-a.v)*u,y:a.y+(c.y-a.y)*u};}
   }
   return null;
 }
@@ -281,7 +282,7 @@ if ($('todMode')) { $('todMode').value = todMode; $('todMode').addEventListener(
 const NIGHT = { dark: 'rgba(3,8,24,0.72)', tint: 'rgba(10,18,48,0.16)', poleDx: 40, poleOut: 7, lightR: 72, lightA: 0.10, poleCol: 'rgba(255,244,214,0.95)' };
 function nightPoles() {
   const P = [];
-  for (let x = COURSE.xMin + 10; x <= COURSE.xMax + 5; x += NIGHT.poleDx) { P.push([x, COURSE.yMax + NIGHT.poleOut]); P.push([x, COURSE.yMin - NIGHT.poleOut]); }
+  for (let x = COURSE.xMin + 10; x <= COURSE.xMax + 5; x += NIGHT.poleDx) { P.push([x, standY(x) + NIGHT.poleOut]); P.push([x, backY(x) - NIGHT.poleOut]); }
   for (const y of [-30, 0, 30]) { P.push([COURSE.xMax + NIGHT.poleOut + 4, y]); P.push([COURSE.xMin - NIGHT.poleOut, y]); }
   return P;
 }
@@ -292,7 +293,7 @@ function drawNightWater(S) {
   ctx.save();
   ctx.fillStyle = NIGHT.dark; ctx.fillRect(x0, y0, vw * 2, vh * 2);
   ctx.globalCompositeOperation = 'lighter';
-  ctx.beginPath(); ctx.rect(COURSE.xMin, COURSE.yMin, COURSE.xMax - COURSE.xMin, COURSE.yMax - COURSE.yMin); ctx.clip();   // the lights fall on the water; the banks stay dark
+  venuePath(ctx); ctx.clip();   // the lights fall on the water; the banks stay dark
   for (const [px, py] of NIGHT_POLES) {
     if (px < x0 - NIGHT.lightR || px > x0 + vw * 2 + NIGHT.lightR || py < y0 - NIGHT.lightR || py > y0 + vh * 2 + NIGHT.lightR) continue;
     // the pool of light falls on the water a little in from the pole
@@ -315,8 +316,10 @@ function drawNightPoles(S) {
   }
   ctx.restore();
 }
+// d235: the water is the venue's outline (its banks lean), not a box
+function venuePath(c, X = x => x, Y = y => y) { c.beginPath(); VENUE_OUTLINE.forEach(([x, y], i) => i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y))); c.closePath(); }
 function drawWaterSurface(S, cw, ch) {
-  ctx.save(); ctx.beginPath(); ctx.rect(COURSE.xMin, COURSE.yMin, cw, ch); ctx.clip();
+  ctx.save(); venuePath(ctx); ctx.clip();
   const water = ctx.createLinearGradient(0, COURSE.yMin, 0, COURSE.yMax);
   water.addColorStop(0, '#245d65'); water.addColorStop(.27, '#28747b');
   water.addColorStop(.66, '#185b69'); water.addColorStop(1, '#103b4c');
@@ -372,7 +375,7 @@ function drawWaterSurface(S, cw, ch) {
   }
   ctx.restore();
   ctx.strokeStyle = 'rgba(153,207,199,.45)'; ctx.lineWidth = .35;
-  ctx.strokeRect(COURSE.xMin, COURSE.yMin, cw, ch);
+  venuePath(ctx); ctx.stroke();
 }
 
 // 吹き流し on a pole: points downwind, fills out with the wind
@@ -447,38 +450,39 @@ function draw() {
 
   // start / finish line on the lower straight
   ctx.setLineDash([1.2, 1]); ctx.strokeStyle = 'rgba(233,245,242,.45)'; ctx.lineWidth = 0.22;
-  ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(0, COURSE.yMax); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(slitXAt(6), 6); ctx.lineTo(slitXAt(standY(0)), standY(0)); ctx.stroke();   // d235: square to the stand, so it leans
   // turning guide rings
   ctx.setLineDash([0.8, 1.4]); ctx.strokeStyle = 'rgba(233,245,242,.14)'; ctx.lineWidth = 0.18;
   for (const m of COURSE.marks) { ctx.beginPath(); ctx.arc(m.x, m.y, 11, 0, Math.PI * 2); ctx.stroke(); }
   ctx.setLineDash([]);
   // faint line across the course through each turn mark: tells you where the mark is when you're out wide
   ctx.strokeStyle = 'rgba(233,245,242,.12)'; ctx.lineWidth = 0.2;
-  for (const m of COURSE.marks) { ctx.beginPath(); ctx.moveTo(m.x, COURSE.yMin); ctx.lineTo(m.x, COURSE.yMax); ctx.stroke(); }
+  for (const m of COURSE.marks) { ctx.beginPath(); ctx.moveTo(m.x, backY(m.x)); ctx.lineTo(m.x, standY(m.x)); ctx.stroke(); }
   // dashed line 20 m before each mark, across the straight that runs into it (1M: home side, 2M: back side)
   ctx.setLineDash([1, 1]); ctx.strokeStyle = 'rgba(233,245,242,.16)';
-  ctx.beginPath(); ctx.moveTo(MK - 20, 0); ctx.lineTo(MK - 20, COURSE.yMax); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-MK + 20, COURSE.yMin); ctx.lineTo(-MK + 20, 0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(MK - 20, 0); ctx.lineTo(MK - 20, standY(MK - 20)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-MK + 20, backY(-MK + 20)); ctx.lineTo(-MK + 20, 0); ctx.stroke();
   ctx.setLineDash([]);
   ctx.fillStyle = 'rgba(233,245,242,.55)'; ctx.font = '700 1.6px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('スタート／ゴール', 0, COURSE.yMax - 2);
+  ctx.fillText('スタート／ゴール', slitXAt(standY(0) - 2), standY(0) - 2);
 
   // 距離標識: 空中線 (wire across the home straight with flags) and a pole on each side, colour-coded by distance to the line
   if (fleet) {
     for (const [d, col] of DIST_MARKS) {
-      const x = -d;
+      // d235: each wire runs square to the stand like the start line, d m before it
+      const yTop = standY(-d), X = y => slitXAt(y) - d, x = X(0);
       ctx.strokeStyle = 'rgba(233,245,242,.22)'; ctx.lineWidth = 0.12; ctx.setLineDash([]);
-      ctx.beginPath(); ctx.moveTo(x, 3); ctx.lineTo(x, COURSE.yMax - 1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(X(3), 3); ctx.lineTo(X(yTop - 1), yTop - 1); ctx.stroke();
       ctx.fillStyle = col;
       const fw = waterEnv ? Math.hypot(waterEnv.wx, waterEnv.wy) : 0, fl = 0.7 + Math.min(fw, 8) * 0.12, fa = fw > 0.3 ? Math.atan2(waterEnv.wy, waterEnv.wx) : 0, flap = Math.sin(time * (4 + fw)) * 0.15;
-      for (let y = 5; y < COURSE.yMax - 2; y += 4.5) { ctx.save(); ctx.translate(x, y + 0.45); ctx.rotate(fa + flap); ctx.beginPath(); ctx.moveTo(0, -0.45); ctx.lineTo(fl, 0); ctx.lineTo(0, 0.45); ctx.fill(); ctx.restore(); }   // 旗: they stream downwind
-      for (const y of [2.2, COURSE.yMax - 0.6]) { ctx.beginPath(); ctx.arc(x, y, 0.55, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 0.12; ctx.stroke(); }   // ポール
+      for (let y = 5; y < yTop - 2; y += 4.5) { ctx.save(); ctx.translate(X(y), y + 0.45); ctx.rotate(fa + flap); ctx.beginPath(); ctx.moveTo(0, -0.45); ctx.lineTo(fl, 0); ctx.lineTo(0, 0.45); ctx.fill(); ctx.restore(); }   // 旗: they stream downwind
+      for (const y of [2.2, yTop - 0.6]) { ctx.beginPath(); ctx.arc(X(y), y, 0.55, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 0.12; ctx.stroke(); }   // ポール
       ctx.font = '800 1.5px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillText(d + 'm', x + 0.08, COURSE.yMax - 2.3 + 0.08); ctx.fillText(d + 'm', x + 0.08, 0.6 + 0.08);
-      ctx.fillStyle = col; ctx.fillText(d + 'm', x, COURSE.yMax - 2.3); ctx.fillText(d + 'm', x, 0.6);
+      ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillText(d + 'm', X(yTop - 2.3) + 0.08, yTop - 2.3 + 0.08); ctx.fillText(d + 'm', x + 0.08, 0.6 + 0.08);
+      ctx.fillStyle = col; ctx.fillText(d + 'm', X(yTop - 2.3), yTop - 2.3); ctx.fillText(d + 'm', x, 0.6);
     }
   }
-  if (fleet) drawWindsock(6, COURSE.yMax - 1.2);
+  if (fleet) drawWindsock(6, standY(6) - 1.2);
   ctx.lineCap = 'round';
   if (!fleet) {
     // 計測ライン (スタート練習): short ticks across the straight they're on
@@ -503,9 +507,9 @@ function draw() {
     ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 0.8;
     ctx.beginPath(); ctx.moveTo(-MK + 2, 0); ctx.lineTo(SMALL_TURN_BUOY.x - 1.2, 0); ctx.stroke();
     ctx.strokeStyle = 'rgba(232,70,60,.6)'; ctx.lineWidth = 0.25;
-    ctx.beginPath(); ctx.moveTo(-MK, 2); ctx.lineTo(-MK, COURSE.yMax); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-MK, 2); ctx.lineTo(-MK, standY(-MK)); ctx.stroke();
     ctx.fillStyle = 'rgba(232,70,60,.8)'; ctx.font = '700 1.3px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText('150m見通し線', -MK + 0.8, COURSE.yMax - 2); ctx.textAlign = 'center';
+    ctx.fillText('150m見通し線', -MK + 0.8, standY(-MK) - 2); ctx.textAlign = 'center';
     ctx.fillStyle = '#f2cf2e'; ctx.beginPath(); ctx.arc(SMALL_TURN_BUOY.x, SMALL_TURN_BUOY.y, 1.1, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.2; ctx.stroke();
     ctx.fillStyle = 'rgba(233,245,242,.7)'; ctx.font = '700 1.3px "Zen Kaku Gothic New", sans-serif';
@@ -795,8 +799,8 @@ function drawMini() {
   const ox = (w - (COURSE.xMax - COURSE.xMin) * sc) / 2, oy = (h - (COURSE.yMax - COURSE.yMin) * sc) / 2;
   const X = x => ox + (x - COURSE.xMin) * sx, Y = y => oy + (y - COURSE.yMin) * sy;
   mctx.strokeStyle = 'rgba(233,245,242,.3)'; mctx.lineWidth = DPR;
-  mctx.strokeRect(X(COURSE.xMin), Y(COURSE.yMin), (COURSE.xMax - COURSE.xMin) * sx, (COURSE.yMax - COURSE.yMin) * sy);
-  mctx.beginPath(); mctx.moveTo(X(0), Y(6)); mctx.lineTo(X(0), Y(COURSE.yMax)); mctx.stroke();
+  venuePath(mctx, X, Y); mctx.stroke();
+  mctx.beginPath(); mctx.moveTo(X(slitXAt(6)), Y(6)); mctx.lineTo(X(slitXAt(standY(0))), Y(standY(0))); mctx.stroke();
   mctx.strokeStyle = 'rgba(255,122,26,.7)'; mctx.lineWidth = 1.5 * DPR;
   for (const ob of OBSTACLES) if (ob.kind === 'boom') { mctx.beginPath(); mctx.moveTo(X(ob.x1), Y(ob.y1)); mctx.lineTo(X(ob.x2), Y(ob.y2)); mctx.stroke(); }
   mctx.fillStyle = C.buoy;
