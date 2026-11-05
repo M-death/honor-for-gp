@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd236';
+const GAME_VER = 'd237';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -42,8 +42,8 @@ const VENUES_GEO = {
     behind1: 70, behind2: 120,                 // water behind 1M / behind 2M (the pits are past 2M)
     slitK: 0.06,                               // (63 − 45) / 300: the stand closes in on the mark line toward 1M
     // at the start line; spacing as まえ asked (5 m of water between the slow boats, 4 m between the dash boats, hull 1.3 m →
-    // 6.3 / 5.3 m centre to centre); 1号艇 placed so the 6 keeps ~7 m off the wall — provisional until her figures
-    lanes: [15, 21.3, 27.6, 32.9, 38.2, 43.5], laneMax: 46, pitX: -262, spotRoom: 25 },
+    // 6.3 / 5.3 m centre to centre). d237 (まえ): 1号艇 8 m from the mark line to the hull's centre (was 15, provisional)
+    lanes: [8, 14.3, 20.6, 25.9, 31.2, 36.5], laneMax: 46, pitX: -262, spotRoom: 25 },
 };
 const VENUE_LIST = ['standard', 'suminoe'];
 let VENUE = VENUES_GEO.standard;

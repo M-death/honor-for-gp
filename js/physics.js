@@ -411,14 +411,20 @@ function boatPhysics(b, inp, dt) {
   return ev;
 }
 
+// d237 (まえ: 住之江で6号艇が壁に張りついて止まった): the wall takes away only the part of the speed going into it.
+// The first touch costs more the straighter the boat hits (a glancing touch little); while it stays against the wall it
+// scrubs a little more each step, but a boat running along it keeps going (before: half its speed every physics step).
+const WALL_HIT = { first: 0.6, rub: 0.015 };
 function wallsFor(b) {
-  let hit = false;
-  if (b.x < COURSE.xMin + 2) { b.x = COURSE.xMin + 2; hit = true; }
-  if (b.x > COURSE.xMax - 2) { b.x = COURSE.xMax - 2; hit = true; }
+  let hit = false, into = 0;
+  const cx = Math.cos(b.a), sy = Math.sin(b.a);
+  if (b.x < COURSE.xMin + 2) { b.x = COURSE.xMin + 2; hit = true; into = Math.max(into, -cx); }
+  if (b.x > COURSE.xMax - 2) { b.x = COURSE.xMax - 2; hit = true; into = Math.max(into, cx); }
   const yS = standY(b.x) - 2, yB = backY(b.x) + 2;   // d235: the venue's banks (they lean)
-  if (b.y < yB) { b.y = yB; hit = true; }
-  if (b.y > yS) { b.y = yS; hit = true; }
-  if (hit) { b.v *= 0.5; b.vl = 0; }
+  if (b.y < yB) { b.y = yB; hit = true; into = Math.max(into, -sy); }
+  if (b.y > yS) { b.y = yS; hit = true; into = Math.max(into, sy); }
+  if (hit) { b.v *= 1 - (b.onWall ? WALL_HIT.rub : WALL_HIT.first) * clamp(into, 0.05, 1); b.vl = 0; }
+  b.onWall = hit;
   return hit;
 }
 

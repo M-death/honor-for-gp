@@ -688,6 +688,10 @@ function makeDriver(prof, trait = {}) {
     }
     // near a turn mark there is no room inside: only dodge outward, otherwise lift off
     if (inTurn && steerAdd < 0 && !(mem.emergency > 0)) { thrMul = Math.min(thrMul, CPU_TURN.inDodgeThr); steerAdd = 0; }
+    // d237: the wall — where it will be in a second, a boat closing on the bank turns off it (住之江: the stand side closes in toward 1M)
+    { const p = { x: b.x + Math.cos(b.a) * b.v * WALL_AVOID.t, y: b.y + Math.sin(b.a) * b.v * WALL_AVOID.t }, g = wallGap(p.x, p.y);   // (straight on: cheap)
+      if (g < WALL_AVOID.gap) { const away = p.y >= 0 ? -Math.PI / 2 : Math.PI / 2, s = Math.sign(Math.sin(away - b.a)) || -Math.sign(p.y || 1);
+        steerAdd += s * WALL_AVOID.k * clamp((WALL_AVOID.gap - g) / WALL_AVOID.gap, 0, 1); } }
     return { steerAdd: clamp(steerAdd, -0.9, 0.9), thrMul, priority, threats, giveWay };
   }
 
@@ -1503,6 +1507,7 @@ function makeDriver(prof, trait = {}) {
 /* ---------- 6-boat demo race ----------
    Each boat: class (A1–B2 driver profile), entry preference, course, slow/dash start, first-turn tactic. */
 const STRAIGHT_X = MK - 23;   // |x| below this is straight water
+const WALL_AVOID = { t: 1.0, gap: 4, k: 0.8 };   // d237: s ahead it looks; m of water it wants between it and the wall; how hard it turns off
 const SASHI_ORDER = { tactics: ['sashi', 'sashiWin', 'sashiPlace', 'wall'], at: 30, atWall: 18, alongside: 2.5, clear: 4, thr: 0.55, win: { clear: 2.5, thr: 0.72 } };
 const CAUTION_V = { near: 10, k: 0.25, far: 21, turn: 13, turnK: 0.12 };
 // 着順確定: the last boat must be this far (m) past the wreck as well as round the next turn mark.
