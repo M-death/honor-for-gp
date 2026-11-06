@@ -40,9 +40,11 @@ const PLANE = { low: 0.4, v: 23 };
 const thrustK = v => 1 - PLANE.low * clamp(1 - v / PLANE.v, 0, 1);
 // スタート（起こし→スリット）だけは加速が鈍い: 助走100mでスリット時に全速の85%前後、200mで95%前後。
 // 周回中のターン立ち上がりには掛からない（preStart は大時計の針が回っている間、スタートラインを越えるまで）
-const START_ACC = { cut: 0.5, v: 22.5, fade: 40, slowK: 1.19, slowFade: 51 };   // slowK: the スロー start's short run-up digs in harder (it reaches the slit slower and is still climbing)   // fade: m past the slit over which the start's dull pull wears off (the dash boats' 伸び tells there)
+const START_ACC = { cut: 0.5, v: 22.5, fade: 40, slowK: 1, slowFade: 40 };   // d240 (まえ: 起こしからの補正を無しに — インだからアウトだからの補正はなし、立ち上がりは純粋にモーター・ペラ): slowK 1.19→1, slowFade 20→40 (= dash), startWindK off
+//   // d239 (まえ: 1コースが弱い — トップスタートでも負ける): slowFade 51→20 m, the スロー's dull pull wears off sooner past the slit   // slowK: the スロー start's short run-up digs in harder (it reaches the slit slower and is still climbing)   // fade: m past the slit over which the start's dull pull wears off (the dash boats' 伸び tells there)
 // 向かい風 holds the スロー's short run-up back (the dash gets its chance); 追い風 helps it along
-const startWindK = b => b && b.slowStart && waterEnv ? 1 + clamp(-waterEnv.wx, 0, 8) * 0.03 - clamp(waterEnv.wx, 0, 8) * 0.015 : 1;
+const START_WIND_SLOW = false;   // d240: the スロー-only wind cut is off (the wind still pushes every boat through ENV.windAir)
+const startWindK = b => START_WIND_SLOW && b && b.slowStart && waterEnv ? 1 + clamp(-waterEnv.wx, 0, 8) * 0.03 - clamp(waterEnv.wx, 0, 8) * 0.015 : 1;
 const startK = (v, pre, b) => pre ? 1 - Math.min(0.9, START_ACC.cut * (b && b.slowStart ? START_ACC.slowK : 1) * startWindK(b)) * (+pre) * clamp(1 - v / START_ACC.v, 0, 1) : 1;
 // after the slit the slow boats are still climbing: the dull pull fades out over the first fade m of the straight
 const preStartAfter = (bowX, slow) => clamp(1 - bowX / (slow ? START_ACC.slowFade : START_ACC.fade), 0, 1);
@@ -294,7 +296,7 @@ function boatPhysics(b, inp, dt) {
   const monkey = ins * (0.4 + 0.6 * pose) * (1 - 0.5 * downG);
   let grip = GRIP_BASE * (1 + 0.15 * pose) * (1 + TURN.lean * ins * (1 + TURN.upBoost * pose - TURN.downCut * downG)) * (1 + 0.5 * Math.min(0, inside))
     * (1 - TURN.thrWide * t * (1 - monkey)) * (1 + TURN.dropGrip * (1 - t))
-    * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1) * tiltGrip(b) * (b.hullGrip || 1) * (b.bodyGrip || 1) * (b.weightGrip || 1) * mawariK(b, MAWARI.grip) * (1 - CHOP.grip * chopNow()) * (1 - air * BOUNCE.airGrip) * (DRIFT.on ? 1 : 1 - (1 - WILLIE.grip) * wil) * (1 - TRIM.grip * clamp(b.trimPop || 0, 0, 1));
+    * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1) * tiltGrip(b) * (b.hullGrip || 1) * (b.bodyGrip || 1) * (b.weightGrip || 1) * mawariK(b, MAWARI.grip) * (1 - CHOP.grip * chopNow()) * (b.roughGrip || 1) * (1 - air * BOUNCE.airGrip) * (DRIFT.on ? 1 : 1 - (1 - WILLIE.grip) * wil) * (1 - TRIM.grip * clamp(b.trimPop || 0, 0, 1));
   grip = Math.max(2, grip);
 
   // 艇の傾き: where the hull is rolled to, and how much of it is to the inside of the turn it is making
@@ -524,7 +526,7 @@ function boatFx(b, arr, dt) {
     b.wakeAcc = (b.wakeAcc || 0) + dt;
     if (b.wakeAcc > 0.04) { b.wakeAcc = 0; arr.push({ x: b.x - fx * 2.1, y: b.y - fy * 2.1, a: b.a, t: time, v: b.v, s: wakeStrength(b) }); }
   }
-  while (arr.length && time - arr[0].t > WAKE.life * WAKE_TURN.lifeK + 0.2) arr.shift();
+  while (arr.length && time - arr[0].t > WAKE.life * WAKE_TURN.lifeK * (typeof wakeLifeMax === 'function' ? wakeLifeMax() : 1) + 0.2) arr.shift();
   if ((b.wakeBump || 0) > 0.3 && b.v > 8 && simRandom() < 0.5) {
     const side = simRandom() < 0.5 ? -1 : 1;
     spray.push({ x: b.x + fx * 1.6 + rx * side * 0.7, y: b.y + fy * 1.6 + ry * side * 0.7, vx: rx * side * 3 + fx * 2, vy: ry * side * 3 + fy * 2, t: time, life: 0.45 });

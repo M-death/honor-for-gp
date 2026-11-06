@@ -93,6 +93,18 @@ const VENUES = {
     short: { wave: 12, wind: 9 },                                        // 周回短縮 (3周→2周) when it is rougher still
     temp: { off: 0, swing: 4, jitter: 3 },                               // ℃ against the season, the day's swing, day to day
     start: { hour: 10 + 40 / 60, per: 0.5 } },                           // R1 at 10:40, then every 30 min
+  /* d238 住之江 (まえ, boat-log.com の住之江ページ): 淡水 (工業用水＋雨水) で硬い水、浮力が少なく体重が出足に効く。潮なし。
+     穏やかな水面が多く 5m 以上は約 5%。冬は北からの追い風。後半のレースは風が止みがち。
+     2M: コンクリ護岸で引き波が残り、ピット離れ・スタートの引き波がぶつかって複雑な波 → rough (the zone around 2M) */
+  suminoe: { name: '住之江', water: '淡水',
+    tide: { amp: 0, flow: 0 },
+    wind: { strongP: 0.06, base: [0, 2.5], strong: [4, 7], stormP: 0.02, storm: [8, 10], gust: [0.8, 1.2], dirW: [1, 1, 1, 1], dirWS: { winter: [5, 1, 1, 1] }, keepP: 0.4, lateR: 9, lateK: 0.7 },
+    rain: { storm: 0.8, strong: 0.25, calm: 0.08 },
+    wave: { 追い風: 0.8, 向かい風: 1.6, 横風: 1.1, highTide: 0 },
+    stab: { wave: 5, wind: 6 }, short: { wave: 12, wind: 9 },
+    temp: { off: 0, swing: 4, jitter: 3 }, start: { hour: 10 + 40 / 60, per: 0.5 },
+    weightK: 1.3,                                                        // 淡水: 体重の差が出足に 1.3 倍効く
+    rough: { x: -150, y: 0, r: 75, wave: 5, tail: 0.6, grip: 0.04, wakeLife: 1.4, wakeFade: 0.7 } },   // 2M のまわり (r m で 0 まで): 波 cm + 追い風 1m ごとに tail cm, 旋回グリップ低下, 引き波の寿命×・減衰の指数×
 };
 const venueOf = key => VENUES[key] || VENUES.standard;
 
