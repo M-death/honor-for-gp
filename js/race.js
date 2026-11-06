@@ -506,6 +506,9 @@ function cpuChooseFirstMark(b,env,trait,mem){
   if(obs.innerCount&&obs.frontLeadM< -3)scores.makuri-=4;
   if(obs.innerCount&&obs.predictedLeadM<(rule.attackLeadM??COURSE_CPU.attackLeadM))scores.makuri-=rule.attackLeadM?9:4;
  }
+ if(mem.kuWon&&scores.makuri!=null)scores.makuri+=KADO_UKE.makuriK;
+ if(mem.kuSeen&&scores.makuri!=null&&obs.predictedLeadM<KADO_UKE.abortLead){scores.makuri-=KADO_UKE.abortK;if(scores.makurisashi!=null)scores.makurisashi+=3;}   // d245 見切り: 張られて1艇身出られなければ全速まくりはやめる
+ if(mem.kuResp==='lift'&&scores.makurisashi!=null)scores.makurisashi+=KADO_UKE.msK;   // d245: stopped the カド — now its own まくり
  if(scores.makurisashi!=null)scores.makurisashi+=obs.slot?(obs.slot.following?6:5):-9;
  if(scores.sashiWin!=null)scores.sashiWin+=(obs.predictedLeadM<1?2:0)+(obs.innerOpen?3:0);
  if(scores.sashiPlace!=null)scores.sashiPlace+=(obs.slot?-1:2)+(obs.innerOpen?2:0);
@@ -586,7 +589,7 @@ function makeDriver(prof, trait = {}) {
     mem.cpuDecision=null;mem.cpuLine=null;mem.cpuWide=null;mem.cpuThreaded=false;mem.cpuSlotGap=null;mem.cpuReadAt=0;mem.cpuChangedAt=0;
     mem.push = null; mem.pushDecided = false;
     mem.go = false; mem.firstDone = false; mem.dumpT = 0; mem.dumpQ = null; mem.dumpSeen.clear();
-    mem.wakeOff = mem.wakeOffT = mem.wakeAhead = mem.brace = mem.emergency = 0; mem.ft = null; mem.sashiDrop = false; mem.sashiYield = false; mem.exitHold = null; mem.wasInTurn = false; mem.entryWide = 0; mem.nigeDrop = false; mem.squeeze = null; mem.commit = false; mem.follow = false; mem.followDecided = false; mem.kabe = false; mem.kabeDecided = false; mem.commitDecided = false; mem.turnRole = null; mem.turnStyle = null; mem.sqDecided = false; mem.sqResp = null; mem.sqRespT = 0; mem.resistQ = null; mem.planDecided = false; mem.plan = null; mem.tsukeDecided = false; mem.tsukeQ = null; mem.tacticNow = trait.tactic; mem.tacticLock = null; mem.tacticNow = trait.tactic;
+    mem.wakeOff = mem.wakeOffT = mem.wakeAhead = mem.brace = mem.emergency = 0; mem.ft = null; mem.sashiDrop = false; mem.sashiYield = false; mem.exitHold = null; mem.wasInTurn = false; mem.entryWide = 0; mem.nigeDrop = false; mem.squeeze = null; mem.commit = false; mem.follow = false; mem.followDecided = false; mem.kabe = false; mem.kuDecided = null; mem.ku = null; mem.kuWon = false; mem.kuResp = null; mem.kuLift = 0; mem.kuSeen = false; mem.guard = null; mem.kabeDecided = false; mem.commitDecided = false; mem.turnRole = null; mem.turnStyle = null; mem.sqDecided = false; mem.sqResp = null; mem.sqRespT = 0; mem.resistQ = null; mem.planDecided = false; mem.plan = null; mem.tsukeDecided = false; mem.tsukeQ = null; mem.tacticNow = trait.tactic; mem.tacticLock = null; mem.tacticNow = trait.tactic;
   }
   reset();
   const care = trait.care ?? 1;   // how early it gives way (cautious > 1, aggressive < 1)
@@ -903,6 +906,7 @@ function makeDriver(prof, trait = {}) {
           const outerComing = env.outer && env.outer.x - b.x > -3 && (env.outerPlan === 'makuri' || env.outerPlan === 'tsuke');
           let plan = tactic;
           if (mem.squeeze) plan = 'makuri';   // it squeezed the inside: now go over the top
+          else if (mem.kuWon) plan = 'makuri';   // d245: stopped the カド — now its own まくり
           else if (innerAhead < -2.5 && env.stAdv > 0.05 && simRandom() < 0.55 * aggr) plan = 'makuri';
           else if (outerComing && simRandom() < 0.35) plan = 'wall';
           else if (plan === 'sashi') {
@@ -971,10 +975,17 @@ function makeDriver(prof, trait = {}) {
           mem.nagare = simRandom() < p;
         }
         if (mem.nagare) { R += NIGE_NAGARE.R; gap += NIGE_NAGARE.gap; }
+        // d246 (まえ): 外からまくりが来たら1号艇は応じる — 少し膨らんで速く回り、まくらせない（そのかわりインが少しあく＝2号艇の差し場）。
+        // 来なければ今どおりインを締めて回る
+        if (NIGE_GUARD.on && mem.guard == null && b.x > MK - NIGE_GUARD.at && env.competitors) {
+          mem.guard = env.competitors.some(q => q.b !== b && !q.dq && q.b.cap <= 0 && q.trait.course >= 2 && (q.drv.mem.commit || q.drv.mem.squeeze) && q.b.x - b.x > -NIGE_GUARD.behind && q.b.y - b.y < NIGE_GUARD.lat);
+        }
+        b.guard = !!mem.guard && !mem.firstDone;
+        if (mem.guard) { R += NIGE_GUARD.R; gap += NIGE_GUARD.gap; }
         // coming in hot off a 100 m run-up: blip the lever down just before the mark so it can turn tight
         // and shut the door on the 差し, then grip again as soon as it's pointing round
         const tiN = turnInfo(R, loopS(R, b.x, b.y, gap), gap);
-        if (!tiN.inTurn && tiN.toTurn < NIGE_DROP.at) mem.nigeDrop = true;
+        if (!tiN.inTurn && tiN.toTurn < NIGE_DROP.at && !mem.guard) mem.nigeDrop = true;   // (応じる時は落とさず速く回る)
         if (tiN.inTurn && (Math.PI * R - tiN.left) > Math.PI * R * NIGE_DROP.regrip) mem.nigeDrop = false;
       }
       // 差し: lift off a touch, let the inside boats turn, then cut underneath them
@@ -986,6 +997,8 @@ function makeDriver(prof, trait = {}) {
         // and deep, grips later and runs a safer line a little wider.
         const k = SASHI[tactic === 'sashiPlace' ? 'place' : 'win'];
         R = Math.max(8.5, prof.line - k.rCut); late += k.late; gap += k.gapAdd;
+        // d246: 1号艇が外のまくりに応じて膨らんだ → その内側（ふところ）へ小さく差し込む
+        if (NIGE_GUARD.on && trait.course === 2 && env.inner && env.inner.guard) { R = Math.max(8.5, prof.line - NIGE_GUARD.sashiCut); gap = Math.min(gap, (prof.gap ?? 5)); late = Math.max(0, late - k.late); }
         // d243 (まえ: 2コースは普通は差しにいく — 少し前に出ていても1コースに先に回らせる): the 1コース boat close beside/behind
         // (not 2艇身 back) → the 2 drops earlier and deeper and turns in later, behind it
         const yq = trait.course === SASHI_YIELD.course && env.others ? env.others.find(q => q !== b && !(q.cap > 0) && q.y < b.y && b.y - q.y < SASHI_YIELD.lat && b.x - q.x < SASHI_YIELD.clear && b.x - q.x > -SASHI_YIELD.ahead) : null;
@@ -1072,7 +1085,7 @@ function makeDriver(prof, trait = {}) {
         // Side-to-side contact in all this is racing (CONTACT_RULE) unless someone goes over.
         mem.hesaki = false;
         if (!t0.inTurn && t0.toTurn > 60) { mem.hz = null; mem.hzIn = null; b.hzPlan = null; }
-        if (env.others && (t0.inTurn || t0.toTurn < 40)) {
+        if (env.others && (t0.inTurn ? (Math.PI * R - t0.left) < Math.PI * R * HESAKI_PLAY.until : t0.toTurn < 40)) {   // d244: only going in — not on the way out of the turn
           const fx = Math.cos(b.a), fy = Math.sin(b.a), HP = HESAKI_PLAY;
           let shut = false, inQ = null, inD = -1, inL = 0, outQ = null, outD = -1;
           for (const q of env.others) {
@@ -1243,6 +1256,29 @@ function makeDriver(prof, trait = {}) {
         if (mem.follow && env.inner && env.inner.cap <= 0) { ty = Math.max(ty - 8, env.inner.y + FOLLOW.off); squeezing = true; }
         if (mem.squeeze && mem.squeeze.cap <= 0) { ty = Math.max(ty - (mem.sqHard || mem.commit ? 10 : 6), mem.squeeze.y + SQUEEZE.gap); squeezing = true; }   // (an ordinary 絞り; only the 叩き decided at COMMIT.at goes round flat out)
       }
+      if (first && b.y > 0 && b.x < MK - 45 && env.inner) {
+      // d245 カド受け (まえ): the slow 3 with a dash boat outside it 張る at the slit — pushes out to stop the カド's 伸び —
+        // and once it has it stopped, goes over the top itself
+        if (KADO_UKE.on && trait.course === 3 && trait.slow && env.outer && env.outerDash && !mem.commit && mem.kuDecided == null && b.x > KADO_UKE.at) {
+          const lead = env.outer.x - b.x;
+          mem.kuDecided = env.outer.cap <= 0 && lead < KADO_UKE.maxLead && lead > -KADO_UKE.won && env.outer.y - b.y < KADO_UKE.lat && simRandom() < (KADO_UKE.p[trait.temper] ?? 0.65) * Math.min(1.3, trait.pushMul ?? 1);
+          mem.ku = mem.kuDecided ? env.outer : null;
+        }
+        if (mem.ku) {
+          const q = mem.ku;
+          if (q.cap > 0 || q.x - b.x > KADO_UKE.lost || b.x > KADO_UKE.until) mem.ku = null;   // got clean away anyway / out of time
+          else if (b.x - q.x > KADO_UKE.won) { mem.ku = null; mem.kuWon = true; }        // its 伸び is stopped: now go
+          else { ty = Math.max(ty, Math.min(q.y - KADO_UKE.clr, b.y + KADO_UKE.step)); squeezing = true; mem.kabe = true; }
+        }
+      }
+      // d245 カドの側: the カド受け is coming out at it while it is not clear ahead (under a length in front) — mostly it
+      // eases off (引く) rather than bang sides at 78 km/h, and then looks for the まくり差し; otherwise it swings wide flat out
+      if (first && env.innerKu) mem.kuSeen = true;
+      if (first && b.y > 0 && b.x < MK - 45 && env.innerKu && mem.kuResp == null && env.inner && env.inner.y < b.y) {
+        const lead = b.x - env.inner.x;
+        if (b.y - env.inner.y < KADO_UKE.touch) mem.kuResp = lead < KADO_UKE.liftLead && simRandom() < (KADO_UKE.liftP[trait.temper] ?? 0.6) ? 'lift' : 'wide';
+        if (mem.kuResp === 'lift') mem.kuLift = KADO_UKE.liftT;
+      }
       // being squeezed from outside: give way (引く — lift, tuck in behind) or, now and then, fight it (抵抗)
       if (mem.kabe && !mem.sqResp) { mem.sqResp = 'kabe'; mem.sqRespT = 0; }
       if (first && b.y > 0 && env.outerSqueeze && !mem.sqResp && b.x < MK - 45) {
@@ -1366,6 +1402,7 @@ function makeDriver(prof, trait = {}) {
       // (and doesn't lift on the straight either: the boat coming across has to get clear itself)
       if (first && mem.kabe && b.y > 0 && !avoiding) { thrT = Math.max(thrT, 0.97); pitchT = Math.max(pitchT, -0.2); }   // 壁: flat out alongside it
       if (mem.resistQ) thrT = 1;
+      if (first && mem.kuLift > 0) { thrT = Math.min(thrT, KADO_UKE.liftThr); pitchT = Math.min(pitchT, 0); mem.kuLift -= dt; }   // d245: 張られて引く
       if (first && isSashi && mem.sashiDrop) { thrT = Math.min(thrT, mem.sashiLever); pitchT = Math.min(pitchT, 0); }   // lever down, sat up
       if (first && tactic === 'wall' && !(mem.emergency > 0)) thrT = Math.max(thrT, 0.95);
       if (first && tactic === 'nige' && mem.nigeDrop) thrT = Math.min(thrT, NIGE_DROP.lever[prof.name] ?? 0.7);
@@ -1537,6 +1574,7 @@ const CAUTION_ZONE = { past: 20, yield: 10 };   // yield: closer than this (m) t
 const CAUTION_TURN = { reach: 50, clear: 9, maxR: 44, minR: 12 };   // a wreck within reach (m) of a turn mark: keep clear m from it, the circle at most maxR (minR when squeezing inside)
 const nearWreck = (b, d) => fleet.wrecks.some(w => Math.hypot(w.x - b.x, w.y - b.y) < d);   // m/s at the wreck, gain per m away, cap away from it
 // 流れ: how often the 逃げ swings wide off 1M (by class), and how much more under pressure / after a poor start
+const NIGE_GUARD = { on: true, at: 60, behind: 3, lat: 25, R: 4, gap: 2.5, sashiCut: 6 };   // d246: decided this far before 1M; a まくり boat no more than this far behind / this far out; extra radius / buoy gap; the 2's tighter 差し
 const NIGE_NAGARE = { p: { TOP: 0.1, A1: 0.13, A2: 0.18, B1: 0.24, B2: 0.3 }, press: 0.15, late: 0.15, tail: 0.1, R: 3.5, gap: 2 };   // m before 1M; overlap window (m behind / ahead of the inside boat); lever while yielding
 const MAKURI_LINE = { off: 4, offAhead: 2.2, wall: 3, maxGap: 26, behind: 8 };   // m outside the target boat's line (まくり / 壁); ignore inside boats this far behind
 // the boat a まくり goes over: the nearest one inside me (on the home side) that isn't already well beaten
@@ -1549,7 +1587,7 @@ function innerTarget(b, env) {
   }
   return best;
 }
-const HESAKI_PLAY = { firstMax: 3.5, firstK: { calm: 0.7, normal: 1, aggr: 1.3 }, firstPre: 5, sashiP: { calm: 0.6, normal: 0.45, aggr: 0.3 }, liftThr: 0.55,
+const HESAKI_PLAY = { until: 0.5, firstMax: 3.5, firstK: { calm: 0.7, normal: 1, aggr: 1.3 }, firstPre: 5, sashiP: { calm: 0.6, normal: 0.45, aggr: 0.3 }, liftThr: 0.55,
   checkP: { calm: 0.35, normal: 0.5, aggr: 0.65 }, checkOut: 1.5, checkLate: 3, earlyPre: 4, holdD: 2.2 };   // d172 舳先がかかった時の駆け引き (see the turn code)
 const TURN_ORDER = { dropSashi: true, dropLead: 2, dropRoom: 1, commitLead: 3.0, startedA: 0.3, alongX: 7, overOff: 2, swellOver: 2, slotOff: 3, swellOut: 4, swellWide: 5, others: 3, sashiMin: 4, forceRoom: 3.5, wideOff: 5, waitThr: 0.7, yieldMargin: 2.5, zone: 38, ahead: 2.0, lat: 16, room: 5, sashiIn: 3.5, outOff: 4, yieldThr: 0.65, sashiThr: 0.9, sashiClear: 4 };
 // how far off the buoy a boat is: running in, its distance off the buoy's line; going round, its radius
@@ -1633,6 +1671,7 @@ function turnRoleOf(b, env, style) {
 // inside is crowded, lift and turn late and tight behind them all — the 6コース 最内差し)
 const COMMIT = { at: 25, lead: 3.5, dv: 1.0 };   // 叩き: decided this far past the slit; needs this lead (m) and this much more speed (m/s) than the boat inside
 const SIDE_ON = { ang: 0.6, yaw: 0.3, cut: 0.95 };   // giving way to a boat turning across: heading difference (rad), its turn rate (rad/s), how hard to lift
+const KADO_UKE = { on: true, abortLead: 5, abortK: 8, makuriK: 10, msK: 8, touch: 5.5, liftLead: 4.5, liftP: { calm: 0.8, normal: 0.65, aggr: 0.45 }, liftT: 1.2, liftThr: 0.7, at: 0, maxLead: 4, lat: 9, p: { calm: 0.5, normal: 0.7, aggr: 0.85 }, clr: 0.8, step: 5, lost: 6, won: 1.5, until: 85 };   // d245 カド受けの張り: from the slit; only if the dash is < this far ahead; chance by temper; m held off it; m/step out; gives up when it is this far ahead; done when this far in front of it
 const MAKURI3 = { lead: 1.5, p: 0.6, wallP: { calm: 0.25, normal: 0.45, aggr: 0.65 } };   // 3コース: m in front of the 2 to go for it; chance; カド受けの壁 by temper
 const FOLLOW = { p: { calm: 0.55, normal: 0.75, aggr: 0.9 }, off: 5 };   // 連動: chance to follow a 叩き from inside; how far outside it to run
 // 外全速ターン: from how far before 1M it swings out; how far past the mark it pivots; the lane it keeps outside the
@@ -2757,7 +2796,7 @@ function fleetStep(dt, playerInput) {
                   competitors:fleet.boats, inner: inR && !inR.dq ? inR.b : null, outer: outR && !outR.dq ? outR.b : null,
                   outerPlan: outR ? (outR.drv.mem.tacticNow || outR.trait.tactic) : null,
                   innerCommit: !!(inR && !inR.dq && inR.drv && inR.drv.mem.commit), innerGo: !!(inR && !inR.dq && inR.drv && inR.drv.mem.go),
-                  outerCommit: !!(outR && !outR.dq && outR.drv && outR.drv.mem.commit),
+                  outerCommit: !!(outR && !outR.dq && outR.drv && outR.drv.mem.commit), outerDash: !!(outR && !outR.dq && outR.trait && !outR.trait.slow), innerKu: !!(inR && !inR.dq && inR.drv && inR.drv.mem.ku === b),
                   outerSqueeze: fleet.boats.some(q => q !== r && !q.dq && q.drv && q.drv.mem.squeeze === r.b),
                   stAdv: inR && r.st != null ? (inR.st != null ? inR.st - r.st : Math.max(0, time - zero) - r.st) : 0,   // inside boat not across yet: at least this much behind
                     battle: r.battle, fight: !!r.fight, retire: r.flying && r.passed1M,
