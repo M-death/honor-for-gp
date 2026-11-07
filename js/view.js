@@ -307,6 +307,37 @@ function drawNightWater(S) {
   }
   ctx.restore();
 }
+// d250 (まえ: ナイトだと仮線が見えにくい、ターンマークがいつ来るかわからん): over the night darkness, the guide lines
+// (start line, the line through each mark, the dashed line 20 m before it, the turning rings) and the marks glow softly
+function drawNightGuides() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter'; ctx.shadowColor = 'rgba(150,220,255,.9)'; ctx.shadowBlur = 4 * DPR;
+  const col = a => `rgba(170,225,255,${a})`;
+  ctx.lineWidth = 0.22; ctx.strokeStyle = col(.42); ctx.setLineDash([1.2, 1]);
+  ctx.beginPath(); ctx.moveTo(slitXAt(6), 6); ctx.lineTo(slitXAt(standY(0)), standY(0)); ctx.stroke();
+  ctx.setLineDash([]); ctx.strokeStyle = col(.24); ctx.lineWidth = 0.2;
+  for (const m of COURSE.marks) { ctx.beginPath(); ctx.moveTo(m.x, backY(m.x)); ctx.lineTo(m.x, standY(m.x)); ctx.stroke(); }
+  ctx.setLineDash([1, 1]); ctx.strokeStyle = col(.38);
+  ctx.beginPath(); ctx.moveTo(MK - 20, 0); ctx.lineTo(MK - 20, standY(MK - 20)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-MK + 20, backY(-MK + 20)); ctx.lineTo(-MK + 20, 0); ctx.stroke();
+  ctx.setLineDash([0.8, 1.4]); ctx.strokeStyle = col(.22); ctx.lineWidth = 0.18;
+  for (const m of COURSE.marks) { ctx.beginPath(); ctx.arc(m.x, m.y, 11, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.setLineDash([]); ctx.shadowBlur = 0;
+  // the marks: a lit buoy with a halo on the water
+  for (const m of COURSE.marks) {
+    const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, 7);
+    g.addColorStop(0, 'rgba(255,190,120,.45)'); g.addColorStop(1, 'rgba(255,170,90,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(m.x, m.y, 7, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const m of COURSE.marks) {
+    ctx.fillStyle = C.buoy; ctx.beginPath(); ctx.arc(m.x, m.y, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.28; ctx.stroke();
+    ctx.fillStyle = 'rgba(233,245,242,.85)'; ctx.font = '700 1.8px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(m.name, m.x, m.y - 2.6);
+  }
+  ctx.restore();
+}
 function drawNightPoles(S) {
   ctx.save();
   for (const [px, py] of NIGHT_POLES) {
@@ -538,7 +569,7 @@ function draw() {
     ctx.fillText(m.name, m.x, m.y - 2.6);
   }
 
-  if (isNight()) drawNightWater(S);
+  if (isNight()) { drawNightWater(S); drawNightGuides(); }
   // spray
   for (let i = spray.length - 1; i >= 0; i--) {
     const s = spray[i], age = time - s.t;

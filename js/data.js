@@ -44,7 +44,7 @@ function skillLerp(v, get) {   // value v → interpolate get(className) between
 const DRV = name => DRIVERS.find(d => d.name === name);
 // ---- ネームドレーサー (d203, まえ): a named rider can be put in a 枠 of the 6艇レース (one of each per race).
 // prof = the class table it drives by, plus its own ways (race.js / physics.js read the flags):
-//   umi — 瀬戸内羽美 (A2, 岡山・児島): pulls to 6コース from any 枠 but the 1 (and from the 1 at any hint of a 前付け);
+//   umi — 瀬戸内羽美 (A2, 岡山): pulls to 6コース from any 枠 but the 1 (and from the 1 at any hint of a 前付け);
 //   記念-level starts; A2 turns, but takes a clear mark flat out and wide like a 記念 rider (round the outside of a crowd
 //   rather than into it); tilt 3.0 always — turns on it without sliding out, still hops on wake; hard to capsize;
 //   all but never lets go of the lever, never gives way; leaves her motor as drawn (a bad one stays bad).

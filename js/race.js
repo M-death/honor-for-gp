@@ -3184,7 +3184,7 @@ function resNext() { if (resPhotoT) { clearTimeout(resPhotoT); resPhotoT = 0; co
   clearTimeout(resTimer); clearInterval(resCountT); resCountT = 0; if ($('resBox').hidden) return; $('resBox').hidden = true; if (VR) VR.discard();   // 動画用ログ: leaving the board drops it
   const a = resAfter; resAfter = null; if (a) a(); }
 /* ---- 実況テキスト: at the key moments a line of commentary slides across the top of the screen.
-   Styles: 標準 (plain), 熱血 (児島風のノリ — big and loud). A venue can name its own style later (VENUES[...].jikkyo). ---- */
+   Styles: 標準 (plain), 熱血 (big and loud). A venue can name its own style later (VENUES[...].jikkyo). ---- */
 const JK = { hold: 3.2, gap: 0.6, posEvery: 0.5, posCool: 4 };
 let jkMode = 'std';
 try { jkMode = localStorage.getItem('honorGP.jikkyo') || 'std'; } catch (e) {}

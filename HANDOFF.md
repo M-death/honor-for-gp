@@ -1,4 +1,4 @@
-# Honor for GP 波の向こうに — 引き継ぎ資料（d250 時点）
+# Honor for GP 波の向こうに — 引き継ぎ資料（d252 時点）
 
 この資料は、別の会話（AI）や将来の自分が開発を続けるための引き継ぎです。
 **本体は `index.html`（1ファイル）**。この資料と一緒に渡してください。
@@ -331,6 +331,8 @@
 | d248 回り足＝行き足（まえ）：6艇レース・デモのモーターも節間と同じ3段階に。race.js fitMotor b.mMid = motor.mid ?? 1 + (mawari − 1) × MID_FX（2）— 出足 0〜25km/h 100%→47で0、回り足（行き足）25〜79km/h（47〜58で100%）、伸び 58km/h〜（79で100%）。旋回中だけ推進2.5倍で効いていた回り足（mawariK thr）は3段階モデルでは通らなくなる（グリップへの効き MAWARI.grip は残る）。MID_FX 1 のままだと住之江 1コース 57→66%、練習コース 29→37/48（モーター差が縮んで内が強くなる）。平均モーター（TA）は不変。住之江96R：57/14/9/9/4/3→61/14/10/8/2/1。待機行動あり48R：18/10/5/11/4/0→22/7/3/12/2/2。練習コース48R：29/7/2/8/2/0→29/4/5/7/3/0（事故.15→.21） | core.js, race.js |
 | d249 会場名を「なにわ競艇場」に（まえ：実名は使わない。リプレイ開始時のレース情報に場所も出すので、リプレイログと整合させる）：core.js VENUES_GEO.suminoe.name・data.js VENUES.suminoe.name・index.html のコース選択を「なにわ競艇場」に。中のID suminoe・TA記録キー（honorGP.ta.d225.suminoe）はそのまま。vlog.js header.race.venueName を走った場の名前に（6艇レース・デモ・TAでは今まで常に標準水面になっていた）、race.venueId を追加。REPLAY_APP_GUIDE.md §3：場が2つあること、画面には venue.name を出し suminoe は出さないこと、コース形状は header.venue を使うこと、header.race の中身（節間以外は日目・R番号・時刻が null）。レースは変わらない | core.js, data.js, vlog.js, index.html, REPLAY_APP_GUIDE.md |
 | d250 リプレイ側の要望書（2026-11-07）への回答（まえ：リプレイが取れるログには全てつけて）：vlog.js header.venue に venueLayout()（marks・startLine・course・water・standsSide・stands null・clock・pit・lights.poles・waterType・scenery・distMarks・jikkyoStyle、formatFeatures venue-layout-v1）、header.race に raceInfo()（6艇・デモ：title・raceNo 1〜12（夕方10〜12）・day 1・startTime 番組表、TA：attempt・startTime、race-info-v1）。view.js NIGHT_POLES がコース切替に追従（venueHooks）。サンプル video_log_samples/sample_d250_naniwa_{day,night,nearbank}.json.gz、回答 REPLAY_LOG_ANSWER_d250.md。走りは変更なし |
+| d251 ナイトの仮線を発光（まえ：ナイトだと仮線が見えにくい、ターンマークがいつ来るかわからん）：view.js drawNightGuides — 夜の暗さの上に、スタートライン・マークを通る線・マーク手前20mの破線・旋回の輪を薄い青白の光（lighter＋shadowBlur）で重ね、ターンマークに橙の光の輪。見た目だけ、走りは変更なし |
+| d252 実在の場名を外す（まえ：児島表記は無しで）：設定「実況」の「熱血（児島風）」→「熱血」（index.html）、data.js・race.js のコメントの児島も削除。羽美の支部表示は前から「岡山」だけ。体験版（trial/）にはまだ残っている（体験版をまとめて更新するときに入る） |
 
 ---
 
