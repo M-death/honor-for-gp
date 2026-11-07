@@ -41,6 +41,19 @@ d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）�
 - d229 夕方（formatFeatures `evening-v1`）：`conditions.timeOfDay` が `"evening"`、`conditions.lighting` が `"sunset"`。昼・夜と同じく見た目だけの違いで、レースの中身は変わりません。夕方になるのは、ゲームの設定「時間帯」＝夕方のとき、または節間の秋で発走15:30以降（11R・12R）・冬で発走15:00以降（10R〜12R）のとき（`race.startTime` に発走時刻、`race`/`setsu` に日とレース番号）。ナイター設定が優先されます。ゲーム内では画面に薄い橙色をかけるだけです。動画アプリは timeOfDay が evening なら夕方の表現にしてください。`evening-v1` の無い古いログには evening は出てきません（timeOfDay は day か night）。
 - d235 コースの形（formatFeatures `venue-geometry-v1`、`venue.courseVersion` 2、`venue.venueId` "suminoe"）：住之江の図をもとにコースを作り直しました。座標の取り方は前と同じです（x はマーク線方向、1マーク +150・2マーク −150、y=0 がマーク線、+y がスタンド側＝スタートの直線、画面と同じく +y は下）。`venue.stand` / `venue.back` はマーク線から壁までの距離（m）を [x, 距離] で 2マーク・中央・1マークの3点（スタンド側 63/51/45、対岸側 67/75/85）。3点の間は直線、マークより外は端の区間をそのまま延ばします。`behind1` / `behind2` はマークの後ろの水面（70 / 120m）。`outline` は水面の外形（スタンド側を 2M→1M、続いて対岸側を 1M→2M の順に並べた多角形、y は対岸側が負）。スタートライン（スリット）はスタンドに直角なので、マーク線に対して少し斜めです：`x = startLineK × y`（startLineK 0.06、y>0 の側だけ）。`laneYAtSlit` は各コースがスリットを通る位置（マーク線から m）。各コースはスリットに直角（スタンドと平行）に走ります。`courseVersion` 1（d234 まで）のログは ±58m の長方形・スリットは x=0 の直線です。
 - d236 コースが2つに：練習コース（`venue.venueId` "standard"、`courseVersion` 1、d234 までのコース：両側58mの長方形、`behind1` 50・`behind2` 160、スリットはまっすぐ `startLineK` 0）と住之江（"suminoe"、`courseVersion` 2、上の d235 の形）。どちらのログにも `stand`・`back`・`outline`・`startLineK`・`laneYAtSlit` が入るので、場の形はこれで描けます。`venue.name` は「練習コース」か「住之江」。`venueId` の無い古いログは練習コースです。
+- d250 場の配置（formatFeatures `venue-layout-v1`。リプレイ側の要望書 2026-11-07 への回答）：`header.venue` に次を足しました。前からある項目（`markX`・`startLineX`・`stand`・`back`・`outline` など）はそのまま残しています。標準水面（練習コース）のログにも同じ項目が入ります。座標は走行フレームと同じです。
+  - `marks`：`[{name, x, y}]`（1M・2M。今はどちらの場も x = ±150、y = 0）。
+  - `startLine`：スタートラインの両端 `[[x, y], [x, y]]`。マーク線（y 0）からスタンド側の壁まで（なにわ `[[0,0],[3.05,50.88]]`、練習コース `[[0,0],[0,58]]`）。x = `startLineK` × y。
+  - `course`：`{xMin, xMax, yMin, yMax}`。走れる水面を囲む四角（なにわ −270/220/−89.67/72.6、練習 −310/200/−58/58）。
+  - `water`：水面の外形の多角形。`outline` と同じ点です（スタンド側を 2M→1M、対岸側を 1M→2M）。
+  - `standsSide`：観客席の側。どちらの場も `"+y"`。`stands`：null（本編にスタンドの建物は無いので、リプレイ側で置いてください）。
+  - `clock`：大時計 `{x, y, onBank: true}`。スタンド側の岸の真ん中（x 0、y はその岸の位置）。本編は画面の右上に出すだけで、水面には描いていません。
+  - `pit`：`{x, y: [1〜6号艇の y], exitHeading: 0}`。ピットは2Mの後ろのスタンド側、艇は1M向き（heading 0）、1号艇がいちばん内側。
+  - `lights`：ナイター照明の柱。`{spacing: 40, offset: 7, poles: [[x, y], …]}`。`poles` は本編が置いている柱の位置そのもの（両岸に40mごと・岸から7m外、両端に3本ずつ）。d250 で、コースを切り替えても柱が最初のコースの位置のままだった不具合を直しました。
+  - `waterType`：`salt`（練習コース）／`fresh`（なにわ）。`scenery`：`suburban`（練習コース）／`urban`（なにわ）。
+  - `distMarks`：水面の距離標識 `[[スタートラインまでの m, 色], …]`（200・150・100・45・40・30・5）。
+  - `jikkyoStyle`：そのレースの実況の設定（`std` 標準 / `hot` 熱血 / `off` なし）。場ではなくプレイヤーの設定です。
+  - 風と潮の向き（前からの項目）：`conditions.windVec {wx, wy}` は**風が吹いていく向き**（+x ＝ 1M へ向かう ＝ 追い風、+y ＝ スタンド側へ）。`conditions.tideFlow` は流れの向きで +x が正（1M へ流れる）。なにわは淡水で潮が無いので `tideFlow` 0、`tideLv` null。
 - `effectSeed` は raceId から作ったハッシュです。しぶきなどの演出の乱数に使ってください（ゲームの乱数は進めていません）。
 - `terminalSnapshot` は最後の時刻（決着の5秒後）の全艇の状態です。
 
@@ -184,13 +197,14 @@ d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）�
 
 | 項目 | 内容 |
 |---|---|
-| `title` | レース名（予選・ドリーム戦・一般戦・特別選抜・準優勝戦・優勝戦）。節間以外は null |
-| `raceNo` | 何R（節間のみ） |
+| `title` | レース名（予選・ドリーム戦・一般戦・特別選抜・準優勝戦・優勝戦）。d250〜 節間以外は「6艇レース」「デモレース」「タイムアタック」（それより前は null） |
+| `raceNo` | 何R。d250〜 6艇レース・デモにも入る（その日に走った順で1〜12R、夕方は10〜12R）。TAは null |
+| `attempt` | d250〜 TAの何回目か（ほかは null） |
 | `grade` | 節間：`"SG"` か `"一般"`。節間以外：SGモードなら `"SG"`、ほかは null |
-| `venueName` | 場名の表示（今は「標準水面」） |
+| `venueName`, `venueId` | 場名の表示と場ID（d249〜 走った場：「練習コース」/`standard`・「なにわ競艇場」/`suminoe`。d248までは非節間で常に「標準水面」） |
 | `date` | ゲーム内の日付。今のゲームには無いので null |
-| `day`, `dayLabel` | 節の何日目（1〜6）と表示（初日・2日目…最終日（優勝戦）） |
-| `startTime` | 発走時刻（例 `"15:10"`、節間のみ） |
+| `day`, `dayLabel` | 節の何日目（1〜6）と表示（初日・2日目…最終日（優勝戦））。d250〜 6艇レース・デモは 1・初日、TAは null |
+| `startTime` | 発走時刻（例 `"15:10"`）。d250〜 全てのログ：節間以外は場の番組表から（昼 1R 10:40・30分ごと、ナイター 1R 15:10） |
 
 **`header.view.trim`**（舳先の式と係数、d173 の値）
 

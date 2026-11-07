@@ -286,7 +286,8 @@ function nightPoles() {
   for (const y of [-30, 0, 30]) { P.push([COURSE.xMax + NIGHT.poleOut + 4, y]); P.push([COURSE.xMin - NIGHT.poleOut, y]); }
   return P;
 }
-const NIGHT_POLES = nightPoles();
+let NIGHT_POLES = nightPoles();
+venueHooks.push(() => { NIGHT_POLES = nightPoles(); });   // d250: the poles follow the venue (they stayed where the first venue had them)
 function drawNightWater(S) {
   // world coords (the caller has the camera transform on); cover well past what the screen shows
   const vw = W / S, vh = H / S, x0 = cam.x - vw, y0 = cam.y - vh;

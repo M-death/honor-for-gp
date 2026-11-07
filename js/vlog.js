@@ -5,7 +5,7 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1', 'venue-layout-v1', 'race-info-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
   audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163',    // d236: venue fields come from VENUE (練習コース: 'standard' v1, 住之江: 'suminoe' v2)
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
@@ -54,10 +54,41 @@ VR = (() => {
     if (r && r.gone) v.forEach((_, i) => { if (i > 1 && i !== 18) v[i] = i === 21 || i === 22 || i === 25 ? NaN : 0; });   // d216: off the water — only where it left (x, y) and the flags
     for (let i = 0; i < VL_NF; i++) out[o + i] = i === 21 || i === 22 || i === 25 ? fin(v[i]) : (Number.isFinite(v[i]) ? v[i] : 0);
   }
+  // d250 race-info-v1 (まえ: リプレイが取れるログには全てレース情報を): races outside the 節間 get a made-up race number and post time
+  // from the venue's schedule (R1 10:40, then every 30 min; ナイター R1 15:10; 夕方 = 10–12R), so the replay's opening card always has them
+  let raceSeq = 0, taSeq = 0;
+  const hhmm = h => `${Math.floor(h + 1e-9)}:${String(Math.round((h % 1) * 60) % 60).padStart(2, '0')}`;
+  function raceInfo(mode, tod) {
+    const V = venueOf(VENUE.id), n = mode === 'ta' ? taSeq : raceSeq;
+    const raceNo = mode === 'ta' ? null : tod === 'evening' ? 10 + (n - 1) % 3 : (n - 1) % 12 + 1;
+    const h0 = tod === 'night' ? 15 + 10 / 60 : V.start.hour, h = h0 + ((raceNo || ((n - 1) % 12 + 1)) - 1) * V.start.per;
+    return { title: mode === 'ta' ? 'タイムアタック' : mode === 'demo' ? 'デモレース' : '6艇レース', raceNo, attempt: mode === 'ta' ? n : null,
+      day: mode === 'ta' ? null : 1, dayLabel: mode === 'ta' ? null : SETSU.dayJa[1], startTime: hhmm(h) };
+  }
+  // d250 venue-layout-v1 (リプレイ側の要望書 2026-11-07): the course as the replay needs it — all in the frames' coordinates
+  function venueLayout() {
+    let ys = standY(0); for (let i = 0; i < 8; i++) ys = standY(slitXAt(ys));   // where the (leaning) start line meets the stand wall
+    const V = venueOf(VENUE.id), r2 = v => +v.toFixed(2);
+    const poles = typeof NIGHT_POLES !== 'undefined' ? NIGHT_POLES : [];
+    return {
+      marks: COURSE.marks.map(m => ({ name: m.name, x: m.x, y: m.y })),
+      startLine: [[0, 0], [r2(slitXAt(ys)), r2(ys)]],                 // x = startLineK·y from the mark line (y 0) to the stand wall
+      course: { xMin: r2(COURSE.xMin), xMax: r2(COURSE.xMax), yMin: r2(COURSE.yMin), yMax: r2(COURSE.yMax) },
+      water: VENUE_OUTLINE.map(([x, y]) => [r2(x), r2(y)]),
+      standsSide: '+y', stands: null,                                   // the game has no stand building: the replay places it
+      clock: { x: 0, y: r2(standY(0)), onBank: true },                  // スタンド側中央の岸 (まえの図); not drawn on the water in the game
+      pit: { x: ENTRY.pitX, y: ENTRY.pitY.slice(), exitHeading: 0 },    // 1号艇 innermost; bows toward 1M
+      lights: { spacing: NIGHT.poleDx, offset: NIGHT.poleOut, poles: poles.map(([x, y]) => [r2(x), r2(y)]) },
+      waterType: { 海水: 'salt', 淡水: 'fresh', 汽水: 'brackish' }[V.water] || null,
+      scenery: VENUE.id === 'suminoe' ? 'urban' : 'suburban',
+      distMarks: DIST_MARKS.map(([m, c]) => [m, c]),                     // m before the start line, colour
+      jikkyoStyle: typeof jkMode !== 'undefined' ? jkMode : null };     // the commentary setting used (std / hot / off) — a setting, not the venue's
+  }
   function begin(mode) {
     discard();
     if (!vlOn || lab.active) return;
     gen++; seq++;
+    if (mode === 'ta') taSeq++; else if (mode !== 'setsu') raceSeq++;   // d250 race-info-v1: this session's race count (6艇・デモ / TA)
     const at = new Date();
     R = { gen, mode, night: typeof isNight === 'function' && isNight(), tod: null, solo: mode === 'ta', id: `${at.getTime().toString(36)}${seq}`, createdAt: at, inp: new WeakMap(), prevBoat: new Map(), contactAt: new Map(),
       zeroT: null, ring: [], prev: null, origin: null, n: 0, chunks: [], cur: null, curN: 0, nb: 0, events: [],
@@ -349,18 +380,18 @@ VR = (() => {
       if (pr.nameKana == null) pr.nameKana = racerKana(pr.name);
       Object.assign(e, pr);
     }
-    const race = st ? { title: st.kind || null, raceNo: st.R ?? null, grade: setsu.grade === 'sg' ? 'SG' : '一般', venueName: venueOf(setsu.venue).name, date: null, day: st.day ?? null,
-                        dayLabel: SETSU.dayJa[st.day] || null, startTime: st.env && st.env.time || null }
-      : { title: null, raceNo: null, grade: !R.solo && sgMode ? 'SG' : null, venueName: venueOf('standard').name, date: null, day: null, dayLabel: null, startTime: null };
     // d229 夕方: decided when the file is made (a 節間 race's season and start time are set just after the recorder starts)
     if (!R.tod) R.tod = R.night ? 'night' : typeof todNow === 'function' ? todNow() : 'day';
+    const race = st ? { title: st.kind || null, raceNo: st.R ?? null, grade: setsu.grade === 'sg' ? 'SG' : '一般', venueName: (VENUES_GEO[setsu.venue] || VENUE).name, venueId: setsu.venue, date: null, day: st.day ?? null,
+                        dayLabel: SETSU.dayJa[st.day] || null, startTime: st.env && st.env.time || null }
+      : { grade: !R.solo && sgMode ? 'SG' : null, venueName: VENUE.name, venueId: VENUE.id, date: null, ...(R.info || (R.info = raceInfo(R.mode, R.tod))) };   // d249 venue; d250 race-info-v1
     const env = Object.assign(R.solo || !waterEnv ? { calm: true, laps: R.solo ? TA.laps : 3 } : { laps: raceLaps(), dir: waterEnv.dir, wind: waterEnv.wind, windVec: { wx: waterEnv.wx, wy: waterEnv.wy },
       tideFlow: waterEnv.cx, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, tideLv: waterEnv.tideLv }, { timeOfDay: R.tod || (R.night ? 'night' : 'day'), lighting: { night: 'floodlights', evening: 'sunset' }[R.tod || (R.night ? 'night' : 'day')] || 'daylight' });   // d217 ナイトレース
     let seedH = 2166136261; for (const ch of R.id) seedH = Math.imul(seedH ^ ch.charCodeAt(0), 16777619) >>> 0;
     return {
       mode: R.mode, sg: !R.solo && !!sgMode, race, setsu: st ? { day: st.day, race: st.R, kind: st.kind || null } : null, entryResult: !R.solo && fleet.entryResult ? fleet.entryResult.text : null,
       entries: ents, playerNo: R.solo ? 1 : fleet.playerNo || null, conditions: env,
-      venue: { name: VENUE.name, venueId: VENUE.id, courseVersion: VENUE.courseVersion, markX: MK, startLineX: 0, startLineK: VENUE.slitK, stand: VENUE.stand, back: VENUE.back, behind1: VENUE.behind1, behind2: VENUE.behind2, outline: VENUE_OUTLINE.map(([x, y]) => [+x.toFixed(2), +y.toFixed(2)]), laneYAtSlit: LANE.ys },   // d235 venue-geometry-v1
+      venue: { name: VENUE.name, venueId: VENUE.id, courseVersion: VENUE.courseVersion, markX: MK, startLineX: 0, startLineK: VENUE.slitK, stand: VENUE.stand, back: VENUE.back, behind1: VENUE.behind1, behind2: VENUE.behind2, outline: VENUE_OUTLINE.map(([x, y]) => [+x.toFixed(2), +y.toFixed(2)]), laneYAtSlit: LANE.ys, ...venueLayout() },   // d235 venue-geometry-v1, d250 venue-layout-v1
       units: { x: 'm, +x = right on the 2D screen (toward 1M)', y: 'm, +y = down on the 2D screen', heading: 'rad, 0 = +x, positive turns toward +y', v: 'm/s along the heading',
         bank: 'rad, + = right side down', slip: 'rad, travel direction minus heading', roll: '-1..1 rider lean (+ = right)', pitch: '-1..1 rider posture (+ = crouched, - = sat up)',
         steer: '-1..1 applied rudder', thr: '0..1 applied lever', rpm: '0..1.15 engine pitch index (not revolutions per minute)', vl: 'm/s sideways', yaw: 'rad/s', hop: 'm', hv: 'm/s up', landV: 'm/s at the last landing',

@@ -1268,7 +1268,7 @@ function makeDriver(prof, trait = {}) {
           const q = mem.ku;
           if (q.cap > 0 || q.x - b.x > KADO_UKE.lost || b.x > KADO_UKE.until) mem.ku = null;   // got clean away anyway / out of time
           else if (b.x - q.x > KADO_UKE.won) { mem.ku = null; mem.kuWon = true; }        // its 伸び is stopped: now go
-          else { ty = Math.max(ty, Math.min(q.y - KADO_UKE.clr, b.y + KADO_UKE.step)); squeezing = true; mem.kabe = true; }
+          else { ty = b.y; squeezing = true; mem.kabe = true; }   // d247 (まえ): 壁は自分の進路を保って握る — 外への斜行は不良航法。並んで抵抗し、直線で負けない
         }
       }
       // d245 カドの側: the カド受け is coming out at it while it is not clear ahead (under a length in front) — mostly it
@@ -1671,7 +1671,7 @@ function turnRoleOf(b, env, style) {
 // inside is crowded, lift and turn late and tight behind them all — the 6コース 最内差し)
 const COMMIT = { at: 25, lead: 3.5, dv: 1.0 };   // 叩き: decided this far past the slit; needs this lead (m) and this much more speed (m/s) than the boat inside
 const SIDE_ON = { ang: 0.6, yaw: 0.3, cut: 0.95 };   // giving way to a boat turning across: heading difference (rad), its turn rate (rad/s), how hard to lift
-const KADO_UKE = { on: true, abortLead: 5, abortK: 8, makuriK: 10, msK: 8, touch: 5.5, liftLead: 4.5, liftP: { calm: 0.8, normal: 0.65, aggr: 0.45 }, liftT: 1.2, liftThr: 0.7, at: 0, maxLead: 4, lat: 9, p: { calm: 0.5, normal: 0.7, aggr: 0.85 }, clr: 0.8, step: 5, lost: 6, won: 1.5, until: 85 };   // d245 カド受けの張り: from the slit; only if the dash is < this far ahead; chance by temper; m held off it; m/step out; gives up when it is this far ahead; done when this far in front of it
+const KADO_UKE = { on: true, abortLead: 5, abortK: 8, makuriK: 10, msK: 8, touch: 5.5, liftLead: 4.5, liftP: { calm: 0.8, normal: 0.65, aggr: 0.45 }, liftT: 1.2, liftThr: 0.7, at: 0, maxLead: 4, lat: 9, p: { calm: 0.5, normal: 0.7, aggr: 0.85 }, lost: 6, won: 5, until: 85 };   // d245 カド受け（d247: 張らずに進路を保つ。1艇身＝5m前へ出たら外へ出てまくってよい）: from the slit; only if the dash is < this far ahead; chance by temper; m held off it; m/step out; gives up when it is this far ahead; done when this far in front of it
 const MAKURI3 = { lead: 1.5, p: 0.6, wallP: { calm: 0.25, normal: 0.45, aggr: 0.65 } };   // 3コース: m in front of the 2 to go for it; chance; カド受けの壁 by temper
 const FOLLOW = { p: { calm: 0.55, normal: 0.75, aggr: 0.9 }, off: 5 };   // 連動: chance to follow a 叩き from inside; how far outside it to run
 // 外全速ターン: from how far before 1M it swings out; how far past the mark it pivots; the lane it keeps outside the
@@ -1812,11 +1812,12 @@ function raceFieldsInit(r) {
 }
 // チルト: CPU riders mostly sit at −0.5 inside; the dash courses go 0 / +0.5 for 伸び, and now and then a rider
 // gambles on a big tilt (はね). The player picks their own in the settings. Called again once the course is known.
+const MID_FX = 2;   // d248: how strongly a 6艇 motor's 回り足 shows in its 中速 band (it used to be felt ×2.5 mid-turn only)
 const HANE = { tilt: 3, p: 0.06, sgP: 0.03 };   // d192: share of races where the 6枠 CPU goes 3.0 (はね)
 function fitMotor(r, course, again) {
   const b = r.b;
   b.deashi = r.motor.deashi; b.nobi = r.motor.nobi; b.mawari = r.motor.mawari || 0;
-  b.mMid = r.motor.mid ?? null; b.powerK = r.motor.powerK || 1; b.tempLow = r.motor.tempLow || 0; b.tempTop = r.motor.tempTop || 0;
+  b.mMid = r.motor.mid ?? (r.motor.mawari ? 1 + (r.motor.mawari - 1) * MID_FX : null);   // d248 (まえ: 回り足＝行き足): a 6艇レース motor's 回り足 is its 中速 band too (3段階, as in 節間) b.powerK = r.motor.powerK || 1; b.tempLow = r.motor.tempLow || 0; b.tempTop = r.motor.tempTop || 0;
   b.hullGrip = r.motor.hullGrip || 1; b.hullRide = r.motor.hullRide || 1; b.hullDrag = r.motor.hullDrag || 1;
   b.weightK = 1 - (1 - (r.motor.weightK || 1)) * (venueOf(VENUE.id).weightK || 1); b.weightGrip = r.motor.weightGrip || 1;
   Object.assign(b, bodyRace(r.body ? r.body.height : SETSU.body.ref));

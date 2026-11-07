@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd246';
+const GAME_VER = 'd250';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -36,7 +36,8 @@ const VENUES_GEO = {
   standard: { id: 'standard', name: '練習コース', courseVersion: 1, taSuffix: '',   // the course up to d234 (a ±58 m box, a square start line)
     stand: [[-150, 58], [0, 58], [150, 58]], back: [[-150, 58], [0, 58], [150, 58]], behind1: 50, behind2: 160, slitK: 0,
     lanes: [10, 18.5, 27, 35, 42.5, 50], laneMax: 52, pitX: -280, spotRoom: 10 },
-  suminoe: { id: 'suminoe', name: '住之江', courseVersion: 2, taSuffix: '.suminoe',
+  suminoe: { id: 'suminoe', name: 'なにわ競艇場',   // d249 (まえ): 実名は使わない — 表示名は架空。id 'suminoe' は中の名前（TA記録・リプレイの場IDのまま）
+    courseVersion: 2, taSuffix: '.suminoe',
     stand: [[-150, 63], [0, 51], [150, 45]],   // スタンド側 (m from the mark line)
     back: [[-150, 67], [0, 75], [150, 85]],    // 対岸側
     behind1: 70, behind2: 120,                 // water behind 1M / behind 2M (the pits are past 2M)

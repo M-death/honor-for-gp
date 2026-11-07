@@ -96,7 +96,7 @@ const VENUES = {
   /* d238 住之江 (まえ, boat-log.com の住之江ページ): 淡水 (工業用水＋雨水) で硬い水、浮力が少なく体重が出足に効く。潮なし。
      穏やかな水面が多く 5m 以上は約 5%。冬は北からの追い風。後半のレースは風が止みがち。
      2M: コンクリ護岸で引き波が残り、ピット離れ・スタートの引き波がぶつかって複雑な波 → rough (the zone around 2M) */
-  suminoe: { name: '住之江', water: '淡水',
+  suminoe: { name: 'なにわ競艇場', water: '淡水',
     tide: { amp: 0, flow: 0 },
     wind: { strongP: 0.06, base: [0, 2.5], strong: [4, 7], stormP: 0.02, storm: [8, 10], gust: [0.8, 1.2], dirW: [1, 1, 1, 1], dirWS: { winter: [5, 1, 1, 1] }, keepP: 0.4, lateR: 9, lateK: 0.7 },
     rain: { storm: 0.8, strong: 0.25, calm: 0.08 },

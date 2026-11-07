@@ -43,9 +43,25 @@
 - 単位はメートル。+x は2D画面の右（1M側）、**+y は2D画面の下**。3Dの上向き+Yの座標系に直すときは y の符号に注意してください。
 - `heading` 0 で艇は +x を向き、+ は +y 側へ回ります（2D画面では時計回り）。進む方向は `heading + slip` です。
 - `bank` は + が右下がり。ゲームの3D表示は艇を −bank（±0.65 rad で止める）で傾けています。
-- コース：スタートラインは x = 0、ターンマークは x = ±150（`header.venue.markX`）。消波装置は各マークから中央へ30m。水面は x −310〜200、y −58〜58。スタート前の各コースの位置は y = 8 + 7×(コース−1)。
+- 場は `header.venue.venueId` で見分けます（d235〜）。今は2つです。
+  - `standard`（courseVersion 1）：練習コース。
+  - `suminoe`（courseVersion 2）：**なにわ競艇場**。実在の場をもとにした形ですが、**画面に出す名前は必ず `venue.name`（なにわ競艇場）を使ってください**。実名は使いません。`suminoe` は中のIDなので、画面には出さないでください。
+- コースの形は場ごとにログに入っています（`header.venue`）。決め打ちにしないでください。
+  - d250〜（formatFeatures `venue-layout-v1`、リプレイ側の要望書 2026-11-07 への回答）：`marks`・`startLine`（両端の点）・`course`（xMin〜yMax）・`water`（＝`outline`）・`standsSide`（"+y"）・`clock`・`pit`・`lights`（柱の位置そのもの `poles`）・`waterType`・`scenery`・`distMarks`・`jikkyoStyle`。中身は VIDEO_LOG.md の d250 の項。`stands` は null（本編にスタンドの建物は無いので、リプレイ側で置いてください）。
+  - `outline`：水面の外周。
+  - `stand`／`back`：スタンド側・対岸側の壁。マーク線から 2M・中央・1M での距離。
+  - `behind1`／`behind2`：1M・2Mの後ろの水面。
+  - `startLineK`：スタートラインの傾き（x = startLineK × y）。
+  - `laneYAtSlit`：スリットでの各コースの位置。
+- ターンマークは x = ±150（`header.venue.markX`）、消波装置は各マークから中央へ30mです。
 - 時刻 `t` は大時計0（スタート合図）が0です。
-- 場は今は1つだけです（`venue.venueId`・`courseVersion`）。将来は江戸川など別の場が増えます。江戸川は波が荒いので、跳ね（§4）が目立つ前提です。
+- 場は今後も増えます（江戸川をもとにした場など。波が荒いので跳ね（§4）が目立つ前提です）。会場の見た目（建物など）は `venueId` と `courseVersion` の組で作り分けてください。
+- **レース開始時のレース情報**（d249〜）は `header.race` にあります。
+  - 場名 `venueName`（`header.venue.name` と同じ）と `venueId`。
+  - 節間なら、何日目 `day`／`dayLabel`、第何レース `raceNo`、発走時刻 `startTime`、レース名 `title`、グレード `grade`。
+  - d250〜（formatFeatures `race-info-v1`）は、リプレイが取れる全てのログに入ります。6艇レース・デモは `title`（6艇レース／デモレース）、`raceNo`（その日に走った順の1〜12R、夕方は10〜12R）、`day` 1・`dayLabel` 初日、`startTime`（場の番組表：昼は1R 10:40から30分ごと、ナイターは1R 15:10から）。TAは `title` タイムアタック・`attempt`（何回目）・`startTime`、`raceNo`・`day` は null。
+  - `race-info-v1` の無い古いログ（d249まで）は、6艇レース・デモ・TAの `day`・`raceNo`・`startTime` が null です。そのときは場名（と、あればグレード）だけを出してください。
+  - 昼・夕方・夜は `header.conditions.timeOfDay` です。
 
 ## 4. フレームに無い見た目を式で作る
 
