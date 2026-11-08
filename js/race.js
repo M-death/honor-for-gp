@@ -95,7 +95,7 @@ function wakeAt(x, y, wakes, now, ahead = 0) {
     // the trough right behind the boat and the two spreading wave lines
     const inTrough = lat < WAKE.width;
     if (fwd < 1.2 && (inTrough || Math.abs(lat - spread) < WAKE.width)) {
-      const k = Math.pow(1 - age / life, WAKE.fade * (zk ? 1 - (1 - RZ.wakeFade) * zk : 1)) * Math.min(1, pt.v / 15) * ps;   // fresh wake, close behind the boat, hits hardest
+      const k = Math.pow(1 - age / life, WAKE.fade * (zk ? 1 - (1 - RZ.wakeFade) * zk : 1)) * Math.min(1, pt.v / 15) * ps * (zk && RZ.wakeHit ? 1 + (RZ.wakeHit - 1) * zk : 1);   // fresh wake, close behind the boat, hits hardest
       if (k > w) { w = k; ang = pt.a; line = !inTrough; fresh = age < WAKE_CAV.age && ps > WAKE_CAV.ps; }
     }
   }
@@ -722,10 +722,12 @@ function makeDriver(prof, trait = {}) {
     let best = 0, bestC = Infinity;
     // on the straight: no line change that would kill the run — only a nudge either side of the line it is on
     const dirX = Math.cos(b.a) >= 0 ? 1 : -1, toMark = (dirX * MK - b.x) * dirX, straight = Math.abs(Math.cos(b.a)) > 0.9 && toMark > WAKE_PLAN.freeAt;   // heading down a straight, the next mark still well ahead
+    // d253 (まえ: 2Mの引き波が残る場では、羽美はなおさら引き波の無い所を走る): prof.wakeAvoid weighs the wake more in the 2M rough zone
+    const wk = prof.wakeAvoid ? 1 + (prof.wakeAvoid - 1) * (roughOf() ? roughAt(b.x, b.y) * 1.5 : 0) : 1;
     for (const off of WAKE_PLAN.offs) {
       if (straight && Math.abs(off - mem.wakeOffT) > WAKE_PLAN.nudge) continue;
-      let c = wakeAt(b.x + fx * L1 + rx * off * 0.6, b.y + fy * L1 + ry * off * 0.6, env.wakes, env.now, 0.35).w
-            + 0.8 * wakeAt(b.x + fx * L2 + rx * off, b.y + fy * L2 + ry * off, env.wakes, env.now, 0.6).w
+      let c = wk * wakeAt(b.x + fx * L1 + rx * off * 0.6, b.y + fy * L1 + ry * off * 0.6, env.wakes, env.now, 0.35).w
+            + wk * 0.8 * wakeAt(b.x + fx * L2 + rx * off, b.y + fy * L2 + ry * off, env.wakes, env.now, 0.6).w
             + Math.abs(off) * 0.04 + Math.abs(off - mem.wakeOffT) * 0.02;
       if (off < 0 && nm) c += 1;            // no going inside at the mark
       if (off === 0) mem.wakeAhead = c;
@@ -733,7 +735,7 @@ function makeDriver(prof, trait = {}) {
     }
     mem.wakeOffT = best;
     // can't get round it: brace for the hit
-    if (bestC > 0.35) mem.brace = 0.5;
+    if (bestC > 0.35 * wk) mem.brace = 0.5;
   }
 
   // ダンプ: in a turn, when a boat draws alongside on my outside, lean out and shove it wide.

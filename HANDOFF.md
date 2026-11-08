@@ -1,4 +1,4 @@
-# Honor for GP 波の向こうに — 引き継ぎ資料（d252 時点）
+# Honor for GP 波の向こうに — 引き継ぎ資料（d253 時点）
 
 この資料は、別の会話（AI）や将来の自分が開発を続けるための引き継ぎです。
 **本体は `index.html`（1ファイル）**。この資料と一緒に渡してください。
@@ -333,6 +333,7 @@
 | d250 リプレイ側の要望書（2026-11-07）への回答（まえ：リプレイが取れるログには全てつけて）：vlog.js header.venue に venueLayout()（marks・startLine・course・water・standsSide・stands null・clock・pit・lights.poles・waterType・scenery・distMarks・jikkyoStyle、formatFeatures venue-layout-v1）、header.race に raceInfo()（6艇・デモ：title・raceNo 1〜12（夕方10〜12）・day 1・startTime 番組表、TA：attempt・startTime、race-info-v1）。view.js NIGHT_POLES がコース切替に追従（venueHooks）。サンプル video_log_samples/sample_d250_naniwa_{day,night,nearbank}.json.gz、回答 REPLAY_LOG_ANSWER_d250.md。走りは変更なし |
 | d251 ナイトの仮線を発光（まえ：ナイトだと仮線が見えにくい、ターンマークがいつ来るかわからん）：view.js drawNightGuides — 夜の暗さの上に、スタートライン・マークを通る線・マーク手前20mの破線・旋回の輪を薄い青白の光（lighter＋shadowBlur）で重ね、ターンマークに橙の光の輪。見た目だけ、走りは変更なし |
 | d252 実在の場名を外す（まえ：児島表記は無しで）：設定「実況」の「熱血（児島風）」→「熱血」（index.html）、data.js・race.js のコメントの児島も削除。羽美の支部表示は前から「岡山」だけ。体験版（trial/）にはまだ残っている（体験版をまとめて更新するときに入る） |
+| d253 なにわの2Mをもっと難所に（まえ：引き波が残りやすく影響を大きく。全速で入ると転覆する癖。羽美はなおさら引き波の無い所を走る）：data.js VENUES.suminoe.rough wakeLife 1.4→1.9・wakeFade 0.7→0.5・新 wakeHit 1.35（race.js wakeAt：荒れの範囲で引き波の強さ×）。羽美 prof.wakeAvoid 3（planWake：2Mの荒れの範囲だけ引き波を重く見て避ける）。なにわ96R（羽美6枠、相手A1/A2/B1）：d252 事故0.15/R（2M 0.11、引き波で転覆1）・羽美転覆1・1着17% → 強化のみ 0.15（2M 0.11、引き波で転覆4）・羽美4 → ＋wakeAvoid 0.09（2M 0.06、ほぼ全部引き波がらみ）・羽美0・1着16%。2Mの羽美の最大の跳ね 0.16→0.24。練習コースは変化なし。test work/t_m2.js runM2.sh anM2.py |
 
 ---
 

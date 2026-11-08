@@ -53,7 +53,7 @@ const NAMED = [
     prof: { ...DRIVERS[1], kinen: true, named: 'umi', label: 'A2', stCls: { shift: -0.06, sd: 0.015, dent: 0.01 }, flyRisk: 0.004,
             wideOut: true, kinenGap: 3, sweep: { from: 30, late: 8, gap: 10, mkR: 12, mkK: 0.6, svMin: 0.3, svEnd: 0, lyMax: 44, wakeDx: [3, 25], wakeDy: [-25, -3], wakeA: 0.25, wakeDx2: 99, leanFrom: 0.4, leanK: 1.6, crouchFrom: 0.5, grid: [0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1], wall: 8, slack: 3, minLy: 15, pathEase: { sIn: -0.5, T: 1.2, sv: 0.25, dv: 1.5, hold: 0.3 } }, tataki: { fromX: 5, endX: 35, minLy: 22, clear: 3, gap: 5, ks: 0.08, ka: 2, kS: 0.4, sMax: 0.12 },
                  softGo: { lead: 1.2, thr: 0.55, hold: 0.4, ahead: 2, calm: 4, roughSd: 0.012, stAdj: 0.045 },
-                 noLift: 0.9, tilt: 3.0, tiltTurn: 1, storm: { st: 0.03, fly: 0 }, hazMul: 0.3, trait: { pushMul: 2, care: 0.45, resistP: 0.9, shobuMul: 0.4, stSdMul: 0.6 },
+                 noLift: 0.9, tilt: 3.0, tiltTurn: 1, storm: { st: 0.03, fly: 0 }, hazMul: 0.3, wakeAvoid: 3, trait: { pushMul: 2, care: 0.45, resistP: 0.9, shobuMul: 0.4, stSdMul: 0.6 },
             slowTrait: { stShift: 0.05, stSdMul: 1.6, shobuMul: 0 } },   // in the 1コース (slow) her start loses its edge — the 1枠 takes away what makes her good
     temper: 'aggr', out: true, motorLowK: 2 },
 ];
@@ -104,7 +104,7 @@ const VENUES = {
     stab: { wave: 5, wind: 6 }, short: { wave: 12, wind: 9 },
     temp: { off: 0, swing: 4, jitter: 3 }, start: { hour: 10 + 40 / 60, per: 0.5 },
     weightK: 1.3,                                                        // 淡水: 体重の差が出足に 1.3 倍効く
-    rough: { x: -150, y: 0, r: 75, wave: 5, tail: 0.6, grip: 0.04, wakeLife: 1.4, wakeFade: 0.7 } },   // 2M のまわり (r m で 0 まで): 波 cm + 追い風 1m ごとに tail cm, 旋回グリップ低下, 引き波の寿命×・減衰の指数×
+    rough: { x: -150, y: 0, r: 75, wave: 5, tail: 0.6, grip: 0.04, wakeLife: 1.9, wakeFade: 0.5, wakeHit: 1.35 } },   // 2M のまわり (r m で 0 まで): 波 cm + 追い風 1m ごとに tail cm, 旋回グリップ低下, 引き波の寿命×・減衰の指数×・強さ× (d253 まえ: 2Mはもっと難所 — 引き波が残りやすく効きも大きい)
 };
 const venueOf = key => VENUES[key] || VENUES.standard;
 
