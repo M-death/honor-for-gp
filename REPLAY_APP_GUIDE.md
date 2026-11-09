@@ -59,7 +59,7 @@
 - **レース開始時のレース情報**（d249〜）は `header.race` にあります。
   - 場名 `venueName`（`header.venue.name` と同じ）と `venueId`。
   - 節間なら、何日目 `day`／`dayLabel`、第何レース `raceNo`、発走時刻 `startTime`、レース名 `title`、グレード `grade`。
-  - d250〜（formatFeatures `race-info-v1`）は、リプレイが取れる全てのログに入ります。6艇レース・デモは `title`（6艇レース／デモレース）、`raceNo`（その日に走った順の1〜12R、夕方は10〜12R）、`day` 1・`dayLabel` 初日、`startTime`（場の番組表：昼は1R 10:40から30分ごと、ナイターは1R 15:10から）。TAは `title` タイムアタック・`attempt`（何回目）・`startTime`、`raceNo`・`day` は null。
+  - d250〜（formatFeatures `race-info-v1`）は、リプレイが取れる全てのログに入ります。6艇レース・デモは `title`（6艇レース／デモレース）、`raceNo`（その日に走った順の1〜12R、夕方は10〜12R）、`day` 1・`dayLabel` 初日、`startTime`（場の番組表：昼は1R 10:40から30分ごと、ナイターは1R 15:10から）。節間も同じ番組表です（ナイターの節間が 15:10 起点になったのは d258 から。d257 までは昼の時刻が入っていました）。TAは `title` タイムアタック・`attempt`（何回目）・`startTime`、`raceNo`・`day` は null。
   - `race-info-v1` の無い古いログ（d249まで）は、6艇レース・デモ・TAの `day`・`raceNo`・`startTime` が null です。そのときは場名（と、あればグレード）だけを出してください。
   - 昼・夕方・夜は `header.conditions.timeOfDay` です。
 

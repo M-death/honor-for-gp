@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd256';
+const GAME_VER = 'd258';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -137,7 +137,10 @@ const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform ==
 const diag = { ori: 0, oriNull: 0, mot: 0, framed: (() => { try { return window.self !== window.top; } catch (e) { return true; } })() };
 
 let playerTilt = -0.5;   // the player's own tilt (settings)
-const B = { x: START.x, y: START.y, a: START.a, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0, deashi: 1, nobi: 1, tilt: playerTilt };
+// d257 (まえ: タイムアタックのモーターは○近く、最高速度80.5あたり、練習コースも同じ): the solo boat's motor (TA・展示・練習).
+// 出足 1.02○ 回り足 1.01○ (中速 1.02) 伸び 1.025 (○と◎のさかい). CPU solo, tilt −0.5, no wind: top 78.0 → 80.5–80.8 km/h on both courses.
+const SOLO_MOTOR = { deashi: 1.02, mMid: 1.02, mawari: 1.01, nobi: 1.025 };
+const B = { x: START.x, y: START.y, a: START.a, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0, ...SOLO_MOTOR, tilt: playerTilt };
 const input = { thr: 0, steer: 0, steerT: 0, roll: 0, pitch: 0 };
 const raw = { roll: 0, pitch: 0 };
 const virtualPosture={enabled:false,pointer:null,roll:0,pitch:0};

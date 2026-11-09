@@ -213,7 +213,7 @@ function taLogSave(t, best) {
     `#result time=${t.toFixed(2)} rank=${taRank(t)} ST=${ta.st == null ? '-' : ta.st.toFixed(3)} laps=${ta.laps.map(v => v.toFixed(2)).join('/')}${best ? ' best' : ''}`,
     `#meas ${taMeasLog(taMeasNow())}`,
     `#player ${playerName()}`,
-    `#setup laps=${TA.laps} water=calm motor=avg(deashi1/nobi1) tilt=${rpN(B.tilt, 1)} control=${controlMode}${pad ? '+controller' : ''}`,
+    `#setup laps=${TA.laps} water=calm motor=solo(deashi${rpN(B.deashi, 3)}/mid${rpN(B.mMid, 3)}/mawari${rpN(B.mawari, 3)}/nobi${rpN(B.nobi, 3)}) tilt=${rpN(B.tilt, 1)} control=${controlMode}${pad ? '+controller' : ''}`,
     '#S t x y heading(deg) v(km/h) thr steer roll pitch load yaw(deg/s)  (t = s from the start signal, every 0.1 s; x,y in m, start line x=0, 1M x=+' + MK + ', 2M x=-' + MK + ')',
     ...ta.log, '#events (t, what; gap = hull edge to buoy surface at its closest in that corner, part = which part of the hull)', ...ta.ev].join('\n');
   const key = playerKey(TA.logKey);

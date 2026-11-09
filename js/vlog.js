@@ -61,7 +61,7 @@ VR = (() => {
   function raceInfo(mode, tod) {
     const V = venueOf(VENUE.id), n = mode === 'ta' ? taSeq : raceSeq;
     const raceNo = mode === 'ta' ? null : tod === 'evening' ? 10 + (n - 1) % 3 : (n - 1) % 12 + 1;
-    const h0 = tod === 'night' ? 15 + 10 / 60 : V.start.hour, h = h0 + ((raceNo || ((n - 1) % 12 + 1)) - 1) * V.start.per;
+    const h0 = tod === 'night' ? NIGHT_START : V.start.hour, h = h0 + ((raceNo || ((n - 1) % 12 + 1)) - 1) * V.start.per;
     return { title: mode === 'ta' ? 'タイムアタック' : mode === 'demo' ? 'デモレース' : '6艇レース', raceNo, attempt: mode === 'ta' ? n : null,
       day: mode === 'ta' ? null : 1, dayLabel: mode === 'ta' ? null : SETSU.dayJa[1], startTime: hhmm(h) };
   }
@@ -361,7 +361,7 @@ VR = (() => {
   // d172 体格 for the rider model (height and sex change the look; weight is the riding weight's source)
   const bodyJson = bd => bd ? { sex: bd.sex, heightCm: bd.height, weightKg: bd.weight, rideWeightKg: bd.rideWt } : { sex: 'm', heightCm: SETSU.body.ref, weightKg: SETSU.minWt.m, rideWeightKg: SETSU.minWt.m };
   function header() {
-    const ents = R.solo ? [{ no: 1, name: playerName(), class: null, colors: [PLAYER_STYLE.hull, PLAYER_STYLE.num], course: 1, player: true, motor: { deashi: B.deashi ?? 1, mawari: B.mawari ?? 1, nobi: B.nobi ?? 1 }, tilt: B.tilt ?? 0, body: bodyJson(null) }]
+    const ents = R.solo ? [{ no: 1, name: playerName(), class: null, colors: [PLAYER_STYLE.hull, PLAYER_STYLE.num], course: 1, player: true, motor: { deashi: B.deashi ?? 1, mid: B.mMid ?? null, mawari: B.mawari ?? 1, nobi: B.nobi ?? 1 }, tilt: B.tilt ?? 0, body: bodyJson(null) }]
       : fleet.boats.map(r => ({ no: r.no, name: r.name || (r.player ? playerName() : null), class: r.prof ? profJa(r.prof) : null, colors: r.col, course: r.trait.course, slow: !!r.trait.slow,
         player: !!r.player, motor: { deashi: r.b.deashi ?? 1, mawari: r.b.mawari ?? 1, nobi: r.b.nobi ?? 1 }, tilt: r.b.tilt ?? 0, body: bodyJson(r.body) }));
     const st = !R.solo && fleet.setsu && fleet.setsu.race;
@@ -383,7 +383,7 @@ VR = (() => {
     // d229 夕方: decided when the file is made (a 節間 race's season and start time are set just after the recorder starts)
     if (!R.tod) R.tod = R.night ? 'night' : typeof todNow === 'function' ? todNow() : 'day';
     const race = st ? { title: st.kind || null, raceNo: st.R ?? null, grade: setsu.grade === 'sg' ? 'SG' : '一般', venueName: (VENUES_GEO[setsu.venue] || VENUE).name, venueId: setsu.venue, date: null, day: st.day ?? null,
-                        dayLabel: SETSU.dayJa[st.day] || null, startTime: st.env && st.env.time || null }
+                        dayLabel: SETSU.dayJa[st.day] || null, startTime: st.R ? hourTxt(raceHourOf(venueOf(setsu.venue), st.R)) : st.env && st.env.time || null }   // d258: ナイター 1R 15:10
       : { grade: !R.solo && sgMode ? 'SG' : null, venueName: VENUE.name, venueId: VENUE.id, date: null, ...(R.info || (R.info = raceInfo(R.mode, R.tod))) };   // d249 venue; d250 race-info-v1
     const env = Object.assign(R.solo || !waterEnv ? { calm: true, laps: R.solo ? TA.laps : 3 } : { laps: raceLaps(), dir: waterEnv.dir, wind: waterEnv.wind, windVec: { wx: waterEnv.wx, wy: waterEnv.wy },
       tideFlow: waterEnv.cx, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, tideLv: waterEnv.tideLv }, { timeOfDay: R.tod || (R.night ? 'night' : 'day'), lighting: { night: 'floodlights', evening: 'sunset' }[R.tod || (R.night ? 'night' : 'day')] || 'daylight' });   // d217 ナイトレース

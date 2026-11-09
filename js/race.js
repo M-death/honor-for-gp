@@ -2540,16 +2540,19 @@ function envDay(V, season, prev, force) {
   const tBase = (SEASONS[season] || SEASONS.spring).t + V.temp.off + envU(-V.temp.jitter, V.temp.jitter);
   return { strong, storm, rain, base, dirs, tide0, tBase };
 }
+// d258 (リプレイ側の指摘): 発走時刻 follows the ナイター setting — night runs 1R 15:10 (as 6艇レース), day/夕方 the venue's day schedule
+const NIGHT_START = 15 + 10 / 60;
+const raceHourOf = (V, R) => ((typeof todMode !== 'undefined' && todMode === 'night') ? NIGHT_START : V.start.hour) + (R - 1) * V.start.per;
+const hourTxt = h => `${Math.floor(h + 1e-9)}:${String(Math.round((h % 1) * 60) % 60).padStart(2, '0')}`;
 function envRace(V, D, R) {
   const dir = D.dirs[Math.min(2, Math.floor((R - 1) / 4))], wind = Math.round(D.base * envU(...V.wind.gust) * (V.wind.lateR && R >= V.wind.lateR ? V.wind.lateK : 1) * 2) / 2;
   const hasTide = V.tide.amp > 0, ts = (D.tide0 + Math.floor((R - 1) / 2)) % 12, ph = ts / 12 * Math.PI * 2;
   const tideLv = hasTide ? Math.round(100 + V.tide.amp * Math.cos(ph)) : null, flow = hasTide ? Math.round(-Math.sin(ph) * 100) / 100 : 0;
   const wave = Math.max(0, Math.round(wind * (V.wave[dir] ?? V.wave.横風) + (hasTide && tideLv > 100 + V.tide.amp * 0.55 ? V.wave.highTide : 0) + envU(-0.5, 0.5)));
-  const hour = V.start.hour + (R - 1) * V.start.per, temp = Math.round((D.tBase + V.temp.swing * Math.sin(Math.PI * (hour - 8) / 12)) * 10) / 10;
+  const hour = raceHourOf(V, R), temp = Math.round((D.tBase + V.temp.swing * Math.sin(Math.PI * (hour - 8) / 12)) * 10) / 10;
   const short = wave >= V.short.wave || wind >= V.short.wind;
   return { dir, wind, wave, tideLv, tideJa: hasTide ? TIDE_JA[ts] : null, flow, temp, stab: short || wave >= V.stab.wave || wind >= V.stab.wind,
-           laps: short ? 2 : 3, rain: !!D.rain,
-           time: `${Math.floor(hour)}:${String(Math.round((hour % 1) * 60)).padStart(2, '0')}` };
+           laps: short ? 2 : 3, rain: !!D.rain, time: hourTxt(hour) };
 }
 // what the race engine takes (waterEnv): the wind as a vector (+x = toward 1M from the start = 追い風), the tide's drift,
 // waves, 安定板 — plus the readings, for the screen and for effects still to come
@@ -3539,7 +3542,7 @@ function buildCard() {
 }
 $('demoCpuMode').addEventListener('change',e=>{demoCpuMode=e.target.value;if(fleet&&!lab.active)nextRace();});
 $('simSpeed').addEventListener('change', e => { simSpeed = +e.target.value; });
-$('tiltSel').addEventListener('change', e => { playerTilt = +e.target.value; B.tilt = playerTilt; B.deashi = B.nobi = 1; const pr = playerRow(); if (pr) pr.b.tilt = playerTilt; });
+$('tiltSel').addEventListener('change', e => { playerTilt = +e.target.value; B.tilt = playerTilt; Object.assign(B, SOLO_MOTOR); const pr = playerRow(); if (pr) pr.b.tilt = playerTilt; });
 $('sgBtn').addEventListener('click', () => {
   sgMode = !sgMode;
   $('sgBtn').textContent = sgMode ? 'SG：オン' : 'SG：オフ';

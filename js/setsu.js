@@ -172,7 +172,7 @@ function setsuMotor(q, env, noisy) {
 // ---- the water: per day (strong-wind days, three wind shifts) and per race (tide every 2 races, temperature by the clock)
 // the setsu's water: the venue's weather model, one day at a time (cached so a reload shows the same day)
 function setsuDayEnv(d) { const E = setsu.envs || (setsu.envs = {}); return E[d] || (E[d] = envDay(venueOf(setsu.venue), setsu.season, E[d - 1])); }
-function setsuRaceEnv(race) { return race.env || (race.env = envRace(venueOf(setsu.venue), setsuDayEnv(race.day), race.R)); }
+function setsuRaceEnv(race) { const e = race.env || (race.env = envRace(venueOf(setsu.venue), setsuDayEnv(race.day), race.R)); e.time = hourTxt(raceHourOf(venueOf(setsu.venue), race.R)); return e; }   // d258: the time follows the ナイター setting now
 const setsuWaterEnv = e => envPhysics(venueOf(setsu && setsu.venue), e);
 const setsuEnvTxt = e => envText(e);
 // 登録番号 (d175, for the replay log): fixed for a rider through the 節 — made from the rider (a hash, no dice), unique in the 節
