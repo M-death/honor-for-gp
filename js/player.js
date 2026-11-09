@@ -12,6 +12,7 @@ function playerUi() {
   const sel = $('plSel'); sel.textContent = '';
   for (const n of ['', ...players.list]) { const o = document.createElement('option'); o.value = n; o.textContent = n || 'ゲスト（名前なし）'; sel.appendChild(o); }
   sel.value = players.cur; $('plDel').disabled = !players.cur;
+  if ($('plNow')) $('plNow').textContent = playerName();   // d256 メニューの「プレイヤー：○○ ▸」
 }
 function playerSet(name) {
   players.cur = name; playerSave(); playerUi();

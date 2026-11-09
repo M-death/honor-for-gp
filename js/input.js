@@ -825,7 +825,17 @@ function padMenu(g, down, edge, dt) {
   else if (padNav.held === 0) { step = true; padNav.held = 1; padNav.t = PAD_MENU.repeat0; }
   else { padNav.t -= dt; if (padNav.t <= 0) { step = true; padNav.t = PAD_MENU.repeat; } }
   const el = padNav.el;
-  if (step && el) {
+  // d255 右スティック上下: scroll a long panel (操作説明, ランキング, 設定…)
+  { const sy = padDz(g.axes[3] || 0); if (sy) { let sc = el && el.parentElement; while (sc && sc !== surf.parentElement && !(sc.scrollHeight > sc.clientHeight + 2 && /(auto|scroll)/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+      if (!sc || sc === surf.parentElement) sc = [surf, ...surf.querySelectorAll('*')].find(e => e.scrollHeight > e.clientHeight + 2 && /(auto|scroll)/.test(getComputedStyle(e).overflowY)) || null;
+      if (sc) sc.scrollTop += sy * dt * 900; } }
+  // d255 文字入力 (KBD): B = 1文字消す, Start = 決定
+  if (surf.id === 'kbd') { if (edge(1)) { kbdBack(); return 2; } if (edge(9)) { kbdDone(true); return 2; } }
+  const cols = +surf.dataset.cols || 0;   // a grid (the keyboard): up/down jump a row
+  if (step && el && cols && items.includes(el)) {
+    const i = items.indexOf(el), j = dir ? clamp(i + dir * cols, 0, items.length - 1) : clamp(i + side, 0, items.length - 1);
+    padMenuMark(items[j]);
+  } else if (step && el) {
     const adjust = side && !dir && (el.tagName === 'SELECT' || el.tagName === 'INPUT' && el.type === 'range');
     if (adjust) {
       if (el.tagName === 'SELECT') { const i = clamp(el.selectedIndex + side, 0, el.options.length - 1); if (i !== el.selectedIndex) { el.selectedIndex = i; el.dispatchEvent(new Event('change', { bubbles: true })); } }
@@ -838,7 +848,8 @@ function padMenu(g, down, edge, dt) {
   if (edge(0) && padNav.el) {
     const e = padNav.el;
     if (e.tagName === 'SELECT') { const i = (e.selectedIndex + 1) % e.options.length; e.selectedIndex = i; e.dispatchEvent(new Event('change', { bubbles: true })); }
-    else if (e.tagName === 'INPUT' && (e.type === 'text' || e.type === 'number')) { try { e.focus(); } catch (x) {} }
+    else if (e.tagName === 'INPUT' && (e.type === 'text' || e.type === '' || !e.type)) { padTextInput(e); }   // d255: a text box opens the on-screen keyboard
+    else if (e.tagName === 'INPUT' && e.type === 'number') { try { e.focus(); } catch (x) {} }
     else e.click();
   }
   if (edge(1)) padMenuCancel(surf);
@@ -851,14 +862,21 @@ function pollPadButtons(dt = 0) {
   const down = i => !!(g.buttons[i] && g.buttons[i].pressed);
   const edge = i => down(i) && !pad.prev[i];
   // a menu is open: the controller works the menu (Start still opens/closes 設定)
-  if (padMenu(g, down, edge, dt) && !edge(9)) { pad.prev = g.buttons.map(b => b.pressed); return; }
+  { const pm = padMenu(g, down, edge, dt); if (pm === 2 || pm && !edge(9)) { pad.prev = g.buttons.map(b => b.pressed); return; } }
   if (edge(0) && running && !paused && fleet && fleet.entry && $('start').hidden && !calib.open) playerClaim();   // A = コース主張
   else if (edge(0) && !$('start').hidden) start();
   else if (edge(0) && calib.open) closeCalib();
   else if (edge(0) && !$('rotate').hidden) { portraitOk = true; $('rotate').hidden = true; }
   else if (edge(0) && !$('meas').hidden) $('measAgain').click();   // 計測結果: A = もう一度
   else if (edge(0) && !$('taBox').hidden) $('taAgain').click();   // タイムアタック結果: A = もう一度
-  if (edge(9)) { if ($('settings').hidden) { if (running) { paused = true; $('settings').hidden = false; } } else $('close').click(); }
+  // d255 Start: during a run it opens the menu (走行に戻る / モードを選び直す / 設定); again = back to the run. Menu open, not running: 設定
+  if (edge(9)) {
+    if (!$('settings').hidden) $('close').click();
+    else if (!$('pmenu').hidden) { if (running) $('pmClose').click(); else $('pmSet').click(); }
+    else if (running && !paused) $('again').click();
+  }
+  // d255 Back (Select): 出走表 in a 6艇レース
+  if (edge(8) && running && !paused && fleet && $('card').hidden) $('cardBtn').click();
   if (edge(1)) {
     if (!$('settings').hidden) $('close').click();
     else if (!$('card').hidden) { paused = false; last = performance.now(); $('card').hidden = true; }
@@ -869,6 +887,50 @@ function pollPadButtons(dt = 0) {
   if (edge(2) && running && $('settings').hidden && $('card').hidden) restartPractice();   // X = 練習をやり直す
   if (edge(3) && running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();
   pad.prev = g.buttons.map(b => b.pressed);
+}
+/* ---- d255 文字入力 (コントローラ用の画面キーボード): 名前・合言葉. かな／カナ／英数, B = 消す, Start = 決定 ---- */
+const KBD = { cols: 10, cb: null, max: 12, mode: 'hira', val: '', modes: ['hira', 'kata', 'abc'] };
+const KBD_ROWS = {
+  hira: ['あいうえおかきくけこ', 'さしすせそたちつてと', 'なにぬねのはひふへほ', 'まみむめもやゆよらり', 'るれろわをんーっ・ゔ', 'がぎぐげござじずぜぞ', 'だぢづでどばびぶべぼ', 'ぱぴぷぺぽゃゅょぁぃ', 'ぅぇぉゎ！？'],
+  abc: ['ABCDEFGHIJ', 'KLMNOPQRST', 'UVWXYZ-_.!', 'abcdefghij', 'klmnopqrst', 'uvwxyz?&#*', '1234567890'] };
+const kbdKata = s => s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
+function kbdBuild() {
+  let box = $('kbd');
+  if (!box) {
+    box = document.createElement('div'); box.className = 'overlay'; box.id = 'kbd'; box.hidden = true; box.style.zIndex = 12; box.dataset.cols = KBD.cols;
+    box.innerHTML = '<div class="card" style="max-width:560px"><p id="kbdTitle" style="color:var(--fg);font-size:14px;margin:0 0 6px"></p>'
+      + '<div id="kbdVal" style="font-size:22px;min-height:30px;padding:4px 8px;border:1px solid var(--hud-line);border-radius:8px;color:var(--fg);letter-spacing:.04em"></div>'
+      + '<div id="kbdKeys" style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-top:8px"></div>'
+      + '<p style="font-size:11px;color:var(--muted);margin:6px 0 0">十字キーで選んでA／B＝1文字消す／Start＝決定</p></div>';
+    document.body.appendChild(box);
+  }
+  const keys = box.querySelector('#kbdKeys'); keys.textContent = '';
+  const add = (label, fn, wide) => { const b = document.createElement('button'); b.className = 'btn ghost'; b.style.cssText = 'padding:6px 0;min-width:0;font-size:16px' + (wide ? ';grid-column:span 2;font-size:13px' : ''); b.textContent = label; b.addEventListener('click', fn); keys.appendChild(b); };
+  const rows = KBD.mode === 'abc' ? KBD_ROWS.abc : KBD_ROWS.hira.map(r => KBD.mode === 'kata' ? kbdKata(r) : r);
+  for (const r of rows) for (const c of r) add(c, () => kbdType(c));
+  add('かな', () => kbdMode('hira'), 1); add('カナ', () => kbdMode('kata'), 1); add('英数', () => kbdMode('abc'), 1); add('消す', kbdBack, 1); add('決定', () => kbdDone(true), 1);
+  add('やめる', () => kbdDone(false), 1);
+  kbdShow();
+  return box;
+}
+function kbdShow() { const v = $('kbdVal'); if (v) v.textContent = KBD.val + '｜'; }
+function kbdType(c) { if ([...KBD.val].length < KBD.max) { KBD.val += c; kbdShow(); } }
+function kbdBack() { KBD.val = [...KBD.val].slice(0, -1).join(''); kbdShow(); }
+function kbdMode(m) { KBD.mode = m; const box = kbdBuild(); padNav.surf = null; }
+function kbdDone(ok) { const box = $('kbd'); if (box) box.hidden = true; const cb = KBD.cb; KBD.cb = null; padNav.surf = null; if (cb) cb(ok ? KBD.val : null); }
+// open the keyboard; cb(text) on 決定, cb(null) on やめる
+function padKeyboard({ title = '', value = '', max = 12, mode = 'hira' } = {}, cb) {
+  Object.assign(KBD, { cb, max, mode, val: String(value || '').slice(0, max) });
+  const box = kbdBuild(); $('kbdTitle').textContent = title; box.hidden = false; padNav.surf = null;
+}
+// a text box picked with A: type into it, then (the name box) add the player
+function padTextInput(el) {
+  const label = el.getAttribute('aria-label') || el.placeholder || '文字を入力';
+  padKeyboard({ title: label, value: el.value, max: +el.maxLength > 0 ? +el.maxLength : 12, mode: el.dataset.kbd || 'hira' }, v => {
+    if (v == null) return;
+    el.value = v; el.dispatchEvent(new Event('input', { bubbles: true }));
+    if (el.id === 'plName' && v.trim() && typeof playerAdd === 'function') playerAdd();
+  });
 }
 // returns the controller's four channels, or null when no controller is in use
 function readPad() {

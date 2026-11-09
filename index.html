@@ -223,6 +223,8 @@ body.lab-running>.posture-stick{display:none!important}
 .btn small{font-size:11px;font-weight:500;opacity:.8}
 .menu-list .btn{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left}
 .menu-wide{width:100%;margin:0 0 8px}
+.mic{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-4px;margin-right:6px}.btn.big .mic{width:26px;height:26px;margin:0 0 2px}.mi-row{display:flex;align-items:center;gap:0;padding:6px 12px;font-size:14px}#pmVenueRow .mic{margin-right:2px}
+
 .menu-sub{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
 .menu-card summary{list-style:none;cursor:pointer}.menu-card summary::-webkit-details-marker{display:none}
 .menu-list{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0;padding:8px;border:1px solid var(--hud-line);border-radius:10px}
@@ -383,24 +385,24 @@ body.lab-running>#jk{display:none!important}
   <div class="card menu-card">
     <h1 id="pmTitle"><small>開発版 <span id="verTag"></span></small>Honor for GP<span class="sub">波の向こうに</span></h1>
     <div class="menu-top">
-      <div class="plrow"><label>プレイヤー <select id="plSel" aria-label="記録するプレイヤー"></select></label><input id="plName" maxlength="12" placeholder="名前を追加" aria-label="追加する名前"><button class="btn ghost" id="plAdd">追加</button><button class="btn ghost" id="plDel">消す</button></div>
+      <button class="btn ghost mi-row" id="pmPlayer" aria-expanded="false" data-panel="pmPlayerPanel"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg><span>プレイヤー：<b id="plNow">ゲスト</b> ▸</span></button>
+      <div class="menu-list" id="pmPlayerPanel" hidden><div class="plrow" style="margin:0"><label>プレイヤー <select id="plSel" aria-label="記録するプレイヤー"></select></label><input id="plName" maxlength="12" placeholder="名前を追加" aria-label="追加する名前"><button class="btn ghost" id="plAdd">追加</button><button class="btn ghost" id="plDel">消す</button></div></div>
       <div class="plrow" id="pmModeRow"><label>操作 <select id="pmModeSel" aria-label="操作モード"><option value="tilt">1．傾きあり</option><option value="pad">2．傾きなし・姿勢パッドあり</option><option value="wheel">3．姿勢パッド＋右手アクセル</option></select></label></div>
-      <div class="plrow" id="pmVenueRow"><label>コース <select id="pmVenue" class="venue-sel" aria-label="コース"><option value="standard">練習コース</option><option value="suminoe">なにわ競艇場</option></select></label></div>
+      <div class="plrow" id="pmVenueRow"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 3.5L16 11H5"/><path d="M3 21h18" /></svg><label>コース <select id="pmVenue" class="venue-sel" aria-label="コース"><option value="standard">練習コース</option><option value="suminoe">なにわ競艇場</option></select></label></div>
       <p id="controlHelp" class="menu-help"></p>
       <p id="pmKeys" class="menu-help">PC：W/S＝スロットル　A/D＝舵　矢印＝体重移動／コントローラ：トリガー＝スロットル　右スティック＝舵　左スティック＝体重移動</p>
     </div>
     <div class="menu-main">
-      <button class="btn big" id="pmTA" data-play>タイムアタック<small>1艇・3周・級判定</small></button>
-      <button class="btn big" id="pmRaceMode" data-play>6艇レース<small>枠・スタート・相手を選ぶ</small></button>
-      <button class="btn big" id="pmSetsu" data-play>節間モード<small>6日間・48人</small></button>
+      <button class="btn big" id="pmTA" data-play><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.5M10 2.5h4M18.5 6.5l1.5-1.5"/></svg>タイムアタック<small>1艇・3周・級判定</small></button>
+      <button class="btn big" id="pmRaceMode" data-play><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15h15l3-4H6z"/><path d="M2 19c2 0 2-1.5 4-1.5S8 19 10 19s2-1.5 4-1.5S16 19 18 19s2-1.5 4-1.5"/></svg>6艇レース<small>枠・スタート・相手を選ぶ</small></button>
+      <button class="btn big" id="pmSetsu" data-play><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>節間モード<small>6日間・48人</small></button>
     </div>
     <button class="btn ghost menu-wide" id="pmRaceAgain" data-play hidden>前回と同じ条件で6艇レース</button>
     <div class="menu-sub">
-      <button class="btn ghost" id="pmPracticeBtn" aria-expanded="false" data-panel="pmPractice">練習 ▸</button>
-      <button class="btn ghost" id="pmGhostBtn" aria-expanded="false" data-panel="pmGhost"><span id="rivalTxt">相手：なし</span> ▸</button>
-      <button class="btn ghost" id="pmRank">ランキング</button>
-      <button class="btn ghost" id="pmSet">設定</button>
-      <button class="btn ghost" id="pmManual">操作説明</button>
+      <button class="btn ghost" id="pmPracticeBtn" aria-expanded="false" data-panel="pmPractice"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg>練習 ▸</button>
+      <button class="btn ghost" id="pmRank"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7l-1-3h-5z"/></svg>ランキング</button>
+      <button class="btn ghost" id="pmSet"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>設定</button>
+      <button class="btn ghost" id="pmManual"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5C6.5 4 9.5 4 12 6c2.5-2 5.5-2 8-.5V19c-2.5-1.5-5.5-1.5-8 .5-2.5-2-5.5-2-8-.5z"/><path d="M12 6v13.5"/></svg>操作説明</button>
     </div>
     <div class="menu-list" id="pmPractice" hidden>
       <button class="btn ghost" id="pm6" data-play>6艇スタート練習<small>ピット離れ〜1マーク</small></button>
@@ -408,7 +410,6 @@ body.lab-running>#jk{display:none!important}
       <button class="btn ghost" id="pmTenji" data-play>展示航走<small>1艇・タイム計測</small></button>
       <button class="btn ghost" id="pmClock" data-play>大時計スタート<small>1艇</small></button>
     </div>
-    <div class="menu-list" id="pmGhost" hidden><div class="plrow" id="rivalRow" style="margin:0"><button class="btn ghost" id="rivalLoad">ゴーストを読み込む</button><button class="btn ghost" id="codeLoad">合言葉で受け取る</button><button class="btn ghost" id="shareCode">合言葉で渡す</button><button class="btn ghost" id="rivalOff" hidden>外す</button><span id="shareTxt" hidden style="font-size:13px;flex-basis:100%"></span><input type="file" id="rivalFile" accept=".json,application/json" hidden></div></div>
     <details id="pmDev" class="menu-dev"><summary>開発用</summary>
       <div class="menu-list">
         <button class="btn ghost" id="goDemo" data-play>6艇デモを見る</button>
@@ -535,6 +536,7 @@ body.lab-running>#jk{display:none!important}
     <div class="row" id="rankTabs"><button class="btn" data-tab="local">端末内</button><button class="btn ghost" data-tab="net">全体</button><button class="btn ghost" data-tab="official">公式ゴースト</button><select id="rankVer" hidden title="版"></select></div>
     <p id="rankNote" style="font-size:12px;margin:0 0 6px"></p>
     <div id="rankList"></div>
+    <div class="plrow" id="rivalRow" style="margin:6px 0 0"><span id="rivalTxt" style="font-size:13px;flex-basis:100%">相手：なし</span><button class="btn ghost" id="rivalLoad">ゴーストを読み込む</button><button class="btn ghost" id="codeLoad">合言葉で受け取る</button><button class="btn ghost" id="shareCode">合言葉で渡す</button><button class="btn ghost" id="rivalOff" hidden>外す</button><span id="shareTxt" hidden style="font-size:13px;flex-basis:100%"></span><input type="file" id="rivalFile" accept=".json,application/json" hidden></div>
     <div class="row"><button class="btn" id="rankClose">閉じる</button><button class="btn ghost" id="rankReset" title="開発用">この表をリセット（開発用）</button></div>
   </div>
 </div>

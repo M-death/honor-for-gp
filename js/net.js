@@ -164,7 +164,9 @@ $('shareCode').addEventListener('click', async () => {
   } catch (e) { out.textContent = `作れませんでした：${e.message}`; }
 });
 $('codeLoad').addEventListener('click', async () => {
-  const c = (prompt('もらった合言葉（6文字）を入れてください') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  // d255: with a controller, the on-screen keyboard (英数) instead of the browser's prompt
+  const raw = typeof currentPad === 'function' && currentPad() ? await new Promise(res => padKeyboard({ title: 'もらった合言葉（6文字）', max: 6, mode: 'abc' }, res)) : prompt('もらった合言葉（6文字）を入れてください');
+  const c = (raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!c) return;
   try {
     const j = await netCall(`/share/${c}`);
