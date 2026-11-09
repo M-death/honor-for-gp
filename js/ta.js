@@ -177,19 +177,20 @@ function taShow(run, why, ref = taBest, isBest = false) {
   row('タイム', run ? fmtRT(run.t) : '—', ref ? fmtRT(ref.t) : '—');
   taMeasTable(run ? run.meas : taMeasNow(), ref && ref.meas);
   $('taGaps').textContent = ta.corners.length ? 'マークとの間隔（艇体の端〜ブイ）　' + taCornersJa(ta.corners) : '';
-  $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.filter(r => !TA_EXTRA.includes(r[0])).slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。エクストラ：' + TA_RANKS.filter(r => TA_EXTRA.includes(r[0])).reverse().map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '。タイムは針が0を指してからゴールまで。' + TA_MEAS_NOTE;
+  $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.filter(r => !TA_EXTRA.includes(r[0])).slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。エクストラ：' + TA_RANKS.filter(r => TA_EXTRA.includes(r[0])).reverse().map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '。タイムは針が0を指してからゴールまで。' + taMeasNote();
   $('taSlit').hidden = !(practiceSlit && practiceSlit.archived);
   if ($('taVidMsg')) { $('taVidMsg').textContent = ''; $('taVidMsg').hidden = true; }
   if (typeof vlUi === 'function') vlUi();
   paused = true; $('taBox').hidden = false;
 }
 // 区間タイム (展示・直線・まわり足・一周): the same gates as the practice 展示航走 (input.js GATES), every lap
-const TA_MEAS_KEYS = ['tenji', 'choku', 'mawari', 'isshu'];
-const TA_MEAS_NOTE = '　区間：展示＝バックのスタートライン延長から2マークまで150m／直線＝1マークからスタートライン延長まで120m／まわり足＝1マーク手前22mから出口23mまで／一周＝バックのスタートライン延長から次の周の同じ所まで（2周目・3周目の欄）。緑はその区間の今回いちばん速い周。';
-const taMeasNow = () => { const o = {}; for (const k of TA_MEAS_KEYS) o[k] = (meas.t[k] || []).map(v => v == null ? null : +v.toFixed(3)); return o; };
+const TA_MEAS_ALL = ['tenji', 'choku', 'mawari', 'isshu'];   // what is recorded (a section the venue doesn't measure stays empty)
+const taMeasShown = () => [...measKeys(), 'isshu'];             // d254: the venue's sections only
+const taMeasNote = () => '　区間：' + MEAS_NOTE + '（一周は2周目・3周目の欄）。緑はその区間の今回いちばん速い周。';
+const taMeasNow = () => { const o = {}; for (const k of TA_MEAS_ALL) o[k] = (meas.t[k] || []).map(v => v == null ? null : +v.toFixed(3)); return o; };
 // 一周 is measured back straight to back straight, so its n-th value ends in lap n+1
 const taMeasLaps = (m, k) => { const a = (m && m[k]) || []; return k === 'isshu' ? [null, ...a] : a; };
-const taMeasLog = m => TA_MEAS_KEYS.map(k => `${k}=` + Array.from({ length: TA.laps }, (_, i) => { const v = taMeasLaps(m, k)[i]; return v == null ? '-' : v.toFixed(2); }).join('/')).join(' ');
+const taMeasLog = m => taMeasShown().map(k => `${k}=` + Array.from({ length: TA.laps }, (_, i) => { const v = taMeasLaps(m, k)[i]; return v == null ? '-' : v.toFixed(2); }).join('/')).join(' ');
 function taMeasTable(m, ref) {
   let tab = $('taMeas');
   if (!tab) {
@@ -199,7 +200,7 @@ function taMeasTable(m, ref) {
   tab.textContent = '';
   const tr = cells => { const r = document.createElement('tr'); cells.forEach(([v, cls, th]) => { const c = document.createElement(th ? 'th' : 'td'); c.textContent = v; if (cls) c.style.color = 'var(--good)'; r.appendChild(c); }); tab.appendChild(r); };
   tr([['区間', '', 1], ...Array.from({ length: TA.laps }, (_, i) => [`${i + 1}周`, '', 1]), ['自己ベスト時', '', 1]]);
-  for (const k of TA_MEAS_KEYS) {
+  for (const k of taMeasShown()) {
     const a = taMeasLaps(m, k), vals = a.filter(v => v != null), lo = vals.length > 1 ? Math.min(...vals) : null;
     const r = taMeasLaps(ref, k).filter(v => v != null);
     tr([[MEAS_JA[k].replace('タイム', '')], ...Array.from({ length: TA.laps }, (_, i) => [a[i] == null ? '—' : a[i].toFixed(2), a[i] != null && a[i] === lo ? 'good' : '']), [r.length ? Math.min(...r).toFixed(2) : '—']]);

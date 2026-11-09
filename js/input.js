@@ -557,12 +557,37 @@ $('note').addEventListener('click', () => { $('note').hidden = true; });
    直線タイム   back straight, 120 m from the 1M line to the start-line extension (行き足)
    まわり足     from 22 m before 1M on the home side, round 1M, to 23 m out on the back side (回り足)
    一周タイム   one full lap, gate on the start-line extension of the back straight */
-const GATES = {
-  tenji: { from: { x: 0, side: -1 }, to: { x: -MK, side: -1 } },
-  choku: { from: { x: 120, side: -1 }, to: { x: 0, side: -1 } },
-  mawari: { from: { x: MK - 22, side: 1 }, to: { x: MK - 23, side: -1 } },
+// d254 (まえ: 競艇場ごとにオリジナル展示の区間が違う): the gates come from the venue (VENUE_MEAS). A section the venue
+// does not measure (なにわ: 直線) is left out — not measured, not shown.
+const VENUE_MEAS = {
+  standard: { gates: {   // 練習コース: the sections as before
+      tenji: { from: { x: 0, side: -1 }, to: { x: -MK, side: -1 } },
+      choku: { from: { x: 120, side: -1 }, to: { x: 0, side: -1 } },
+      mawari: { from: { x: MK - 22, side: 1 }, to: { x: MK - 23, side: -1 } } },
+    lap: { x: 0, side: -1 },
+    note: '展示＝バックのスタートライン延長から2マークまで150m（伸び）／直線＝1マークからスタートライン延長まで120m（行き足）／まわり足＝1マーク手前22mから回って出口23mまで／一周＝バックのスタートライン延長から次の周の同じ所まで',
+    ticks: [['tenji', 'from', '直線 終／展示 始／一周'], ['tenji', 'to', '展示 終'], ['choku', 'from', '直線 始'], ['mawari', 'from', 'まわり足 始'], ['mawari', 'to', 'まわり足 終', -2.6]] },
+  // なにわ (the real water's 展示: 1マークを回って75m地点から150m, auto-timed — acceleration shows; オリジナル展示 is 一周 and
+  // まわり足 only. まわり足 runs from the home straight before 1M round to the start of the 展示 section: from まえ's figure
+  // and the 11.68 s average, worked back with the CPU's line → 95 m before 1M)
+  suminoe: { gates: {
+      tenji: { from: { x: MK - 75, side: -1 }, to: { x: MK - 225, side: -1 } },
+      mawari: { from: { x: MK - 95, side: 1 }, to: { x: MK - 75, side: -1 } } },
+    lap: { x: MK - 95, side: 1 },
+    note: '展示＝1マークを回って75mから150m（加速）／まわり足＝1マーク手前95mから回って1マーク後75mまで／一周＝1マーク手前95mから次の周の同じ所まで（なにわ競艇場の区間。直線は測りません）',
+    ticks: [['tenji', 'from', '展示 始／まわり足 終'], ['tenji', 'to', '展示 終'], ['mawari', 'from', 'まわり足 始／一周']] },
 };
-const LAP_GATE = { x: 0, side: -1 };
+const GATES = {}, LAP_GATE = { x: 0, side: -1 };
+let MEAS_NOTE = '';
+function measVenue() {
+  const M = VENUE_MEAS[VENUE.id] || VENUE_MEAS.standard;
+  for (const k of Object.keys(GATES)) delete GATES[k];
+  Object.assign(GATES, M.gates); Object.assign(LAP_GATE, M.lap); MEAS_NOTE = M.note;
+}
+measVenue(); venueHooks.push(measVenue);
+const measTicks = () => (VENUE_MEAS[VENUE.id] || VENUE_MEAS.standard).ticks;
+const MEAS_SECTIONS = ['tenji', 'choku', 'mawari'];
+const measKeys = () => MEAS_SECTIONS.filter(k => GATES[k]);   // the sections this venue measures
 const MEAS_LAPS = 2;
 const measLaps = () => soloKind === 'ta' ? TA.laps : MEAS_LAPS;   // タイムアタックは3周すべて計測
 const MEAS_JA = { tenji: '展示タイム', choku: '直線タイム', mawari: 'まわり足タイム', isshu: '一周タイム' };
@@ -597,7 +622,7 @@ function measFinish(total) {
     [name, ...a].forEach((v, i) => { const td = document.createElement('td'); td.textContent = v; if (i && best != null && i - 1 === best) td.className = 'best'; tr.appendChild(td); });
     tb.appendChild(tr);
   };
-  for (const k of ['tenji', 'choku', 'mawari']) {
+  for (const k of measKeys()) {
     const a = [0, 1].map(i => meas.t[k][i] != null ? meas.t[k][i].toFixed(2) : '—');
     const vals = meas.t[k].filter(v => v != null);
     row(MEAS_JA[k], a, vals.length === 2 ? (meas.t[k][0] <= meas.t[k][1] ? 0 : 1) : null);
@@ -605,7 +630,7 @@ function measFinish(total) {
   row(MEAS_JA.isshu, [meas.t.isshu[0] != null ? meas.t.isshu[0].toFixed(2) : '—', ''], null);
   row('ST', [meas.st == null ? '—' : meas.st < 0 ? 'F ' + fmtST(-meas.st) : fmtST(meas.st), ''], null);
   row('2周タイム', [fmtRT(total), ''], null);
-  $('measNote').textContent = '展示＝バックのスタートライン延長から2マークまで150m（伸び）／直線＝1マークからスタートライン延長まで120m（行き足）／まわり足＝1マーク手前22mから回って出口23mまで／一周＝バックのスタートライン延長から1周。緑は2周のうち良い方。';
+  $('measNote').textContent = MEAS_NOTE + '。緑は2周のうち良い方。';
   paused = true; $('meas').hidden = false;
 }
 $('measAgain').addEventListener('click', () => { $('meas').hidden = true; paused = false; last = performance.now(); soloRestart(); });
