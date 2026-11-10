@@ -350,12 +350,43 @@ function drawNightPoles(S) {
 }
 // d235: the water is the venue's outline (its banks lean), not a box
 function venuePath(c, X = x => x, Y = y => y) { c.beginPath(); VENUE_OUTLINE.forEach(([x, y], i) => i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y))); c.closePath(); }
+// d259 (まえ: 直線で中央線からどれくらい離れているか分からない／まっすぐ走れているかの目安): the straights' water is a shade darker toward the mark line
+// (the inside), in 10 m steps with soft edges — read as water depth, no lines. Harder to read at dusk and at night
+// (まえ: 時間帯の難易度の差に). Between the marks only; it fades out over the last DEPTH.fade m before each mark.
+const DEPTH = { step: 10, edge: 0.7, fade: 25, steps: 6, deep: [2, 26, 40], shoal: [150, 214, 200],
+  k: { day: { d: 0.66, s: 0.30 }, evening: { d: 0.48, s: 0.20 }, night: { d: 1, s: 0.42 } } };   // d = shade at the mark line, s = the lightest band out by the bank
+function depthCol(i, K) {   // band i (0 = by the mark line): darker inside, lighter toward the bank, an even step each 10 m
+  const v = 1 - 2 * Math.min(1, i / DEPTH.steps);
+  return v >= 0 ? `rgba(${DEPTH.deep},${(v * K.d).toFixed(3)})` : `rgba(${DEPTH.shoal},${(-v * K.s).toFixed(3)})`;
+}
+function drawDepthBands() {
+  const K = DEPTH.k[todNow()] || DEPTH.k.day, x0 = -MK, x1 = MK;
+  for (const side of [1, -1]) {
+    const far = side > 0 ? COURSE.yMax : -COURSE.yMin, n = Math.ceil(far / DEPTH.step), e = DEPTH.edge / far;
+    const gr = ctx.createLinearGradient(0, 0, 0, side * far);
+    for (let i = 0; i < n; i++) {
+      const c = depthCol(i, K), y0 = i * DEPTH.step / far, y1 = Math.min(1, (i + 1) * DEPTH.step / far);
+      gr.addColorStop(Math.min(1, y0 + (i ? e : 0)), c); gr.addColorStop(Math.max(0, y1 - (i < n - 1 ? e : 0)), c);
+    }
+    // the bands fade in from each mark so the turns keep their look
+    const N = 40, top = side > 0 ? 0 : -far;
+    ctx.fillStyle = gr;
+    for (let k = 0; k < N; k++) {
+      ctx.globalAlpha = (k + 0.5) / N;
+      const d = DEPTH.fade * k / N, w = DEPTH.fade / N;
+      ctx.fillRect(x0 + d, top, w, far); ctx.fillRect(x1 - d - w, top, w, far);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillRect(x0 + DEPTH.fade, top, x1 - x0 - 2 * DEPTH.fade, far);
+  }
+}
 function drawWaterSurface(S, cw, ch) {
   ctx.save(); venuePath(ctx); ctx.clip();
   const water = ctx.createLinearGradient(0, COURSE.yMin, 0, COURSE.yMax);
   water.addColorStop(0, '#245d65'); water.addColorStop(.27, '#28747b');
   water.addColorStop(.66, '#185b69'); water.addColorStop(1, '#103b4c');
   ctx.fillStyle = water; ctx.fillRect(COURSE.xMin, COURSE.yMin, cw, ch);
+  drawDepthBands();
   const vw = W / S, vh = H / S;
   const minX = Math.max(COURSE.xMin, cam.x - vw / 2 - 7), maxX = Math.min(COURSE.xMax, cam.x + vw / 2 + 7);
   const minY = Math.max(COURSE.yMin, cam.y - vh / 2 - 7), maxY = Math.min(COURSE.yMax, cam.y + vh / 2 + 7);
