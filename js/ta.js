@@ -6,7 +6,9 @@
 // d148–d152: the turns (and the exits) got wider (GRIP_BASE), so the old bests were reset — a new key; the old 'honorGP.ta' is left unread
 // d157: the turns slide now (ドリフト) — the old bests were reset again (d158: more slide and the hull's bank; d159: deep bank pays; d161: less fade in タイムアタック — reset each time)
 // d236 (まえ: 住之江は別で集計): the key carries the venue — 練習コース keeps 'honorGP.ta.d225' (its records stay), 住之江 is 'honorGP.ta.d225.suminoe'
-const TA = { laps: 3, keyBase: 'honorGP.ta.d225', key: 'honorGP.ta.d225' + VENUE.taSuffix, ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
+// d262 (まえ: ランキングは一度リセット、これから入れ直す): new motor (d260) + new bands (d261) → a new key for both courses;
+// the d225 records stay in storage and on the server (the 全体ランキング can still show them by version).
+const TA = { laps: 3, keyBase: 'honorGP.ta.d262', key: 'honorGP.ta.d262' + VENUE.taSuffix, ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
 // A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
 // d136: エクストラ (まえ) — GP覇者 and レジェンド sit above 記念クラス
@@ -18,7 +20,9 @@ const TA_EXTRA = ['レジェンド', 'GP覇者'];
 // d165 (まえ): titles only, not race-time targets — レジェンド 1'42"0 GP覇者 1'43"0 記念 1'44"5 A1 1'46"0 A2 1'48"0 B1 1'52"0 B2 1'55"0
 // d225 (まえ: real times can't get that quick): top speed 81 → 80 km/h (physics.js THRUST) makes every run slower, and the titles move
 // 1.5 s from d165 — the fastest real 3-lap time since the reduced-output motors is 1'44"2 (芦屋 2018-12-09, boatrace.jp). Records reset (TA.key).
-const TA_RANKS = [['レジェンド', 103.5], ['GP覇者', 104.5], ['記念クラス', 106.0], ['A1', 107.5], ['A2', 109.5], ['B1', 113.5], ['B2', 116.5], ['ルーキー', Infinity]];
+// d261 (まえ: ランクは目安、全コースこの案で固定): the d260 solo motor (伸び 1.025) made the CPU ~1 s (top) to ~2.5 s (bottom) quicker,
+// so every band moved with it. CPU 1艇 練習コース (median of 5): 記念 1'45"1 TOP 1'46"9 A1 1'47"4 A2 1'48"4 B1 1'51"4 B2 1'56"7. One table for every course.
+const TA_RANKS = [['レジェンド', 102.5], ['GP覇者', 103.5], ['記念クラス', 104.5], ['A1', 106.5], ['A2', 108.5], ['B1', 111.5], ['B2', 115.0], ['ルーキー', Infinity]];
 const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false, log: [], ev: [], corners: [], cur: null, cSide: -1 };
 // the best run belongs to the player chosen in the practice menu (player.js)
 let taBest = null;

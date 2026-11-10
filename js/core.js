@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd259';
+const GAME_VER = 'd262';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -138,8 +138,10 @@ const diag = { ori: 0, oriNull: 0, mot: 0, framed: (() => { try { return window.
 
 let playerTilt = -0.5;   // the player's own tilt (settings)
 // d257 (まえ: タイムアタックのモーターは○近く、最高速度80.5あたり、練習コースも同じ): the solo boat's motor (TA・展示・練習).
-// 出足 1.02○ 回り足 1.01○ (中速 1.02) 伸び 1.025 (○と◎のさかい). CPU solo, tilt −0.5, no wind: top 78.0 → 80.5–80.8 km/h on both courses.
-const SOLO_MOTOR = { deashi: 1.02, mMid: 1.02, mawari: 1.01, nobi: 1.025 };
+// d260 (まえ: ミスありで1'44"8は速い、展示は速くない → 出足・回り足は平均に戻し、最高速だけ80ちょい): 出足・中速・回り足 1.00、
+// 伸び 1.025 (○と◎のさかい). CPU solo なにわ, tilt −0.5, no wind: top 80.2–80.7 km/h, A1 1'47"4→1'48"0, 記念 1'44"8→1'45"5.
+// (d257 was 出足 1.02 中速 1.02 回り足 1.01.) The 後ろ重心 pop on the exit now buys more (まえ: 出足を補う技術).
+const SOLO_MOTOR = { deashi: 1, mMid: 1, mawari: 1, nobi: 1.025 };
 const B = { x: START.x, y: START.y, a: START.a, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0, ...SOLO_MOTOR, tilt: playerTilt };
 const input = { thr: 0, steer: 0, steerT: 0, roll: 0, pitch: 0 };
 const raw = { roll: 0, pitch: 0 };
