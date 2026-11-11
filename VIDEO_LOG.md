@@ -121,6 +121,7 @@ d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）�
 | rear_hit / dump | `{other, J}` / `{other}` |
 | hit | `{what}` ブイ・壁など |
 | inside_course | 内側航走 |
+| push_out | 押し出し失格（d267）：その艇が相手（victim）を中央線の内側へ押し出した。続けて dq（why に理由）が出る。押し出された艇には inside_course は出ない |
 | capsize / fall | `{why, x, y}` 転覆 / 落水 |
 | foul | `{kind: 不良航法 / 待機行動違反, other, why}` |
 | dq | `{why}` |

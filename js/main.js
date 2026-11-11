@@ -22,6 +22,7 @@ function frame(now) {
   try { tick(now); } catch (err) { if (!frame.warned) { frame.warned = true; console.error(err); } }
   requestAnimationFrame(frame);
 }
+const STEP = { dt: 1 / 120, acc: 0, max: 12 };   // d268: fixed physics step (max 12 a frame, 0.1 s)
 function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (typeof RPV !== 'undefined' && RPV.on) { rpvFrame(dt); return; }   // d228 ゲーム内リプレイ: the recorded race is drawn, nothing runs
@@ -34,9 +35,14 @@ function tick(now) {
   }
   pollPadButtons(dt);
   if (running && !paused) {
-    if (fleet && playerActive()) { updateInput(dt); fleetStep(dt / 2, input); fleetStep(dt / 2, input); cutinCheck(); const pr = playerRow(); if (pr && playerRacing(pr)) hapticsFrame(dt, pr.b); }   // practice runs in real time
-    else if (fleet) { const n = Math.ceil(simSpeed * 2); for (let i = 0; i < n; i++) fleetStep(dt * simSpeed / n, input); }
-    else { updateInput(dt); step(dt / 2); step(dt / 2); hapticsFrame(dt, B); }
+    // d268 (まえ: 3Dで走ると速すぎる、ミスだらけでレコード): the physics ran one or two steps of half a frame, so its step size
+    // followed the frame rate — a slower frame (the 3D view, a busy PC) made bigger steps and a quicker boat (CPU solo,
+    // 1/40 s steps ≈ 0.5 s a run faster than 1/120). Now always fixed 1/120 s steps, as many as the real time needs
+    // (at 60 fps the same two steps a frame as before, so 2D at 60 fps is unchanged).
+    const steps = n => { STEP.acc = Math.min(STEP.acc + n, STEP.max * STEP.dt); const k = Math.floor(STEP.acc / STEP.dt + 1e-6); STEP.acc -= k * STEP.dt; return k; };
+    if (fleet && playerActive()) { updateInput(dt); for (let k = steps(dt); k > 0; k--) fleetStep(STEP.dt, input); cutinCheck(); const pr = playerRow(); if (pr && playerRacing(pr)) hapticsFrame(dt, pr.b); }   // practice runs in real time
+    else if (fleet) { for (let k = steps(dt * simSpeed); k > 0; k--) fleetStep(STEP.dt, input); }
+    else { updateInput(dt); for (let k = steps(dt); k > 0; k--) step(STEP.dt); hapticsFrame(dt, B); }
   }
   if (!running || paused || (fleet && !playerRacing(playerRow()))) hapticsStop();
   updateAudioAll();

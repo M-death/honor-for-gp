@@ -426,7 +426,9 @@ function lockLandscape() {
 }
 const orient = { locked: false, full: false };   // full: the player had full screen (taken back on the next tap if lost)
 // on a PC (mouse, no touch), leaving full screen (Esc etc.) is the player's choice: don't go back into it
-const isPC = () => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches && !('ontouchstart' in window) && !(navigator.maxTouchPoints > 0); } catch (e) { return false; } };
+// d263 (まえ: PCで画面設定に「ウィンドウで開く」が欲しい — the setting was hidden): a PC is anything with a mouse — a touch-capable
+// laptop or a browser that reports touch points still counts (phones and tablets have no fine pointer)
+const isPC = () => { try { return matchMedia('(any-hover: hover) and (any-pointer: fine)').matches; } catch (e) { return false; } };
 // leaving full screen on a PC (Esc etc.) sets the setting to ウィンドウ
 let screenMode = 'full';
 try { screenMode = localStorage.getItem('honorGP.screen') === 'window' ? 'window' : 'full'; } catch (e) {}
@@ -884,9 +886,23 @@ function pollPadButtons(dt = 0) {
     else if (!$('taBox').hidden) $('taClose').click();
     else if (running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();   // 待機行動中: B = 引く（ダッシュ）
   }
+  // d269 (まえ): 十字キー 上／下 = 視点を順に切り替え（2D 追いかけ・拡大追尾・自動ズーム → 3D 追尾・レーサー）
+  if ((edge(12) || edge(13)) && $('settings').hidden && $('card').hidden) viewCycle(edge(13) ? 1 : -1);
   if (edge(2) && running && $('settings').hidden && $('card').hidden) restartPractice();   // X = 練習をやり直す
   if (edge(3) && running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();
   pad.prev = g.buttons.map(b => b.pressed);
+}
+// d269: one list of every view, 2D cameras then the 3D views; 自動ズーム only in a 6艇 run (alone it is the same as 追いかけ)
+function viewCycle(dir) {
+  const V = window.View3D, list = [['2d', 'follow'], ['2d', 'close']];
+  if (fleet) list.push(['2d', 'auto']);
+  if (V && !V.error) list.push(['chase'], ['racer']);
+  const m = V ? V.mode : '2d';
+  let i = list.findIndex(v => v[0] === m && (m !== '2d' || v[1] === camMode));
+  if (i < 0) i = m === '2d' ? 0 : list.length - 1;
+  const [nm, cm] = list[(i + dir + list.length) % list.length];
+  if (cm) { camMode = cm; cam.s = 0; try { localStorage.setItem('honorGP.camera', cm); } catch (e) {} if ($('camMode')) $('camMode').value = cm; }
+  if (V && V.mode !== nm) V.setMode(nm);
 }
 /* ---- d255 文字入力 (コントローラ用の画面キーボード): 名前・合言葉. かな／カナ／英数, B = 消す, Start = 決定 ---- */
 const KBD = { cols: 10, cb: null, max: 12, mode: 'hira', val: '', modes: ['hira', 'kata', 'abc'] };

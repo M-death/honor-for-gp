@@ -496,7 +496,7 @@ function boatContacts(list) {
       const kick = SHOVE.k * J * (0.5 + share);
       V.vl = clamp(V.vl + kick * (-ox * fvy + oy * fvx), -SHOVE.vlMax, SHOVE.vlMax);
       V.shoveT = Math.max(V.shoveT || 0, SHOVE.t * clamp(J / SHOVE.jRef, 0.3, 1));
-      V.shoveBy = P;
+      V.shoveBy = P; V.shoveAt = time;   // d267: who shoved and when (race.js: 押し出しで内側航走させたら押した側が失格)
     }
     // an off-centre hit swings the hull
     a.yaw += ((px - a.x) * (-ny * JA) - (py - a.y) * (-nx * JA)) * 0.05;

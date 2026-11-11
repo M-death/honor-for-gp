@@ -2861,8 +2861,16 @@ function fleetStep(dt, playerInput) {
     // 内側航走: crossing the course centreline between the marks means a mark was cut
     if (r.st != null && !r.dq && r.fin == null && !r.relegated && r.prevY != null && Math.sign(r.prevY) !== Math.sign(b.y) && Math.abs(b.x) < MK - 1) {
       if(lab.active)labEvent('inside_course',r.no,{label:'内側航走'});
-      r.relegated = true; fleet.cutsInside++; if (VR) VR.ev('inside_course', r.no, null);
-      toast('内側航走', `${r.no}号艇 ターンマークの内側を通過　6着扱い`, 'bad');
+      // d267 (まえ: 側面で押し合って相手を中央線の向こうへ押し出したら、押し出した方を失格に): shoved over the line by another
+      // boat in the last PUSH_OUT.window s → the pusher is 失格 (妨害) and the boat pushed over is not counted as 内側航走
+      const pr = b.shoveBy && time - (b.shoveAt ?? -99) < PUSH_OUT.window ? fleet.boats.find(q => q.b === b.shoveBy && q !== r) : null;
+      if (pr && !pr.dq) {
+        if (VR) VR.ev('push_out', pr.no, { victim: r.no });
+        disqualify(pr, `${r.no}号艇を中央線の内側へ押し出し`);
+      } else {
+        r.relegated = true; fleet.cutsInside++; if (VR) VR.ev('inside_course', r.no, null);
+        toast('内側航走', `${r.no}号艇 ターンマークの内側を通過　6着扱い`, 'bad');
+      }
     }
     r.prevY = b.y;
     boatFx(b, r.wake, dt);
@@ -3483,6 +3491,7 @@ function startFoul(r, kind) {
   toast('待機行動違反', `${r.no}号艇 ${kind}（減点）`, 'bad');
   if (typeof document !== 'undefined' && document.getElementById('cardBody') && fleet) buildCard();
 }
+const PUSH_OUT = { window: 1.5 };   // d267: s after a shove that a crossing of the centreline still counts as pushed
 function disqualify(r, why) {
   if (r.dq) return;
   if(lab.active)labEvent('disqualified',r.no,{label:'妨害失格',reason:why});

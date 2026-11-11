@@ -685,6 +685,20 @@ const PLAYER_STYLE = { hull: '#f4f7f6', num: '#0a2c38', label: '1', helmet: C.le
 /* バウンド: drawn from the hull's hop in the physics (d155; d154 was looks only). In the air the hull comes up at the
    camera and its shadow stays on the water; a landing throws a white burst. */
 const BOUNCE_VIEW = { hMax: 0.45, splashT: 0.4, wil: 0.22, trim: 0.08 };   // wil: ウィリー drawn as this much lift (bow up, riding on the tail); trim: 後ろ重心 (d173) — a third of it
+/* 走りの揺れ (d266, まえ: 走りの物理には影響しないように縦揺れ（軽いバウンド）、速度に乗ると次第に収まる): drawn only — a light
+   heave and pitch while the hull is off the plane, settling as it gets up to speed (TILT.planeV ≈ 10–12.5 m/s, 37–45 km/h).
+   h: m up (+) / down (−), nose: rad bow up. Every boat has its own phase. 2D: the hull is drawn a touch nearer / further;
+   3D (the light model, the new model, the 3D view): the hull rises and pitches. */
+const RIDE_BOB = { h: 0.06, nose: 0.035, hz: 2.4, rest: 0.4, peak: 7, flat: 13.5, keep: 0.06 };
+const _bobPh = new WeakMap();
+function rideBob(b) {
+  if (!b || b.cap > 0 || (b.hop || 0) > 0.03) return { h: 0, nose: 0 };
+  let ph = _bobPh.get(b); if (ph === undefined) { ph = Math.random() * Math.PI * 2; _bobPh.set(b, ph); }
+  const R = RIDE_BOB, v = Math.max(0, b.v || 0);
+  const k = v <= R.peak ? R.rest + (1 - R.rest) * v / R.peak : Math.max(R.keep, 1 - (v - R.peak) / (R.flat - R.peak) * (1 - R.keep));
+  const u = time * R.hz * Math.PI * 2 + ph, w = Math.sin(u) + 0.35 * Math.sin(1.7 * u + 1);
+  return { h: R.h * k * w / 1.35, nose: R.nose * k * Math.sin(u + 0.9) };
+}
 function boatBounce(b) {
   return { h: b.cap > 0 ? 0 : clamp(Math.max(b.hop || 0, (b.wil || 0) * BOUNCE_VIEW.wil, Math.max(0, b.trim || 0) * BOUNCE_VIEW.trim), 0, BOUNCE_VIEW.hMax), wil: b.cap > 0 ? 0 : b.wil || 0, pop: b.cap > 0 ? 0 : clamp(b.trimPop || 0, 0, 1), ls: b.landAge ?? 9, sp: clamp((b.landV || 0) / 4, 0, 1), stuck: (b.stuckAge ?? 9) < 0.3 };
 }
@@ -780,6 +794,7 @@ function drawBoatAt(b, inp, sty, focused) {
     ctx.beginPath(); ctx.ellipse(1.1 + tr * 0.4 + tsx, 0.25 + tsy, 1.0, 0.5, 0, 0, Math.PI * 2); ctx.fill();
   }
   if (lift > 0.005) ctx.scale(1 + lf * 0.28, 1 + lf * 0.2);   // nearer the camera
+  { const rb = rideBob(b); if (rb.h) ctx.scale(1 + rb.h * 0.6, 1 + rb.h * 0.45); }   // d266 走りの揺れ
   // Bow spray follows speed and lateral load; it is entirely visual.
   if (b.cap <= 0 && b.v > 5) {
     const speed = clamp(b.v / 23, 0, 1);

@@ -9,7 +9,9 @@ $('pmenu').addEventListener('click', e => {
   const b = e.target.closest('[data-play]'); if (!b || running) return;
   e.stopImmediatePropagation(); e.preventDefault();
   $('pmenu').hidden = true;
-  start(() => { beginStart(); paused = true; b.click(); });
+  // d263: run the mode on the next tick — with a controller (操作モード コントローラ) start() runs straight through inside this
+  // click, and a click() on a button whose own click is still being dispatched does nothing (the run sat paused until X)
+  start(() => { beginStart(); paused = true; setTimeout(() => b.click(), 0); });
 }, true);
 // 練習 ▸ / 相手 ▸: one panel open at a time
 for (const bt of document.querySelectorAll('#pmenu [data-panel]')) bt.addEventListener('click', () => {

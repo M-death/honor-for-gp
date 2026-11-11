@@ -8,7 +8,8 @@
 // d236 (まえ: 住之江は別で集計): the key carries the venue — 練習コース keeps 'honorGP.ta.d225' (its records stay), 住之江 is 'honorGP.ta.d225.suminoe'
 // d262 (まえ: ランキングは一度リセット、これから入れ直す): new motor (d260) + new bands (d261) → a new key for both courses;
 // the d225 records stay in storage and on the server (the 全体ランキング can still show them by version).
-const TA = { laps: 3, keyBase: 'honorGP.ta.d262', key: 'honorGP.ta.d262' + VENUE.taSuffix, ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
+// d265 (まえ: ゴーストと位置がずれるからリセットして): the solo start moved 10 m inside (d264, START.y 30 → 20) → a new key again; d262 records stay viewable by version.
+const TA = { laps: 3, keyBase: 'honorGP.ta.d265', key: 'honorGP.ta.d265' + VENUE.taSuffix, ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
 // A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
 // d136: エクストラ (まえ) — GP覇者 and レジェンド sit above 記念クラス
@@ -249,9 +250,11 @@ function taDrawGhost() {
   if (taRival) taDrawOne(taRival, RIVAL_STYLE, 0.45);
   if (taBest && taBest.g) taDrawOne(taBest, GHOST_STYLE, 0.38);
 }
-function taDrawOne(src, sty, alpha) {
-  const g = src.g, n = g.length / 3, u = (time - ta.zero - src.g0) / TA.ghostDt;
-  if (u < 0 || u >= n - 1) return;
+// d268: the ghost's pose now, shared by the 2D drawing and the 3D view (play3d.js)
+function taGhostPose(src) {
+  const g = src && src.g; if (!g) return null;
+  const n = g.length / 3, u = (time - ta.zero - src.g0) / TA.ghostDt;
+  if (u < 0 || u >= n - 1) return null;
   const i = Math.floor(u), f = u - i, j = i * 3;
   let da = g[j + 5] - g[j + 2]; da = Math.atan2(Math.sin(da), Math.cos(da));
   const gb = { x: g[j] + (g[j + 3] - g[j]) * f, y: g[j + 1] + (g[j + 4] - g[j + 1]) * f, a: g[j + 2] + da * f,
@@ -260,6 +263,16 @@ function taDrawOne(src, sty, alpha) {
   // against the way it points, as physics.js b.slip — and drawBoatAt swings the stern out the same as a live boat
   const dx = g[j + 3] - g[j], dy = g[j + 4] - g[j + 1], fx = Math.cos(gb.a), fy = Math.sin(gb.a);
   gb.slip = Math.atan2(-fy * dx + fx * dy, Math.max(0.05, fx * dx + fy * dy));
+  return gb;
+}
+function taGhostsNow() {   // [{b, kind: 'rival' | 'best'}] while a タイムアタック shows them
+  if (soloKind !== 'ta' || fleet || !(ta.on || ta.done)) return [];
+  const out = [], r = taRival && taGhostPose(taRival), m = taBest && taBest.g && taGhostPose(taBest);
+  if (r) out.push({ b: r, kind: 'rival' }); if (m) out.push({ b: m, kind: 'best' });
+  return out;
+}
+function taDrawOne(src, sty, alpha) {
+  const gb = taGhostPose(src); if (!gb) return;
   ctx.save(); ctx.globalAlpha = alpha; drawBoatAt(gb, GHOST_IN, sty, false); ctx.restore();
 }
 

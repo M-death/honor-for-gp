@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd262';
+const GAME_VER = 'd269';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -110,7 +110,7 @@ const OBSTACLES = [
   { kind: 'boom', x1: MK - 2, y1: 0, x2: MK - 2 - BOOM_LEN, y2: 0, r: 0.35 },
   { kind: 'boom', x1: -MK + 2, y1: 0, x2: -MK + 2 + BOOM_LEN, y2: 0, r: 0.35 },
 ];
-const START = { x: -95, y: 30, a: 0 };
+const START = { x: -95, y: 20, a: 0 }; // d264 (まえ): 30 → 20 — タイムアタック・大時計スタートは理想のラインのかなり外から始まっていた、水の色一段分内へ
 const IDLE = 0.08;          // idle thrust share with the lever fully closed
 const CLOCK = 12;           // big-clock countdown seconds
 // 6艇レース: 針が回り出す PRE_RUN 秒前から待機行動の艇が動ける（スタートの加速が鈍いので、ダッシュの助走200mに12秒では足りない）
