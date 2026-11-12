@@ -1673,7 +1673,8 @@ function turnRoleOf(b, env, style) {
 // flat out — often worth places), 'force' (dive inside even through a small gap), 'wait' (outside boats only: when the
 // inside is crowded, lift and turn late and tight behind them all — the 6コース 最内差し)
 const COMMIT = { at: 25, lead: 3.5, dv: 1.0 };   // 叩き: decided this far past the slit; needs this lead (m) and this much more speed (m/s) than the boat inside
-const SIDE_ON = { ang: 0.6, yaw: 0.3, cut: 0.95 };   // giving way to a boat turning across: heading difference (rad), its turn rate (rad/s), how hard to lift
+const SIDE_ON = { ang: 0.6, yaw: 0.3, cut: 0.95 };
+const TBONE = { crossAng: 0.25 };   // d276: hit boat heading in across the other's line by more than this (rad) → it is the one that crossed   // giving way to a boat turning across: heading difference (rad), its turn rate (rad/s), how hard to lift
 const KADO_UKE = { on: true, abortLead: 5, abortK: 8, makuriK: 10, msK: 8, touch: 5.5, liftLead: 4.5, liftP: { calm: 0.8, normal: 0.65, aggr: 0.45 }, liftT: 1.2, liftThr: 0.7, at: 0, maxLead: 4, lat: 9, p: { calm: 0.5, normal: 0.7, aggr: 0.85 }, lost: 6, won: 5, until: 85 };   // d245 カド受け（d247: 張らずに進路を保つ。1艇身＝5m前へ出たら外へ出てまくってよい）: from the slit; only if the dash is < this far ahead; chance by temper; m held off it; m/step out; gives up when it is this far ahead; done when this far in front of it
 const MAKURI3 = { lead: 1.5, p: 0.6, wallP: { calm: 0.25, normal: 0.45, aggr: 0.65 } };   // 3コース: m in front of the 2 to go for it; chance; カド受けの壁 by temper
 const FOLLOW = { p: { calm: 0.55, normal: 0.75, aggr: 0.9 }, off: 5 };   // 連動: chance to follow a 叩き from inside; how far outside it to run
@@ -1816,7 +1817,7 @@ function applyCourse(r, course, slow, kado, okoshi) {
   if (!r.player) r.inp = r.drv.out;
 }
 function raceFieldsInit(r) {
-  r.wake = r.wake || []; r.prevY = r.b.y; r.vis = 0; r.st = null; r.laps = 0; r.fin = null; r.prog = boatBow(r.b).x - 1000; r.flying = false;
+  r.wake = r.wake || []; r.prevY = r.b.y; r.vis = 0; r.st = null; r.laps = 0; r.past1M = false; r.fin = null; r.prog = boatBow(r.b).x - 1000; r.flying = false;
 }
 // チルト: CPU riders mostly sit at −0.5 inside; the dash courses go 0 / +0.5 for 伸び, and now and then a rider
 // gambles on a big tilt (はね). The player picks their own in the settings. Called again once the course is known.
@@ -2896,6 +2897,8 @@ function fleetStep(dt, playerInput) {
     if (b.x < -MK + 15) r.vis |= 2;
   }
 
+  // d277 (まえ: 1周1マークを回るまでは斜行判定を緩く): a boat is past 1M once it reaches the back straight (sticky)
+  for (const r of fleet.boats) if (!r.past1M && (r.laps > 0 || r.b.y < -4)) r.past1M = true;
   // 斜行: on a straight, a boat sliding sideways across one that is behind or alongside it
   if (time > zero + 1.5 && !fleet.caution) for (const r of fleet.boats) {
     const b = r.b;
@@ -2973,7 +2976,12 @@ function fleetStep(dt, playerInput) {
     // 頭から側面へ: the boat whose bow went into the other's side carries it — if that boat goes over, 妨害失格
     for (const [x, y] of [[A, Bt], [Bt, A]]) {
       const bw = boatBow(x.b), ang = Math.abs(wrapRad(x.b.a - y.b.a));
-      if (ang > SIDE_ON.ang && Math.hypot(e.x - bw.x, e.y - bw.y) < 1.6 && !x.dq) { x.interfere = { q: y, t: time }; x.tbone = (x.tbone || 0) + 1; }
+      if (!(ang > SIDE_ON.ang && Math.hypot(e.x - bw.x, e.y - bw.y) < 1.6)) continue;
+      // d276 (まえ「大惨事」ログ: 4号艇がまくりで2号艇の前を横切り、2号艇の舳先が当たって2号艇が失格): when the boat that was hit had
+      // been turning across x's path (heading in toward x's line), the crossing boat carries it, not the one whose bow met its side
+      const sd = Math.sign(Math.cos(x.b.a) * (y.b.y - x.b.y) - Math.sin(x.b.a) * (y.b.x - x.b.x)), cross = sd * wrapRad(y.b.a - x.b.a) < -TBONE.crossAng;
+      const by = cross ? y : x, on = cross ? x : y;
+      if (!by.dq) { by.interfere = { q: on, t: time }; if (!cross) by.tbone = (by.tbone || 0) + 1; }
     }
     (fleet.touchLog || (fleet.touchLog = [])).push({ t: time, a: A, b: Bt, J: e.J, x: e.x, y: e.y, ra: A.drv && A.drv.mem.turnRole && A.drv.mem.turnRole.role, rb: Bt.drv && Bt.drv.mem.turnRole && Bt.drv.mem.turnRole.role, pa: [A.b.x, A.b.y, A.b.a], pb: [Bt.b.x, Bt.b.y, Bt.b.a] });
     sfxHit(e.x, e.y, e.J);
@@ -2984,7 +2992,8 @@ function fleetStep(dt, playerInput) {
       const lc = x.lastCut; x.interfere = { q: y, t: time }; x.lastCut = null;
       const side = Math.abs(wrapRad(x.b.a - y.b.a)) < CONTACT_RULE.sideAng;
       const cutK = lc.kind === '斜行' ? '斜行' : '転舵';
-      if (lc.steep) furyo(x, y, `${y.no}号艇の前へ${cutK}して接触`);   // d213: a steep cut that ends in contact
+      const early = EARLY_CUT.on && !x.past1M;   // d277: before 1M a side-by-side touch after a cut costs nothing
+      if (lc.steep && !(early && side)) furyo(x, y, `${y.no}号艇の前へ${cutK}して接触`);   // d213: a steep cut that ends in contact
       else if (CONTACT_RULE.strict || (!side && e.J >= CONTACT_RULE.hardJ)) furyo(x, y, `${y.no}号艇に${side ? '' : '強く'}接触`);
     }
     const dumper = A.drv.dumping(Bt.b) ? A : Bt.drv.dumping(A.b) ? Bt : null;
@@ -3002,7 +3011,7 @@ function fleetStep(dt, playerInput) {
       if (e.J <= jLim) continue;
       const sh = x === other && e.J >= CAPSIZE.heavyJ ? 1 : share;
       const p = clamp((e.J - jLim) / CAPSIZE.span * (1 + 2 * vb + CAPSIZE.unstP * unst), 0, 0.6) * sh * (x.prof.hazMul ?? (RISK[x.prof.name] || RISK.B1).hit);
-      if (simRandom() < p) { accident(x, simRandom() < 0.5 ? '転覆' : '落水', `${y.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : unst > 0.2 ? '（姿勢が乱れていた）' : x === other ? '（当てた側）' : ''}`); if (!CAPSIZE.both) break; }
+      if (simRandom() < p) { accident(x, simRandom() < 0.5 ? '転覆' : '落水', `${y.no}号艇との接触${vb > 0.3 ? '（引き波で暴れていた）' : unst > 0.2 ? '（姿勢が乱れていた）' : x === other ? '（当てた側）' : ''}`, y); if (!CAPSIZE.both) break; }
     }
   }
   fleetTimingStep(timingBefore,zero);
@@ -3384,14 +3393,14 @@ function cautionCheck() {
   if (VR) VR.ev('order_locked', null, { order: fleet.lockOrder.map(q => q.no) });
   if (!lab.active) { toast('着順確定', '最後尾が1周して事故艇の外を回り着順が確定', 'warn'); jkSay('lock'); skipRace(); }   // 確定したら結果へ
 }
-function accident(r, kind, why) {
+function accident(r, kind, why, by) {   // by: the boat whose contact put it over (d276: only that boat can be 妨害失格 for it)
   if (r.out) return;
   if(lab.active)labEvent('accident',r.no,{label:kind,reason:why});
   const wreckProg = r.prog > -1e6 && r.prog < 5e5 ? r.prog : 0;
   r.out = kind; r.dq = true; fleet.accidents++;
   if (VR) VR.ev(kind === '落水' ? 'fall' : 'capsize', r.no, { why, x: r.b.x, y: r.b.y });
   // the boat that cut across it and hit it just before: 妨害失格
-  for (const x of fleet.boats) if (x !== r && !x.dq && x.interfere && x.interfere.q === r && time - x.interfere.t < 3) { x.hindered = true; disqualify(x, `${r.no}号艇を${kind}させた`); }
+  for (const x of fleet.boats) if (x !== r && !x.dq && (!by || x === by) && x.interfere && x.interfere.q === r && time - x.interfere.t < 3) { x.hindered = true; disqualify(x, `${r.no}号艇を${kind}させた`); }
   const b = r.b;
   b.cap = 1e9; b.fallen = kind === '落水'; b.v *= 0.4; b.vl *= 0.3;
   if (b.fallen) { b.fx = b.x - Math.cos(b.a) * 3.5 + Math.sin(b.a) * 1.5; b.fy = b.y - Math.sin(b.a) * 3.5 - Math.cos(b.a) * 1.5; }
@@ -3475,10 +3484,12 @@ function zigCheck(b, steer, r) {
 const CUT = { window: 2.0, steep: 4.2, steepGap: 2.6, wildV: 6.5, wildGap: 1.0 };
 // d168: contact after a cut — side by side (heading within sideAng rad) is never 不良航法 by itself; a hit from another angle only at hardJ+
 const CONTACT_RULE = { strict: false, sideAng: 0.6, hardJ: 6 };
+const EARLY_CUT = { on: true };   // d277: until a boat has rounded 1周1M: cuts alone are not 不良航法, side-by-side contact after a cut is not either; sinking a boat stays 妨害失格
 function cutAcross(r, q, vy, gap, kind) {
   const steep = Math.abs(vy) >= CUT.steep && Math.abs(gap) < CUT.steepGap;
   if (!(r.lastCut && r.lastCut.q === q && r.lastCut.steep && time - r.lastCut.t < CUT.window)) r.lastCut = { q, t: time, kind, steep };
   else r.lastCut.t = time;
+  if (EARLY_CUT.on && !r.past1M) return;   // d277: before its 1M no 減点 for a cut alone (contact that sinks a boat is still 妨害失格)
   if (Math.abs(vy) >= CUT.wildV && Math.abs(gap) < CUT.wildGap) {
     const key = r.no * 10 + q.no + 200;
     if ((fleet.cutCool[key] || 0) > time) return;

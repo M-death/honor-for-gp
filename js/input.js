@@ -242,6 +242,7 @@ function sfxWillie(x, y) {
   oneShot(0.2, 380, 90, 0.35 * e, 'lowpass', 1.5);      // the stern digging in
 }
 // エンジンの音の高さ (0–1.15): one formula for the sound and the video log, so the log has it with the sound off too
+const EAR3D = { range: 90, fall: 1.3, vol: 0.6, behind: 1.2, panM: 12, aheadTone: 0.75 };   // d277 3D: audible to 90 m, full left/right at 12 m beside
 const engineRpm = (b, thr) => clamp(0.15 + 0.55 * (IDLE + (1 - IDLE) * thr) + 0.35 * b.v / 23 - 0.1 * (b.turnLoadV || 0), 0, 1.15);
 function updateAudio() {
   if (!snd.ctx) return;
@@ -252,6 +253,10 @@ function updateAudio() {
   const fr = fleet ? focusRow() : null;
   const list = fleet ? fleet.boats.map(r => ({ id: r.no, b: r.b, inp: r.inp, focus: r === fr })) : [{ id: 0, b: B, inp: input, focus: true }];
   const seen = new Set();
+  // d277 (まえ: 3Dでは後続艇のエンジン音を左右・距離で聞き分けたい): in a 3D view the other engines are placed around the boat we
+  // ride, not around the 2D camera — left/right by where they are beside our heading, loudness by distance, a boat behind a
+  // little brighter than one ahead (its bow is coming at us). Only the existing gain / pan / filter values move: no new nodes.
+  const ride = fleet && fr && window.View3D && View3D.mode && View3D.mode !== '2d' ? fr.b : null;
   for (const e of list) {
     seen.add(e.id);
     let v = snd.engines.get(e.id);
@@ -262,11 +267,21 @@ function updateAudio() {
     v.osc.frequency.setTargetAtTime(f0, t, 0.05);
     v.sub.frequency.setTargetAtTime(f0 / 2, t, 0.05);
     v.whine.frequency.setTargetAtTime(f0 * 4.02, t, 0.05);
-    v.f.frequency.setTargetAtTime(350 + 2800 * thr * (0.6 + 0.4 * b.v / 23), t, 0.05);
     const dead = b.cap > 0;
-    const vol = dead ? 0 : e.focus ? 0.2 : 0.2 * 0.5 * earGain(b.x, b.y) ** 1.5;
-    v.g.gain.setTargetAtTime(vol, t, dead ? 0.3 : 0.06);
-    if (v.pan) v.pan.pan.setTargetAtTime(e.focus ? 0 : clamp((b.x - cam.x) / 70, -0.9, 0.9), t, 0.1);
+    let vol, pan, tone = 1;
+    if (ride && !e.focus) {
+      const dx = b.x - ride.x, dy = b.y - ride.y, d = Math.hypot(dx, dy), ca = Math.cos(ride.a), sa = Math.sin(ride.a);
+      const lat = -dx * sa + dy * ca, fwd = dx * ca + dy * sa, near = clamp(1 - d / EAR3D.range, 0, 1);
+      vol = 0.2 * EAR3D.vol * near ** EAR3D.fall * (fwd < 0 ? EAR3D.behind : 1);
+      pan = clamp(lat / EAR3D.panM, -0.95, 0.95);
+      tone = (fwd < 0 ? 1 : EAR3D.aheadTone) * (0.55 + 0.45 * near);   // far and ahead: duller
+    } else {
+      vol = e.focus ? 0.2 : 0.2 * 0.5 * earGain(b.x, b.y) ** 1.5;
+      pan = e.focus ? 0 : clamp((b.x - cam.x) / 70, -0.9, 0.9);
+    }
+    v.f.frequency.setTargetAtTime((350 + 2800 * thr * (0.6 + 0.4 * b.v / 23)) * tone, t, 0.05);
+    v.g.gain.setTargetAtTime(dead ? 0 : vol, t, dead ? 0.3 : 0.06);
+    if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.1);
   }
   for (const [id, v] of snd.engines) if (!seen.has(id)) { v.stop(); snd.engines.delete(id); }
   // water hiss and spray under the boat we're with

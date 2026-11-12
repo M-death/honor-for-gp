@@ -142,6 +142,7 @@ const TOD = {
   night: { sky: 0x070b1c, fog: 0x0a1026, hemi: [0x8090c0, 0x101420, 0.55], sun: [0xfff2d6, 0.9], water: 0x6d7f9a, ground: 0x23262e },
 };
 
+const NIGHT3 = { waterGlow: .55 };
 /* ---------- course: water, banks, stand, marks, booms, the aerial wires ---------- */
 function shapeXY(pts) { const s = new THREE.Shape(); pts.forEach(([x, y], i) => i ? s.lineTo(x, y) : s.moveTo(x, y)); s.closePath(); return s; }
 const flat = (geo, h) => { geo.rotateX(Math.PI / 2); geo.translate(0, h, 0); return geo; };   // shape (x, y) → world (x, h, y)
@@ -155,6 +156,9 @@ function buildWorld() {
   const water = new THREE.Mesh(wGeo, HQ
     ? new THREE.MeshStandardMaterial({ map: waterTexture(tod), color: new THREE.Color(T.water).multiplyScalar(.62), roughness: .5, metalness: 0, normalMap: rippleNormals(), normalScale: new THREE.Vector2(.22, .22), envMapIntensity: tod === 'night' ? .2 : .42, side: THREE.DoubleSide })
     : new THREE.MeshBasicMaterial({ map: waterTexture(tod), color: T.water, side: THREE.DoubleSide }));
+  // d275 (まえ: PCの夜は水面が真っ黒): HQ water is lit only by the weak night lights → give it the floodlit glow of the
+  // phone (lite) water as its own light, so 夜 looks the same on PC and phone
+  if (HQ && tod === 'night') { water.material.emissive = new THREE.Color(T.water); water.material.emissiveMap = water.material.map; water.material.emissiveIntensity = NIGHT3.waterGlow; }
   g.add(water);
   // ground around the water, with the water cut out; the bank top is 1 m up
   const BANK = 1.0, R = 900, ground = new THREE.Shape([new THREE.Vector2(-R, -R), new THREE.Vector2(R, -R), new THREE.Vector2(R, R), new THREE.Vector2(-R, R)]);
