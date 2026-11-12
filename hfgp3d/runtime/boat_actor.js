@@ -33,8 +33,8 @@ export class BoatActor{
   this.updatePose({});
  }
  setLOD(level){level=clamp(Math.round(level),0,2);if(this.lod!==level){this.levels[this.lod].boat.visible=false;this.lod=level;this.levels[level].boat.visible=true;this.updatePose(this.lastPose??{});}return this;}
- updatePose({pitch=0,roll=0,steer=0,propAngle=0,phase=0}={}){
-  this.lastPose={pitch,roll,steer,propAngle,phase};const a=this.levels[this.lod];a.pose.update({heightCm:this.heightCm,pitch,roll,phase});if(a.motor)a.motor.rotation.y=clamp(steer,-.6,.6);if(a.prop)a.prop.rotation.z=propAngle;return this;
+ updatePose({pitch=0,roll=0,steer=0,propAngle=0,phase=0,turn=0,willie=0,wheel=null}={}){
+  this.lastPose={pitch,roll,steer,propAngle,phase,turn,willie,wheel};const a=this.levels[this.lod];a.pose.update({heightCm:this.heightCm,pitch,roll,phase,turn,willie,steer:wheel});if(a.motor)a.motor.rotation.y=clamp(steer,-.6,.6);if(a.prop)a.prop.rotation.z=propAngle;return this;
  }
  /** Already resolved visual angles, in radians. Game +y down maps to glTF +Z. */
  setGameTransform({x=0,y=0,hop=0,modelYaw=0,modelBank=0,nose=0}={}){

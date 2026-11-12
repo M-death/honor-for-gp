@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { loadAssetSet } from '../hfgp3d/runtime/boat_actor.js';
 import { GLTFLoader } from '../hfgp3d/viewer/vendor/GLTFLoader.js';
+import { buildVenue3d, loadVenueModels, venueReady } from './venue3d.js';
 
 const V3 = { modes: ['2d', 'chase', 'racer'], names: { '2d': '2D', chase: '追尾', racer: 'レーサー' }, key: 'honorGP.view3d',
   bank: 1.0, px: 6 };
@@ -13,12 +14,12 @@ const PHONE = (() => { try { return matchMedia('(pointer: coarse)').matches && !
 /* d279 3D画質 (まえ: スマホ軽量・スマホリッチ・PC に分ける、水面処理をするかしないか): looks only, the race never sees it.
    px: water texture px/m · fps: 0 = every frame · dpr: max pixel ratio · water: 簡易 / 陰影 / 反射 by default · spray / wake / rain:
    particle and quad budgets · sky: skyline texture width · lod: model detail factor · shadow: shadow map size (0 = none) ·
-   models: hfgp3d set. 自動 = phone → スマホ軽量, PC → PC; if frames run slow for a few seconds it steps down one (this visit only). */
+   models: hfgp3d set · venue: d280 会場 (0 = the plain stand box, 1 = stand + city / hills + masts, 2 = + the crowd). 自動 = phone → スマホ軽量, PC → PC; if frames run slow for a few seconds it steps down one (this visit only). */
 const GFX = { key: 'honorGP.gfx3d', wKey: 'honorGP.water3d', order: ['lite', 'rich', 'pc'],
   tiers: {
-    lite: { label: 'スマホ軽量', px: 3, fps: 30, dpr: 1, aa: false, water: 'simple', spray: 0, wake: 8000, rain: 450, sky: 2048, lod: .6, shadow: 0, models: 'mobile', aniso: 2, ripDiv: 20 },
-    rich: { label: 'スマホリッチ', px: 5, fps: 0, dpr: 1.25, aa: false, water: 'shade', spray: 2500, wake: 14000, rain: 900, sky: 2048, lod: .8, shadow: 0, models: 'mobile', aniso: 4, ripDiv: 12 },
-    pc: { label: 'PC', px: 8, fps: 0, dpr: 1.5, aa: true, water: 'reflect', spray: 7000, wake: 24000, rain: 1400, sky: 4096, lod: 1, shadow: 2048, models: 'pc1080ti', aniso: 8, ripDiv: 7 } },
+    lite: { label: 'スマホ軽量', px: 3, fps: 30, dpr: 1, aa: false, water: 'simple', spray: 0, wake: 8000, rain: 450, sky: 2048, lod: .6, shadow: 0, models: 'mobile', aniso: 2, ripDiv: 20, venue: 0 },
+    rich: { label: 'スマホリッチ', px: 5, fps: 0, dpr: 1.25, aa: false, water: 'shade', spray: 2500, wake: 14000, rain: 900, sky: 2048, lod: .8, shadow: 0, models: 'mobile', aniso: 4, ripDiv: 12, venue: 1 },
+    pc: { label: 'PC', px: 8, fps: 0, dpr: 1.5, aa: true, water: 'reflect', spray: 7000, wake: 24000, rain: 1400, sky: 4096, lod: 1, shadow: 2048, models: 'pc1080ti', aniso: 8, ripDiv: 7, venue: 2 } },
   slow: { ms: 26, msCap: 1.35, secs: 4 },   // 自動: step down after this long above ms (or a capped tier's frame × msCap)
   refl: { scale: .5, k: .55, distort: .035 } };   // 反射: render size, strength, ripple distortion
 const gfxGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
@@ -33,7 +34,7 @@ const fin = (v, d = 0) => Number.isFinite(v) ? v : d;
 const lim = (v, lo, hi) => Math.max(lo, Math.min(hi, fin(v)));
 
 let renderer, canvas, scene, camera, hemi, sun, set = null, world = null, wakeMesh, tod = '', venueId = '';
-const actors = new Map();
+const actors = new Map(), poseS = new WeakMap();   // d280: per-boat smoothed 体重移動 for the turn poses
 const camS = { x: 0, y: 0, a: 0, init: false };
 
 /* ---------- the GLBs come embedded (js/hfgp3d-glb.js), as boat3dx.js does ---------- */
@@ -205,7 +206,7 @@ function renderReflection(w, h) {
   V.q.set((Math.sign(V.clip.x) + P[8]) / P[0], (Math.sign(V.clip.y) + P[9]) / P[5], -1, (1 + P[10]) / P[14]);
   V.clip.multiplyScalar(2 / V.clip.dot(V.q));
   P[2] = V.clip.x; P[6] = V.clip.y; P[10] = V.clip.z + 1 - .003; P[14] = V.clip.w;
-  const hide = [R.mesh, wakeMesh, WX3.rain, spray3 && spray3.pts].filter(Boolean), was = hide.map(o => o.visible);
+  const hide = [R.mesh, wakeMesh, WX3.rain, spray3 && spray3.pts, ...(world ? world.noRefl : [])].filter(Boolean), was = hide.map(o => o.visible);
   hide.forEach(o => { o.visible = false; });
   const sh = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false;
   renderer.setRenderTarget(R.rt); renderer.clear(); renderer.render(scene, vc); renderer.setRenderTarget(null);
@@ -245,12 +246,15 @@ function buildWorld() {
   const wallGeo = new THREE.BufferGeometry(); wallGeo.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3)); wallGeo.computeVertexNormals();
   g.add(new THREE.Mesh(wallGeo, new THREE.MeshLambertMaterial({ color: tod === 'night' ? 0x3a3d44 : 0xc9c4b6, side: THREE.DoubleSide })));
   // a plain stand building behind the stand-side bank (x −130…110, as the replay app has it)
+  // d280: スマホリッチ / PC get the replay's venue (js/venue3d.js) instead of this box stand
+  const V3d = Q.venue > 0 && venueReady() ? buildVenue3d({ level: Q.venue, tod, urban: VENUE.id !== 'standard', bank: BANK, standY, backY, course: COURSE, slitK: VENUE.slitK || 0, outline: out, poles: NIGHT_POLES }) : null;
+  if (V3d) g.add(V3d.g);
   const stand = new THREE.Group(), sm = new THREE.MeshLambertMaterial({ color: tod === 'night' ? 0x4a4e5a : 0xd8d6cf }), glass = new THREE.MeshBasicMaterial({ color: tod === 'night' ? 0xffe3a0 : 0x5a7f96 });
   for (let x = -130; x < 110; x += 30) {
     const y = standY(x + 15) + 14, b = new THREE.Mesh(new THREE.BoxGeometry(30, 14, 18), sm); b.position.set(x + 15, BANK + 7, y + 9); stand.add(b);
     const w = new THREE.Mesh(new THREE.PlaneGeometry(27, 4), glass); w.position.set(x + 15, BANK + 9, y - .05); w.rotation.y = Math.PI; stand.add(w);
   }
-  g.add(stand);
+  if (!V3d) g.add(stand);
   // 大時計: a dial on a post at the middle of the stand side
   const clk = new THREE.Group(), cy = standY(0) + 6;
   const post = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, 12, 8), new THREE.MeshLambertMaterial({ color: 0x777777 })); post.position.set(0, BANK + 6, cy); clk.add(post);
@@ -285,8 +289,9 @@ function buildWorld() {
     const pm = new THREE.MeshBasicMaterial({ color: 0xfff2d6 });
     // d279: a soft halo round each lamp (one additive sprite each, every 画質) — the lights glow instead of being dots
     const hm = new THREE.SpriteMaterial({ map: haloTex(), color: 0xffe6b8, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: NIGHT3.halo, fog: false });
-    for (const [x, y] of NIGHT_POLES) { const p = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 6), pm); p.position.set(x, 18, y); g.add(p);
-      const h = new THREE.Sprite(hm); h.scale.setScalar(NIGHT3.haloM); h.position.set(x, 18, y); h.renderOrder = 4; g.add(h); }
+    const lh = V3d && V3d.lampH || 18;   // d280: on the floodlight masts' lamps when the venue has them
+    for (const [x, y] of NIGHT_POLES) { if (!V3d || !V3d.lampH) { const p = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 6), pm); p.position.set(x, 18, y); g.add(p); }
+      const h = new THREE.Sprite(hm); h.scale.setScalar(NIGHT3.haloM); h.position.set(x, lh, y); h.renderOrder = 4; g.add(h); }
   }
   scene.add(g);
   const dome = skyDome(tod), sky2 = skyline(tod, VENUE.id); g.add(dome); g.add(sky2);
@@ -295,7 +300,7 @@ function buildWorld() {
     const pm = new THREE.PMREMGenerator(renderer), rt = pm.fromScene(envScene, 0.02, .1, 2500);
     if (scene.environment) scene.environment.dispose(); scene.environment = rt.texture; pm.dispose();
   }
-  world = { g, dist: dm, water, dome, sky2 }; WX3.key = '';
+  world = { g, dist: dm, water, dome, sky2, noRefl: V3d ? V3d.noRefl : [] }; WX3.key = '';
   scene.background = new THREE.Color(T.sky); scene.fog = new THREE.Fog(T.fog, 120, 520);
   hemi.color.set(T.hemi[0]); hemi.groundColor.set(T.hemi[1]); hemi.intensity = T.hemi[2]; sun.color.set(T.sun[0]); sun.intensity = T.sun[1];
 }
@@ -542,7 +547,7 @@ function placeCamera(dt) {
 }
 
 /* ---------- frame ---------- */
-let last = 0, lost = false;
+let last = 0, lost = false, draws3d = 0;
 function render(now) {
   requestAnimationFrame(render);
   if (mode === '2d' || !set || lost) { if (canvas.style.display !== 'none') { canvas.style.display = 'none'; light2d(false); } return; }
@@ -550,6 +555,7 @@ function render(now) {
   if (FRAME_MS && now - last < FRAME_MS - 2) return;
   slowWatch(now, FRAME_MS);
   if (canvas.style.display !== 'block') { canvas.style.display = 'block'; light2d(true); }
+  draws3d++;   // d282 性能ログ: the 3D frames actually drawn (スマホ軽量 draws every other one)
   try { frame3d(now); } catch (e) { console.warn('3D視点:', e); if (!render.warned) { render.warned = true; } }
 }
 // while the 3D view is up, the 2D course underneath is drawn to a 1×1 canvas (next to nothing), and the light-3D boat
@@ -578,7 +584,12 @@ function frame3d(now) {
     a.setGameTransform({ x: b.x, y: b.y, hop: fin(b.hop) + rb.h + (typeof willieMotion === 'function' ? willieMotion(b).h * .5 : 0), modelYaw: -Math.PI / 2 - b.a, modelBank: capsized ? Math.PI : lim(b.bank, -.65, .65) * V3.bank, nose: capsized ? 0 : nose + rb.nose });
     const dist = Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1;
     a.chooseLOD(3.3 * focal / dist * Q.lod);
-    a.updatePose({ pitch: lim((b.wil || 0) > .3 && !(fin(b.cap) > 0) ? Math.min(inp.pitch || 0, -.7) : inp.pitch, -1, 1),   /* d272: ウィリー中は体を後ろへ */ roll: lim(inp.roll, -1, 1), steer: -lim(inp.steer, -1, 1) * .30, propAngle: time * (12 + lim(b.v / 23, 0, 1) * 90) });
+    // d280 (まえ: モンキーターンやウィリーターンの姿勢): the replay's 0.28 turn poses — 体重移動 smoothed over ~0.2 s, モンキー
+    // from how far it is leaned (and only at speed), ウィリー from wil, the right hand on the wheel rim (as render_replay.py)
+    const ps = poseS.get(b) || { roll: 0 }; ps.roll += (lim(inp.roll, -1, 1) - ps.roll) * Math.min(1, dt / .1); poseS.set(b, ps);
+    let tu = lim((Math.abs(ps.roll) - .25) / .55, 0, 1); tu = tu * tu * (3 - 2 * tu) * lim((fin(b.v) - 3) / 4, 0, 1);
+    a.updatePose({ pitch: lim((b.wil || 0) > .3 && !(fin(b.cap) > 0) ? Math.min(inp.pitch || 0, -.7) : inp.pitch, -1, 1),   /* d272: ウィリー中は体を後ろへ */ roll: lim(ps.roll, -1, 1), steer: -lim(inp.steer, -1, 1) * .30, propAngle: time * (12 + lim(b.v / 23, 0, 1) * 90),
+      turn: capsized ? 0 : tu, willie: capsized ? 0 : lim(fin(b.wil) / .6, 0, 1), wheel: lim(inp.steer, -1, 1) });
     const lv = a.levels[a.lod]; if (lv && lv.racer) lv.racer.visible = !gone && !(mode === 'racer' && b === me);
     a.root.visible = true;
   }
@@ -646,6 +657,7 @@ function applyTier(first) {
   if (!spray3 && Q.spray > 0) makeSpray();
   if (WX3.rain && WX3.n !== Q.rain) { scene.remove(WX3.rain); WX3.rain.geometry.dispose(); WX3.rain.material.dispose(); WX3.rain = null; WX3.key = ''; }
   if (refl && refl.rt && waterNow() !== 'reflect') { refl.rt.dispose(); refl = null; }
+  if (Q.venue > 0 && !venueReady()) loadVenueModels().then(() => { tod = ''; }).catch(e => console.warn('3D視点（会場）:', e));
   if (!first) { tod = ''; scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); }); loadModels(Q.models).then(() => { tod = ''; }); }
 }
 function gfxUi() {
@@ -694,5 +706,5 @@ function boot() {
   requestAnimationFrame(render);
   return booting;
 }
-window.View3D = { ready: false, setMode, get mode() { return mode; }, look };
+window.View3D = { ready: false, setMode, get mode() { return mode; }, look, get draws() { return draws3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0 }; } };
 setMode(mode);

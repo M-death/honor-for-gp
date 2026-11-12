@@ -641,6 +641,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
       <p id="boatRenderStatus" role="status" style="margin:0;font-size:12px">3Dモデルを準備中</p>
       <label><input type="checkbox" id="stAssistOn"> スタートアシスト（起こしのアクセルを自動で入れる。ST .40〜.50前後、握ったら自分のレバー）</label>
       <label><input type="checkbox" id="fpsOn"> fps（1秒あたりの描画回数）を左上に表示</label>
+      <div id="perfRow" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label><input type="checkbox" id="perfOn"> 性能ログを記録する（媒体・視点・画質ごとの最高／最低／平均fps）</label><button type="button" class="btn ghost" id="perfView">性能ログを見る</button></div>
       <label id="screenModeRow">画面（PC） <select id="screenMode"><option value="full">全画面</option><option value="window">ウィンドウ</option></select></label>
       <label>カメラ <select id="camMode"><option value="follow">追いかけ</option><option value="close">拡大追尾（艇を大きく見る）</option><option value="auto">自動ズーム（PC向け・全艇が入るまで引く）</option></select></label>
       <label>時間帯 <select id="todMode"><option value="day">昼</option><option value="evening">夕方</option><option value="night">ナイター</option></select></label>
@@ -702,6 +703,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
 <script src="js/vlog.js"></script>
 <script src="js/menu.js"></script>
 <script src="js/replay.js"></script>
+<script src="js/perflog.js"></script>
 <script src="js/main.js"></script>
 <script type="importmap">{"imports":{"three":"./hfgp3d/viewer/vendor/three.module.js"}}</script>
 <script type="module" src="js/boat3dx.js"></script>

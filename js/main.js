@@ -18,6 +18,7 @@ if ($('fpsOn')) $('fpsOn').addEventListener('change', e => { FPS.on = e.target.c
 fpsShow();
 function frame(now) {
   fpsCount(now);
+  if (typeof perfFrame === 'function') perfFrame(now);   // d282 性能ログ (js/perflog.js)
   // never let one bad frame stop the loop
   try { tick(now); } catch (err) { if (!frame.warned) { frame.warned = true; console.error(err); } }
   requestAnimationFrame(frame);
