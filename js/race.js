@@ -1832,7 +1832,7 @@ function fitMotor(r, course, again) {
   Object.assign(b, bodyRace(r.body ? r.body.height : SETSU.body.ref));
   b.stabilizer = !!(waterEnv && waterEnv.stabilizer);
   if (r.player) { b.tilt = playerTilt; return; }
-  if (r.prof.tilt != null) { b.tilt = r.tilt = b.stabilizer ? Math.min(r.prof.tilt, STAB_TILT) : r.prof.tilt;   // d212 (まえ): 安定板の日に3.0は怒られる — tilt back to 0
+  if (r.prof.tilt != null) { const pt = r.umiIn ? UMI1.tiltIn : r.prof.tilt; b.tilt = r.tilt = b.stabilizer ? Math.min(pt, STAB_TILT) : pt;   // d212 (まえ): 安定板の日に3.0は怒られる — tilt back to 0
     b.tiltTurn = r.prof.tiltTurn || 0; if (r.prof.tiltFit) b.tiltFit = clamp((b.nobi - r.prof.tiltFit[0]) / r.prof.tiltFit[1], r.prof.tiltFit[2], 1); return; }   // d203: a named rider rides her own tilt
   if (again && !r.tiltAuto) return;
   if (r.hane) { b.tilt = b.stabilizer ? STAB_TILT : HANE.tilt; return; }   // the はね boat keeps its 3.0 whatever course it ends up in
@@ -1973,7 +1973,7 @@ const laneYOf = course => LANE.ys[clamp(course, 1, LANE.ys.length) - 1];   // (a
 // d203 (まえ): with 羽美 in the 1枠 the others think twice about a 前付け — at the first hint of one she pulls right out
 // to dash, and nobody wants her coming over the top of them on a 3.0
 const NAMED_DETER = 0.35;
-const namedDeter = rows => (rows || (fleet && fleet.boats) || []).some(q => q.named && q.named.out && !q.player && (q.en ? q.en.slot === 1 && !q.en.dash : q.no === 1)) ? NAMED_DETER : 1;
+const namedDeter = rows => (rows || (fleet && fleet.boats) || []).some(q => q.named && q.named.out && !q.umiIn && !q.player && (q.en ? q.en.slot === 1 && !q.en.dash : q.no === 1)) ? NAMED_DETER : 1;
 // provisional courses from the current lane order: slow boats inside first, then dash boats, then 回り直し
 function entryOrder(E, boats) {
   const bySlot = boats.slice().sort((a, b) => a.en.slot - b.en.slot);
@@ -2175,7 +2175,7 @@ const hikuP = (r, p) => { const inner = fleet.boats.filter(q => q !== r && !q.en
 // an inside boat challenged for its course: fight it, let it in, or pull back to dash rather than be squeezed deep
 function entryAnswer(r, nSlowNow) {
   const en = r.en;
-  if (r.named && r.named.out && !en.faced) { callDash(r); en.decided = true; en.how = 'named'; toast('引く', `${r.no}号艇 ${r.name}、すっと引いてダッシュへ`, 'info'); return 'hiku'; }
+  if (r.named && r.named.out && !r.umiIn && !en.faced) { callDash(r); en.decided = true; en.how = 'named'; toast('引く', `${r.no}号艇 ${r.name}、すっと引いてダッシュへ`, 'info'); return 'hiku'; }
   const pRes = (ENTRY.resist[r.temper] ?? 0.55) + (en.slot === 1 ? 0.25 : 0) - Math.max(0, nSlowNow - 3) * 0.15;
   if (simRandom() < pRes) return 'resist';
   if (en.slot >= 2 && simRandom() < hikuP(r, 0.55 + Math.max(0, nSlowNow - 3) * 0.2)) {   // (the crowd-inside push only when 3 stay slow)
@@ -2236,10 +2236,10 @@ function entryStep(dt, playerInput) {
       if (en.react != null && time >= en.react) en.stage = 'out';
       else { b.v = 0; b.vl = 0; b.yaw = 0; r.inp = { thr: 0, steer: 0, roll: 0, pitch: 0 }; continue; }
     }
-    // d203 羽美: out of the pits she goes straight for the dash (first to pull = 6コース); from the 1枠 she stays in —
-    // unless anyone so much as looks like coming inside her, and then she's gone too
-    if (r.named && r.named.out && !r.player && !en.dash && !en.faced && !en.pulling
-        && (en.slot >= 2 || boats.some(q => q !== r && !q.en.dash && ((q.en.wantIn && !q.en.gaveUp && q.en.claimLeft > 0) || q.en.stealFrom === r || q.en.fightWith === r)))) {
+    // d203 羽美: out of the pits she goes straight for the dash (first to pull = 6コース); d278 (まえ): from the 1枠 she pulls
+    // only when she has set her 3.0 (then right away); with her tilt down she stays in and does not give way to a 前付け
+    if (r.named && r.named.out && !r.umiIn && !r.player && !en.dash && !en.faced && !en.pulling
+        && (en.slot >= 2 || r.umiIn === false)) {   // d278: from the 1枠 only on a race she has set her 3.0 — then from the off
       if (en.fightWith) { en.fightWith.en.fightWith = null; en.fightWith = null; }
       callDash(r); en.decided = true; en.how = en.slot >= 2 ? 'named' : 'namedHiku';
       if (en.slot < 2 || en.stage !== 'out') toast('引く', `${r.no}号艇 ${r.name}、すっと引いてダッシュへ`, 'info');
@@ -2658,9 +2658,17 @@ function raceModeRows(cfg, fixed) {
 }
 // d203: a named rider in this row — her class table and ways, her own body, and the motor as drawn
 // (a rider who never touches it: what's below par stays well below it, motorLowK times as far)
+const UMI1 = { p: 0.12, pMotor: 0.4, pBig: 0.5, motorGood: 0.04, tiltIn: 0 };   // d278 羽美 in the 1枠: chance she sets 3.0 and pulls (ordinary / motor she trusts / SG), her tilt when she stays in
 function namedRow(r, N, fixed) {
   r.named = N; r.prof = N.prof; r.name = N.name; r.temper = N.temper || r.temper;
-  if (N.out && r.no >= 2) { r.pref = 'out'; r.key = 6.5 + r.no * 0.01; }   // 羽美: from any 枠 but the 1 she goes right out (in a 枠なり race too)
+  // d278 (まえ): in the 1枠 she only means to pull when she has set her 3.0 — some races (an SG, a motor she trusts) she does,
+  // from the off; otherwise her tilt is down, she stays in and does not give way to a 前付け
+  r.umiIn = false;
+  if (N.out && r.no === 1) {
+    const m = r.motor, good = (m.deashi + m.nobi + (m.mawari || 1) - 3) > UMI1.motorGood;
+    r.umiIn = !(Math.random() < (sgMode ? UMI1.pBig : good ? UMI1.pMotor : UMI1.p));
+  }
+  if (N.out && (r.no >= 2 || !r.umiIn)) { r.pref = 'out'; r.key = 6.5 + r.no * 0.01; }   // 羽美: from any 枠 but the 1 she goes right out (in a 枠なり race too)
   else { r.pref = 'waku'; r.key = r.no; }
   const min = SETSU.minWt[N.body.sex];
   r.body = { ...N.body, rideWt: Math.max(N.body.weight, min) };

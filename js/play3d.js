@@ -9,10 +9,24 @@ import { GLTFLoader } from '../hfgp3d/viewer/vendor/GLTFLoader.js';
 const V3 = { modes: ['2d', 'chase', 'racer'], names: { '2d': '2D', chase: '追尾', racer: 'レーサー' }, key: 'honorGP.view3d',
   bank: 1.0, px: 6 };
 // スマホ (指で操作する端末): lighter everything — the page was being killed for memory on a phone
-const LITE = (() => { try { return matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches; } catch (e) { return false; } })();
-if (LITE) V3.px = 3; else V3.px = 8;
-const HQ = !LITE;   // PC: the shaded water and the spray (まえ 2026-11-11: PC前提で3Dを強化、スマホは今のが最低限)
-const FRAME_MS = LITE ? 1000 / 30 : 0;   // the 3D view at 30 fps on a phone (the race itself runs as before)
+const PHONE = (() => { try { return matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches; } catch (e) { return false; } })();
+/* d279 3D画質 (まえ: スマホ軽量・スマホリッチ・PC に分ける、水面処理をするかしないか): looks only, the race never sees it.
+   px: water texture px/m · fps: 0 = every frame · dpr: max pixel ratio · water: 簡易 / 陰影 / 反射 by default · spray / wake / rain:
+   particle and quad budgets · sky: skyline texture width · lod: model detail factor · shadow: shadow map size (0 = none) ·
+   models: hfgp3d set. 自動 = phone → スマホ軽量, PC → PC; if frames run slow for a few seconds it steps down one (this visit only). */
+const GFX = { key: 'honorGP.gfx3d', wKey: 'honorGP.water3d', order: ['lite', 'rich', 'pc'],
+  tiers: {
+    lite: { label: 'スマホ軽量', px: 3, fps: 30, dpr: 1, aa: false, water: 'simple', spray: 0, wake: 8000, rain: 450, sky: 2048, lod: .6, shadow: 0, models: 'mobile', aniso: 2, ripDiv: 20 },
+    rich: { label: 'スマホリッチ', px: 5, fps: 0, dpr: 1.25, aa: false, water: 'shade', spray: 2500, wake: 14000, rain: 900, sky: 2048, lod: .8, shadow: 0, models: 'mobile', aniso: 4, ripDiv: 12 },
+    pc: { label: 'PC', px: 8, fps: 0, dpr: 1.5, aa: true, water: 'reflect', spray: 7000, wake: 24000, rain: 1400, sky: 4096, lod: 1, shadow: 2048, models: 'pc1080ti', aniso: 8, ripDiv: 7 } },
+  slow: { ms: 26, msCap: 1.35, secs: 4 },   // 自動: step down after this long above ms (or a capped tier's frame × msCap)
+  refl: { scale: .5, k: .55, distort: .035 } };   // 反射: render size, strength, ripple distortion
+const gfxGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
+let gfxSet = gfxGet(GFX.key, 'auto'), waterSet = gfxGet(GFX.wKey, 'auto');
+if (gfxSet !== 'auto' && !GFX.tiers[gfxSet]) gfxSet = 'auto';
+let tierNow = gfxSet !== 'auto' ? gfxSet : PHONE ? 'lite' : 'pc', Q = GFX.tiers[tierNow];
+const waterNow = () => waterSet !== 'auto' && ['simple', 'shade', 'reflect'].includes(waterSet) ? waterSet : Q.water;
+const LITE = PHONE;   // (kept for what only a phone's screen decides)
 let mode = '2d'; try { mode = localStorage.getItem(V3.key) || '2d'; } catch (e) {}
 if (!V3.modes.includes(mode)) mode = '2d';
 const fin = (v, d = 0) => Number.isFinite(v) ? v : d;
@@ -37,7 +51,7 @@ if (!GLTFLoader.prototype._p3d) {
 
 /* ---------- the water: one canvas texture painted once per venue / time of day ---------- */
 function waterTexture(t) {
-  const PX = V3.px, w = COURSE.xMax - COURSE.xMin, h = COURSE.yMax - COURSE.yMin;
+  const PX = Q.px, w = COURSE.xMax - COURSE.xMin, h = COURSE.yMax - COURSE.yMin;
   const c = document.createElement('canvas'); c.width = Math.ceil(w * PX); c.height = Math.ceil(h * PX);
   const g = c.getContext('2d'); g.scale(PX, PX); g.translate(-COURSE.xMin, -COURSE.yMin);
   const gr = g.createLinearGradient(0, COURSE.yMin, 0, COURSE.yMax);
@@ -58,7 +72,7 @@ function waterTexture(t) {
   // ripples tied to the water: what tells you how fast you go
   let s = 12345; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
   g.lineCap = 'round';
-  for (let i = 0; i < w * h / (LITE ? 20 : 7); i++) {
+  for (let i = 0; i < w * h / Q.ripDiv; i++) {
     const x = COURSE.xMin + rnd() * w, y = COURSE.yMin + rnd() * h, L = .5 + rnd() * 1.4, dark = rnd() < .55;
     g.strokeStyle = dark ? 'rgba(3,32,43,.22)' : 'rgba(186,231,222,.16)'; g.lineWidth = dark ? .16 : .09;
     g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + L / 2, y - .18, x + L, y); g.stroke();
@@ -74,7 +88,7 @@ function waterTexture(t) {
   g.beginPath(); g.moveTo(MK - 20, 0); g.lineTo(MK - 20, standY(MK - 20)); g.stroke();
   g.beginPath(); g.moveTo(-MK + 20, backY(-MK + 20)); g.lineTo(-MK + 20, 0); g.stroke();
   const tex = new THREE.CanvasTexture(c); tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = Math.min(LITE ? 2 : 8, renderer.capabilities.getMaxAnisotropy()); tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.anisotropy = Math.min(Q.aniso, renderer.capabilities.getMaxAnisotropy()); tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
   tex.onUpdate = () => { c.width = c.height = 1; };   // once on the GPU, let the painted canvas go
   return tex;
 }
@@ -95,7 +109,7 @@ function skyDome(t) {
   m.renderOrder = -2; return m;
 }
 function skylineTexture(t, venue) {
-  const W = LITE ? 2048 : 4096, H = LITE ? 256 : 512, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const W = Q.sky, H = Q.sky / 8, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), [far, near, haze] = FAR.ink[t] || FAR.ink.day, k = H / 512;
   let sd = venue === 'suminoe' ? 777 : 4242; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
   const base = H * .86;   // the ground line
@@ -142,7 +156,62 @@ const TOD = {
   night: { sky: 0x070b1c, fog: 0x0a1026, hemi: [0x8090c0, 0x101420, 0.55], sun: [0xfff2d6, 0.9], water: 0x6d7f9a, ground: 0x23262e },
 };
 
-const NIGHT3 = { waterGlow: .55 };
+const NIGHT3 = { waterGlow: .55, halo: .55, haloM: 16 };
+let haloT = null;
+function haloTex() {
+  if (haloT) return haloT;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.18, 'rgba(255,255,255,.55)'); gr.addColorStop(.5, 'rgba(255,255,255,.12)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64); haloT = new THREE.CanvasTexture(c); return haloT;
+}
+
+/* ---------- d279 反射水面 (PC): the scene mirrored in the water plane, drawn half size into a texture each frame and laid on
+   the shaded water with a little ripple distortion and more of it at a glancing angle (as three's Reflector does) ---------- */
+let refl = null;
+function reflectOn(water) {
+  const m = water.material;
+  if (!refl || !refl.rt) refl = { rt: new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType }), cam: new THREE.PerspectiveCamera(), tm: new THREE.Matrix4() };
+  refl.mesh = water;
+  m.onBeforeCompile = sh => {
+    sh.uniforms.tRefl = { value: refl.rt.texture }; sh.uniforms.reflTm = { value: refl.tm }; sh.uniforms.reflK = { value: GFX.refl.k }; sh.uniforms.reflD = { value: GFX.refl.distort };
+    sh.vertexShader = 'uniform mat4 reflTm; varying vec4 vReflUv;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vReflUv = reflTm * vec4(position, 1.0);');
+    sh.fragmentShader = 'uniform sampler2D tRefl; uniform float reflK; uniform float reflD; varying vec4 vReflUv;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
+      '#include <opaque_fragment>\n { vec2 ruv = vReflUv.xy / vReflUv.w + normal.xy * reflD; vec3 rc = texture2D(tRefl, ruv).rgb;\n' +
+      '   float fr = reflK * (0.18 + 0.82 * pow(1.0 - clamp(abs(dot(normalize(vViewPosition), normal)), 0.0, 1.0), 3.0));\n' +
+      '   gl_FragColor.rgb = mix(gl_FragColor.rgb, rc, fr); }');
+  };
+  m.customProgramCacheKey = () => 'hfgp-refl';
+  m.needsUpdate = true;
+}
+const _rv = { n: new THREE.Vector3(0, 1, 0), cp: new THREE.Vector3(), view: new THREE.Vector3(), look: new THREE.Vector3(), tgt: new THREE.Vector3(), rot: new THREE.Matrix4(), plane: new THREE.Plane(), clip: new THREE.Vector4(), q: new THREE.Vector4() };
+function renderReflection(w, h) {
+  if (!refl || !refl.mesh || !refl.mesh.parent) return;
+  const R = refl, V = _rv, c = camera, vc = R.cam;
+  const W = Math.max(4, Math.round(w * GFX.refl.scale)), H = Math.max(4, Math.round(h * GFX.refl.scale));
+  if (R.rt.width !== W || R.rt.height !== H) R.rt.setSize(W, H);
+  V.cp.setFromMatrixPosition(c.matrixWorld);
+  if (V.cp.y <= 0.05) return;
+  V.view.copy(V.cp).negate().reflect(V.n).negate();   // camera mirrored in the plane y = 0
+  V.rot.extractRotation(c.matrixWorld);
+  V.look.set(0, 0, -1).applyMatrix4(V.rot).add(V.cp);
+  V.tgt.copy(V.look).negate().reflect(V.n).negate();
+  vc.position.copy(V.view); vc.up.set(0, 1, 0).applyMatrix4(V.rot).reflect(V.n); vc.lookAt(V.tgt);
+  vc.far = c.far; vc.updateMatrixWorld(); vc.projectionMatrix.copy(c.projectionMatrix);
+  R.tm.set(.5, 0, 0, .5, 0, .5, 0, .5, 0, 0, .5, .5, 0, 0, 0, 1); R.tm.multiply(vc.projectionMatrix).multiply(vc.matrixWorldInverse);
+  // oblique near plane: nothing below the water gets into the mirror
+  V.plane.setFromNormalAndCoplanarPoint(V.n, new THREE.Vector3()).applyMatrix4(vc.matrixWorldInverse);
+  V.clip.set(V.plane.normal.x, V.plane.normal.y, V.plane.normal.z, V.plane.constant);
+  const P = vc.projectionMatrix.elements;
+  V.q.set((Math.sign(V.clip.x) + P[8]) / P[0], (Math.sign(V.clip.y) + P[9]) / P[5], -1, (1 + P[10]) / P[14]);
+  V.clip.multiplyScalar(2 / V.clip.dot(V.q));
+  P[2] = V.clip.x; P[6] = V.clip.y; P[10] = V.clip.z + 1 - .003; P[14] = V.clip.w;
+  const hide = [R.mesh, wakeMesh, WX3.rain, spray3 && spray3.pts].filter(Boolean), was = hide.map(o => o.visible);
+  hide.forEach(o => { o.visible = false; });
+  const sh = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false;
+  renderer.setRenderTarget(R.rt); renderer.clear(); renderer.render(scene, vc); renderer.setRenderTarget(null);
+  renderer.shadowMap.autoUpdate = sh;
+  hide.forEach((o, i) => { o.visible = was[i]; });
+}
 /* ---------- course: water, banks, stand, marks, booms, the aerial wires ---------- */
 function shapeXY(pts) { const s = new THREE.Shape(); pts.forEach(([x, y], i) => i ? s.lineTo(x, y) : s.moveTo(x, y)); s.closePath(); return s; }
 const flat = (geo, h) => { geo.rotateX(Math.PI / 2); geo.translate(0, h, 0); return geo; };   // shape (x, y) → world (x, h, y)
@@ -153,12 +222,15 @@ function buildWorld() {
   const wGeo = flat(new THREE.ShapeGeometry(shapeXY(out)), 0), pos = wGeo.attributes.position, uv = new Float32Array(pos.count * 2);
   for (let i = 0; i < pos.count; i++) { uv[i * 2] = (pos.getX(i) - COURSE.xMin) / (COURSE.xMax - COURSE.xMin); uv[i * 2 + 1] = (pos.getZ(i) - COURSE.yMin) / (COURSE.yMax - COURSE.yMin); }
   wGeo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  const wMode = waterNow(), HQ = wMode !== 'simple';
   const water = new THREE.Mesh(wGeo, HQ
     ? new THREE.MeshStandardMaterial({ map: waterTexture(tod), color: new THREE.Color(T.water).multiplyScalar(.62), roughness: .5, metalness: 0, normalMap: rippleNormals(), normalScale: new THREE.Vector2(.22, .22), envMapIntensity: tod === 'night' ? .2 : .42, side: THREE.DoubleSide })
     : new THREE.MeshBasicMaterial({ map: waterTexture(tod), color: T.water, side: THREE.DoubleSide }));
   // d275 (まえ: PCの夜は水面が真っ黒): HQ water is lit only by the weak night lights → give it the floodlit glow of the
   // phone (lite) water as its own light, so 夜 looks the same on PC and phone
   if (HQ && tod === 'night') { water.material.emissive = new THREE.Color(T.water); water.material.emissiveMap = water.material.map; water.material.emissiveIntensity = NIGHT3.waterGlow; }
+  water.receiveShadow = HQ && Q.shadow > 0;
+  if (wMode === 'reflect') reflectOn(water); else refl = null;
   g.add(water);
   // ground around the water, with the water cut out; the bank top is 1 m up
   const BANK = 1.0, R = 900, ground = new THREE.Shape([new THREE.Vector2(-R, -R), new THREE.Vector2(R, -R), new THREE.Vector2(R, R), new THREE.Vector2(-R, R)]);
@@ -211,11 +283,14 @@ function buildWorld() {
   // night lights: bright poles round the course
   if (tod === 'night') {
     const pm = new THREE.MeshBasicMaterial({ color: 0xfff2d6 });
-    for (const [x, y] of NIGHT_POLES) { const p = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 6), pm); p.position.set(x, 18, y); g.add(p); }
+    // d279: a soft halo round each lamp (one additive sprite each, every 画質) — the lights glow instead of being dots
+    const hm = new THREE.SpriteMaterial({ map: haloTex(), color: 0xffe6b8, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: NIGHT3.halo, fog: false });
+    for (const [x, y] of NIGHT_POLES) { const p = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 6), pm); p.position.set(x, 18, y); g.add(p);
+      const h = new THREE.Sprite(hm); h.scale.setScalar(NIGHT3.haloM); h.position.set(x, 18, y); h.renderOrder = 4; g.add(h); }
   }
   scene.add(g);
   const dome = skyDome(tod), sky2 = skyline(tod, VENUE.id); g.add(dome); g.add(sky2);
-  if (HQ) {   // the sky (and skyline) reflected in the water and on the boats
+  if (Q !== GFX.tiers.lite || HQ) {   // the sky (and skyline) reflected in the water and on the boats
     const envScene = new THREE.Scene(); envScene.add(skyDome(tod)); envScene.add(skyline(tod, VENUE.id));
     const pm = new THREE.PMREMGenerator(renderer), rt = pm.fromScene(envScene, 0.02, .1, 2500);
     if (scene.environment) scene.environment.dispose(); scene.environment = rt.texture; pm.dispose();
@@ -229,7 +304,7 @@ function buildWorld() {
 /* ---------- 天気 (d271, まえ: 3D視点に天気の状態を反映、2Dみたいに): the same waterEnv the 2D view reads (6艇レースだけ) —
    雨: grey sky and fog drawn in, the light dimmed, rain streaks slanting with the wind; 風・波: the ripples drift downwind
    and stand up with the wind and the wave height ---------- */
-const WX3 = { key: '', rain: null, wv: 0, ux: 0, uy: 0, wave: 0, n: LITE ? 450 : 1400, box: 36, top: 26, len: .9, fall: 9 };
+const WX3 = { key: '', rain: null, wv: 0, ux: 0, uy: 0, wave: 0, n: 0, box: 36, top: 26, len: .9, fall: 9 };
 function wxNow() { return fleet && waterEnv ? waterEnv : null; }
 function wxApply() {
   const e = wxNow(), T = TOD[tod] || TOD.day, rain = !!(e && e.rain), key = e ? [e.rain ? 1 : 0, e.wx, e.wy, e.wave].join() : '-';
@@ -246,10 +321,10 @@ function wxApply() {
   if (WX3.rain) WX3.rain.visible = rain;
 }
 function makeRain() {
-  const n = WX3.n, pos = new Float32Array(n * 6), seed = new Float32Array(n * 3);
+  const n = WX3.n = Q.rain, pos = new Float32Array(n * 6), seed = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) { const h = k => { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); }; seed[i * 3] = h(1); seed[i * 3 + 1] = h(2); seed[i * 3 + 2] = h(3); }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: tod === 'night' ? 0x9aa8b8 : 0xd6e4ec, transparent: true, opacity: LITE ? .45 : .38, depthWrite: false }));
+  const m = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: tod === 'night' ? 0x9aa8b8 : 0xd6e4ec, transparent: true, opacity: Q === GFX.tiers.lite ? .45 : .38, depthWrite: false }));
   m.frustumCulled = false; m.userData.seed = seed; scene.add(m); WX3.rain = m;
 }
 function stepRain() {   // streaks in a box round the camera, falling and blown with the wind (no dice: the race is untouched)
@@ -288,10 +363,10 @@ function rippleNormals() {
 /* ---------- PC: 飛沫 — particles thrown by the hull, from the same values the 2D game draws its spray from ----------
    ターンの外側 (splashK: flat hull = a tall wall, deep bank = a thin low sheet), 横すべり (slip), 艇尾 (rooster tail at speed),
    舳先 (bow wash), 着水 (landing slap). Looks only. */
-const SPRAY = { max: 7000, g: 9.8, drag: 1.6 };
+const SPRAY = { max: 7000, g: 9.8, drag: 1.6 };   // (max: set from the 画質 when made)
 let spray3 = null; const landSeen = new WeakMap(); let lastGameT = null;
 function makeSpray() {
-  const n = SPRAY.max, geo = new THREE.BufferGeometry();
+  const n = SPRAY.max = Q.spray, geo = new THREE.BufferGeometry();
   const P = new Float32Array(n * 3), S = new Float32Array(n), A = new Float32Array(n);
   geo.setAttribute('position', new THREE.BufferAttribute(P, 3).setUsage(THREE.DynamicDrawUsage));
   geo.setAttribute('size', new THREE.BufferAttribute(S, 1).setUsage(THREE.DynamicDrawUsage));
@@ -367,8 +442,9 @@ function stepSpray(rows, dt) {
 }
 
 /* ---------- wakes: one dynamic mesh of quads (the core and the two spreading wave lines) ---------- */
-const WMAX = LITE ? 8000 : 24000;   // quads
+let WMAX = 0;   // quads (from the 画質)
 function makeWake() {
+  WMAX = Q.wake;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(WMAX * 6 * 3), 3).setUsage(THREE.DynamicDrawUsage));
   geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(WMAX * 6 * 4), 4).setUsage(THREE.DynamicDrawUsage));
@@ -470,7 +546,9 @@ let last = 0, lost = false;
 function render(now) {
   requestAnimationFrame(render);
   if (mode === '2d' || !set || lost) { if (canvas.style.display !== 'none') { canvas.style.display = 'none'; light2d(false); } return; }
+  const FRAME_MS = Q.fps ? 1000 / Q.fps : 0;   // the 3D view at 30 fps on スマホ軽量 (the race itself runs as before)
   if (FRAME_MS && now - last < FRAME_MS - 2) return;
+  slowWatch(now, FRAME_MS);
   if (canvas.style.display !== 'block') { canvas.style.display = 'block'; light2d(true); }
   try { frame3d(now); } catch (e) { console.warn('3D視点:', e); if (!render.warned) { render.warned = true; } }
 }
@@ -485,7 +563,7 @@ function light2d(on) {
 function frame3d(now) {
   const cv = document.getElementById('cv'); if (cv.width !== 1) { cv.width = 1; cv.height = 1; }
   const dt = Math.min(.1, (now - (last || now)) / 1000); last = now;
-  const w = innerWidth, h = innerHeight, dpr = LITE ? 1 : Math.min(1.5, devicePixelRatio || 1);
+  const w = innerWidth, h = innerHeight, dpr = Math.min(Q.dpr, devicePixelRatio || 1);
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); camera.aspect = w / h; }
   const t = todNow();
   if (t !== tod || VENUE.id !== venueId) { tod = t; venueId = VENUE.id; buildWorld(); }
@@ -499,7 +577,7 @@ function frame3d(now) {
     const rb = typeof rideBob === 'function' ? rideBob(b) : { h: 0, nose: 0 };   // d266 走りの揺れ (looks only)
     a.setGameTransform({ x: b.x, y: b.y, hop: fin(b.hop) + rb.h + (typeof willieMotion === 'function' ? willieMotion(b).h * .5 : 0), modelYaw: -Math.PI / 2 - b.a, modelBank: capsized ? Math.PI : lim(b.bank, -.65, .65) * V3.bank, nose: capsized ? 0 : nose + rb.nose });
     const dist = Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1;
-    a.chooseLOD(3.3 * focal / dist * (LITE ? .6 : 1));
+    a.chooseLOD(3.3 * focal / dist * Q.lod);
     a.updatePose({ pitch: lim((b.wil || 0) > .3 && !(fin(b.cap) > 0) ? Math.min(inp.pitch || 0, -.7) : inp.pitch, -1, 1),   /* d272: ウィリー中は体を後ろへ */ roll: lim(inp.roll, -1, 1), steer: -lim(inp.steer, -1, 1) * .30, propAngle: time * (12 + lim(b.v / 23, 0, 1) * 90) });
     const lv = a.levels[a.lod]; if (lv && lv.racer) lv.racer.visible = !gone && !(mode === 'racer' && b === me);
     a.root.visible = true;
@@ -509,11 +587,11 @@ function frame3d(now) {
   if (typeof taGhostsNow === 'function') for (const { b, kind } of taGhostsNow()) {
     const a = ghostActor(kind);
     a.setGameTransform({ x: b.x, y: b.y, hop: 0, modelYaw: -Math.PI / 2 - b.a, modelBank: 0, nose: 0 });
-    a.chooseLOD(3.3 * focal / (Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1) * (LITE ? .6 : 1));
+    a.chooseLOD(3.3 * focal / (Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1) * Q.lod);
     a.updatePose({ propAngle: time * 60 }); a.root.visible = true;
   }
   drawWakes(fleet ? fleet.boats.filter(r => !r.gone).map(r => r.wake) : [wake]);
-  if (HQ) {
+  if (spray3 || rippleTex) {
     const sdt = lastGameT == null ? 0 : lim(time - lastGameT, 0, .1); lastGameT = time;   // the race clock (a demo can run fast)
     if (spray3) { stepSpray(sdt > 0 ? rows : [], sdt); spray3.pts.material.uniforms.scale.value = h / 2 / Math.tan(camera.fov * Math.PI / 360);
       spray3.pts.material.uniforms.tint.value.set(tod === 'night' ? 0x9fb2c8 : tod === 'evening' ? 0xffe2c8 : 0xffffff); }
@@ -521,6 +599,8 @@ function frame3d(now) {
   }
   placeCamera(dt); stepRain();
   sun.position.set(me.x - 60, 120, me.y - 80); sun.target.position.set(me.x, 0, me.y);
+  if (sun.castShadow) sun.shadow.camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(); if (refl) renderReflection(w * dpr, h * dpr);
   renderer.render(scene, camera);
 }
 
@@ -536,25 +616,79 @@ btn.addEventListener('click', e => { e.stopPropagation(); setMode(V3.modes[(V3.m
 document.querySelector('.pills').prepend(btn);
 addEventListener('keydown', e => { if ((e.key === 'v' || e.key === 'V') && !e.repeat && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) btn.click(); });
 
+/* ---------- d279 画質の切り替え (settings, or 自動 stepping down) ---------- */
+const SHADOW = { r: 34, bias: -.0004, nBias: .03 };
+let modelsBusy = null;
+async function loadModels(tier) {
+  if (set && set.tier === tier) return;
+  if (modelsBusy) { await modelsBusy; if (set && set.tier === tier) return; }
+  modelsBusy = (async () => {
+    if (!window.HFGP3D_GLB) await loadScript(new URL('./hfgp3d-glb.js', import.meta.url).href);
+    if (tier === 'pc1080ti' && !window.HFGP3D_GLB['pc1080ti/boat_lod0.glb']) await loadScript(new URL('./hfgp3d-glb-pc.js', import.meta.url).href);
+    const s = await loadAssetSet(new URL('../hfgp3d/', import.meta.url).href, tier);
+    for (const a of actors.values()) a.dispose(); actors.clear();
+    for (const a of ghostActors.values()) a.dispose(); ghostActors.clear();
+    set = s;
+  })();
+  try { await modelsBusy; } catch (e) { console.warn('3D視点（モデル）:', e); if (tier !== 'mobile' && !set) await loadModels('mobile'); } finally { modelsBusy = null; }
+}
+function applyTier(first) {
+  Q = GFX.tiers[tierNow];
+  gfxUi();
+  if (!renderer) return;
+  renderer.toneMapping = Q === GFX.tiers.lite && waterNow() === 'simple' ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+  const shadow = Q.shadow > 0 && waterNow() !== 'simple';
+  renderer.shadowMap.enabled = shadow; sun.castShadow = shadow;
+  if (shadow) { sun.shadow.mapSize.set(Q.shadow, Q.shadow); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+  if (wakeMesh && WMAX !== Q.wake) { scene.remove(wakeMesh); wakeMesh.geometry.dispose(); wakeMesh.material.dispose(); wakeMesh = null; }
+  if (!wakeMesh) makeWake();
+  if (spray3 && SPRAY.max !== Q.spray) { scene.remove(spray3.pts); spray3.pts.geometry.dispose(); spray3.pts.material.dispose(); spray3 = null; }
+  if (!spray3 && Q.spray > 0) makeSpray();
+  if (WX3.rain && WX3.n !== Q.rain) { scene.remove(WX3.rain); WX3.rain.geometry.dispose(); WX3.rain.material.dispose(); WX3.rain = null; WX3.key = ''; }
+  if (refl && refl.rt && waterNow() !== 'reflect') { refl.rt.dispose(); refl = null; }
+  if (!first) { tod = ''; scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); }); loadModels(Q.models).then(() => { tod = ''; }); }
+}
+function gfxUi() {
+  const n = $('gfx3dNow'); if (n) n.textContent = gfxSet === 'auto' ? `（いま：${Q.label}）` : '';
+  const a = $('gfx3d'), b = $('water3d'); if (a && a.value !== gfxSet) a.value = gfxSet; if (b && b.value !== waterSet) b.value = waterSet;
+}
+for (const [id, key] of [['gfx3d', GFX.key], ['water3d', GFX.wKey]]) { const el = $(id); if (el) el.addEventListener('change', e => {
+  const v = e.target.value; try { localStorage.setItem(key, v); } catch (x) {}
+  if (id === 'gfx3d') { gfxSet = v; tierNow = v !== 'auto' ? v : PHONE ? 'lite' : 'pc'; } else waterSet = v;
+  slowW.n = 0; applyTier(false);
+}); }
+// 自動: a few seconds of slow frames → one step down (this visit only; the setting stays 自動)
+const slowW = { prev: 0, n: 0, t: 0 };
+function slowWatch(now, cap) {
+  const ft = now - (slowW.prev || now); slowW.prev = now;
+  if (gfxSet !== 'auto' || paused || document.hidden || ft > 400 || ft <= 0) { slowW.t = 0; return; }
+  const lim2 = cap ? cap * GFX.slow.msCap : GFX.slow.ms;
+  if (ft > lim2) slowW.t += ft / 1000; else slowW.t = Math.max(0, slowW.t - ft / 2000);
+  const i = GFX.order.indexOf(tierNow);
+  if (slowW.t > GFX.slow.secs && i > 0) { slowW.t = 0; tierNow = GFX.order[i - 1]; applyTier(false); }
+}
+gfxUi();
+
 let booting = null;
 function boot() {
   if (booting) return booting;
   canvas = document.createElement('canvas'); canvas.id = 'cv3d';
   canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;display:none;pointer-events:none';
   document.getElementById('cv').after(canvas);
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: !LITE, powerPreference: LITE ? 'default' : 'high-performance' });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: Q.aa, powerPreference: PHONE ? 'default' : 'high-performance' });
   // if the phone takes the GPU back, fall back to 2D instead of freezing the screen
   canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; btn.textContent = '視点：2D（3D停止）'; });
   canvas.addEventListener('webglcontextrestored', () => { lost = false; tod = ''; setMode(mode); });
-  renderer.outputColorSpace = THREE.SRGBColorSpace; if (HQ) { renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05; }
+  renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .1, 1500);
   hemi = new THREE.HemisphereLight(0xdfefff, 0x2a4a58, 1.5); scene.add(hemi);
   sun = new THREE.DirectionalLight(0xffffff, 2.2); scene.add(sun); scene.add(sun.target);
-  makeWake(); if (HQ) makeSpray();
+  const sc = sun.shadow.camera; sc.left = -SHADOW.r; sc.right = SHADOW.r; sc.top = SHADOW.r; sc.bottom = -SHADOW.r; sc.near = 10; sc.far = 300; sun.shadow.bias = SHADOW.bias; sun.shadow.normalBias = SHADOW.nBias;
+  applyTier(true);
   booting = (async () => {
-    if (!window.HFGP3D_GLB) await loadScript(new URL('./hfgp3d-glb.js', import.meta.url).href);
-    set = await loadAssetSet(new URL('../hfgp3d/', import.meta.url).href, 'mobile');
+    await loadModels(Q.models);
     window.View3D.ready = true;
   })().catch(e => { console.warn('3D視点:', e); btn.textContent = '視点：3D読み込み失敗'; window.View3D.error = String(e); });
   requestAnimationFrame(render);
