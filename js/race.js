@@ -155,10 +155,10 @@ const RISK = {
   TOP: { go: 0.08, ok: 0.93, acc: 0.1, hit: 0.45, fly: 0.0015 },
 };
 // trait = { course, laneY, tactic: 'nige'|'sashi'|'makuri', lineOff, dump, care } (all optional for a lone boat)
-const CARVE = { TOP: 1, A1: 0.9, A2: 0.7, B1: 0.5, B2: 0.3 };   // how well a class carves out of a turn (sit-up → crouch, lean held)
+const CARVE = { TOP: 1, A1: 0.92, A2: 0.75, B1: 0.56, B2: 0.36 };   // d270: A1 and below a little better (was 0.9 / 0.7 / 0.5 / 0.3)   // how well a class carves out of a turn (sit-up → crouch, lean held)
 // nobody turns perfectly every time: each turn is rolled — how deep the lean goes, how much it sits up, when it starts
 // easing out and how cleanly it hands over to the crouch. Top riders vary a little, B2 a lot.
-const TURN_SD = { TOP: 0.05, A1: 0.08, A2: 0.12, B1: 0.17, B2: 0.23 };
+const TURN_SD = { TOP: 0.05, A1: 0.07, A2: 0.105, B1: 0.15, B2: 0.2 };   // d270: was A1 0.08 A2 0.12 B1 0.17 B2 0.23
 const gauss = () => { let u = 0, v = 0; while (!u) u = simRandom(); while (!v) v = simRandom(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 function turnRoll(prof) {
   const sd = TURN_SD[prof.name] ?? 0.12;
@@ -1138,7 +1138,7 @@ function makeDriver(prof, trait = {}) {
           mem.pushDecided = true;
           const rk = RISK[prof.name] || RISK.B1;
           const at1M = b.y > 0;   // on the home straight, the next mark is 1M
-          if (env.battle && !(first && tactic === 'sashiPlace') && simRandom() < rk.go * (trait.pushMul ?? 1) * (at1M ? PUSH_AT_1M : 1)) mem.push = { ok: simRandom() < rk.ok, applied: false, done: false };
+          if (env.battle && !(first && tactic === 'sashiPlace') && simRandom() < rk.go * (trait.pushMul ?? 1) * (env.chase ? CHASE.goMul : at1M ? PUSH_AT_1M : 1)) mem.push = { ok: simRandom() < rk.ok, applied: false, done: false };
         }
         if (mem.push) { R = Math.max(7.5, R - 2.5); gap = Math.max(2.8, gap - 1); tThr = 1; late = 0; pre += 3; }
       }
@@ -1481,7 +1481,7 @@ function makeDriver(prof, trait = {}) {
       // near the danger line with nobody to fight: back off a touch (no point risking it).
       // In a close fight it holds on; only a deliberate 勝負 goes past the line. Cautious riders ease earlier.
       const near1M = Math.hypot(b.x - MK, b.y) < 40;
-      if (!mem.push && !(first && mem.ft && mem.ft.phase !== 'done') && !(first && (tactic === 'makuri' || mem.commit)) && (!env.battle || near1M) && (b.load || 0) > 0.95 + 0.06 * (1 - Math.min(1, care))) { thrT *= 0.9; }
+      if (!mem.push && !(first && mem.ft && mem.ft.phase !== 'done') && !(first && (tactic === 'makuri' || mem.commit)) && (!(env.battle || env.chase) || near1M && !env.chase) && (b.load || 0) > 0.95 + 0.06 * (1 - Math.min(1, care))) { thrT *= 0.9; }
       // swerving against the lean (dodging outward mid-turn): take the body out of it too
       if (Math.abs(steerT) > 0.2 && rollT !== 0 && Math.sign(steerT) !== Math.sign(rollT)) rollT *= 0.6;
       if(lab.active){const targets=labTraceInputs(mem,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},b,prof,o);thrT=targets.thr;steerT=targets.steer;rollT=targets.roll;pitchT=targets.pitch;}
@@ -1536,8 +1536,9 @@ function makeDriver(prof, trait = {}) {
       const TP = TRIM_CPU[prof.kinen ? 'KINEN' : prof.top ? 'TOP' : prof.name];
       if (TRIM_CPU.on && TP && b.cap <= 0) {
         const yawA = Math.abs(b.yaw || 0);
-        if (yawA > TRIM_CPU.inYaw) mem.tpArm = true;
-        else if (mem.tpArm && yawA < TRIM_CPU.outYaw) {
+        const TC = TRIM_CLS[prof.kinen ? 'KINEN' : prof.top ? 'TOP' : prof.name] || TRIM_CLS.A2;
+        if (yawA > TRIM_CPU.inYaw) { if (!mem.tpArm) mem.tpYaw = Math.max(0.2, TC.yaw + gauss() * TC.sd); mem.tpArm = true; }
+        else if (mem.tpArm && yawA < (mem.tpYaw ?? TRIM_CPU.outYaw)) {
           mem.tpWait = (mem.tpWait || 0) + dt;   // wait for the stern to stop sliding (slip counts as a mistimed pop)
           if (Math.abs(b.slip || 0) > TRIM.slip0 * TRIM_CPU.slipK && mem.tpWait < TRIM_CPU.waitMax) { /* wait */ }
           else { mem.tpArm = false; mem.tpWait = 0;
@@ -1737,7 +1738,12 @@ for (const d of DRIVERS) { d.line *= TURN_LINE_K; d.gap *= TURN_GAP_K; }
 const WL_CPU = { on: true, KINEN: 0.6, TOP: 0.75, pitch: -0.4 };
 // 後ろ重心の跳ね上げ (d174): chance per turn exit by class (A2 and below don't), when (yaw falling from inYaw past outYaw, speed
 // vMin–vMax m/s, lever in), and how long and how far back the body goes before crouching again
-const TRIM_CPU = { on: true, KINEN: 0.95, TOP: 0.85, A1: 0.6, inYaw: 0.45, outYaw: 0.25, vMin: 9, vMax: 19, hold: 0.15, pitch: -0.8, slipK: 0.8, waitMax: 0.8, fight: 25 };   // odds of the bow coming up (willieOdds) they need before trying
+// d270 (まえ: A2以上はターン立ち上がりの後ろ重心を使う、クラスが上がるほど効果的): A2 joins; the better the class, the more
+// often and the better timed — it waits until the boat has come out of the turn (yaw under yaw), the lower classes throw it while
+// still turning (past TRIM.misYaw the push is lost and the prop may let go), each turn ± sd
+const TRIM_CLS = { KINEN: { yaw: 0.25, sd: 0.02 }, TOP: { yaw: 0.26, sd: 0.03 }, A1: { yaw: 0.3, sd: 0.05 }, A2: { yaw: 0.36, sd: 0.08 } };
+const CHASE = { on: true, range: 45, battle: 20, goMul: 1.5 };   // d270: m along the course to the boat ahead; × the class's chance of a 攻めのターン (also at 1M) while chasing
+const TRIM_CPU = { on: true, KINEN: 0.95, TOP: 0.9, A1: 0.75, A2: 0.55, inYaw: 0.45, outYaw: 0.25, vMin: 9, vMax: 19, hold: 0.15, pitch: -0.8, slipK: 0.8, waitMax: 0.8, fight: 25 };   // odds of the bow coming up (willieOdds) they need before trying
 const BN_CPU = { on: true, hard: 2.5, high: 0.25, wave: 8, TOP: { up: -0.3, hold: 0.35, lever: 0.85, rough: 0.5 }, A1: { up: -0.25, hold: 0.3, lever: 0.85, rough: 0.4 },
   A2: { up: -0.2, hold: 0.25, lever: 0.8, rough: 0.35 }, B1: { up: -0.1, hold: 0.2, lever: 0.75, rough: 0.3 }, B2: { up: 0, hold: 0.15, lever: 0.7, rough: 0.2 } };
 const CROWD_DROP = { on: true, r: 10, until: 0.45, lever: { TOP: 0.75, A1: 0.7, A2: 0.66, B1: 0.6, B2: 0.56 } };
@@ -2786,9 +2792,17 @@ function fleetStep(dt, playerInput) {
     const near = racing.some(q => q !== r && Math.hypot(q.b.x - r.b.x, q.b.y - r.b.y) < 12);
     const clear = i === 0 && (racing.length < 2 || Math.hypot(racing[1].b.x - r.b.x, racing[1].b.y - r.b.y) > 25);
     r.battle = near && !clear;
+    // d270 (まえ: 先頭が抜け出すと後ろは諦めたようになる → 少しでも着を上げる): after the 1周1M a boat with the next boat
+    // ahead within CHASE.range m keeps racing it (no backing off, 後ろ重心 on the exits); within CHASE.battle m it is a 勝負どころ
+    r.chase = false;
+    if (CHASE.on && i > 0 && fleet.k1 && !fleet.caution) {
+      const gapA = racing[i - 1].prog - r.prog;
+      if (gapA < CHASE.range) r.chase = true;
+      if (gapA < CHASE.battle) r.battle = true;
+    }
   });
   // 跳ね上げの勝負どころ (d174, まえ): a rival within TRIM_CPU.fight m along the course, ahead or behind; clear of everyone = safe place, no pop
-  racing.forEach(r => { r.fight = racing.some(q => q !== r && Math.abs(q.prog - r.prog) < TRIM_CPU.fight); });
+  racing.forEach(r => { r.fight = r.chase || racing.some(q => q !== r && Math.abs(q.prog - r.prog) < TRIM_CPU.fight); });
   for (const r of fleet.boats) {
     const b = r.b;
     if (r.gone) continue;
@@ -2805,7 +2819,7 @@ function fleetStep(dt, playerInput) {
                   outerCommit: !!(outR && !outR.dq && outR.drv && outR.drv.mem.commit), outerDash: !!(outR && !outR.dq && outR.trait && !outR.trait.slow), innerKu: !!(inR && !inR.dq && inR.drv && inR.drv.mem.ku === b),
                   outerSqueeze: fleet.boats.some(q => q !== r && !q.dq && q.drv && q.drv.mem.squeeze === r.b),
                   stAdv: inR && r.st != null ? (inR.st != null ? inR.st - r.st : Math.max(0, time - zero) - r.st) : 0,   // inside boat not across yet: at least this much behind
-                    battle: r.battle, fight: !!r.fight, retire: r.flying && r.passed1M,
+                    battle: r.battle, fight: !!r.fight, chase: !!r.chase, retire: r.flying && r.passed1M,
                     cruise: r.fin != null ? { ahead: fi > 0 ? fleet.finOrder[fi - 1].b : null } : null,
                     caution: fleet.caution && r.fin == null && !(r.flying && r.passed1M) && (fleet.locked || inCautionZone(r) || nearWreck(b, CAUTION_LOCK.near)) ? { ahead: r.dq ? dqAhead(r) : cautionAhead(r), wrecks: fleet.wrecks } : null };   // 失格艇も事故艇の外を徐行
       if (r.player) {

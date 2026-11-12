@@ -400,7 +400,7 @@ VR = (() => {
       hull: { lengthM: +(BOW_TIP + HULL_STERN).toFixed(2), beamM: 2 * HULL_R, bowTipM: BOW_TIP, sternM: HULL_STERN,
         capsule: { r: HULL_R, aft: HULL_AFT, fwd: HULL_FWD },
         note: 'x along the heading from the boat position (x, y): bow tip +bowTipM, transom -sternM; contact = capsule from -aft to +fwd with radius r. Draw the boat at this size, bow tip on +bowTipM (the motor hangs off the transom).' },
-      view: { driftView: typeof DRIFT_VIEW !== 'undefined' && DRIFT_VIEW.on ? { gain: DRIFT_VIEW.gain, vLo: DRIFT_VIEW.vLo, vHi: DRIFT_VIEW.vHi, max: DRIFT_VIEW.max,
+      view: { willie: typeof WIL_VIEW !== 'undefined' ? { ...WIL_VIEW, formula: 'from willie_start (t=0): nose = t<tKick ? kick·s(t/tKick) : t<tKick+tSettle ? kick+(ride−kick)·s((t−tKick)/tSettle) : ride, s(u)=u²(3−2u); + wob·sin(2π·wobHz·t)·wil; after willie_end nose = ride·wil; lift = h·wil·(0.6+0.4·nose/kick) m (d272)' } : null, driftView: typeof DRIFT_VIEW !== 'undefined' && DRIFT_VIEW.on ? { gain: DRIFT_VIEW.gain, vLo: DRIFT_VIEW.vLo, vHi: DRIFT_VIEW.vHi, max: DRIFT_VIEW.max,
         formula: 'drawnHeading = heading - clamp(gain * slip * clamp((v - vLo) / (vHi - vLo), 0, 1), -max, max)  (the game draws the hull at this angle; d166)' } : null,
         // d175: the bow's trim (d173), with this version's numbers, so an old log keeps its old look if the game is retuned
         trim: { up: TRIM.up, down: TRIM.down, vRef: TRIM.vRef, rate: TRIM.rate, k: TRIM.k, c: TRIM.c, snap: TRIM.snap, snapThr0: 0.4, snapThrK: 0.6, downK: 1.5, min: -0.3, max: 1.2,

@@ -20,12 +20,14 @@
      preLean      metres before the turn it starts leaning [4]
      exitEarly    metres before the turn ends it sits back up [4]
    SG級 was found by searching these knobs for the fastest clean laps in this physics. */
+// d270 (まえ: CPUの強さを底上げ、A1から下を少し強化): A1 gap 3.2→3.0 grip 1.0→1.01; A2 gap 3.8→3.5 grip .97→.98 up/cruise .95→.97;
+// B1 gap 5→4.6 grip .95→.96 lean .9→.92 up/cruise .85→.88; B2 gap 6.5→6.0 grip .93→.94 lean .8→.83 up/cruise .75→.78
 const DRIVERS = [
-  { name: 'A1', gap: 3.2, grip: 1.0,  lean: 1.0,  up: 1.0,  cruise: 1.0,  line: 16, turnThr: 1.0,  react: 9.4, leanLate: 0,  st: 0.08, stJit: 0.03, wobble: 0.02,
+  { name: 'A1', gap: 3.0, grip: 1.01,  lean: 1.0,  up: 1.0,  cruise: 1.0,  line: 16, turnThr: 1.0,  react: 9.4, leanLate: 0,  st: 0.08, stJit: 0.03, wobble: 0.02,
     look0: 20.8, lookK: 0.99, gain: 1.58, preLean: 5.3, exitEarly: 0 },
-  { name: 'A2', gap: 3.8, grip: 0.97, lean: 1.0,  up: 0.95,  cruise: 0.95,  line: 16, turnThr: 1.0,  react: 9, leanLate: 0,  st: 0.08, stJit: 0.035, wobble: 0.02 , look0: 20.8, lookK: 0.99, gain: 1.58, preLean: 5.3, exitEarly: 0 },
-  { name: 'B1', gap: 5, grip: 0.95, lean: 0.9,  up: 0.85,  cruise: 0.85, line: 16.5, turnThr: 1.0, react: 7.5, leanLate: 2, st: 0.13, stJit: 0.07, wobble: 0.04 , look0: 19, lookK: 0.95, gain: 1.7, preLean: 4.5, exitEarly: 1 },
-  { name: 'B2', gap: 6.5, grip: 0.93, lean: 0.8,  up: 0.75,  cruise: 0.75, line: 17, turnThr: 0.95,  react: 6, leanLate: 4,  st: 0.2, stJit: 0.12, wobble: 0.07 , look0: 17, lookK: 0.9,  gain: 1.85, preLean: 4, exitEarly: 2 },
+  { name: 'A2', gap: 3.5, grip: 0.98, lean: 1.0,  up: 0.97,  cruise: 0.97,  line: 16, turnThr: 1.0,  react: 9, leanLate: 0,  st: 0.08, stJit: 0.035, wobble: 0.02 , look0: 20.8, lookK: 0.99, gain: 1.58, preLean: 5.3, exitEarly: 0 },
+  { name: 'B1', gap: 4.6, grip: 0.96, lean: 0.92,  up: 0.88,  cruise: 0.88, line: 16.5, turnThr: 1.0, react: 7.5, leanLate: 2, st: 0.13, stJit: 0.07, wobble: 0.04 , look0: 19, lookK: 0.95, gain: 1.7, preLean: 4.5, exitEarly: 1 },
+  { name: 'B2', gap: 6.0, grip: 0.94, lean: 0.83,  up: 0.78,  cruise: 0.78, line: 17, turnThr: 0.95,  react: 6, leanLate: 4,  st: 0.2, stJit: 0.12, wobble: 0.07 , look0: 17, lookK: 0.9,  gain: 1.85, preLean: 4, exitEarly: 2 },
   // トップクラス: A1 on the card, but a cut above — tighter to the buoy, more grip, sharper, surer at the start (SG mode only)
   { name: 'TOP', label: 'A1', top: true, gap: 2.8, grip: 1.05, lean: 1.0, up: 1.0, cruise: 1.0, line: 15.5, turnThr: 1.0, react: 10.5, leanLate: 0, st: 0.06, stJit: 0.02, wobble: 0.01, look0: 20.8, lookK: 0.99, gain: 1.58, preLean: 5.3, exitEarly: 0 },
   // 記念クラス (d140): an A1★ that, given a mark to itself, turns like the fastest time-attack run (race.js KINEN). Same tables as TOP.

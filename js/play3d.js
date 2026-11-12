@@ -210,17 +210,56 @@ function buildWorld() {
     for (const [x, y] of NIGHT_POLES) { const p = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 6), pm); p.position.set(x, 18, y); g.add(p); }
   }
   scene.add(g);
-  const dome = skyDome(tod); g.add(dome); g.add(skyline(tod, VENUE.id));
+  const dome = skyDome(tod), sky2 = skyline(tod, VENUE.id); g.add(dome); g.add(sky2);
   if (HQ) {   // the sky (and skyline) reflected in the water and on the boats
     const envScene = new THREE.Scene(); envScene.add(skyDome(tod)); envScene.add(skyline(tod, VENUE.id));
     const pm = new THREE.PMREMGenerator(renderer), rt = pm.fromScene(envScene, 0.02, .1, 2500);
     if (scene.environment) scene.environment.dispose(); scene.environment = rt.texture; pm.dispose();
   }
-  world = { g, dist: dm, water };
+  world = { g, dist: dm, water, dome, sky2 }; WX3.key = '';
   scene.background = new THREE.Color(T.sky); scene.fog = new THREE.Fog(T.fog, 120, 520);
   hemi.color.set(T.hemi[0]); hemi.groundColor.set(T.hemi[1]); hemi.intensity = T.hemi[2]; sun.color.set(T.sun[0]); sun.intensity = T.sun[1];
 }
 
+
+/* ---------- 天気 (d271, まえ: 3D視点に天気の状態を反映、2Dみたいに): the same waterEnv the 2D view reads (6艇レースだけ) —
+   雨: grey sky and fog drawn in, the light dimmed, rain streaks slanting with the wind; 風・波: the ripples drift downwind
+   and stand up with the wind and the wave height ---------- */
+const WX3 = { key: '', rain: null, wv: 0, ux: 0, uy: 0, wave: 0, n: LITE ? 450 : 1400, box: 36, top: 26, len: .9, fall: 9 };
+function wxNow() { return fleet && waterEnv ? waterEnv : null; }
+function wxApply() {
+  const e = wxNow(), T = TOD[tod] || TOD.day, rain = !!(e && e.rain), key = e ? [e.rain ? 1 : 0, e.wx, e.wy, e.wave].join() : '-';
+  WX3.wv = e ? Math.hypot(e.wx, e.wy) : 0; WX3.ux = WX3.wv > .3 ? e.wx / WX3.wv : 0; WX3.uy = WX3.wv > .3 ? e.wy / WX3.wv : 0; WX3.wave = e ? e.wave || 0 : 0;
+  if (key === WX3.key) return; WX3.key = key;
+  const g = rain ? (tod === 'night' ? .3 : .5) : 0, cloud = new THREE.Color(tod === 'night' ? 0x0e1216 : tod === 'evening' ? 0x8a7f7a : 0x8c969c);
+  scene.background = new THREE.Color(T.sky).lerp(cloud, g);
+  scene.fog = new THREE.Fog(new THREE.Color(T.fog).lerp(cloud, g), rain ? 50 : 120, rain ? 290 : 520);
+  hemi.intensity = T.hemi[2] * (rain ? .78 : 1); sun.intensity = T.sun[1] * (rain ? .3 : 1);
+  for (const m of [world.dome, world.sky2]) if (m && m.material) m.material.color.setScalar(rain ? (tod === 'night' ? .7 : .62) : 1);
+  const wm = world.water && world.water.material;
+  if (wm && wm.normalScale) { const k = .22 * (1 + Math.min(WX3.wv, 8) * .12 + Math.min(WX3.wave, 15) * .035); wm.normalScale.set(k, k); }
+  if (rain && !WX3.rain) makeRain();
+  if (WX3.rain) WX3.rain.visible = rain;
+}
+function makeRain() {
+  const n = WX3.n, pos = new Float32Array(n * 6), seed = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const h = k => { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); }; seed[i * 3] = h(1); seed[i * 3 + 1] = h(2); seed[i * 3 + 2] = h(3); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: tod === 'night' ? 0x9aa8b8 : 0xd6e4ec, transparent: true, opacity: LITE ? .45 : .38, depthWrite: false }));
+  m.frustumCulled = false; m.userData.seed = seed; scene.add(m); WX3.rain = m;
+}
+function stepRain() {   // streaks in a box round the camera, falling and blown with the wind (no dice: the race is untouched)
+  const m = WX3.rain; if (!m || !m.visible) return;
+  const p = m.geometry.attributes.position.array, sd = m.userData.seed, B = WX3.box, t = performance.now() / 1000, c = camera.position;
+  const wx = WX3.ux * WX3.wv * .5, wz = WX3.uy * WX3.wv * .5, L = WX3.len;
+  for (let i = 0; i < WX3.n; i++) {
+    const sp = WX3.fall * (.85 + .3 * sd[i * 3 + 2]), y = WX3.top - ((sd[i * 3 + 1] * WX3.top + t * sp) % WX3.top);
+    const fallT = (WX3.top - y) / sp;
+    const W2 = 2 * B, x = c.x + ((sd[i * 3] * W2 + wx * fallT) % W2 + W2) % W2 - B, z = c.z + (((sd[(i * 7 % WX3.n) * 3 + 1]) * W2 + wz * fallT) % W2 + W2) % W2 - B;
+    const j = i * 6, k = L / sp; p[j] = x; p[j + 1] = y; p[j + 2] = z; p[j + 3] = x + wx * k; p[j + 4] = y - L; p[j + 5] = z + wz * k;
+  }
+  m.geometry.attributes.position.needsUpdate = true;
+}
 
 /* ---------- PC: さざ波 (a tiling normal map that drifts) ---------- */
 let rippleTex = null;
@@ -446,18 +485,18 @@ function frame3d(now) {
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); camera.aspect = w / h; }
   const t = todNow();
   if (t !== tod || VENUE.id !== venueId) { tod = t; venueId = VENUE.id; buildWorld(); }
-  world.dist.visible = !!fleet;
+  world.dist.visible = !!fleet; wxApply();
   for (const a of actors.values()) a.root.visible = false;
   const rows = rowsNow(), me = targetRow().b, focal = h / 2 / Math.tan(camera.fov * Math.PI / 360);
   for (const row of rows) {
     const b = row.b, inp = row.inp || {}, a = actorFor(row);
     const capsized = fin(b.cap) > 0 && !b.fallen, gone = fin(b.cap) > 0 || b.fallen;
-    const nose = capsized ? 0 : lim((b.wil || 0) * .30 + (b.trim || 0) * .14 + (b.porp || 0) * .045 * Math.sin(time * 18) + (b.hv || 0) * .025, -.12, .4);
+    const nose = capsized ? 0 : lim((typeof willieMotion === 'function' ? willieMotion(b).nose : (b.wil || 0) * .30) + (b.trim || 0) * .14 + (b.porp || 0) * .045 * Math.sin(time * 18) + (b.hv || 0) * .025, -.12, .75);
     const rb = typeof rideBob === 'function' ? rideBob(b) : { h: 0, nose: 0 };   // d266 走りの揺れ (looks only)
-    a.setGameTransform({ x: b.x, y: b.y, hop: fin(b.hop) + rb.h, modelYaw: -Math.PI / 2 - b.a, modelBank: capsized ? Math.PI : lim(b.bank, -.65, .65) * V3.bank, nose: capsized ? 0 : nose + rb.nose });
+    a.setGameTransform({ x: b.x, y: b.y, hop: fin(b.hop) + rb.h + (typeof willieMotion === 'function' ? willieMotion(b).h * .5 : 0), modelYaw: -Math.PI / 2 - b.a, modelBank: capsized ? Math.PI : lim(b.bank, -.65, .65) * V3.bank, nose: capsized ? 0 : nose + rb.nose });
     const dist = Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1;
     a.chooseLOD(3.3 * focal / dist * (LITE ? .6 : 1));
-    a.updatePose({ pitch: lim(inp.pitch, -1, 1), roll: lim(inp.roll, -1, 1), steer: -lim(inp.steer, -1, 1) * .30, propAngle: time * (12 + lim(b.v / 23, 0, 1) * 90) });
+    a.updatePose({ pitch: lim((b.wil || 0) > .3 && !(fin(b.cap) > 0) ? Math.min(inp.pitch || 0, -.7) : inp.pitch, -1, 1),   /* d272: ウィリー中は体を後ろへ */ roll: lim(inp.roll, -1, 1), steer: -lim(inp.steer, -1, 1) * .30, propAngle: time * (12 + lim(b.v / 23, 0, 1) * 90) });
     const lv = a.levels[a.lod]; if (lv && lv.racer) lv.racer.visible = !gone && !(mode === 'racer' && b === me);
     a.root.visible = true;
   }
@@ -474,9 +513,9 @@ function frame3d(now) {
     const sdt = lastGameT == null ? 0 : lim(time - lastGameT, 0, .1); lastGameT = time;   // the race clock (a demo can run fast)
     if (spray3) { stepSpray(sdt > 0 ? rows : [], sdt); spray3.pts.material.uniforms.scale.value = h / 2 / Math.tan(camera.fov * Math.PI / 360);
       spray3.pts.material.uniforms.tint.value.set(tod === 'night' ? 0x9fb2c8 : tod === 'evening' ? 0xffe2c8 : 0xffffff); }
-    if (rippleTex && !paused) { rippleTex.offset.x += dt * .018; rippleTex.offset.y += dt * .011; }
+    if (rippleTex && !paused) { const d = WX3.wv > .3 ? (.4 + WX3.wv * .35) / 4.5 : 0; rippleTex.offset.x += dt * (.018 - WX3.ux * d); rippleTex.offset.y += dt * (.011 - WX3.uy * d); }   // d271: downwind like the 2D ripples
   }
-  placeCamera(dt);
+  placeCamera(dt); stepRain();
   sun.position.set(me.x - 60, 120, me.y - 80); sun.target.position.set(me.x, 0, me.y);
   renderer.render(scene, camera);
 }

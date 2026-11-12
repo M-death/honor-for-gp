@@ -215,6 +215,8 @@ d164 で実装、d171 で見どころ（`formatFeatures: ["highlights-v1"]`）�
 - 跳ね上げ：`trim_pop` の時刻に `popV += snap × (snapThr0 + snapThrK × thr)`。毎ステップ `popV += (−k × (1 + downK×max(0,pitch)) × pop − c × popV) × dt`、`pop = max(0, pop + popV×dt)`。
 - 合計：`trim = clamp(trimBase + pop, min, max)`。舳先の角度は `trim × degPerUnit` 度。
 
+**`header.view.willie`**（d272〜、ウィリーの跳ね上げモーション）：`kick` 0.62 rad、`ride` 0.4 rad、`tKick` 0.16 秒、`tSettle` 0.45 秒、`wob` 0.05 rad、`wobHz` 2.6、`h` 0.3 m と式（`formula`）。`willie_start` を t=0 として舳先を跳ね上げ、乗る角度へ戻して揺らし、`willie_end` 後は `ride × wil` で落とします。無い古いログは `wil × 0.30 rad`。
+
 ゲーム側で値を変えても、古いログはそのログに入っている値で昔の見た目を再現できます。`header.view` は d175 から常にオブジェクトで、`driftView` は描く向きの補正を切っているときだけ null です（以前は `view` 全体が null）。
 
 **`header.hull`**（d187、`hull-size-v1`）：艇の実寸と当たり判定

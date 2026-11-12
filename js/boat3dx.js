@@ -47,7 +47,7 @@ api.prepare = function (rows, scale, dpr, t) {
     rows.forEach((row, i) => {
       const b = row.b, inp = row.inp || {}, a = actorFor(row);
       const capsized = finite(b.cap) > 0 && !b.fallen, gone = finite(b.cap) > 0 || b.fallen;
-      const nose = capsized ? 0 : limit((b.wil || 0) * .30 + (b.trim || 0) * .14 + (b.porp || 0) * .045 * Math.sin(t * 18) + (b.hv || 0) * .025 + (typeof rideBob === 'function' ? rideBob(b).nose : 0), -.12, .4);
+      const nose = capsized ? 0 : limit((typeof willieMotion === 'function' ? willieMotion(b).nose : (b.wil || 0) * .30) + (b.trim || 0) * .14 + (b.porp || 0) * .045 * Math.sin(t * 18) + (b.hv || 0) * .025 + (typeof rideBob === 'function' ? rideBob(b).nose : 0), -.12, .75);
       a.setLOD(tile >= 160 ? 0 : tile >= 112 ? 1 : 2);
       a.setGameTransform({ x: 0, y: 0, hop: 0, modelYaw: -Math.PI / 2, modelBank: capsized ? Math.PI : -limit(b.bank, -.65, .65), nose });
       a.updatePose({ pitch: limit(inp.pitch, -1, 1), roll: limit(inp.roll, -1, 1), steer: -limit(inp.steer, -1, 1) * .30, propAngle: t * (12 + limit(b.v / 23, 0, 1) * 90) });

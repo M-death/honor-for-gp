@@ -684,7 +684,7 @@ function drawWake(arr) {
 const PLAYER_STYLE = { hull: '#f4f7f6', num: '#0a2c38', label: '1', helmet: C.lever };
 /* バウンド: drawn from the hull's hop in the physics (d155; d154 was looks only). In the air the hull comes up at the
    camera and its shadow stays on the water; a landing throws a white burst. */
-const BOUNCE_VIEW = { hMax: 0.45, splashT: 0.4, wil: 0.22, trim: 0.08 };   // wil: ウィリー drawn as this much lift (bow up, riding on the tail); trim: 後ろ重心 (d173) — a third of it
+const BOUNCE_VIEW = { hMax: 0.55, splashT: 0.4, wil: 0.22, trim: 0.08 };   // wil: ウィリー drawn as this much lift (bow up, riding on the tail); trim: 後ろ重心 (d173) — a third of it
 /* 走りの揺れ (d266, まえ: 走りの物理には影響しないように縦揺れ（軽いバウンド）、速度に乗ると次第に収まる): drawn only — a light
    heave and pitch while the hull is off the plane, settling as it gets up to speed (TILT.planeV ≈ 10–12.5 m/s, 37–45 km/h).
    h: m up (+) / down (−), nose: rad bow up. Every boat has its own phase. 2D: the hull is drawn a touch nearer / further;
@@ -699,8 +699,26 @@ function rideBob(b) {
   const u = time * R.hz * Math.PI * 2 + ph, w = Math.sin(u) + 0.35 * Math.sin(1.7 * u + 1);
   return { h: R.h * k * w / 1.35, nose: R.nose * k * Math.sin(u + 0.9) };
 }
+/* ウィリーの跳ね上げ (d272, まえ: ウィリーターンに特殊モーション、舳先を跳ね上げてる感じ — 今はよくわからない): drawn only.
+   As the ウィリー catches the bow is thrown up past its riding angle (kick, rad) in tKick s, falls back onto the ride angle over
+   tSettle s and rides there rocking on the stern (wob); when it lets go it drops with the physics (b.wil). h = m the hull rides up. */
+const WIL_VIEW = { kick: 0.62, ride: 0.4, tKick: 0.16, tSettle: 0.45, wob: 0.05, wobHz: 2.6, h: 0.3 };
+const _wilAt = new WeakMap();
+function willieMotion(b) {
+  const w = !b || b.cap > 0 ? 0 : b.wil || 0;
+  const on = !!b && (b.wilT > 0 || (b.wilT === undefined && w > 0.5));   // (a replay has only b.wil: on while it is up)
+  if (!on) _wilAt.delete(b || {});
+  if (w <= 0.01) return { nose: 0, h: 0 };
+  const W = WIL_VIEW;
+  if (on && !_wilAt.has(b)) _wilAt.set(b, time);
+  const age = _wilAt.has(b) ? time - _wilAt.get(b) : 9;
+  const ease = u => u * u * (3 - 2 * u);
+  const up = age < W.tKick ? W.kick * ease(age / W.tKick) : age < W.tKick + W.tSettle ? W.kick + (W.ride - W.kick) * ease((age - W.tKick) / W.tSettle) : W.ride;
+  const ang = (on ? up : W.ride * w) + W.wob * Math.sin(time * W.wobHz * Math.PI * 2) * w;
+  return { nose: ang, h: W.h * w * (0.6 + 0.4 * ang / W.kick) };
+}
 function boatBounce(b) {
-  return { h: b.cap > 0 ? 0 : clamp(Math.max(b.hop || 0, (b.wil || 0) * BOUNCE_VIEW.wil, Math.max(0, b.trim || 0) * BOUNCE_VIEW.trim), 0, BOUNCE_VIEW.hMax), wil: b.cap > 0 ? 0 : b.wil || 0, pop: b.cap > 0 ? 0 : clamp(b.trimPop || 0, 0, 1), ls: b.landAge ?? 9, sp: clamp((b.landV || 0) / 4, 0, 1), stuck: (b.stuckAge ?? 9) < 0.3 };
+  return { h: b.cap > 0 ? 0 : clamp(Math.max(b.hop || 0, willieMotion(b).h, Math.max(0, b.trim || 0) * BOUNCE_VIEW.trim), 0, BOUNCE_VIEW.hMax), wil: b.cap > 0 ? 0 : b.wil || 0, pop: b.cap > 0 ? 0 : clamp(b.trimPop || 0, 0, 1), ls: b.landAge ?? 9, sp: clamp((b.landV || 0) / 4, 0, 1), stuck: (b.stuckAge ?? 9) < 0.3 };
 }
 /* 尻の流れ (d166, まえ): drawn only — the race, the hull's collision shape and the CPU are untouched. Coming into a turn
    fast, the stern is drawn swung further out than the physics slide (the bow pointed further in, toward the mark);
@@ -787,7 +805,7 @@ function drawBoatAt(b, inp, sty, focused) {
   ctx.beginPath(); ctx.ellipse(0.12 + sx, 0.4 + inp.roll * 0.25 + sy, 2.55 * (1 - 0.08 * lf), 1.05 * (1 - 0.08 * lf), 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = `rgba(0,18,25,${0.25 + 0.1 * lf})`;
   ctx.beginPath(); ctx.ellipse(-0.15 + sx, 0.22 + sy, 2.15, 0.78, 0, 0, Math.PI * 2); ctx.fill();
-  const tr = b.cap > 0 ? 0 : clamp(b.trim || 0, 0, 1.2);
+  const tr = b.cap > 0 ? 0 : Math.max(clamp(b.trim || 0, 0, 1.2), clamp(willieMotion(b).nose / 0.14 * 0.45, 0, 2.2));   // d272: ウィリーの跳ね上げは舳先の影がもっと離れる
   if (tr > 0.05) {   // 舳先が上がる (d173): the bow's shadow falls away from the hull (down-screen), and the bow spray starts further aft
     const ty = tr * 1.1, tsx = ty * sa, tsy = ty * ca;
     ctx.fillStyle = `rgba(0,18,25,${0.18 * Math.min(1, tr * 2)})`;

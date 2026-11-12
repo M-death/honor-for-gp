@@ -970,7 +970,10 @@ addEventListener('gamepaddisconnected', () => toast('コントローラ切断', 
      安定度      a heartbeat — ドクン、ドクン — that quickens and hardens as the boat nears the danger line
      危険ライン超え  both motors flat out and ragged
    Plus one-shots for a hit or a capsize. Phones only get on/off buzzes, so strength becomes pulse length. */
-const hap = { on: true, beat: -1, beatT: 0, beatMag: 0, knock: 0, lastBump: 0, shot: 0, shotMag: 0, sendT: 0, phoneBusy: 0, phonePri: 0, humT: 0, active: false };
+// d271 走りの振動: 引き波の中 (b.inWake 0–1) と宙に浮いている間 (b.hop m) の続く震え、着水 (b.landV m/s) の一発
+const HAP_RIDE = { wakeMin: 0.05, wakeWeak: 0.45, bumpWeak: 0.3, wakeStrong: 0.25, airWeak: 0.15, airWeakK: 0.25, hopRef: 0.3,
+  landMin: 0.6, landRef: 3.0, land0: 0.25, land: 0.75, landT0: 0.06, landT: 0.14 };
+const hap = { prevLand: 9, on: true, beat: -1, beatT: 0, beatMag: 0, knock: 0, lastBump: 0, shot: 0, shotMag: 0, sendT: 0, phoneBusy: 0, phonePri: 0, humT: 0, active: false };
 function hapticShot(dur, mag) { hap.shot = Math.max(hap.shot, dur); hap.shotMag = Math.max(hap.shotMag, mag); }
 function phoneBuzz(pattern, pri, busyMs) {
   if (!navigator.vibrate) return;
@@ -998,6 +1001,19 @@ function hapticsFrame(dt, b) {
   if (bump > 0.25 && hap.lastBump <= 0.25) { hap.knock = 0.09; phone = { p: 30, pri: 2, ms: 60 }; }
   hap.lastBump = bump;
   if (hap.knock > 0) { hap.knock -= dt; strong = Math.max(strong, 0.35 + 0.6 * bump); }
+  // d271 (まえ): 引き波の中にいる間は強さに応じて弱く震え続け、跳ねている間（宙に浮いている間）も軽く続く。
+  // 着水は落ちてきた速さで一発 — 引き波を越えて大きく跳ねたほど強い
+  if (b.cap <= 0) {
+    const inW = clamp(b.inWake || 0, 0, 1);
+    if (inW > HAP_RIDE.wakeMin) { weak = Math.max(weak, HAP_RIDE.wakeWeak * inW + HAP_RIDE.bumpWeak * bump); strong = Math.max(strong, HAP_RIDE.wakeStrong * inW * inW); }
+    const air = b.hop || 0;
+    if (air > 0.02) { const k = clamp(air / HAP_RIDE.hopRef, 0, 1); weak = Math.max(weak, HAP_RIDE.airWeak + HAP_RIDE.airWeakK * k); }
+    if ((b.landAge ?? 9) < hap.prevLand && (b.landV || 0) > HAP_RIDE.landMin) {
+      const sev = clamp(b.landV / HAP_RIDE.landRef, 0, 1);
+      hapticShot(HAP_RIDE.landT0 + HAP_RIDE.landT * sev, HAP_RIDE.land0 + HAP_RIDE.land * sev);
+    }
+    hap.prevLand = b.landAge ?? 9;
+  }
   // 安定度: heartbeat from 0.6 up to the line
   if (load > 0.6 && load < 1) {
     const x = (load - 0.6) / 0.4;
