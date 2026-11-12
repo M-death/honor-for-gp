@@ -1022,11 +1022,12 @@ function updateHud() {
       setTxt('best', lap.best == null ? 'ベスト —' : `ベスト ${fmt(lap.best)}`);
     }
   }
-  const th = el.track.clientHeight;
+  document.body.classList.toggle('hud-run', !!(fr && fleet && !fleet.entry && SS.phase !== 'count'));   // d274: race under way → minimal HUD (index.html)
+  const th = el.track.clientHeight, kh = el.knob.offsetHeight || 12, pr2 = (el.pbox.clientWidth || 64) * .36;
   el.fill.style.height = (vi.thr * 100) + '%';
-  el.knob.style.transform = `translateY(${-vi.thr * (th - 18)}px)`;
+  el.knob.style.transform = `translateY(${-vi.thr * (th - kh)}px)`;
   el.wrot.setAttribute('transform', `rotate(${vi.steer * 110})`);
-  el.pdot.style.transform = `translate(${vi.roll * 30}px, ${-vi.pitch * 30}px)`;
+  el.pdot.style.transform = `translate(${vi.roll * pr2}px, ${-vi.pitch * pr2}px)`;
   const bankDeg = vb.cap > 0 ? 0 : (vb.bank || 0) * 57.3;   // 艇の傾き: the hull's section, as seen from behind (body lean is the dot)
   for (const ic of el.pbank) { ic.style.transform = `rotate(${bankDeg.toFixed(1)}deg)`; ic.classList.toggle('deep', Math.abs(bankDeg) > 0.75 * BANK.max * 57.3); }
   const f = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n));

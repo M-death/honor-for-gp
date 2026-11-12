@@ -58,6 +58,7 @@ const DEV_PILLS = ['labLaunch', 'entryBtn', 'sgBtn', 'slitBtn', 'logBtn'];
 for (const id of DEV_PILLS) if ($(id)) $(id).classList.add('devpill');
 $('devBtn').addEventListener('click', () => {
   const on = $('devBtn').closest('.pills').classList.toggle('devopen');
+  document.body.classList.toggle('dev-hud', on);   // d274: the 姿勢 readout (余裕・想定…) only with 開発 open
   $('devBtn').setAttribute('aria-expanded', String(on)); $('devBtn').textContent = on ? '開発 ▾' : '開発 ▸';
 });
 function topBarUi() {

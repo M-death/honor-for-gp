@@ -524,6 +524,7 @@ function frame3d(now) {
 function setMode(m) {
   mode = m; try { localStorage.setItem(V3.key, m); } catch (e) {}
   btn.textContent = '視点：' + V3.names[m]; camS.init = false;
+  document.body.classList.toggle('v3d', m !== '2d');   // d274: the 姿勢 pad sits over the boat in 3D → fainter (index.html)
   if (m !== '2d') boot();
 }
 const btn = document.createElement('button'); btn.className = 'pill'; btn.id = 'view3dBtn';

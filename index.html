@@ -25,11 +25,12 @@ body{touch-action:none;user-select:none;-webkit-user-select:none;overscroll-beha
 #cv{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 
 .hud{position:fixed;pointer-events:none;z-index:2}
-.tl{top:calc(10px + var(--st));left:calc(16px + var(--sl));display:grid;gap:2px;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.tl{top:calc(10px + var(--st));left:calc(16px + var(--sl));display:grid;gap:2px;text-shadow:0 1px 3px rgba(0,0,0,.55),0 0 8px rgba(0,0,0,.25)}
+.best{font-size:12px;font-weight:500}
 .spd{display:flex;align-items:baseline;gap:6px}
-.spd b{font-family:var(--f-num);font-size:34px;line-height:1;font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:right}
-.spd span{font-size:12px;color:var(--muted);letter-spacing:.06em}
-.lap,.best{font-family:var(--f-num);font-size:13px;font-variant-numeric:tabular-nums;color:var(--fg)}
+.spd b{font-family:var(--f-num);font-weight:700;font-style:italic;font-size:40px;line-height:1;font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:right;letter-spacing:-.01em}
+.spd span{font-family:var(--f-num);font-weight:600;font-size:12px;color:var(--muted);letter-spacing:.08em}
+.lap,.best{font-family:var(--f-num);font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;color:var(--fg)}
 .best{color:var(--muted)}
 .tr{top:calc(10px + var(--st));right:calc(16px + var(--sr));display:grid;grid-template-columns:auto auto;gap:8px;justify-items:end;align-items:start}
 .pills{grid-column:1/-1;grid-row:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:300px}
@@ -37,11 +38,11 @@ body{touch-action:none;user-select:none;-webkit-user-select:none;overscroll-beha
 .padtag{font-size:11px;letter-spacing:.06em;color:var(--good)}
 .demotag{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--lever)}
 .order{display:flex;gap:4px;margin-top:4px;pointer-events:auto}
-.dashbtn{position:fixed;z-index:3;right:calc(28px + var(--sr));bottom:calc(min(38vh,150px) + 46px + var(--sb));width:88px;height:88px;border-radius:50%;border:2px solid #fff;background:#2f6fe0;color:#fff;font:inherit;display:grid;place-items:center;align-content:center;gap:0;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.dashbtn{position:fixed;z-index:3;right:calc(28px + var(--sr));bottom:calc(min(26vh,104px) + 40px + var(--sb));width:76px;height:76px;border-radius:50%;border:2px solid #fff;background:#2f6fe0;color:#fff;font:inherit;display:grid;place-items:center;align-content:center;gap:0;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4)}
 .dashbtn b{font-family:var(--f-display);font-weight:400;font-size:24px;line-height:1}
 .dashbtn span{font-size:11px;letter-spacing:.1em}
 .dashbtn.done{background:#1f2629;opacity:.7}
-.claimbtn{right:calc(128px + var(--sr));background:#e9f5f2;color:#0a2c38;border-color:#0a2c38}
+.claimbtn{right:calc(114px + var(--sr));background:#e9f5f2;color:#0a2c38;border-color:#0a2c38}
 .claimbtn.on{animation:claimBlink .5s steps(2) infinite}
 @keyframes claimBlink{50%{background:#ffd166}}
 .corder{display:flex;gap:3px;align-items:center;margin-top:3px;font-size:11px;color:var(--muted);pointer-events:none}
@@ -110,17 +111,17 @@ table.race.st tr.me td{background:rgba(255,180,46,.14)}
 
 .lever{position:fixed;z-index:2;pointer-events:none;left:calc(16px + var(--sl));bottom:calc(16px + var(--sb));display:grid;justify-items:center;gap:6px}
 .lbl{font-size:11px;letter-spacing:.12em;color:var(--muted)}
-.track{position:relative;width:58px;height:min(46vh,220px);border-radius:14px;background:var(--hud);border:1px solid var(--hud-line);overflow:hidden}
+.track{position:relative;width:40px;height:min(34vh,150px);border-radius:11px;background:var(--hud);border:1px solid var(--hud-line);overflow:hidden}
 .fill{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(to top,rgba(255,180,46,.55),rgba(255,180,46,.18))}
-.knob{position:absolute;left:6px;right:6px;height:18px;bottom:0;border-radius:6px;background:var(--lever);box-shadow:0 2px 6px rgba(0,0,0,.4);transform:translateY(0)}
+.knob{position:absolute;left:5px;right:5px;height:12px;bottom:0;border-radius:5px;background:var(--lever);box-shadow:0 2px 6px rgba(0,0,0,.4);transform:translateY(0)}
 .lever.on .track,.wheel.on svg{border-color:var(--lever);box-shadow:0 0 0 2px rgba(255,180,46,.35)}
 
 .wheel{position:fixed;z-index:2;pointer-events:none;right:calc(16px + var(--sr));bottom:calc(16px + var(--sb));display:grid;justify-items:center;gap:6px}
-.wheel svg{width:min(38vh,150px);height:min(38vh,150px);border-radius:50%;border:1px solid transparent;display:block}
+.wheel svg{width:min(26vh,104px);height:min(26vh,104px);opacity:.85;border-radius:50%;border:1px solid transparent;display:block}
 
 .pad{position:fixed;z-index:2;pointer-events:none;left:50%;bottom:calc(12px + var(--sb));transform:translateX(-50%);display:grid;justify-items:center;gap:4px}
-.box{position:relative;width:84px;height:84px;border-radius:12px;background:var(--hud);border:2px solid var(--h,var(--hud-line));transition:border-color .15s}
-.box span{position:absolute;font-size:10px;color:var(--muted);letter-spacing:.06em}
+.box{position:relative;width:64px;height:64px;border-radius:10px;background:var(--hud);border:2px solid var(--h,var(--hud-line));transition:border-color .15s}
+.box span{position:absolute;font-size:9px;color:var(--muted);letter-spacing:.06em}
 .box .t{top:3px;left:50%;transform:translateX(-50%)}
 .box .b{bottom:3px;left:50%;transform:translateX(-50%)}
 .box .l{left:5px;top:50%;transform:translateY(-50%)}
@@ -130,8 +131,8 @@ table.race.st tr.me td{background:rgba(255,180,46,.14)}
 .bank path{fill:rgba(233,245,242,.16);stroke:rgba(233,245,242,.55);stroke-width:1.5}.bank line{stroke:rgba(233,245,242,.3);stroke-width:1}
 .posture-zone .bank{width:84px;height:34px;margin:-17px 0 0 -42px}
 .bank.deep path{fill:rgba(126,217,180,.28);stroke:rgba(126,217,180,.85)}
-.dot{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--fg);box-shadow:0 0 8px rgba(233,245,242,.6)}
-.stab{position:relative;width:84px;height:8px;border-radius:4px;background:var(--hud);border:1px solid var(--hud-line);overflow:hidden}
+.dot{position:absolute;left:50%;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:var(--fg);box-shadow:0 0 8px rgba(233,245,242,.6)}
+.stab{position:relative;width:64px;height:6px;border-radius:4px;background:var(--hud);border:1px solid var(--hud-line);overflow:hidden}
 .stabfill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--good)}
 .stabline{position:absolute;top:-2px;bottom:-2px;left:66.7%;width:2px;background:var(--bad)}
 .stabrow{display:flex;align-items:center;gap:6px}.stabrow .lbl{font-size:10px;letter-spacing:.06em}
@@ -201,8 +202,8 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
 .lab-grid .lab-guide-label{display:flex;align-self:end;padding-bottom:8px}.lab-grid .lab-guide-label input{width:18px}
 
 /* Left-hand posture stick, adjacent to the throttle. */
-:root{--posture-size:min(27vw,30vh,128px)}
-.posture-stick{position:fixed;z-index:3;left:calc(88px + var(--sl));bottom:calc(16px + var(--sb));display:grid;justify-items:center;gap:6px;touch-action:none}
+:root{--posture-size:min(22vw,25vh,108px)}
+.posture-stick{position:fixed;z-index:3;left:calc(70px + var(--sl));bottom:calc(16px + var(--sb));display:grid;justify-items:center;gap:6px;touch-action:none}
 .posture-zone{position:relative;width:var(--posture-size);height:var(--posture-size);border:1px solid #a5eed677;border-radius:50%;background:rgba(5,27,35,.76);touch-action:none;cursor:grab;outline:none}
 .posture-zone::before,.posture-zone::after{content:"";position:absolute;background:#a5eed633;pointer-events:none}
 .posture-zone::before{width:1px;top:14%;bottom:14%;left:50%}.posture-zone::after{height:1px;left:14%;right:14%;top:50%}
@@ -211,9 +212,9 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
 .posture-zone .left{left:6px;top:50%;transform:translateY(-50%)}.posture-zone .right{right:6px;top:50%;transform:translateY(-50%)}
 .posture-thumb{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px;border-radius:50%;border:2px solid #bcf5e2;background:#83caba99;box-shadow:0 2px 8px #0006;pointer-events:none}
 .posture-zone.active{border-color:#bcf5e2;box-shadow:0 0 0 2px #a5eed633;cursor:grabbing}.posture-zone:focus-visible{outline:2px solid var(--lever);outline-offset:3px}
-body.virtual-pad>.pad{left:calc(88px + var(--sl));bottom:calc(46px + var(--sb) + var(--posture-size));transform:none;max-width:var(--posture-size)}
+body.virtual-pad>.pad{left:calc(70px + var(--sl));bottom:calc(46px + var(--sb) + var(--posture-size));transform:none;max-width:var(--posture-size)}
 body.virtual-pad>.pad .box{display:none}body.virtual-pad>.pad .deg{white-space:normal;font-size:10px;text-align:center}
-body.virtual-pad>.wheel svg{width:min(30vw,38vh,150px);height:min(30vw,38vh,150px)}
+body.virtual-pad>.wheel svg{width:min(22vw,26vh,104px);height:min(22vw,26vh,104px)}
 body.lab-running>.posture-stick{display:none!important}
 .menu-card{max-width:620px}
 .menu-card.ingame h1{font-size:20px}.menu-card.ingame h1 .sub{display:none}
@@ -271,6 +272,28 @@ body.lab-running>#jk{display:none!important}
 #cutin b{display:block;width:120%;margin:0 -10%;text-align:center;font:900 54px/1.25 sans-serif;letter-spacing:.06em;padding:6px 0;transform:skewY(-4deg);color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.45);background:linear-gradient(90deg,transparent,rgba(255,150,20,.92) 18%,rgba(255,90,20,.95) 50%,rgba(255,150,20,.92) 82%,transparent)}
 #cutin.early b{background:linear-gradient(90deg,transparent,rgba(40,120,255,.92) 18%,rgba(30,70,220,.95) 50%,rgba(40,120,255,.92) 82%,transparent)}
 @keyframes cutin{0%{opacity:0;transform:translateX(40%)}12%{opacity:1;transform:translateX(0)}75%{opacity:1}100%{opacity:0;transform:translateX(-8%)}}
+/* d274 画面整理: once the race is under way only what is needed to race stays on screen. Touch areas are the screen halves (input.js), not these drawings. */
+body.hud-run .tl #best,body.hud-run .tl #demoTag,body.hud-run .tl #corder,body.hud-run .lever .lbl,body.hud-run .wheel .lbl{display:none}
+body.hud-run .pills:not(.devopen) .pill{opacity:.7}
+body:not(.dev-hud) .pad .deg{display:none}
+body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
+.lbl{font-size:10px}
+.toast #tSmall{font-size:12px;text-shadow:0 1px 3px rgba(0,0,0,.85),0 0 10px rgba(0,0,0,.5)}
+@media (max-height:500px){
+  .tl{top:calc(6px + var(--st));gap:1px}
+  .spd b{font-size:32px}.lap{font-size:13px}.best{font-size:11px}
+  .chip{width:22px;height:22px;font-size:12px}.corder i{width:17px;height:17px;font-size:10px}
+  .tr{top:calc(6px + var(--st));gap:6px}
+  .pills{gap:4px;max-width:260px}.pill{height:28px;padding:0 10px;font-size:11px}
+  #mini{width:120px;height:36px}#gear{width:34px;height:34px}
+  .track{height:min(36vh,130px);width:36px}
+  .wheel svg{width:min(28vh,96px);height:min(28vh,96px)}
+  .lever,.wheel{bottom:calc(10px + var(--sb))}
+  .pad{bottom:calc(8px + var(--sb))}
+  .jk{font-size:13px;padding:4px 10px;top:calc(min(19vh,78px) + 22px + var(--st))}
+  #tBig{font-size:clamp(22px,7vh,34px)}.toast{top:calc(40% + var(--st))}
+  .dashbtn{width:64px;height:64px;bottom:calc(min(28vh,96px) + 30px + var(--sb))}.dashbtn b{font-size:19px}.claimbtn{right:calc(98px + var(--sr))}
+}
 </style>
 </head>
 <body>
