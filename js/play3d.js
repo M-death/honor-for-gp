@@ -582,6 +582,7 @@ const _prep = window.Boat3D && Boat3D.prepare;
 function light2d(on) {
   const cv = document.getElementById('cv');
   if (window.Boat3D && _prep) Boat3D.prepare = on ? () => false : _prep;
+  window.SKIP2D = on;   // d284: view.js draw() skips the course altogether
   if (on) { cv.width = 1; cv.height = 1; } else if (typeof resize === 'function') resize();
 }
 function frame3d(now) {

@@ -604,13 +604,13 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
   <div class="rpv-bar">
     <input id="rpvSeek" type="range" min="0" max="1000" step="1" value="0" aria-label="再生位置">
     <div class="rpv-row">
-      <button class="btn ghost" id="rpvBack" title="5秒戻る（←）">−5秒</button>
+      <button class="btn ghost" id="rpvBack" title="5秒戻る（←・LT）">−5秒</button>
       <button class="btn ghost" id="rpvPrev" title="1コマ戻る（,）">◀︎|</button>
       <button class="btn" id="rpvPlay" title="再生／一時停止（スペース）">一時停止</button>
       <button class="btn ghost" id="rpvNext" title="1コマ進む（.）">|▶︎</button>
-      <button class="btn ghost" id="rpvFwd" title="5秒進む（→）">+5秒</button>
+      <button class="btn ghost" id="rpvFwd" title="5秒進む（→・RT）">+5秒</button>
       <label>速さ <select id="rpvRate"><option value="0.1">0.1倍</option><option value="0.25">0.25倍</option><option value="0.5">0.5倍</option><option value="1" selected>1倍</option><option value="2">2倍</option><option value="4">4倍</option></select></label>
-      <label>カメラ <select id="rpvCam"><option value="follow">追いかけ</option><option value="close">拡大追尾</option><option value="auto">全艇（自動ズーム）</option><option value="mark1">1マーク</option><option value="mark2">2マーク</option><option value="start">スタート</option></select></label>
+      <label>カメラ <select id="rpvCam"><option value="follow">追いかけ</option><option value="close">拡大追尾</option><option value="auto">全艇（自動ズーム）</option><option value="mark1">1マーク</option><option value="mark2">2マーク</option><option value="start">スタート</option><option value="v3:chase">3D 追尾</option><option value="v3:racer">3D レーサー</option><option value="v3:top">3D 上空</option></select></label>
       <span id="rpvBoats"></span>
       <button class="btn ghost" id="rpvClose">閉じる</button>
     </div>

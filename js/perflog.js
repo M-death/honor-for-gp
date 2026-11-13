@@ -27,7 +27,8 @@ function perfMode() {
   const race = typeof fleet !== 'undefined' && fleet ? '6艇' : 'ソロ（TA・練習）';
   const venue = typeof VENUE !== 'undefined' ? VENUE.name || VENUE.id : '';
   const tod = { day: '昼', evening: '夕方', night: '夜' }[typeof todNow === 'function' ? todNow() : ''] || '';
-  return { mode, proc, race, place: `${venue}・${tod}` };
+  const wet = typeof waterEnv !== 'undefined' && waterEnv && waterEnv.rain && fleet ? '・雨' : '';   // d284
+  return { mode, proc, race, place: `${venue}・${tod}${wet}` };
 }
 function perfClose() {
   const s = PERF.seg; PERF.seg = null; PERF.win = null;

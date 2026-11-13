@@ -503,6 +503,9 @@ function draw() {
   }
 
   cam.S = S;   // d283: the 3D 上空 view frames the same (px per metre)
+  // d284: while the 3D view covers the screen (play3d.js light2d) the course is not drawn underneath at all — before, it was
+  // drawn to a 1×1 canvas, still 4–5 ms a frame on a phone. The camera above is kept (上空 frames by it), spray keeps ageing.
+  if (window.SKIP2D) { for (let i = spray.length - 1; i >= 0; i--) if (time - spray[i].t > spray[i].life) spray.splice(i, 1); drawMini(); return; }
   ctx.fillStyle = C.bank; ctx.fillRect(0, 0, W, H);
   ctx.save();
   ctx.translate(W / 2 - cam.x * S, H / 2 - cam.y * S);
