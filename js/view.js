@@ -502,6 +502,7 @@ function draw() {
     cam.y += (vb.y + Math.sin(vb.a) * look - cam.y) * k;
   }
 
+  cam.S = S;   // d283: the 3D 上空 view frames the same (px per metre)
   ctx.fillStyle = C.bank; ctx.fillRect(0, 0, W, H);
   ctx.save();
   ctx.translate(W / 2 - cam.x * S, H / 2 - cam.y * S);

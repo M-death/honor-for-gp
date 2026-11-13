@@ -1,6 +1,10 @@
 // Honor for GP — 操作（傾き・タッチ・パッド）・音・振動・練習メニュー・計測
+// d283 2D解像度 (まえの計測: 倍率3.18の画面で 2D は窓を広げるほど遅い — Canvas 2D は画素数で重くなる): the 2D canvas's pixel
+// ratio cap. 標準 2 (as before), 1.5 (= the 3D PC tier), 1
+let DPR2D = 2; try { DPR2D = +localStorage.getItem('honorGP.dpr2d') || 2; } catch (e) {}
+if (![2, 1.5, 1].includes(DPR2D)) DPR2D = 2;
 function resize() {
-  DPR = Math.min(2, window.devicePixelRatio || 1);
+  DPR = Math.min(DPR2D, window.devicePixelRatio || 1);
   W = window.innerWidth; H = window.innerHeight;
   if(lab.active){ if(W>760)W-=360;else H=Math.floor(H*.57); }
   cv.style.width=W+'px';cv.style.height=H+'px';
@@ -10,6 +14,7 @@ function resize() {
   $('rotate').hidden = lab.active || !(H > W && !portraitOk);
 }
 addEventListener('resize', resize);
+if ($('dpr2d')) { $('dpr2d').value = String(DPR2D); $('dpr2d').addEventListener('change', e => { DPR2D = +e.target.value || 2; try { localStorage.setItem('honorGP.dpr2d', String(DPR2D)); } catch (x) {} resize(); }); }
 
 /* ---------- tilt sensor ---------- */
 function screenAngle() {
@@ -911,7 +916,7 @@ function pollPadButtons(dt = 0) {
 function viewCycle(dir) {
   const V = window.View3D, list = [['2d', 'follow'], ['2d', 'close']];
   if (fleet) list.push(['2d', 'auto']);
-  if (V && !V.error) list.push(['chase'], ['racer']);
+  if (V && !V.error) list.push(['chase'], ['racer'], ['top']);   // d283 上空（テスト）
   const m = V ? V.mode : '2d';
   let i = list.findIndex(v => v[0] === m && (m !== '2d' || v[1] === camMode));
   if (i < 0) i = m === '2d' ? 0 : list.length - 1;

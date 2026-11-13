@@ -3,11 +3,11 @@
  * World: three.js Y up; game (x, y) → (X, Z) = (x, y), so seen from above it matches the 2D screen (+y down).
  * Boats are the hfgp3d actors (the same models as 3D（新モデル）). Toggle: the 視点 button or the V key. */
 import * as THREE from 'three';
-import { loadAssetSet } from '../hfgp3d/runtime/boat_actor.js';
+import { loadAssetSet, LANE_COLORS } from '../hfgp3d/runtime/boat_actor.js';
 import { GLTFLoader } from '../hfgp3d/viewer/vendor/GLTFLoader.js';
 import { buildVenue3d, loadVenueModels, venueReady } from './venue3d.js';
 
-const V3 = { modes: ['2d', 'chase', 'racer'], names: { '2d': '2D', chase: '追尾', racer: 'レーサー' }, key: 'honorGP.view3d',
+const V3 = { modes: ['2d', 'chase', 'racer', 'top'], names: { '2d': '2D', chase: '追尾', racer: 'レーサー', top: '上空（テスト）' }, key: 'honorGP.view3d',
   bank: 1.0, px: 6 };
 // スマホ (指で操作する端末): lighter everything — the page was being killed for memory on a phone
 const PHONE = (() => { try { return matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches; } catch (e) { return false; } })();
@@ -158,6 +158,14 @@ const TOD = {
 };
 
 const NIGHT3 = { waterGlow: .55, halo: .55, haloM: 16 };
+const TOP3 = { fov: 4, ring: [1.7, 2.25], ringY: .06 };   // d283 上空（テスト）: a lane-colour ring under each boat (from above every hull looks white)
+const topRings = new Map();
+function topRing(no) {
+  let r = topRings.get(no); if (r) return r;
+  r = new THREE.Mesh(new THREE.RingGeometry(TOP3.ring[0], TOP3.ring[1], 32), new THREE.MeshBasicMaterial({ color: LANE_COLORS[(no - 1) % 6] || '#fff', transparent: true, opacity: .9, depthWrite: false, fog: false }));
+  r.rotation.x = -Math.PI / 2; r.renderOrder = 3; scene.add(r); topRings.set(no, r); return r;
+}
+let fogKeep = null;
 let haloT = null;
 function haloTex() {
   if (haloT) return haloT;
@@ -533,7 +541,15 @@ function placeCamera(dt) {
   let da = ((t.a - camS.a + Math.PI * 3) % (Math.PI * 2)) - Math.PI; camS.a += da * k;
   camS.x = t.x; camS.y = t.y;
   const off = lookBack(dt), c = Math.cos(camS.a + off), s = Math.sin(camS.a + off), hop = fin(t.hop) + (typeof rideBob === 'function' ? rideBob(t).h : 0);
-  if (mode === 'chase') {
+  camera.up.set(0, 1, 0); camera.near = .1; camera.far = 1500;
+  if (mode === 'top') {
+    /* d283 上空（テスト）(まえの提案書: 2D俯瞰を3Dの上空・正投影で置き換えられるか検証): straight down from high up through a
+       4° lens — near enough to orthographic — framing exactly what the 2D view shows (its camera centre cam.x/y and
+       scale cam.S px/m, kept by view.js draw() for every 2D カメラ: 追いかけ・拡大・自動ズーム). Screen up = −y as in 2D. */
+    const S = cam.S || Math.min(innerWidth, innerHeight) / 29, vh = innerHeight / S, alt = vh / 2 / Math.tan(TOP3.fov * Math.PI / 360);
+    camera.fov = TOP3.fov; camera.up.set(0, 0, -1); camera.position.set(cam.x, alt, cam.y); camera.lookAt(cam.x, 0, cam.y);
+    camera.near = Math.max(1, alt - 160); camera.far = alt + 60;
+  } else if (mode === 'chase') {
     camera.fov = 60; camera.position.set(camS.x - c * 11, 4.2 + hop * .5, camS.y - s * 11);
     camera.lookAt(camS.x + c * 14, .6, camS.y + s * 14);
   } else {
@@ -547,7 +563,7 @@ function placeCamera(dt) {
 }
 
 /* ---------- frame ---------- */
-let last = 0, lost = false, draws3d = 0;
+let last = 0, lost = false, draws3d = 0, ms3d = 0;
 function render(now) {
   requestAnimationFrame(render);
   if (mode === '2d' || !set || lost) { if (canvas.style.display !== 'none') { canvas.style.display = 'none'; light2d(false); } return; }
@@ -556,7 +572,9 @@ function render(now) {
   slowWatch(now, FRAME_MS);
   if (canvas.style.display !== 'block') { canvas.style.display = 'block'; light2d(true); }
   draws3d++;   // d282 性能ログ: the 3D frames actually drawn (スマホ軽量 draws every other one)
+  const t3 = performance.now();
   try { frame3d(now); } catch (e) { console.warn('3D視点:', e); if (!render.warned) { render.warned = true; } }
+  ms3d = performance.now() - t3;   // d283 性能ログ: CPU time of one 3D frame (the GPU runs on after it)
 }
 // while the 3D view is up, the 2D course underneath is drawn to a 1×1 canvas (next to nothing), and the light-3D boat
 // sprites (another WebGL canvas) are not rendered; the 2D HUD, mini map and controls stay
@@ -575,6 +593,7 @@ function frame3d(now) {
   if (t !== tod || VENUE.id !== venueId) { tod = t; venueId = VENUE.id; buildWorld(); }
   world.dist.visible = !!fleet; wxApply();
   for (const a of actors.values()) a.root.visible = false;
+  for (const r of topRings.values()) r.visible = false;
   const rows = rowsNow(), me = targetRow().b, focal = h / 2 / Math.tan(camera.fov * Math.PI / 360);
   for (const row of rows) {
     const b = row.b, inp = row.inp || {}, a = actorFor(row);
@@ -583,7 +602,7 @@ function frame3d(now) {
     const rb = typeof rideBob === 'function' ? rideBob(b) : { h: 0, nose: 0 };   // d266 走りの揺れ (looks only)
     a.setGameTransform({ x: b.x, y: b.y, hop: fin(b.hop) + rb.h + (typeof willieMotion === 'function' ? willieMotion(b).h * .5 : 0), modelYaw: -Math.PI / 2 - b.a, modelBank: capsized ? Math.PI : lim(b.bank, -.65, .65) * V3.bank, nose: capsized ? 0 : nose + rb.nose });
     const dist = Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1;
-    a.chooseLOD(3.3 * focal / dist * Q.lod);
+    a.chooseLOD((mode === 'top' ? 3.3 * (cam.S || 20) : 3.3 * focal / dist) * Q.lod);
     // d280 (まえ: モンキーターンやウィリーターンの姿勢): the replay's 0.28 turn poses — 体重移動 smoothed over ~0.2 s, モンキー
     // from how far it is leaned (and only at speed), ウィリー from wil, the right hand on the wheel rim (as render_replay.py)
     const ps = poseS.get(b) || { roll: 0 }; ps.roll += (lim(inp.roll, -1, 1) - ps.roll) * Math.min(1, dt / .1); poseS.set(b, ps);
@@ -592,13 +611,14 @@ function frame3d(now) {
       turn: capsized ? 0 : tu, willie: capsized ? 0 : lim(fin(b.wil) / .6, 0, 1), wheel: lim(inp.steer, -1, 1) });
     const lv = a.levels[a.lod]; if (lv && lv.racer) lv.racer.visible = !gone && !(mode === 'racer' && b === me);
     a.root.visible = true;
+    if (mode === 'top' && !gone) { const tr = topRing(row.no || 1); tr.position.set(b.x, TOP3.ringY, b.y); tr.visible = true; }
   }
   // タイムアタックのゴースト (自己ベスト・相手): the same poses the 2D game draws, see-through
   for (const gh of ghostActors.values()) gh.root.visible = false;
   if (typeof taGhostsNow === 'function') for (const { b, kind } of taGhostsNow()) {
     const a = ghostActor(kind);
     a.setGameTransform({ x: b.x, y: b.y, hop: 0, modelYaw: -Math.PI / 2 - b.a, modelBank: 0, nose: 0 });
-    a.chooseLOD(3.3 * focal / (Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1) * Q.lod);
+    a.chooseLOD((mode === 'top' ? 3.3 * (cam.S || 20) : 3.3 * focal / (Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1)) * Q.lod);
     a.updatePose({ propAngle: time * 60 }); a.root.visible = true;
   }
   drawWakes(fleet ? fleet.boats.filter(r => !r.gone).map(r => r.wake) : [wake]);
@@ -609,9 +629,12 @@ function frame3d(now) {
     if (rippleTex && !paused) { const d = WX3.wv > .3 ? (.4 + WX3.wv * .35) / 4.5 : 0; rippleTex.offset.x += dt * (.018 - WX3.ux * d); rippleTex.offset.y += dt * (.011 - WX3.uy * d); }   // d271: downwind like the 2D ripples
   }
   placeCamera(dt); stepRain();
+  // 上空: no fog over the 600–900 m to the water (the weather's fog object is kept and put back on the way out)
+  if (mode === 'top') { const f = scene.fog; if (f && (!fogKeep || fogKeep.f !== f)) fogKeep = { f, near: f.near, far: f.far }; if (f) { f.near = 1e6; f.far = 1e6 + 1; } }
+  else if (fogKeep) { if (scene.fog === fogKeep.f) { scene.fog.near = fogKeep.near; scene.fog.far = fogKeep.far; } fogKeep = null; }
   sun.position.set(me.x - 60, 120, me.y - 80); sun.target.position.set(me.x, 0, me.y);
   if (sun.castShadow) sun.shadow.camera.updateProjectionMatrix();
-  camera.updateMatrixWorld(); if (refl) renderReflection(w * dpr, h * dpr);
+  camera.updateMatrixWorld(); if (refl && mode !== 'top') renderReflection(w * dpr, h * dpr);   // 上空: the mirror would only show the sky
   renderer.render(scene, camera);
 }
 
@@ -706,5 +729,5 @@ function boot() {
   requestAnimationFrame(render);
   return booting;
 }
-window.View3D = { ready: false, setMode, get mode() { return mode; }, look, get draws() { return draws3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0 }; } };
+window.View3D = { ready: false, setMode, get mode() { return mode; }, look, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0 }; } };
 setMode(mode);

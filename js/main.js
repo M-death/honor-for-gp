@@ -24,6 +24,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 const STEP = { dt: 1 / 120, acc: 0, max: 12 };   // d268: fixed physics step (max 12 a frame, 0.1 s)
+const PERF_T = { sim: 0, draw: 0 };   // d283: the last frame's レース計算 and 2D描画 (+音・HUD) in ms, for js/perflog.js
 function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (typeof RPV !== 'undefined' && RPV.on) { rpvFrame(dt); return; }   // d228 ゲーム内リプレイ: the recorded race is drawn, nothing runs
@@ -35,6 +36,7 @@ function tick(now) {
     pollPadButtons(dt);hapticsStop();updateAudioAll();draw();labUpdate();return;
   }
   pollPadButtons(dt);
+  const tS = performance.now();   // d283 性能ログ: レース計算 / 2D描画 ms (PERF_T)
   if (running && !paused) {
     // d268 (まえ: 3Dで走ると速すぎる、ミスだらけでレコード): the physics ran one or two steps of half a frame, so its step size
     // followed the frame rate — a slower frame (the 3D view, a busy PC) made bigger steps and a quicker boat (CPU solo,
@@ -46,8 +48,10 @@ function tick(now) {
     else { updateInput(dt); for (let k = steps(dt); k > 0; k--) step(STEP.dt); hapticsFrame(dt, B); }
   }
   if (!running || paused || (fleet && !playerRacing(playerRow()))) hapticsStop();
+  const tD = performance.now();
   updateAudioAll();
   draw(); updateHud();
+  PERF_T.sim = tD - tS; PERF_T.draw = performance.now() - tD;
 }
 document.addEventListener('visibilitychange', () => { last = performance.now(); keys.clear(); });
 resize();
