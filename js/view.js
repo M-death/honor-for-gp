@@ -309,34 +309,35 @@ function drawNightWater(S) {
 }
 // d250 (まえ: ナイトだと仮線が見えにくい、ターンマークがいつ来るかわからん): over the night darkness, the guide lines
 // (start line, the line through each mark, the dashed line 20 m before it, the turning rings) and the marks glow softly
-function drawNightGuides() {
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter'; ctx.shadowColor = 'rgba(150,220,255,.9)'; ctx.shadowBlur = 4 * DPR;
+function drawNightGuides(g = ctx, o = {}) {   // d286: also painted once into the 3D 上空 view (play3d.js: own blur, no buoys)
+  g.save();
+  g.globalCompositeOperation = 'lighter'; g.shadowColor = 'rgba(150,220,255,.9)'; g.shadowBlur = o.blur ?? 4 * DPR;
   const col = a => `rgba(170,225,255,${a})`;
-  ctx.lineWidth = 0.22; ctx.strokeStyle = col(.42); ctx.setLineDash([1.2, 1]);
-  ctx.beginPath(); ctx.moveTo(slitXAt(6), 6); ctx.lineTo(slitXAt(standY(0)), standY(0)); ctx.stroke();
-  ctx.setLineDash([]); ctx.strokeStyle = col(.24); ctx.lineWidth = 0.2;
-  for (const m of COURSE.marks) { ctx.beginPath(); ctx.moveTo(m.x, backY(m.x)); ctx.lineTo(m.x, standY(m.x)); ctx.stroke(); }
-  ctx.setLineDash([1, 1]); ctx.strokeStyle = col(.38);
-  ctx.beginPath(); ctx.moveTo(MK - 20, 0); ctx.lineTo(MK - 20, standY(MK - 20)); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-MK + 20, backY(-MK + 20)); ctx.lineTo(-MK + 20, 0); ctx.stroke();
-  ctx.setLineDash([0.8, 1.4]); ctx.strokeStyle = col(.22); ctx.lineWidth = 0.18;
-  for (const m of COURSE.marks) { ctx.beginPath(); ctx.arc(m.x, m.y, 11, 0, Math.PI * 2); ctx.stroke(); }
-  ctx.setLineDash([]); ctx.shadowBlur = 0;
+  g.lineWidth = 0.22; g.strokeStyle = col(.42); g.setLineDash([1.2, 1]);
+  g.beginPath(); g.moveTo(slitXAt(6), 6); g.lineTo(slitXAt(standY(0)), standY(0)); g.stroke();
+  g.setLineDash([]); g.strokeStyle = col(.24); g.lineWidth = 0.2;
+  for (const m of COURSE.marks) { g.beginPath(); g.moveTo(m.x, backY(m.x)); g.lineTo(m.x, standY(m.x)); g.stroke(); }
+  g.setLineDash([1, 1]); g.strokeStyle = col(.38);
+  g.beginPath(); g.moveTo(MK - 20, 0); g.lineTo(MK - 20, standY(MK - 20)); g.stroke();
+  g.beginPath(); g.moveTo(-MK + 20, backY(-MK + 20)); g.lineTo(-MK + 20, 0); g.stroke();
+  g.setLineDash([0.8, 1.4]); g.strokeStyle = col(.22); g.lineWidth = 0.18;
+  for (const m of COURSE.marks) { g.beginPath(); g.arc(m.x, m.y, 11, 0, Math.PI * 2); g.stroke(); }
+  g.setLineDash([]); g.shadowBlur = 0;
+  if (o.marks === false) { g.restore(); return; }   // (the 3D view has its own buoys; the halo is its light)
   // the marks: a lit buoy with a halo on the water
   for (const m of COURSE.marks) {
-    const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, 7);
-    g.addColorStop(0, 'rgba(255,190,120,.45)'); g.addColorStop(1, 'rgba(255,170,90,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(m.x, m.y, 7, 0, Math.PI * 2); ctx.fill();
+    const gr = g.createRadialGradient(m.x, m.y, 0, m.x, m.y, 7);
+    gr.addColorStop(0, 'rgba(255,190,120,.45)'); gr.addColorStop(1, 'rgba(255,170,90,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(m.x, m.y, 7, 0, Math.PI * 2); g.fill();
   }
-  ctx.globalCompositeOperation = 'source-over';
+  g.globalCompositeOperation = 'source-over';
   for (const m of COURSE.marks) {
-    ctx.fillStyle = C.buoy; ctx.beginPath(); ctx.arc(m.x, m.y, 1.5, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.28; ctx.stroke();
-    ctx.fillStyle = 'rgba(233,245,242,.85)'; ctx.font = '700 1.8px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(m.name, m.x, m.y - 2.6);
+    g.fillStyle = C.buoy; g.beginPath(); g.arc(m.x, m.y, 1.5, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#fff'; g.lineWidth = 0.28; g.stroke();
+    g.fillStyle = 'rgba(233,245,242,.85)'; g.font = '700 1.8px "Chakra Petch", sans-serif'; g.textAlign = 'center';
+    g.fillText(m.name, m.x, m.y - 2.6);
   }
-  ctx.restore();
+  g.restore();
 }
 function drawNightPoles(S) {
   ctx.save();

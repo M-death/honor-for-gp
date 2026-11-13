@@ -610,7 +610,8 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
       <button class="btn ghost" id="rpvNext" title="1コマ進む（.）">|▶︎</button>
       <button class="btn ghost" id="rpvFwd" title="5秒進む（→・RT）">+5秒</button>
       <label>速さ <select id="rpvRate"><option value="0.1">0.1倍</option><option value="0.25">0.25倍</option><option value="0.5">0.5倍</option><option value="1" selected>1倍</option><option value="2">2倍</option><option value="4">4倍</option></select></label>
-      <label>カメラ <select id="rpvCam"><option value="follow">追いかけ</option><option value="close">拡大追尾</option><option value="auto">全艇（自動ズーム）</option><option value="mark1">1マーク</option><option value="mark2">2マーク</option><option value="start">スタート</option><option value="v3:chase">3D 追尾</option><option value="v3:racer">3D レーサー</option><option value="v3:top">3D 上空</option></select></label>
+      <label>表示 <select id="rpvDisp"><option value="2d">2D</option><option value="3d">3D</option></select></label>
+      <label>視点 <select id="rpvCam"><option value="follow">追いかけ</option><option value="close">拡大追尾</option><option value="auto">全艇（自動ズーム）</option><option value="mark1">1マーク</option><option value="mark2">2マーク</option><option value="start">スタート</option><option value="v3:chase">追尾（3D）</option><option value="v3:racer">レーサー（3D）</option></select></label>
       <span id="rpvBoats"></span>
       <button class="btn ghost" id="rpvClose">閉じる</button>
     </div>
@@ -643,6 +644,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
       <label><input type="checkbox" id="fpsOn"> fps（1秒あたりの描画回数）を左上に表示</label>
       <div id="perfRow" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label><input type="checkbox" id="perfOn"> 性能ログを記録する（媒体・視点・画質ごとの最高／最低／平均fps）</label><label><input type="checkbox" id="perf1M"> スタート〜1周1Mだけ測る</label><button type="button" class="btn ghost" id="perfView">性能ログを見る</button></div>
       <label id="screenModeRow">画面（PC） <select id="screenMode"><option value="full">全画面</option><option value="window">ウィンドウ</option></select></label>
+      <label>表示 <select id="dispMode"><option value="2d">2D</option><option value="3d">3D</option></select></label>
       <label>カメラ <select id="camMode"><option value="follow">追いかけ</option><option value="close">拡大追尾（艇を大きく見る）</option><option value="auto">自動ズーム（PC向け・全艇が入るまで引く）</option></select></label>
       <label>時間帯 <select id="todMode"><option value="day">昼</option><option value="evening">夕方</option><option value="night">ナイター</option></select></label>
       <label>2D解像度 <select id="dpr2d"><option value="2">標準（×2まで）</option><option value="1.5">×1.5まで</option><option value="1">×1（軽い）</option></select></label>

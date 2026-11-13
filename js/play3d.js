@@ -7,7 +7,8 @@ import { loadAssetSet, LANE_COLORS } from '../hfgp3d/runtime/boat_actor.js';
 import { GLTFLoader } from '../hfgp3d/viewer/vendor/GLTFLoader.js';
 import { buildVenue3d, loadVenueModels, venueReady } from './venue3d.js';
 
-const V3 = { modes: ['2d', 'chase', 'racer', 'top'], names: { '2d': '2D', chase: '追尾', racer: 'レーサー', top: '上空（テスト）' }, key: 'honorGP.view3d',
+const V3 = { modes: ['2d', 'chase', 'racer', 'top'], names: { '2d': '2D', chase: '追尾', racer: 'レーサー', top: '上空' }, key: 'honorGP.view3d', lastKey: 'honorGP.view3dLast',
+  cams: { follow: '追いかけ', close: '拡大', auto: '全艇' },   // d286 (まえ): 表示 2D／3D, then the 視点 inside it; 上空 frames like the 2D カメラ
   bank: 1.0, px: 6 };
 // スマホ (指で操作する端末): lighter everything — the page was being killed for memory on a phone
 const PHONE = (() => { try { return matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches; } catch (e) { return false; } })();
@@ -48,6 +49,33 @@ if (!GLTFLoader.prototype._p3d) {
     const raw = atob(E[key]), bytes = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
     return this.parseAsync(bytes.buffer, new URL('.', url).href);
   };
+}
+
+/* d286 上空 (まえの提案書 第2段階): what the 2D overhead shows on the water that the 3D water texture has not — the 1M / 2M
+   names, スタート／ゴール, and at night the glowing guide lines (view.js drawNightGuides, painted once at TOPDECO.px px/m).
+   One group, built with the world, shown in 上空 only. Looks only. */
+const TOPDECO = { px: 4, blur: .6, mark: 1.8, start: 1.6, y: .08 };
+function textPlane(txt, hM, font, col) {
+  const c = document.createElement('canvas'), g = c.getContext('2d'), F = 64, f = `700 ${F}px ${font}`;
+  g.font = f; const w = Math.ceil(g.measureText(txt).width) + 8; c.width = w; c.height = Math.ceil(F * 1.3);
+  g.font = f; g.fillStyle = col; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, w / 2, c.height / 2);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const hh = hM * c.height / F, m = new THREE.Mesh(new THREE.PlaneGeometry(hh * w / c.height, hh), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }));
+  m.rotation.x = -Math.PI / 2; m.renderOrder = 4; return m;   // lying on the water, upright on screen (上空: screen up = −y)
+}
+function topDeco(t) {
+  const grp = new THREE.Group(), D = TOPDECO; grp.visible = false;
+  for (const m of COURSE.marks) { const p = textPlane(m.name, D.mark, '"Chakra Petch", sans-serif', 'rgba(233,245,242,.85)'); p.position.set(m.x, D.y, m.y - 2.6 - D.mark * .35); grp.add(p); }
+  { const y = standY(0) - 2, p = textPlane('スタート／ゴール', D.start, '"Zen Kaku Gothic New", sans-serif', 'rgba(233,245,242,.6)'); p.position.set(slitXAt(y), D.y, y - D.start * .35); grp.add(p); }
+  if (t === 'night' && typeof drawNightGuides === 'function') {
+    const w = COURSE.xMax - COURSE.xMin, h = COURSE.yMax - COURSE.yMin, c = document.createElement('canvas'); c.width = Math.ceil(w * D.px); c.height = Math.ceil(h * D.px);
+    const g = c.getContext('2d'); g.scale(D.px, D.px); g.translate(-COURSE.xMin, -COURSE.yMin);
+    drawNightGuides(g, { blur: D.blur * D.px, marks: false });
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.onUpdate = () => { c.width = c.height = 1; };
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    p.rotation.x = -Math.PI / 2; p.position.set((COURSE.xMin + COURSE.xMax) / 2, D.y * .5, (COURSE.yMin + COURSE.yMax) / 2); p.renderOrder = 2; grp.add(p);
+  }
+  return grp;
 }
 
 /* ---------- the water: one canvas texture painted once per venue / time of day ---------- */
@@ -308,7 +336,8 @@ function buildWorld() {
     const pm = new THREE.PMREMGenerator(renderer), rt = pm.fromScene(envScene, 0.02, .1, 2500);
     if (scene.environment) scene.environment.dispose(); scene.environment = rt.texture; pm.dispose();
   }
-  world = { g, dist: dm, water, dome, sky2, noRefl: V3d ? V3d.noRefl : [] }; WX3.key = '';
+  const deco = topDeco(tod); g.add(deco);   // d286
+  world = { g, dist: dm, water, dome, sky2, deco, noRefl: V3d ? V3d.noRefl : [] }; WX3.key = '';
   scene.background = new THREE.Color(T.sky); scene.fog = new THREE.Fog(T.fog, 120, 520);
   hemi.color.set(T.hemi[0]); hemi.groundColor.set(T.hemi[1]); hemi.intensity = T.hemi[2]; sun.color.set(T.sun[0]); sun.intensity = T.sun[1];
 }
@@ -566,6 +595,7 @@ function placeCamera(dt) {
 let last = 0, lost = false, draws3d = 0, ms3d = 0;
 function render(now) {
   requestAnimationFrame(render);
+  pillText();   // d286: the 視点 pill follows the 2D カメラ too (cheap: only writes on a change)
   if (mode === '2d' || !set || lost) { if (canvas.style.display !== 'none') { canvas.style.display = 'none'; light2d(false); } return; }
   const FRAME_MS = Q.fps ? 1000 / Q.fps : 0;   // the 3D view at 30 fps on スマホ軽量 (the race itself runs as before)
   if (FRAME_MS && now - last < FRAME_MS - 2) return;
@@ -592,7 +622,7 @@ function frame3d(now) {
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); camera.aspect = w / h; }
   const t = todNow();
   if (t !== tod || VENUE.id !== venueId) { tod = t; venueId = VENUE.id; buildWorld(); }
-  world.dist.visible = !!fleet; wxApply();
+  world.dist.visible = !!fleet; world.deco.visible = mode === 'top'; wxApply();
   for (const a of actors.values()) a.root.visible = false;
   for (const r of topRings.values()) r.visible = false;
   const rows = rowsNow(), me = targetRow().b, focal = h / 2 / Math.tan(camera.fov * Math.PI / 360);
@@ -641,15 +671,29 @@ function frame3d(now) {
 
 /* ---------- the switch: a pill in the top bar and the V key ---------- */
 function setMode(m) {
-  mode = m; try { localStorage.setItem(V3.key, m); } catch (e) {}
-  btn.textContent = '視点：' + V3.names[m]; camS.init = false;
+  mode = m; try { localStorage.setItem(V3.key, m); if (m !== '2d') localStorage.setItem(V3.lastKey, m); } catch (e) {}
+  pillText(); camS.init = false;
   document.body.classList.toggle('v3d', m !== '2d');   // d274: the 姿勢 pad sits over the boat in 3D → fainter (index.html)
   if (m !== '2d') boot();
 }
+// d286: two pills — 表示 (2D ⇄ 3D) and 視点 (the views of that 表示, input.js viewCycle); V = 視点, Shift+V = 表示
+function lastMode() { let m = null; try { m = localStorage.getItem(V3.lastKey); } catch (e) {} return V3.modes.includes(m) && m !== '2d' ? m : 'top'; }
+function toggleDisp() { if (window.View3D.error) return; setMode(mode === '2d' ? lastMode() : '2d'); }
+function viewName() { const c = V3.cams[typeof camMode !== 'undefined' ? camMode : ''] || ''; return mode === '2d' || mode === 'top' ? c : V3.names[mode]; }
+function pillText() {
+  const err = window.View3D && window.View3D.error, t = err ? '視点：3D読み込み失敗' : lost ? '視点：2D（3D停止）' : `視点：${mode === '2d' ? '' : mode === 'top' ? '上空・' : ''}${viewName()}`;
+  if (btn.textContent !== t) btn.textContent = t;
+  const d = mode === '2d' || err || lost ? '2D' : '3D'; if (dbtn.textContent !== '表示：' + d) dbtn.textContent = '表示：' + d;
+  const sel = document.getElementById('dispMode'); if (sel && sel.value !== d.toLowerCase()) sel.value = d.toLowerCase();
+}
 const btn = document.createElement('button'); btn.className = 'pill'; btn.id = 'view3dBtn';
-btn.addEventListener('click', e => { e.stopPropagation(); setMode(V3.modes[(V3.modes.indexOf(mode) + 1) % V3.modes.length]); btn.blur(); });
-document.querySelector('.pills').prepend(btn);
-addEventListener('keydown', e => { if ((e.key === 'v' || e.key === 'V') && !e.repeat && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) btn.click(); });
+btn.addEventListener('click', e => { e.stopPropagation(); if (typeof viewCycle === 'function') viewCycle(1); pillText(); btn.blur(); });
+const dbtn = document.createElement('button'); dbtn.className = 'pill'; dbtn.id = 'dispBtn';
+dbtn.addEventListener('click', e => { e.stopPropagation(); toggleDisp(); dbtn.blur(); });
+document.querySelector('.pills').prepend(btn); document.querySelector('.pills').prepend(dbtn);
+setInterval(pillText, 300);   // (in 2D the 3D loop may never have started; the 2D カメラ can change from 設定 / 十字キー)
+{ const sel = document.getElementById('dispMode'); if (sel) sel.addEventListener('change', () => { if ((sel.value === '3d') !== (mode !== '2d')) toggleDisp(); }); }
+addEventListener('keydown', e => { if ((e.key === 'v' || e.key === 'V') && !e.repeat && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) (e.shiftKey ? dbtn : btn).click(); });
 
 /* ---------- d279 画質の切り替え (settings, or 自動 stepping down) ---------- */
 const SHADOW = { r: 34, bias: -.0004, nBias: .03 };
@@ -730,5 +774,5 @@ function boot() {
   requestAnimationFrame(render);
   return booting;
 }
-window.View3D = { ready: false, setMode, get mode() { return mode; }, look, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0 }; } };
+window.View3D = { ready: false, setMode, toggle: toggleDisp, get last() { return lastMode(); }, get mode() { return mode; }, look, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0 }; } };
 setMode(mode);

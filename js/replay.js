@@ -6,8 +6,9 @@
    Opens from the race / タイムアタック result (the race just run) or from a saved file (メニュー › 開発用).
    Controls: 再生・一時停止, ±5 s, ±1 frame, speed 0.1–4×, seek bar, camera (follow / close / all boats / 1M / 2M / start),
    the boat to follow. Keys: Space, ←/→ (Shift: 1 s), , and . (one frame), 1–6, C (camera), ↑/↓ or V (view, d285), Esc (close).
-   Controller: A play/pause, B close, ↑/↓ the view (as in the race: 2D 追いかけ・拡大・全艇 → 3D 追尾・レーサー・上空, d285 まえ),
-   ←/→ the boat to follow, LT/RT ±5 s, LB/RB speed. The カメラ list also has the 3D views. */
+   Controller: A play/pause, B close, ↑/↓ the view (as in the race, d285–286 まえ), Y 表示 2D ⇄ 3D, ←/→ the boat to follow,
+   LT/RT ±5 s, LB/RB speed. 表示 3D: the 2D cameras (追いかけ・拡大・全艇・1M・2M・スタート) become 上空 framed the same,
+   plus 追尾（3D）・レーサー（3D）. */
 const RPV = { on: false, P: null, t: 0, rate: 1, play: true, saved: null, off: 1000, fixed: null, seeking: false, padPrev: [] };
 const RPV_RATES = [0.1, 0.25, 0.5, 1, 2, 4];
 const RPV_FIX = { mark1: [{ x: MK - 40, y: -38 }, { x: MK + 42, y: 40 }], mark2: [{ x: -MK - 42, y: -40 }, { x: -MK + 40, y: 38 }], start: [{ x: -130, y: 2 }, { x: 25, y: 56 }] };
@@ -98,8 +99,8 @@ function rpvStart(d) {
     bt.title = `${r.no}号艇${r.name ? ' ' + r.name : ''}を追う`; bt.addEventListener('click', () => { fleet.focus = r.no; rpvUi(true); }); bx.appendChild(bt);
   }
   bx.hidden = P.rows.length < 2;
-  { const V = window.View3D, m = V && !V.error && V.mode !== '2d' ? 'v3:' + V.mode : null;   // d285: start in the view the race was watched in
-    const s = $('rpvCam'); if (m && [...s.options].some(o => o.value === m)) s.value = m; else if (!RPV_FIX[s.value] && [...s.options].some(o => o.value === camMode)) s.value = camMode; }
+  { const V = window.View3D, m = V && !V.error && (V.mode === 'chase' || V.mode === 'racer') ? 'v3:' + V.mode : null;   // d285: start in the view the race was watched in
+    const s = $('rpvCam'); if (m) s.value = m; else if (!RPV_FIX[s.value] && [...s.options].some(o => o.value === camMode)) s.value = camMode; }
   rpvCamSet($('rpvCam').value);
   rpvApply(); rpvUi(true);
 }
@@ -113,19 +114,28 @@ function rpvClose() {
   for (const o of s.ov) o.hidden = false;
   RPV.saved = null; last = performance.now();
 }
+const rpv3 = () => { const V = window.View3D; return !!V && !V.error && V.mode !== '2d'; };
 function rpvCamSet(v) {
   const V = window.View3D;
-  if (v.startsWith('v3:')) {   // d285: the 3D views (play3d.js) — 3D can't start → back to 追いかけ
-    if (V && !V.error) { RPV.fixed = null; V.setMode(v.slice(3)); return; }
+  if (v.startsWith('v3:')) {   // d285: 追尾 / レーサー (play3d.js) — 3D can't start → back to 追いかけ
+    if (V && !V.error) { RPV.fixed = null; V.setMode(v.slice(3)); rpvDispUi(); return; }
     v = 'follow'; $('rpvCam').value = v;
   }
-  if (V && V.mode !== '2d') V.setMode('2d');
+  if (V && (V.mode === 'chase' || V.mode === 'racer')) V.setMode('top');   // d286: a 2D camera picked in 3D = 上空 framed by it
   RPV.fixed = RPV_FIX[v] || null;
-  camMode = RPV.fixed ? 'auto' : v; cam.s = 0;
+  camMode = RPV.fixed ? 'auto' : v; cam.s = 0; rpvDispUi();
 }
-// d285 ↑/↓: through the race's views in the race's order (the fixed 1M / 2M / スタート cameras stay in the list only)
+// d286 表示 2D ⇄ 3D: 3D starts as 上空 framed by the camera picked
+function rpvDisp(to3) {
+  const V = window.View3D; if (!V || V.error || to3 === rpv3()) return rpvDispUi();
+  if (!to3) { V.setMode('2d'); const s = $('rpvCam'); if (s.value.startsWith('v3:')) { s.value = 'follow'; rpvCamSet('follow'); } }
+  else V.setMode('top');
+  rpvDispUi();
+}
+function rpvDispUi() { const d = $('rpvDisp'); if (d) d.value = rpv3() ? '3d' : '2d'; for (const o of $('rpvCam').options) if (o.value.startsWith('v3:')) o.hidden = !rpv3(); }
+// d285–286 ↑/↓: the views of the chosen 表示 in the race's order (the fixed 1M / 2M / スタート cameras stay in the list only)
 function rpvViewStep(d) {
-  const V = window.View3D, list = ['follow', 'close', 'auto'].concat(V && !V.error ? ['v3:chase', 'v3:racer', 'v3:top'] : []);
+  const list = ['follow', 'close', 'auto'].concat(rpv3() ? ['v3:chase', 'v3:racer'] : []);
   const s = $('rpvCam'); let i = list.indexOf(s.value); if (i < 0) i = d > 0 ? -1 : 0;
   s.value = list[(i + d + list.length) % list.length]; rpvCamSet(s.value); rpvUi(true);
 }
@@ -182,6 +192,7 @@ function rpvPad(dt) {
   if (edge(4)) rpvRateStep(-1); if (edge(5)) rpvRateStep(1);
   if (edge(12)) rpvViewStep(-1); if (edge(13)) rpvViewStep(1);
   if (edge(14)) rpvFocusStep(-1); if (edge(15)) rpvFocusStep(1);
+  if (edge(3)) rpvDisp(!rpv3());   // d286 Y = 表示 2D ⇄ 3D
   RPV.padPrev = g.buttons.map(b => b.pressed);
 }
 // tick() in main.js hands the frame here while a replay is on
@@ -198,6 +209,7 @@ $('rpvPrev').addEventListener('click', () => { RPV.play = false; rpvSeekTo(RPV.t
 $('rpvNext').addEventListener('click', () => { RPV.play = false; rpvSeekTo(RPV.t + 1 / RPV.P.hz); });
 $('rpvRate').addEventListener('change', e => { RPV.rate = +e.target.value || 1; rpvUi(true); });
 $('rpvCam').addEventListener('change', e => rpvCamSet(e.target.value));
+$('rpvDisp').addEventListener('change', e => rpvDisp(e.target.value === '3d'));
 $('rpvSeek').addEventListener('input', e => { RPV.seeking = true; const P = RPV.P; rpvSeekTo(P.t0 + (P.t1 - P.t0) * e.target.value / 1000); });
 $('rpvSeek').addEventListener('change', () => { RPV.seeking = false; });
 $('rpvClose').addEventListener('click', rpvClose);
@@ -213,7 +225,8 @@ addEventListener('keydown', e => {
   else if (k === 'c' || k === 'C') { const s = $('rpvCam'); s.selectedIndex = (s.selectedIndex + 1) % s.options.length; rpvCamSet(s.value); }
   else if (k === 'ArrowUp') rpvViewStep(-1);
   else if (k === 'ArrowDown') rpvViewStep(1);
-  else if (k === 'v' || k === 'V') rpvViewStep(1);   // (the race's V key, kept in step with the カメラ list)
+  else if (k === 'V' && e.shiftKey) rpvDisp(!rpv3());   // d286 Shift+V = 表示
+  else if (k === 'v' || k === 'V') rpvViewStep(1);   // (the race's V key, kept in step with the 視点 list)
   else if (k === 'Escape') rpvClose();
   else used = false;
   if (used) { e.preventDefault(); e.stopImmediatePropagation(); rpvUi(true); }

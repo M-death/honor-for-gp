@@ -75,7 +75,7 @@ function topBarUi() {
   const TABS = [['op', '操作'], ['snd', '音'], ['view', '画面'], ['dev', '開発']];
   const OF = { controlMode: 'op', wheelSettings: 'op', postureModeNote: 'op', zero: 'op', invR: 'op', invP: 'op', padRT: 'op', hapOn: 'op', sens: 'op', stAssistOn: 'op',
     sndOn: 'snd', sndVol: 'snd', bgmOn: 'snd', bgmVol: 'snd',
-    boatRenderMode: 'view', boatRenderStatus: 'view', screenModeRow: 'view', camMode: 'view', todMode: 'view', jkMode: 'view',
+    boatRenderMode: 'view', boatRenderStatus: 'view', screenModeRow: 'view', dispMode: 'view', camMode: 'view', todMode: 'view', jkMode: 'view',
     demoCpuMode: 'dev', tiltSel: 'dev', fpsOn: 'dev', perfRow: 'dev', wxMode: 'dev', vlogOn: 'dev', simSpeed: 'dev' };
   const set = $('settings').querySelector('.set'), btnRow = set.lastElementChild;
   let cur = 'op';
