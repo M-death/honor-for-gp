@@ -264,18 +264,24 @@ function boatSprite(sty, overturned) {
 
 // d217 ナイトレース (まえ): looks only — the race is the same. The water goes dark except where the floodlights along both
 // banks light it; the boats themselves stay lit (they are in the lights). Setting 「時間帯」 honorGP.tod: day / night.
-let todMode = 'day';
-try { todMode = localStorage.getItem('honorGP.tod') || 'day'; } catch (e) {}
-const isNight = () => todMode === 'night';
+let todMode = 'auto';
+try { todMode = localStorage.getItem('honorGP.tod') || 'auto'; } catch (e) {}
+const isNight = () => todNow() === 'night';
 // d229 夕方 (まえ: the replay-video app now has an evening; 秋・冬 the last races fall in the dusk): the setting 夕方, or a
 // 節間 race in autumn / winter that starts late in the day. ナイター wins over both.
 const EVENING = { from: { autumn: 15.5, winter: 15.0 }, tint: 'rgba(255,128,48,.13)' };
+// d288 時間帯「自動」(まえ: 節間で時間に合わせて昼間・夕方・ナイター): a ナイター開催 節 (setsuNight) runs 1R 15:10 … 12R 20:40 and the
+// light follows each race's start time and the season's sunset — 昼 until DUSK.before h before it, 夕方, then ナイター DUSK.after h
+// after it (the floodlights carry the race). A デイ節 stays as before (夕方 for the last races in autumn / winter). Outside 節間: 昼.
+const SUNSET = { spring: 18.25, summer: 19.1, autumn: 17.25, winter: 16.9 }, DUSK = { before: .75, after: .3 };
 function todNow() {
-  if (isNight()) return 'night';
+  if (todMode === 'night') return 'night';
   if (todMode === 'evening') return 'evening';
-  const st = fleet && fleet.setsu && fleet.setsu.race, tm = st && st.env && st.env.time, from = typeof setsu !== 'undefined' && setsu && EVENING.from[setsu.season];
-  if (from && tm) { const [h, m] = tm.split(':').map(Number); if (h + (m || 0) / 60 >= from) return 'evening'; }
-  return 'day';
+  const S = typeof setsu !== 'undefined' && setsu, st = fleet && fleet.setsu && fleet.setsu.race, tm = st && st.env && st.env.time;
+  if (!S || !tm) return 'day';
+  const [hh, mm] = tm.split(':').map(Number), h = hh + (mm || 0) / 60;
+  if (todMode === 'auto' && S.night) { const ss = SUNSET[S.season] || 18; return h >= ss + DUSK.after ? 'night' : h >= ss - DUSK.before ? 'evening' : 'day'; }   // (モーニング 8:30〜14:00 is all before the dusk → 昼)
+  const from = EVENING.from[S.season]; return from && h >= from ? 'evening' : 'day';
 }
 const isEvening = () => todNow() === 'evening';
 if ($('todMode')) { $('todMode').value = todMode; $('todMode').addEventListener('change', e => { todMode = e.target.value; try { localStorage.setItem('honorGP.tod', todMode); } catch (x) {} }); }   // d217 ナイトレース

@@ -74,7 +74,7 @@ function setsuNew(name, cls, grade = 'ippan', opt = {}) {
   pool.map((m, i) => i).sort((a, b) => pool[b].m2 - pool[a].m2).forEach((i, r) => pool[i].rank = r + 1);
   racers.forEach((q, i) => { q.motorNo = nos[i]; q.motor = pool[nos[i] - 11]; q.boatNo = bnos[i]; q.boat = setsuBoatDraw(); });
   const season = opt.season || pickW([['spring', 1], ['summer', 1], ['autumn', 1], ['winter', 1]]);
-  setsu = { v: 5, day: 0, grade, season, venue: 'standard', envs: {}, racers, races: [], champ: null, log: [], watchAll: false };
+  setsu = { v: 5, day: 0, grade, season, venue: 'standard', night: opt.night === 'mid' || opt.night === 'morning' ? opt.night : !!opt.night, envs: {}, racers, races: [], champ: null, log: [], watchAll: false };   // d288 night: ナイター開催
   if (sg) setsuPrelimsSG(); else setsuPrelims();
   setsuSave();
   return setsu;
@@ -355,7 +355,7 @@ function setsuRender() {
     h += `<div class="row"><button class="btn" id="sRide">自分で走る</button><button class="btn ghost" id="sAuto">おまかせ（安全運転）</button><button class="btn ghost" id="sBack">戻る</button></div>`;
     h += setsuRaceTable(setsuPre) + setsuSeibi() + `<p>おまかせは無理をしない走りで、フライングや事故は起きませんが、着順は自分で走るより落ちやすくなります。</p>`;
   } else if (setsuTab === 'ban') {
-    if (d === 0) h += `<p class="setsu-h">前検日：モーター・ボートの抽選</p><p>あなたは <b>${me.motorNo}号機</b>（2連率 ${me.motor.m2}%）、<b>${me.boatNo}号艇</b>を引きました。「整備」でチルトとペラを決めて、初日へ進みます。</p>` + setsuMotorLine(me) + `<p>上位機の行き先：${setsu.racers.filter(q => q.motor.rank <= 6).sort((x, y) => x.motor.rank - y.motor.rank).map(q => `${setsuMotorTag(q)}(${q.motor.m2}%) ${setsuEsc(q.name)}`).join('、') || 'なし'}</p>` + `<p>開催：${(SETSU.season[setsu.season] || SETSU.season.spring).ja}・${venueOf(setsu.venue).name}・水質 ${venueOf(setsu.venue).water}${venueOf(setsu.venue).tide.amp > 0 ? '（潮の満ち引きあり）' : ''}。風は日によって強弱があり、1日に何度か向きが変わります。</p>`;
+    if (d === 0) h += `<p class="setsu-h">前検日：モーター・ボートの抽選</p><p>あなたは <b>${me.motorNo}号機</b>（2連率 ${me.motor.m2}%）、<b>${me.boatNo}号艇</b>を引きました。「整備」でチルトとペラを決めて、初日へ進みます。</p>` + setsuMotorLine(me) + `<p>上位機の行き先：${setsu.racers.filter(q => q.motor.rank <= 6).sort((x, y) => x.motor.rank - y.motor.rank).map(q => `${setsuMotorTag(q)}(${q.motor.m2}%) ${setsuEsc(q.name)}`).join('、') || 'なし'}</p>` + `<p>開催：${(SETSU.season[setsu.season] || SETSU.season.spring).ja}${({ mid: '・ミッドナイト', morning: '・モーニング' })[setsu.night] || (setsu.night ? '・ナイター' : '')}・${venueOf(setsu.venue).name}・水質 ${venueOf(setsu.venue).water}${venueOf(setsu.venue).tide.amp > 0 ? '（潮の満ち引きあり）' : ''}。風は日によって強弱があり、1日に何度か向きが変わります。</p>`;
     else for (const race of setsuToday()) {
       const mine = setsuHasMe(race);
       const watch = !race.result && !mine ? `<label class="wt"><input type="checkbox" data-w="${race.R}" ${race.watch ? 'checked' : ''}>観戦</label>` : '';
@@ -418,7 +418,7 @@ function setsuStart() {
 if (typeof document !== 'undefined' && document.getElementById('setsu')) {
   $('pmSetsu').addEventListener('click', () => { if (fleet) quitFleet(); setsuStart(); });
   $('pmReplay').addEventListener('click', () => { rpWasPaused = true; rpFromMenu = true; $('pmenu').hidden = true; rpOpen(0); });
-  $('setsuGo').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsuNew($('setsuName').value.trim().slice(0, 12), $('setsuCls').value, $('setsuGrade').value, { sex: $('setsuSex').value, weight: +$('setsuWt').value || 0, height: +$('setsuHt').value || 0, season: $('setsuSeason').value }); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
+  $('setsuGo').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsuNew($('setsuName').value.trim().slice(0, 12), $('setsuCls').value, $('setsuGrade').value, { sex: $('setsuSex').value, weight: +$('setsuWt').value || 0, height: +$('setsuHt').value || 0, season: $('setsuSeason').value, night: $('setsuNight') && ({ '1': true, mid: 'mid', morning: 'morning' })[$('setsuNight').value] || false }); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
   $('setsuResume').addEventListener('click', () => { $('setsuNewBox').hidden = true; setsu = setsuLoad(); setsuTab = 'ban'; setsuPre = null; setsuOpen(); });
   $('setsuSex').addEventListener('change', e => { $('setsuWt').value = e.target.value === 'f' ? '48' : '53'; });
   $('setsuNewClose').addEventListener('click', () => { $('setsuNewBox').hidden = true; paused = false; last = performance.now(); });

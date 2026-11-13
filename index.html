@@ -474,6 +474,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
       <label>級 <select id="setsuCls"><option value="TOP">A1★（トップクラス）</option><option>A1</option><option>A2</option><option selected>B1</option><option>B2</option></select>（おまかせ時の強さ）</label>
       <label>性別 <select id="setsuSex"><option value="m" selected>男子（最低体重52kg）</option><option value="f">女子（最低体重47kg）</option></select> 体重 <input id="setsuWt" type="number" min="44" max="62" step="0.5" value="53" style="width:64px">kg 身長 <input id="setsuHt" type="number" min="145" max="185" step="1" value="165" style="width:64px">cm</label>
       <label>季節 <select id="setsuSeason"><option value="">おまかせ</option><option value="spring">春</option><option value="summer">夏</option><option value="autumn">秋</option><option value="winter">冬</option></select></label>
+      <label>開催 <select id="setsuNight"><option value="morning">モーニング</option><option value="" selected>デイ</option><option value="1">ナイター</option><option value="mid">ミッドナイト</option></select></label>
       <button class="btn" id="setsuGo">新しい節を始める</button>
       <button class="btn ghost" id="setsuResume" hidden><span id="setsuResumeTxt">続きから</span></button>
       <button class="btn ghost" id="setsuNewClose">やめる</button>
@@ -646,10 +647,11 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
       <label id="screenModeRow">画面（PC） <select id="screenMode"><option value="full">全画面</option><option value="window">ウィンドウ</option></select></label>
       <label>表示 <select id="dispMode"><option value="2d">2D</option><option value="3d">3D</option></select></label>
       <label>カメラ <select id="camMode"><option value="follow">追いかけ</option><option value="close">拡大追尾（艇を大きく見る）</option><option value="auto">自動ズーム（PC向け・全艇が入るまで引く）</option></select></label>
-      <label>時間帯 <select id="todMode"><option value="day">昼</option><option value="evening">夕方</option><option value="night">ナイター</option></select></label>
+      <label>時間帯 <select id="todMode"><option value="auto">自動（節間はレースの時刻で）</option><option value="day">昼</option><option value="evening">夕方</option><option value="night">ナイター</option></select></label>
       <label>2D解像度 <select id="dpr2d"><option value="2">標準（×2まで）</option><option value="1.5">×1.5まで</option><option value="1">×1（軽い）</option></select></label>
       <label>3D画質 <select id="gfx3d"><option value="auto">自動</option><option value="lite">スマホ軽量</option><option value="rich">スマホリッチ</option><option value="pc">PC</option></select> <small id="gfx3dNow" style="color:var(--muted)"></small></label>
       <label>3D水面 <select id="water3d"><option value="auto">画質に合わせる</option><option value="simple">簡易（処理なし）</option><option value="shade">陰影</option><option value="reflect">反射（重い）</option></select></label>
+      <label>3D飛沫 <select id="spray3d"><option value="std">標準</option><option value="big">派手</option></select></label>
       <label>天候 <select id="wxMode"><option value="auto">いつも通り</option><option value="storm">荒天にする（安定板・2周戦）</option></select></label>
       <label><input type="checkbox" id="vlogOn" checked> 動画用ログを記録する</label>
       <p style="margin:0;font-size:12px">動画用ログは結果画面の「リプレイ保存」からダウンロードしてください。ゲーム内には残りません。次のレースへ進むと取り出せなくなります。（切り替えは次のレースから）</p>

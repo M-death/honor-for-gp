@@ -242,7 +242,7 @@ function renderReflection(w, h) {
   V.q.set((Math.sign(V.clip.x) + P[8]) / P[0], (Math.sign(V.clip.y) + P[9]) / P[5], -1, (1 + P[10]) / P[14]);
   V.clip.multiplyScalar(2 / V.clip.dot(V.q));
   P[2] = V.clip.x; P[6] = V.clip.y; P[10] = V.clip.z + 1 - .003; P[14] = V.clip.w;
-  const hide = [R.mesh, wakeMesh, WX3.rain, spray3 && spray3.pts, ...(world ? world.noRefl : [])].filter(Boolean), was = hide.map(o => o.visible);
+  const hide = [R.mesh, wakeMesh, WX3.rain, spray3 && spray3.pts, wallMesh, ...(world ? world.noRefl : [])].filter(Boolean), was = hide.map(o => o.visible);
   hide.forEach(o => { o.visible = false; });
   const sh = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false;
   renderer.setRenderTarget(R.rt); renderer.clear(); renderer.render(scene, vc); renderer.setRenderTarget(null);
@@ -294,7 +294,21 @@ function buildWorld() {
   // 大時計: a dial on a post at the middle of the stand side
   const clk = new THREE.Group(), cy = standY(0) + 6;
   const post = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, 12, 8), new THREE.MeshLambertMaterial({ color: 0x777777 })); post.position.set(0, BANK + 6, cy); clk.add(post);
-  const dial = new THREE.Mesh(new THREE.CircleGeometry(4, 32), new THREE.MeshBasicMaterial({ color: 0xf4f4f0 })); dial.position.set(0, BANK + 14, cy - .5); dial.rotation.y = Math.PI; clk.add(dial);
+  // d291 (まえ: 大時計の針を実際のカウントに合わせて — 雰囲気): a painted face (12 marks, the green first second) and a hand that turns
+  // with the start count like the HUD clock (one turn = CLOCK s, waiting at the top until the count starts)
+  const face = document.createElement('canvas'); face.width = face.height = 256; { const f = face.getContext('2d'), R = 128;
+    f.fillStyle = '#f4f4f0'; f.beginPath(); f.arc(R, R, R, 0, Math.PI * 2); f.fill();
+    f.strokeStyle = '#2bb673'; f.lineWidth = 22; f.beginPath(); f.arc(R, R, R - 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 / CLOCK); f.stroke();
+    f.strokeStyle = '#1b1b1b'; f.lineCap = 'round';
+    for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2, big = i % 5 === 0, r0 = R - (big ? 34 : 20), r1 = R - 8; f.lineWidth = big ? 7 : 2.5;
+      f.beginPath(); f.moveTo(R + Math.sin(a) * r0, R - Math.cos(a) * r0); f.lineTo(R + Math.sin(a) * r1, R - Math.cos(a) * r1); f.stroke(); } }
+  const faceTex = new THREE.CanvasTexture(face); faceTex.colorSpace = THREE.SRGBColorSpace;
+  const dial = new THREE.Mesh(new THREE.CircleGeometry(4, 48), new THREE.MeshBasicMaterial({ map: faceTex })); dial.position.set(0, BANK + 14, cy - .5); dial.rotation.y = Math.PI; clk.add(dial);
+  const hand = new THREE.Group(); hand.position.set(0, BANK + 14, cy - .62); hand.rotation.y = Math.PI;
+  const hm = new THREE.MeshBasicMaterial({ color: 0xd92b2b });
+  const bar = new THREE.Mesh(new THREE.PlaneGeometry(.26, 4.2), hm); bar.position.y = 1.5; hand.add(bar);
+  const hub = new THREE.Mesh(new THREE.CircleGeometry(.36, 16), new THREE.MeshBasicMaterial({ color: 0x1b1b1b })); hub.position.z = .01; hand.add(hub);
+  clk.add(hand);
   const ring = new THREE.Mesh(new THREE.RingGeometry(4, 4.5, 32), new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide })); ring.position.copy(dial.position); ring.rotation.y = Math.PI; clk.add(ring);
   g.add(clk);
   // turn marks (orange) and the float booms toward the centre
@@ -337,6 +351,7 @@ function buildWorld() {
     if (scene.environment) scene.environment.dispose(); scene.environment = rt.texture; pm.dispose();
   }
   const deco = topDeco(tod); g.add(deco);   // d286
+  world_clockHand = hand;   // d291
   world = { g, dist: dm, water, dome, sky2, deco, noRefl: V3d ? V3d.noRefl : [] }; WX3.key = '';
   scene.background = new THREE.Color(T.sky); scene.fog = new THREE.Fog(T.fog, 120, 520);
   hemi.color.set(T.hemi[0]); hemi.groundColor.set(T.hemi[1]); hemi.intensity = T.hemi[2]; sun.color.set(T.sun[0]); sun.intensity = T.sun[1];
@@ -406,9 +421,21 @@ function rippleNormals() {
    ターンの外側 (splashK: flat hull = a tall wall, deep bank = a thin low sheet), 横すべり (slip), 艇尾 (rooster tail at speed),
    舳先 (bow wash), 着水 (landing slap). Looks only. */
 const SPRAY = { max: 7000, g: 9.8, drag: 1.6 };   // (max: set from the 画質 when made)
+/* d287 3D飛沫「派手」(まえ: 見た目は派手に、飛沫の中を突き抜けるくらいの水の壁、レーサー視点では浴びた跡): looks only. The rules stay
+   those of the 標準 spray (flat hull = tall wall, deep bank = low thin sheet), only bigger: more and larger drops, a curtain of water
+   (one strip per boat) off the outside of a turn, and on the レーサー view drops on the lens and a white-out through a wall. */
+const FX = { key: 'honorGP.spray3d', on: false, pool: 2.5, n: 2.2, size: 1.5, up: 1.35,
+  turn: { n: 2.4, up: 1.5, life: 1.6, out: .55 },   // d292 (まえ: ターン時はもっと高く多く、後続が被るくらい): the turn spray on top of n / up — it hangs over the line the boat turned on
+  wall: { life: 1.5, h: 5.8, out: 1.5, lean: 2.6, minGap: .22, max: 1400, alpha: .62 },
+  lens: { near: 1.3, max: 140, hitDrops: 7, slapDrops: 26, fog: .55,
+    // d295 (まえ: 上から下でなく横へ、速さに応じて、ターンでは外側へ): the wind of the run pushes the drops out to the sides
+    flow: { vRef: 22, side: .55, turn: .45, down: .10, resp: 5, small: .35 } } };
+try { FX.on = localStorage.getItem(FX.key) === 'big'; } catch (e) {}
+const sprayMax = () => Q.spray * (FX.on ? FX.pool : 1);
+let world_clockHand = null;   // d291 the 大時計's hand (rebuilt with the world)
 let spray3 = null; const landSeen = new WeakMap(); let lastGameT = null;
 function makeSpray() {
-  const n = SPRAY.max = Q.spray, geo = new THREE.BufferGeometry();
+  const n = SPRAY.max = sprayMax(), geo = new THREE.BufferGeometry();
   const P = new Float32Array(n * 3), S = new Float32Array(n), A = new Float32Array(n);
   geo.setAttribute('position', new THREE.BufferAttribute(P, 3).setUsage(THREE.DynamicDrawUsage));
   geo.setAttribute('size', new THREE.BufferAttribute(S, 1).setUsage(THREE.DynamicDrawUsage));
@@ -420,32 +447,35 @@ function makeSpray() {
     vertexShader: 'attribute float size; attribute float alpha; varying float vA; uniform float scale; void main(){ vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }',
     fragmentShader: 'uniform sampler2D map; uniform vec3 tint; varying float vA; void main(){ vec4 t = texture2D(map, gl_PointCoord); if (t.a * vA < 0.01) discard; gl_FragColor = vec4(tint, t.a * vA); }' });
   const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = 2; scene.add(pts);
-  spray3 = { pts, P, S, A, vx: new Float32Array(n), vy: new Float32Array(n), vz: new Float32Array(n), life: new Float32Array(n), age: new Float32Array(n), size0: new Float32Array(n), a0: new Float32Array(n), n: 0, acc: new WeakMap() };
+  spray3 = { pts, P, S, A, who: new Uint8Array(n), vx: new Float32Array(n), vy: new Float32Array(n), vz: new Float32Array(n), life: new Float32Array(n), age: new Float32Array(n), size0: new Float32Array(n), a0: new Float32Array(n), n: 0, acc: new WeakMap() };
 }
+const boatIds = new WeakMap(); let boatIdN = 0; const boatId = b => { let k = boatIds.get(b); if (k === undefined) { k = boatIdN = boatIdN % 250 + 1; boatIds.set(b, k); } return k; };   // d287: whose drop (the lens ignores its own boat's)
 let sd3 = 7; const r3 = () => (sd3 = (sd3 * 16807) % 2147483647) / 2147483647;
 // one drop at the hull's local (lx forward, ly to the right), thrown with local velocity (vx forward, vy right, up)
 function drop(b, lx, ly, vx, vy, up, size, life, alpha) {
   const S3 = spray3; if (S3.n >= SPRAY.max) return;
-  const i = S3.n++, c = Math.cos(b.a), s = Math.sin(b.a), bvx = (b.v || 0) * c - (b.vl || 0) * s * 0, bvz = (b.v || 0) * s;
+  const i = S3.n++; S3.who[i] = boatId(b); const c = Math.cos(b.a), s = Math.sin(b.a), bvx = (b.v || 0) * c - (b.vl || 0) * s * 0, bvz = (b.v || 0) * s;
   S3.P[i * 3] = b.x + lx * c - ly * s; S3.P[i * 3 + 1] = .15 + fin(b.hop); S3.P[i * 3 + 2] = b.y + lx * s + ly * c;
-  S3.vx[i] = vx * c - vy * s + bvx * .35; S3.vz[i] = vx * s + vy * c + bvz * .35; S3.vy[i] = up;
-  S3.life[i] = life; S3.age[i] = 0; S3.size0[i] = size; S3.a0[i] = alpha;
+  const U = FX.on ? FX.up : 1, Z = FX.on ? FX.size : 1;
+  S3.vx[i] = (vx * c - vy * s) * U + bvx * .35; S3.vz[i] = (vx * s + vy * c) * U + bvz * .35; S3.vy[i] = up * U;
+  S3.life[i] = life * (FX.on ? 1.15 : 1); S3.age[i] = 0; S3.size0[i] = size * Z; S3.a0[i] = Math.min(1, alpha * (FX.on ? 1.15 : 1));
 }
 function emitFor(b, dt) {
   if (fin(b.cap) > 0 || b.fallen) return;
   const S3 = spray3; let acc = S3.acc.get(b) || 0;
   const v = fin(b.v), sk = lim((b.splashK || 0) / 1.2, 0, 1.4), yaw = fin(b.yaw), sl = lim((Math.abs(b.slip || 0) - .05) / .25, 0, 1);
   // how many drops this frame (per kind), carried over so a slow frame doesn't lose them
-  const want = { turn: sk > .12 && v > 7 && Math.abs(yaw) > .2 ? 380 * sk : 0, slide: sl > 0 && v > 6 ? 260 * sl : 0,
+  const want = { turn: sk > .12 && v > 7 && Math.abs(yaw) > .2 ? 380 * sk * (FX.on ? FX.turn.n : 1) : 0, slide: sl > 0 && v > 6 ? 260 * sl : 0,
     tail: v > 6 ? 120 * lim((v - 6) / 14, 0, 1) : 0, bow: v > 5 ? 70 * lim(v / 23, 0, 1) : 0 };
-  acc += (want.turn + want.slide + want.tail + want.bow) * dt;
+  acc += (want.turn + want.slide + want.tail + want.bow) * dt * (FX.on ? FX.n : 1);
   let n = Math.floor(acc); acc -= n; S3.acc.set(b, acc);
   const tot = want.turn + want.slide + want.tail + want.bow || 1;
   for (let k = 0; k < n; k++) {
     const pick = r3() * tot;
     if (pick < want.turn) {   // the outside of the turn: flat hull → a tall heavy wall, banked deep → a low thin sheet
       const side = -Math.sign(yaw), hgt = sk * sk, u = r3();
-      drop(b, .6 - u * 2.2, side * (.6 + r3() * .2), -1 - r3() * 2, side * (2 + 4.5 * sk * r3()), 1 + 5.5 * hgt * (.5 + r3()), .16 + .3 * sk * r3(), .5 + .7 * hgt * r3(), .5 + .4 * Math.min(1, sk));
+      const T = FX.on ? FX.turn : null;
+      drop(b, .6 - u * 2.2, side * (.6 + r3() * .2), -1 - r3() * 2, side * (2 + 4.5 * sk * r3()) * (T ? T.out : 1), (1 + 5.5 * hgt * (.5 + r3())) * (T ? T.up : 1) + (T ? 2.5 * sk * r3() : 0), .16 + .3 * sk * r3(), (.5 + .7 * hgt * r3()) * (T ? T.life : 1), .5 + .4 * Math.min(1, sk));
     } else if (pick < want.turn + want.slide) {   // skating sideways: a sheet off the side it slides toward
       const side = Math.sign(b.vl) || 1;
       drop(b, .9 - r3() * 2.4, side * .62, -r3(), side * (2 + 3 * sl * r3()), .8 + 2.4 * sl * r3(), .14 + .2 * sl * r3(), .45 + .4 * r3(), .55 * sl + .2);
@@ -472,7 +502,7 @@ function stepSpray(rows, dt) {
     const vx = S3.vx[i] * dr, vz = S3.vz[i] * dr, vy = S3.vy[i] - SPRAY.g * dt;
     let y = S3.P[i * 3 + 1] + vy * dt; if (y < 0) continue;   // back in the water
     const k = age / S3.life[i];
-    if (j !== i) { S3.vx[j] = vx; S3.vz[j] = vz; S3.vy[j] = vy; S3.life[j] = S3.life[i]; S3.size0[j] = S3.size0[i]; S3.a0[j] = S3.a0[i]; }
+    if (j !== i) { S3.who[j] = S3.who[i]; S3.vx[j] = vx; S3.vz[j] = vz; S3.vy[j] = vy; S3.life[j] = S3.life[i]; S3.size0[j] = S3.size0[i]; S3.a0[j] = S3.a0[i]; }
     else { S3.vx[j] = vx; S3.vz[j] = vz; S3.vy[j] = vy; }
     S3.P[j * 3] = S3.P[i * 3] + vx * dt; S3.P[j * 3 + 1] = y; S3.P[j * 3 + 2] = S3.P[i * 3 + 2] + vz * dt;
     S3.age[j] = age; S3.S[j] = S3.size0[j] * (1 + 1.6 * k); S3.A[j] = S3.a0[j] * (1 - k) * (1 - k * .3);
@@ -481,6 +511,127 @@ function stepSpray(rows, dt) {
   S3.n = j;
   const geo = S3.pts.geometry; geo.setDrawRange(0, j);
   for (const nm of ['position', 'size', 'alpha']) geo.attributes[nm].needsUpdate = true;
+}
+
+/* d287 水の壁 (派手): a curtain thrown off the outside of a turn — one strip per boat, from where the hull was over the last
+   FX.wall.life s. It flies outward and up, then falls back; flat hull (splashK) = tall and thick, deep bank = low and thin. */
+const wallS = new WeakMap(); let wallMesh = null;
+function wallTexture() {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 128; const g = c.getContext('2d');
+  let sd = 99; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 260; i++) {   // vertical streaks of water, thinning out toward the top
+    const x = rnd() * 128, w = 1 + rnd() * 4, top = rnd() * 70, a = .25 + rnd() * .55;
+    const gr = g.createLinearGradient(0, 128, 0, top); gr.addColorStop(0, `rgba(255,255,255,${a})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(x, top, w, 128 - top); g.fillRect(x - 128, top, w, 128 - top);
+  }
+  for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(255,255,255,${.3 + rnd() * .5})`; g.beginPath(); g.arc(rnd() * 128, rnd() * 60, .8 + rnd() * 2.2, 0, Math.PI * 2); g.fill(); }   // flung drops at the crest
+  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; return t;
+}
+function makeWall() {
+  const n = FX.wall.max, geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 6 * 3), 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 6 * 2), 2).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('alpha', new THREE.BufferAttribute(new Float32Array(n * 6), 1).setUsage(THREE.DynamicDrawUsage));
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    uniforms: { map: { value: wallTexture() }, tint: { value: new THREE.Color(1, 1, 1) } },
+    vertexShader: 'attribute float alpha; varying float vA; varying vec2 vUv; void main(){ vA = alpha; vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform sampler2D map; uniform vec3 tint; varying float vA; varying vec2 vUv; void main(){ float a = texture2D(map, vUv).a * vA; if (a < .01) discard; gl_FragColor = vec4(tint, a); }' });
+  wallMesh = new THREE.Mesh(geo, mat); wallMesh.frustumCulled = false; wallMesh.renderOrder = 2; scene.add(wallMesh);
+}
+// the strip's samples for one boat: where the outside of the hull was, how hard it was throwing water, which way
+function wallFeed(b) {
+  let L = wallS.get(b); if (!L) { L = []; wallS.set(b, L); }
+  while (L.length && time - L[0].t > FX.wall.life) L.shift();
+  if (fin(b.cap) > 0 || b.fallen) return L;
+  const v = fin(b.v), sk = lim((b.splashK || 0) / 1.2, 0, 1.4), yaw = fin(b.yaw), sl = lim((Math.abs(b.slip || 0) - .05) / .25, 0, 1);
+  const turn = sk > .12 && v > 7 && Math.abs(yaw) > .2 ? Math.min(1.3, sk * 1.5) * lim((v - 7) / 8, 0, 1) : 0, slide = sl > 0 && v > 6 ? sl * .5 : 0;
+  const k = Math.max(turn, slide); if (k <= .02) { if (L.length && !L[L.length - 1].end) L.push({ ...L[L.length - 1], t: time, k: 0, end: true }); return L; }
+  const side = turn >= slide ? -Math.sign(yaw) || 1 : Math.sign(b.vl) || 1, c = Math.cos(b.a), s = Math.sin(b.a);
+  const x = b.x - .3 * c - side * .7 * s, y = b.y - .3 * s + side * .7 * c, last = L[L.length - 1];
+  if (last && !last.end && Math.hypot(x - last.x, y - last.y) < FX.wall.minGap) return L;
+  L.push({ x, y, ox: -side * s, oy: side * c, k: Math.min(1.3, k), t: time, d: (last && !last.end ? last.d + Math.hypot(x - last.x, y - last.y) : 0) });
+  return L;
+}
+function drawWalls(rows) {
+  const W = FX.wall, P = wallMesh.geometry.attributes.position.array, UV = wallMesh.geometry.attributes.uv.array, A = wallMesh.geometry.attributes.alpha.array;
+  let n = 0;
+  const col = (q) => {   // the bottom and top of the curtain at one sample, now
+    const age = time - q.t, u = age / W.life, rise = Math.min(1, age / .12), out = W.out * age * (.6 + q.k * .6);
+    const h = W.h * q.k * rise * (1 - u * u), lean = W.lean * q.k * rise;
+    return { bx: q.x + q.ox * out, by: q.y + q.oy * out, tx: q.x + q.ox * (out + lean), ty: q.y + q.oy * (out + lean), h, a: W.alpha * (1 - u) * Math.min(1, q.k * 1.4) };
+  };
+  for (const row of rows) {
+    const L = wallFeed(row.b);
+    for (let i = 1; i < L.length && n < W.max; i++) {
+      const p = L[i - 1], q = L[i]; if (p.end) continue;
+      const a = col(p), c = col(q), o = n * 18, uo = n * 12, ao = n * 6;
+      const V = [[a.bx, .05, a.by, p.d / 3, 0, a.a], [c.bx, .05, c.by, q.d / 3, 0, c.a], [c.tx, c.h, c.ty, q.d / 3, 1, c.a], [a.tx, a.h, a.ty, p.d / 3, 1, a.a]];
+      const idx = [0, 1, 2, 0, 2, 3];
+      for (let k2 = 0; k2 < 6; k2++) { const v = V[idx[k2]]; P[o + k2 * 3] = v[0]; P[o + k2 * 3 + 1] = v[1]; P[o + k2 * 3 + 2] = v[2]; UV[uo + k2 * 2] = v[3]; UV[uo + k2 * 2 + 1] = v[4]; A[ao + k2] = v[5]; }
+      n++;
+    }
+  }
+  const geo = wallMesh.geometry; geo.setDrawRange(0, n * 6);
+  for (const nm of ['position', 'uv', 'alpha']) geo.attributes[nm].needsUpdate = true;
+}
+// is the camera inside a curtain right now? (the レーサー view runs through the one thrown by the boat ahead)
+function wallAtCam(rows, cx, cy, cz) {
+  let hit = 0;
+  for (const row of rows) { const L = wallS.get(row.b); if (!L) continue;
+    for (const q of L) { if (q.end) continue; const age = time - q.t, u = age / FX.wall.life, out = FX.wall.out * age * (.6 + q.k * .6);
+      const px = q.x + q.ox * (out + .5), py = q.y + q.oy * (out + .5), h = FX.wall.h * q.k * Math.min(1, age / .12) * (1 - u * u);
+      const d = Math.hypot(cx - px, cz - py); if (d < 1.4 && cy < h + .3) hit = Math.max(hit, q.k * (1 - u) * (1 - d / 1.4)); } }
+  return hit;
+}
+
+/* d287 レンズの水滴 (派手, レーサー view): drops land on the lens when it runs through spray, slide down and dry off; a thick wall
+   gives a moment of white. A 2D canvas over the 3D one, drawn only while there is something on it. */
+const lens = { cv: null, g: null, drops: [], fog: 0, w: 0, h: 0, slap: new WeakMap() };
+function lensStep(dt, rows, me) {
+  const on = FX.on && mode === 'racer' && !!spray3;
+  if (!lens.cv) { lens.cv = document.createElement('canvas'); lens.cv.id = 'lens3d'; lens.cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;display:none'; canvas.after(lens.cv); lens.g = lens.cv.getContext('2d'); }
+  if (!on) { if (lens.drops.length || lens.fog) { lens.drops.length = 0; lens.fog = 0; lens.g.clearRect(0, 0, lens.w, lens.h); } lens.cv.style.display = 'none'; return; }
+  const w = innerWidth, h = innerHeight; if (lens.w !== w || lens.h !== h) { lens.cv.width = lens.w = w; lens.cv.height = lens.h = h; }
+  const D = FX.lens, add = (n, x0, x1, y0, y1, big) => { for (let i = 0; i < n && lens.drops.length < D.max; i++) lens.drops.push({ x: w * (x0 + Math.random() * (x1 - x0)), y: h * (y0 + Math.random() * (y1 - y0)), r: (4 + Math.random() * (big ? 16 : 9)) * Math.min(w, h) / 700, age: 0, life: 1.6 + Math.random() * 2.2, vy: 0, vx: 0 }); };
+  if (dt > 0) {
+    // drops thrown near the lens
+    const S3 = spray3, cp = camera.position, mine = boatId(me); let near = 0, side = 0;
+    for (let i = 0; i < S3.n; i++) { if (S3.who[i] === mine) continue; const dx = S3.P[i * 3] - cp.x, dy = S3.P[i * 3 + 1] - cp.y, dz = S3.P[i * 3 + 2] - cp.z; if (dx * dx + dy * dy + dz * dz < D.near * D.near) { near++; side += dx * Math.cos(-me.a) - dz * Math.sin(-me.a) > 0 ? 1 : -1; } }
+    if (near) { const cx = .5 + lim(side / near, -1, 1) * .25; add(Math.min(4, Math.ceil(near * dt * 6)), cx - .35, cx + .35, .05, .85, false); }
+    // through a curtain: lots of drops and a moment of white
+    const wall = wallAtCam(rows, cp.x, cp.y, cp.z);
+    if (wall > .05) { add(Math.ceil(D.hitDrops * wall * dt * 60), 0, 1, 0, 1, true); lens.fog = Math.max(lens.fog, D.fog * Math.min(1, wall * 1.5)); }
+    // own landing slap
+    const la = fin(me.landAge, 9); if (la < .06 && fin(me.landV) > 1.5) { const key = Math.round((time - la) * 100); if (lens.slap.get(me) !== key) { lens.slap.set(me, key); add(Math.round(D.slapDrops * lim(me.landV / 4, 0, 1)), .1, .9, .45, 1, true); } }
+    // d295: running forward the wind blows each drop out from the middle to its side, faster the faster the boat goes;
+    // in a turn they all go to the outside of it; only near a stop do they run down. Big drops move more than small ones.
+    const F = D.flow, spd = lim(fin(me.v) / F.vRef, 0, 1.4), da = lens.lastA == null ? 0 : ((me.a - lens.lastA + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    lens.lastA = me.a; const yaw = lim(da / dt, -1.5, 1.5), u0 = Math.min(w, h) / 700;
+    for (const d of lens.drops) {
+      d.age += dt;
+      const cx = (d.x - w / 2) / (w / 2), stick = d.r / u0 > 6 ? 1 : F.small;
+      const tx = w * (Math.sign(cx || (Math.random() - .5)) * (.15 + .6 * Math.abs(cx)) * F.side * spd - yaw * F.turn * spd) * stick;   // turning right (a grows) → out to the left
+      const ty = h * F.down * Math.max(0, 1 - spd * 2.5) * stick + (d.r / u0 > 6 ? (d.r / u0 - 6) * 2 * (1 - Math.min(1, spd * 2.5)) : 0);
+      const k = Math.min(1, dt * F.resp); d.vx += (tx - d.vx) * k; d.vy += (ty - d.vy) * k;
+      d.x += d.vx * dt; d.y += d.vy * dt;
+    }
+    lens.drops = lens.drops.filter(d => d.age < d.life && d.y < h + 40 && d.x > -40 && d.x < w + 40);
+    lens.fog = Math.max(0, lens.fog - dt * 1.4);
+  }
+  const g = lens.g; g.clearRect(0, 0, w, h);
+  if (!lens.drops.length && lens.fog <= 0) { lens.cv.style.display = 'none'; return; }
+  lens.cv.style.display = 'block';
+  if (lens.fog > 0) { g.fillStyle = `rgba(235,244,248,${lens.fog})`; g.fillRect(0, 0, w, h); }
+  for (const d of lens.drops) {   // a clear drop: dark rim, a bright fleck where the light catches it
+    const a = 1 - d.age / d.life, r = d.r;
+    g.globalAlpha = Math.min(1, a * 1.4);
+    const gr = g.createRadialGradient(d.x, d.y, r * .2, d.x, d.y, r);
+    gr.addColorStop(0, 'rgba(255,255,255,.06)'); gr.addColorStop(.75, 'rgba(210,230,240,.16)'); gr.addColorStop(1, 'rgba(30,50,60,.35)');
+    const sp = Math.hypot(d.vx, d.vy), st = Math.min(.9, sp / Math.max(1, lens.w) * 1.2);   // d295: drawn out along the way it runs
+    g.fillStyle = gr; g.beginPath(); g.ellipse(d.x, d.y, r * (1 + st), r * .9 / (1 + st * .3), sp > 1 ? Math.atan2(d.vy, d.vx) : Math.PI / 2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.arc(d.x - r * .35, d.y - r * .35, r * .18, 0, Math.PI * 2); g.fill();
+  }
+  g.globalAlpha = 1;
 }
 
 /* ---------- wakes: one dynamic mesh of quads (the core and the two spreading wave lines) ---------- */
@@ -563,6 +714,27 @@ function lookBack(dt) {
   look.cur += (target - look.cur) * (1 - Math.exp(-dt * (look.held ? LOOK.rate : LOOK.back)));
   return look.cur;
 }
+/* d295 頭の視点: where the racer model's head is (after its pose this frame), a little forward of the head bone (the eyes).
+   Smoothed lightly so the engine's shake doesn't jitter the view (まえ: 伏せる・起こす・体の傾きに追従). */
+const HEADCAM = { fwd: .14, up: .06, k: 22, look: 1.0, bankK: .35, leanK: .45 };
+const headS = { x: 0, y: 0, z: 0, lean: 0, init: false, b: null };
+function headEye(t, dt) {
+  try {
+    const row = targetRow(), a = actorFor(row), lv = a && a.levels[a.lod]; if (!lv || !lv.racer) return null;
+    const head = lv.racer.userData.head || (lv.racer.userData.head = lv.racer.getObjectByName('Head')); if (!head) return null;
+    head.updateWorldMatrix(true, false);
+    const e = head.matrixWorld.elements, hx = e[12], hy = e[13], hz = e[14];
+    const ca = Math.cos(t.a), sa = Math.sin(t.a);
+    const x = hx + ca * HEADCAM.fwd, z = hz + sa * HEADCAM.fwd, y = hy + HEADCAM.up;
+    // how far the head is out to the side of the hull's centre line, against its height over the hull: the body's lean
+    const lat = -(hx - t.x) * sa + (hz - t.y) * ca, rise = Math.max(.3, hy - fin(t.hop));
+    const lean = Math.atan2(lat, rise);
+    if (!headS.init || headS.b !== t || !(dt > 0)) Object.assign(headS, { x, y, z, lean, init: true, b: t });
+    else { const k = 1 - Math.exp(-dt * HEADCAM.k); headS.x += (x - headS.x) * k; headS.y += (y - headS.y) * k; headS.z += (z - headS.z) * k; headS.lean += (lean - headS.lean) * k; }
+    // follow the boat itself without lag (only the head's motion on it is smoothed)
+    return { x, y: headS.y, z, lean: headS.lean, rawY: y, lat };
+  } catch (err) { return null; }
+}
 function placeCamera(dt) {
   const t = targetRow().b, k = 1 - Math.exp(-dt * (mode === 'racer' ? 14 : 4));
   if (!camS.init) { camS.x = t.x; camS.y = t.y; camS.a = t.a; camS.init = true; }
@@ -583,10 +755,21 @@ function placeCamera(dt) {
     camera.lookAt(camS.x + c * 14, .6, camS.y + s * 14);
   } else {
     // the racer's eyes: a little behind the boat's pivot, crouched; the bow is in view
-    camera.fov = 72; const ex = t.x - Math.cos(t.a) * .55, ey = t.y - Math.sin(t.a) * .55;
-    camera.position.set(ex, 1.25 + hop, ey);
-    camera.lookAt(ex + c * 30, .2 + hop * .5, ey + s * 30);
-    const bank = lim(t.bank, -.65, .65) * .5; camera.rotateZ(-bank);
+    camera.fov = 72;
+    const eye = headEye(t, dt);
+    if (eye) {
+      // d295 (まえ: レーサーの頭の位置で視点が動く): the eyes ride on the racer model's head — down when crouched, up when sat
+      // up, out over the side with the body in a turn (off the boat's centre line), and the view leans with the head
+      camera.position.set(eye.x, eye.y, eye.z);
+      camera.lookAt(eye.x + c * 30, eye.y - HEADCAM.look, eye.z + s * 30);
+      camera.rotateZ(-(lim(t.bank, -.65, .65) * HEADCAM.bankK + eye.lean * HEADCAM.leanK));
+      if (window.View3D) window.View3D.eye = { ...eye, bank: t.bank, roll: -(lim(t.bank, -.65, .65) * HEADCAM.bankK + eye.lean * HEADCAM.leanK) };   // (for checks)
+    } else {
+      const ex = t.x - Math.cos(t.a) * .55, ey = t.y - Math.sin(t.a) * .55;
+      camera.position.set(ex, 1.25 + hop, ey);
+      camera.lookAt(ex + c * 30, .2 + hop * .5, ey + s * 30);
+      const bank = lim(t.bank, -.65, .65) * .5; camera.rotateZ(-bank);
+    }
   }
   camera.updateProjectionMatrix();
 }
@@ -596,7 +779,7 @@ let last = 0, lost = false, draws3d = 0, ms3d = 0;
 function render(now) {
   requestAnimationFrame(render);
   pillText();   // d286: the 視点 pill follows the 2D カメラ too (cheap: only writes on a change)
-  if (mode === '2d' || !set || lost) { if (canvas.style.display !== 'none') { canvas.style.display = 'none'; light2d(false); } return; }
+  if (mode === '2d' || !set || lost) { if (canvas.style.display !== 'none') { canvas.style.display = 'none'; light2d(false); } if (lens.cv) lens.cv.style.display = 'none'; return; }
   const FRAME_MS = Q.fps ? 1000 / Q.fps : 0;   // the 3D view at 30 fps on スマホ軽量 (the race itself runs as before)
   if (FRAME_MS && now - last < FRAME_MS - 2) return;
   slowWatch(now, FRAME_MS);
@@ -623,6 +806,10 @@ function frame3d(now) {
   const t = todNow();
   if (t !== tod || VENUE.id !== venueId) { tod = t; venueId = VENUE.id; buildWorld(); }
   world.dist.visible = !!fleet; world.deco.visible = mode === 'top'; wxApply();
+  if (world_clockHand && typeof SS !== 'undefined') {   // d291: the same hand as the HUD clock (view.js): at the top while waiting, one turn per CLOCK s
+    const live = SS.phase !== 'off' && SS.phase !== 'entry';
+    world_clockHand.rotation.z = live ? -Math.max(0, time - SS.t0) / CLOCK * Math.PI * 2 : 0;
+  }
   for (const a of actors.values()) a.root.visible = false;
   for (const r of topRings.values()) r.visible = false;
   const rows = rowsNow(), me = targetRow().b, focal = h / 2 / Math.tan(camera.fov * Math.PI / 360);
@@ -657,9 +844,12 @@ function frame3d(now) {
     const sdt = lastGameT == null ? 0 : lim(time - lastGameT, 0, .1); lastGameT = time;   // the race clock (a demo can run fast)
     if (spray3) { stepSpray(sdt > 0 ? rows : [], sdt); spray3.pts.material.uniforms.scale.value = h / 2 / Math.tan(camera.fov * Math.PI / 360);
       spray3.pts.material.uniforms.tint.value.set(tod === 'night' ? 0x9fb2c8 : tod === 'evening' ? 0xffe2c8 : 0xffffff); }
+    if (spray3 && FX.on) { if (!wallMesh) makeWall(); wallMesh.visible = true; drawWalls(rows); wallMesh.material.uniforms.tint.value.copy(spray3.pts.material.uniforms.tint.value); }   // d287
+    else if (wallMesh) wallMesh.visible = false;
     if (rippleTex && !paused) { const d = WX3.wv > .3 ? (.4 + WX3.wv * .35) / 4.5 : 0; rippleTex.offset.x += dt * (.018 - WX3.ux * d); rippleTex.offset.y += dt * (.011 - WX3.uy * d); }   // d271: downwind like the 2D ripples
   }
   placeCamera(dt); stepRain();
+  { const sdt2 = paused ? 0 : dt; lensStep(sdt2, rows, me); }   // d287 (after the camera: the lens is where it is now)
   // 上空: no fog over the 600–900 m to the water (the weather's fog object is kept and put back on the way out)
   if (mode === 'top') { const f = scene.fog; if (f && (!fogKeep || fogKeep.f !== f)) fogKeep = { f, near: f.near, far: f.far }; if (f) { f.near = 1e6; f.far = 1e6 + 1; } }
   else if (fogKeep) { if (scene.fog === fogKeep.f) { scene.fog.near = fogKeep.near; scene.fog.far = fogKeep.far; } fogKeep = null; }
@@ -721,7 +911,7 @@ function applyTier(first) {
   if (shadow) { sun.shadow.mapSize.set(Q.shadow, Q.shadow); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
   if (wakeMesh && WMAX !== Q.wake) { scene.remove(wakeMesh); wakeMesh.geometry.dispose(); wakeMesh.material.dispose(); wakeMesh = null; }
   if (!wakeMesh) makeWake();
-  if (spray3 && SPRAY.max !== Q.spray) { scene.remove(spray3.pts); spray3.pts.geometry.dispose(); spray3.pts.material.dispose(); spray3 = null; }
+  if (spray3 && SPRAY.max !== sprayMax()) { scene.remove(spray3.pts); spray3.pts.geometry.dispose(); spray3.pts.material.dispose(); spray3 = null; }
   if (!spray3 && Q.spray > 0) makeSpray();
   if (WX3.rain && WX3.n !== Q.rain) { scene.remove(WX3.rain); WX3.rain.geometry.dispose(); WX3.rain.material.dispose(); WX3.rain = null; WX3.key = ''; }
   if (refl && refl.rt && waterNow() !== 'reflect') { refl.rt.dispose(); refl = null; }
@@ -732,6 +922,11 @@ function gfxUi() {
   const n = $('gfx3dNow'); if (n) n.textContent = gfxSet === 'auto' ? `（いま：${Q.label}）` : '';
   const a = $('gfx3d'), b = $('water3d'); if (a && a.value !== gfxSet) a.value = gfxSet; if (b && b.value !== waterSet) b.value = waterSet;
 }
+{ const el = $('spray3d'); if (el) { el.value = FX.on ? 'big' : 'std'; el.addEventListener('change', e => {   // d287 3D飛沫 標準／派手
+  FX.on = e.target.value === 'big'; try { localStorage.setItem(FX.key, e.target.value); } catch (x) {}
+  if (spray3 && SPRAY.max !== sprayMax()) { scene.remove(spray3.pts); spray3.pts.geometry.dispose(); spray3.pts.material.dispose(); spray3 = null; }
+  if (!spray3 && renderer && Q.spray > 0) makeSpray();
+}); } }
 for (const [id, key] of [['gfx3d', GFX.key], ['water3d', GFX.wKey]]) { const el = $(id); if (el) el.addEventListener('change', e => {
   const v = e.target.value; try { localStorage.setItem(key, v); } catch (x) {}
   if (id === 'gfx3d') { gfxSet = v; tierNow = v !== 'auto' ? v : PHONE ? 'lite' : 'pc'; } else waterSet = v;
@@ -774,5 +969,5 @@ function boot() {
   requestAnimationFrame(render);
   return booting;
 }
-window.View3D = { ready: false, setMode, toggle: toggleDisp, get last() { return lastMode(); }, get mode() { return mode; }, look, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0 }; } };
+window.View3D = { ready: false, setMode, toggle: toggleDisp, get last() { return lastMode(); }, get mode() { return mode; }, look, lens, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0 }; } };
 setMode(mode);

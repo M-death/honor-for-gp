@@ -2104,12 +2104,27 @@ function entryPace(r, R, nSlow, contested, leftOverride) {
   const left = leftOverride ?? Math.max(0, b.x - (-MK - entrySwing(en) + 3));
   return clamp(left / Math.max(0.5, tA - time), 1.8, 10);
 }
+// d293 (まえ): 枠番主張 holds until the stand-side 150m line after 2M (DIST_MARKS 150), not just up to 2M.
+// Squaring up to the start line (wait) still fixes the course. d294: ... except that the 150m line order decides.
+const CLAIM_END = { line: 150, rn: 18 };   // rn: common radius for comparing boats round 2M (angle × rn, so a wider line is not "ahead")
+const LINE150 = { tie: 0.3, tieLen: 4.6, warn: 18, hold: 2 };   // warn: m short of the line an outside claimer starts the inside boat going; hold: m a yielding boat stops short
+// an outside slow boat that is going for a course further in (claim, 牽制) — the inside boat has to beat it over the 150m line
+const line150Threat = q => (q.en.claimLeft > 0 && !q.en.gaveUp) || !!q.en.kenseiOn || !!q.player;   // s: boats over the 150m line within this of each other count as side by side
+function claimOpen(r) {
+  const st = r.en.stage, b = r.b;
+  if (st === 'pit' || st === 'out' || st === 'back' || st === 'turn') return true;
+  return st === 'approach' && !r.en.faced && b.x < slitXAt(b.y) - CLAIM_END.line;
+}
 function laneProg(r) {
   const b = r.b, st = r.en.stage;
   if (st === 'out' && r.en.straightDone && b.y > 5 && b.x < SMALL_TURN_BUOY.x - 8) return b.x;
-  if (st === 'back') return -b.x;
-  return null;
+  if (st !== 'back' && !(claimOpen(r) && (st === 'turn' || st === 'approach'))) return null;
+  // back straight → round 2M → stand side, one continuous measure (running −x, then round, then +x)
+  if (st === 'back' && b.x > -MK) return -b.x;
+  if (b.x <= -MK) return MK + CLAIM_END.rn * Math.atan2(-(b.x + MK), -b.y);
+  return MK + CLAIM_END.rn * Math.PI + (b.x + MK);
 }
+const progGrp = r => r.en.stage === 'out' ? 'o' : 'b';
 // ピット離れのコース取り: at the end of its straight run, a boat that is pitSteal m ahead of the boat inside it
 // (late out of the pits) goes for that course. It has to really pass it first: it keeps its own line and enough
 // speed to stay in front, and takes the course (turns in) only once it is a clear 8 m ahead — never behind it.
@@ -2203,7 +2218,7 @@ function entryStep(dt, playerInput) {
   for (let k = 1; k < inLanes.length; k++) {
     const o = inLanes[k], i = inLanes[k - 1];
     if (fleet.noMae || o.player || o.en.wantIn || o.en.dash || o.en.gaveUp || o.pref === 'out' || (o.en.gained || 0) >= 1) continue;
-    if (o.en.slot !== i.en.slot + 1 || o.en.stage !== i.en.stage || o.en.oppSeen.has(i.no)) continue;
+    if (o.en.slot !== i.en.slot + 1 || progGrp(o) !== progGrp(i) || o.en.oppSeen.has(i.no)) continue;
     if (laneProg(o) - laneProg(i) < ENTRY.opp.gap || i.b.v > o.b.v) continue;   // a real gap: the inside boat is behind and not closing
     o.en.oppSeen.add(i.no);
     if ((o.en.slot > 3 || i.en.slot === 1) && o.pref !== 'in') continue;   // the 1コース is only gone for by イン志向; dash-minded outside boats leave the slow courses alone   // the dash-minded outside boats don't fight for the slow courses
@@ -2211,7 +2226,7 @@ function entryStep(dt, playerInput) {
   }
   for (let k = 1; k < inLanes.length; k++) {
     const o = inLanes[k], i = inLanes[k - 1];
-    if (o.en.slot !== i.en.slot + 1 || o.en.stage !== i.en.stage) continue;
+    if (o.en.slot !== i.en.slot + 1 || progGrp(o) !== progGrp(i)) continue;
     // only a boat claiming the course (コース主張: the player's button, or a CPU rider going for it) ever takes it,
     // and only once it has got 2艇身 clear of the boat inside — however far ahead a boat runs, without a claim nothing changes
     if (!o.en.dash && o.en.claimLeft > 0 && !o.en.gaveUp && laneProg(o) - laneProg(i) >= ENTRY.claimLead) {       // running −x: smaller x is further along
@@ -2260,6 +2275,23 @@ function entryStep(dt, playerInput) {
           en.slot = to;
           toast('割り込み不可', `${r.no}号艇 正対が遅れ、外へ`, 'warn');
         }
+      }
+    }
+    // d293 (まえ) 150m見通し線: a slow boat reaching the stand-side 150m line after a boat that is already over it
+    // takes the course outside that boat. Over it together (within a boat length, LINE150.tieLen): the one nearer the mark line is inside.
+    // d294 (まえ): squaring up short of the line fixes nothing — whoever is over the line first has the inside,
+    // and a boat that gets there later always goes outside it (semi-auto: it steers out to its new line).
+    if (!en.dash && !en.rewind && en.cross150 == null && (en.stage === 'approach' || en.stage === 'wait') && Math.cos(b.a) > 0
+        && b.x >= slitXAt(b.y) - CLAIM_END.line) {
+      en.cross150 = time; en.crossY = b.y + VENUE.slitK * b.x;   // y read back to the start line, like a course
+      const ahead = boats.filter(q => q !== r && !q.en.dash && !q.en.rewind && q.en.cross150 != null && q.en.slot > en.slot
+        && (q.en.cross150 < time - Math.max(LINE150.tie, LINE150.tieLen / Math.max(1, b.v)) || q.en.crossY < en.crossY));   // 横並び: over within about a boat length
+      if (ahead.length) {
+        const to = Math.max(...ahead.map(q => q.en.slot)), from = en.slot;
+        for (const q of boats) if (q !== r && q.en.slot > from && q.en.slot <= to) q.en.slot--;
+        en.slot = to; E.line150 = (E.line150 || 0) + 1; en.moved150 = true;
+        for (const q of boats) if (q !== r && q.en.slot >= from && q.en.slot < to) q.en.moved150 = true;
+        toast('150m線', `${r.no}号艇 後から、外へ`, 'warn');
       }
     }
     // 回り直し: far too late squaring up
@@ -2326,7 +2358,13 @@ function entryStep(dt, playerInput) {
           const ready = dashAuto ? E.zero - time <= ENTRY.playerDashFace + 2.5 && (Math.abs(dy) < 2.5 || E.zero - time <= ENTRY.playerDashFace) : rate >= (en.dash ? ENTRY.faceRate : ENTRY.faceRateSlow) && Math.abs(dy) < 2.5;
           // an outside boat that means to pull keeps its bow off the line until it does (it can't pull once squared up)
           const willPull = !r.player && !en.dash && !en.noPull && (en.slot >= 4 || (en.kado3 && en.slot === 3)) && r.pref !== 'in' && !(en.wantIn && !en.gaveUp);
+          // d294 150m見通し線: a slow boat that keeps its course has to be over the line before the slow boats outside it,
+          // so when one of them nears the line it squares up and goes now (the earlier it goes, the deeper it ends up)
+          const rush = !en.dash && !en.rewind && !willPull && en.cross150 == null && boats.some(q => q !== r && !q.en.dash && !q.en.rewind
+            && q.en.slot > en.slot && q.en.cross150 == null && line150Threat(q) && q.b.x > slitXAt(q.b.y) - CLAIM_END.line - LINE150.warn);
+          if (rush && !en.facing) en.rush150 = true;
           if (dashAuto) { if (ready) en.facing = true; }   // (the swing round to face takes ~2.5 s)
+          else if (rush) en.facing = true;
           else if (!willPull && (ready || manual || T < 11 || (dy < -3 && T < 16) || (en.fightWith && !en.gaveUp))) en.facing = true;
         }
         if (en.facing) { tx = b.x + 20; ty = b.y + clamp(dy, -6, 6); vT = WAIT_V; }
@@ -2354,8 +2392,23 @@ function entryStep(dt, playerInput) {
             if (en.kenseiOn) rate = Math.max(rate, b.x < inB.b.x + ENTRY.kensei.level ? ENTRY.kensei.creep : inB.b.v * Math.cos(inB.b.a) + 0.3);   // up to its bow, then pressing alongside it
           }
         }
-        // straight at the line: the rudder only holds the heading
-        tx = b.x + 30; ty = b.y; vT = Math.max(rate, 0.5);
+        // d294: before its 150m line, keep over it ahead of the slow boats outside (bow a little ahead, not just level)
+        if (!en.dash && !en.rewind && en.cross150 == null) {
+          for (const q of boats) if (q !== r && !q.en.dash && !q.en.rewind && q.en.slot > en.slot && q.en.cross150 == null && line150Threat(q) && q.b.x > slitXAt(q.b.y) - CLAIM_END.line - LINE150.warn)
+            rate = Math.max(rate, Math.min(5, q.b.v * Math.cos(q.b.a) + (q.b.x - b.x + 2) * 0.4));
+          // 枠なり: a CPU boat not going for a course further in lets the slow boats inside it over the line first
+          // (near the line it keeps its bow a little behind theirs; it can't stop dead, so it starts holding back early)
+          if (!r.player && !line150Threat(r) && slitXAt(b.y) - CLAIM_END.line - b.x < LINE150.warn + 12) {
+            for (const q of boats) if (q !== r && !q.en.dash && !q.en.rewind && q.en.slot < en.slot && q.en.cross150 == null) {
+              const room = Math.min(slitXAt(b.y) - CLAIM_END.line - LINE150.hold - b.x - b.v * 2, q.b.x - LINE150.hold - b.x);
+              rate = Math.min(rate, Math.max(0, (q.en.faced ? q.b.v * Math.cos(q.b.a) : 0) + room * 0.4));
+            }
+          }
+        }
+        // straight at the line: the rudder only holds the heading — d294 (まえ): semi-auto, it may still edge onto a new line
+        // (a boat sent outside at the 150m line slides out behind the boats now inside it)
+        const dyL = en.moved150 ? sp.y - b.y : 0;
+        tx = b.x + 30; ty = Math.abs(dyL) > 1.5 ? b.y + clamp(dyL, -2.5, 2.5) : b.y; vT = Math.max(rate, 0.5);
         const xProj = b.x + Math.max(rate, WAIT_V, manual ? b.v : 0) * T;
         en.projOk = Math.max(0, -xProj - creepAfter(Math.max(20, -xProj)));
       }
@@ -2408,8 +2461,8 @@ function entryStep(dt, playerInput) {
   // fights for a course: each side gives up after a while, or when it's being dragged too deep
   for (const r of boats) {
     const en = r.en;
-    // claims and fights for a course are settled on the way to 2M: from there on the order stands
-    if (en.stage !== 'pit' && en.stage !== 'out' && en.stage !== 'back') {
+    // claims and fights for a course are settled by the stand-side 150m line (or squaring up): from there on the order stands
+    if (!claimOpen(r)) {
       en.claimLeft = 0;
       if (en.fightWith) { en.fightWith.en.fightWith = null; en.fightWith = null; }
     }
@@ -2469,12 +2522,12 @@ function cpuDashChoice(r, nSlowNow) {
   if (slot <= 2) return;
   if (r.pref === 'out' || (slot >= 4 && simRandom() < 0.92) || (slot === 3 && (simRandom() < ENTRY.kado.choice3 || (en.lost && simRandom() < 0.5)))) { en.dash = true; en.how = 'choice'; en.dashBonus = ENTRY.dashDepth * simRandom() * 0.15; }
 }
-// コース主張 (button / controller A): each press asks for one course further in. Only while running to 2M.
+// コース主張 (button / controller A): each press asks for one course further in. Only until the stand-side 150m line.
 function playerClaim() {
   const r = fleet && fleet.entry && fleet.boats.find(q => q.player);
   if (!r || fleet.noMae) return;
   const en = r.en;
-  if (en.dash || !['pit', 'out', 'back'].includes(en.stage)) { toast('主張できない', en.dash ? 'ダッシュに引いた後は主張できない' : '2マークを回ったらコースは決まり', 'warn'); return; }
+  if (en.dash || !claimOpen(r)) { toast('主張できない', en.dash ? 'ダッシュに引いた後は主張できない' : en.faced ? '正対したらコースは決まり' : '150m線を過ぎたらコースは決まり', 'warn'); return; }
   const want = Math.min(en.slot - 1, en.claimLeft + 1);
   if (want <= en.claimLeft) { toast('主張できない', 'これ以上内のコースはない', 'warn'); return; }
   en.claimLeft = want; en.wantIn = true; en.gaveUp = false;
@@ -2548,8 +2601,12 @@ function envDay(V, season, prev, force) {
   return { strong, storm, rain, base, dirs, tide0, tBase };
 }
 // d258 (リプレイ側の指摘): 発走時刻 follows the ナイター setting — night runs 1R 15:10 (as 6艇レース), day/夕方 the venue's day schedule
-const NIGHT_START = 15 + 10 / 60;
-const raceHourOf = (V, R) => ((typeof todMode !== 'undefined' && todMode === 'night') ? NIGHT_START : V.start.hour) + (R - 1) * V.start.per;
+const NIGHT_START = 15 + 10 / 60, MIDNIGHT_START = 17 + 10 / 60, MORNING_START = 8 + 30 / 60;   // d290 モーニング: 1R 8:30 … 12R 14:00   // d289 ミッドナイト: 12R 22:40 (大村ミッドナイトの最終レース締切 22:40 に合わせて)
+const raceHourOf = (V, R) => {   // d288: 自動 + ナイター開催 節; d289: ミッドナイト開催
+  const S = typeof setsu !== 'undefined' && setsu, tm = typeof todMode !== 'undefined' ? todMode : 'day';
+  const h0 = S && S.night === 'morning' ? MORNING_START : (tm === 'night' || tm === 'auto') && S && S.night === 'mid' ? MIDNIGHT_START : tm === 'night' || tm === 'auto' && S && S.night ? NIGHT_START : V.start.hour;
+  return h0 + (R - 1) * V.start.per;
+};
 const hourTxt = h => `${Math.floor(h + 1e-9)}:${String(Math.round((h % 1) * 60) % 60).padStart(2, '0')}`;
 function envRace(V, D, R) {
   const dir = D.dirs[Math.min(2, Math.floor((R - 1) / 4))], wind = Math.round(D.base * envU(...V.wind.gust) * (V.wind.lateR && R >= V.wind.lateR ? V.wind.lateK : 1) * 2) / 2;
