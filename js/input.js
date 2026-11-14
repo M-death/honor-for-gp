@@ -208,7 +208,7 @@ function initAudio() {
   const comp = c.createDynamicsCompressor();
   comp.threshold.value = -14; comp.ratio.value = 6;
   snd.master = c.createGain(); snd.master.gain.value = 0;
-  snd.master.connect(comp); comp.connect(c.destination);
+  snd.master.connect(comp); comp.connect(c.destination); snd.comp = comp;   // (d304: the recorder taps it)
   const len = c.sampleRate * 2, buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   snd.noise = buf;

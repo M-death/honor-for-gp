@@ -233,7 +233,7 @@ body.lab-running>.posture-stick{display:none!important}
 @media (max-height:520px){.menu-card{padding:10px 16px}.menu-card h1{font-size:20px}.menu-card h1 .sub{display:inline;margin:0 0 0 10px;font-size:12px;letter-spacing:.2em}
 .menu-top{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin:4px 0}.menu-top .plrow{margin:0}.menu-top .plrow select,.menu-top .plrow input,.menu-top .plrow .btn{padding:4px 8px;font-size:13px}
 #controlHelp{display:none}.menu-main{margin:6px 0}.btn.big{min-height:50px;padding:8px 10px;font-size:16px}.menu-sub .btn{padding:7px 12px}.menu-dev{margin:6px 0 2px}}
-#rpv{position:fixed;inset:0;z-index:7;pointer-events:none}
+#rpv{position:fixed;inset:0;z-index:7;pointer-events:none}body.rpvrec #rpv{display:none}
 #rpv .rpv-info{position:absolute;left:calc(10px + var(--sl));top:calc(10px + var(--st));background:var(--hud);border:1px solid var(--hud-line);border-radius:10px;padding:8px 12px;font-size:12px;line-height:1.55;max-width:min(360px,60vw);pointer-events:auto}
 #rpv .rpv-info b{display:block;font-size:13px}#rpvClock{font-family:var(--f-num);font-size:20px;display:block}
 #rpvBoat{font-variant-numeric:tabular-nums}#rpvOrder span{display:inline-block;min-width:20px;text-align:center;border-radius:4px;margin:0 2px 0 0;font-weight:700}
@@ -574,7 +574,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
     <p id="taGaps" style="font-size:13px;color:var(--fg);margin:4px 0"></p>
     <div id="netRow" hidden><p id="netMsg" style="font-size:13px;color:var(--fg);margin:6px 0 2px"></p><div class="row"><button class="btn" id="netSend">全体ランキングに送る</button><button class="btn ghost" id="netSendG">ゴーストも付けて送る</button></div></div>
     <p id="taNote" style="font-size:12px;color:var(--muted)"></p>
-    <div class="row"><button class="btn" id="taAgain">もう一度</button><button class="btn ghost" id="taGhostOut">ゴーストを書き出す</button><button class="btn ghost" id="taLog">ログ</button><button class="btn ghost" id="taSlit" hidden>スリット写真</button><button class="btn ghost" id="taPlay" hidden>リプレイを見る</button><button class="btn ghost" id="taVid" hidden>リプレイ保存</button><button class="btn ghost" id="taClose">閉じる</button></div>
+    <div class="row"><button class="btn" id="taAgain">もう一度</button><button class="btn ghost" id="taGhostOut">ゴーストを書き出す</button><button class="btn ghost" id="taLog">ログ</button><button class="btn ghost" id="taSlit" hidden>スリット写真</button><button class="btn ghost" id="taPlay" hidden>リプレイを見る</button><button class="btn ghost" id="taRec" hidden>動画を作る</button><button class="btn ghost" id="taVid" hidden>リプレイ保存</button><button class="btn ghost" id="taClose">閉じる</button></div>
     <p id="taVidMsg" hidden style="margin:6px 0 0;font-size:12px;color:var(--muted,#9bb)"></p>
   </div>
 </div>
@@ -596,7 +596,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
     <div id="resPhoto" hidden><p id="resPhotoTxt" style="margin:0 0 6px;font-weight:700;color:#ffb02e"></p><canvas id="resPhotoCv" width="560" height="120" style="width:100%;max-width:560px;border-radius:6px;display:block"></canvas></div>
     <div class="tablewrap"><table class="race res"><thead><tr><th>着</th><th>艇</th><th>選手</th><th>級</th><th>進入</th><th>ST</th><th>タイム</th></tr></thead><tbody id="resBody"></tbody></table></div>
     <p id="resVidMsg" hidden style="margin:6px 0 0;font-size:12px;color:var(--muted,#9bb)"></p>
-    <div class="row"><button class="btn ghost" id="resPlay" hidden>リプレイを見る</button><button class="btn ghost" id="resVid" hidden>リプレイ保存</button><button class="btn" id="resNext">次へ</button></div>
+    <div class="row"><button class="btn ghost" id="resPlay" hidden>リプレイを見る</button><button class="btn ghost" id="resRec" hidden>動画を作る</button><button class="btn ghost" id="resVid" hidden>リプレイ保存</button><button class="btn" id="resNext">次へ</button></div>
   </div>
 </div>
 
@@ -710,6 +710,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
 <script src="js/vlog.js"></script>
 <script src="js/menu.js"></script>
 <script src="js/replay.js"></script>
+<script src="js/rec.js"></script>
 <script src="js/perflog.js"></script>
 <script src="js/main.js"></script>
 <script type="importmap">{"imports":{"three":"./hfgp3d/viewer/vendor/three.module.js"}}</script>

@@ -627,9 +627,10 @@ function makeDriver(prof, trait = {}) {
     return true;
   }
   function avoid(b, others) {
-    let steerAdd = 0, thrMul = 1, giveWay = false;
+    let steerAdd = 0, thrMul = 1, giveWay = false, wallHeld = false;
     const priority=prioNow(), threats=[];
     if (!others) return { steerAdd, thrMul };
+    if (WALL_HOLD.bully && WALL_HOLD.bully.includes(trait.course)) return { steerAdd, thrMul, priority, threats, giveWay };   // (tests only: a boat that never gives way, like a forceful player)
     const fx = Math.cos(b.a), fy = Math.sin(b.a);
     const inTurn = nearMarkAt(b.x, b.y, 22);
     const margin = 0.5 + 0.5 * care + (inTurn ? 0.4 : 0) + (priority ? 1.0 : 0);
@@ -649,6 +650,13 @@ function makeDriver(prof, trait = {}) {
       }
       const tsukeTgt = !priority && mem.tacticNow === 'tsuke' && q === mem.tsukeQ && !mem.firstDone;
       if (gapMin > (tsukeTgt ? 0.15 : margin)) continue;   // stays clear
+      // d305 壁: not clear ahead of me and not just a boat I am running up behind → hold my line and my drive
+      if (wallHold(b, q, priority, fwd)) {
+        wallHeld = true;
+        // (the ダンプ choice of the inside boat coming off a turn alongside stays as it was)
+        if (lat >= 0 && nearMarkAt(b.x, b.y, 30) && fwd > -1.5 && !mem.dumpSeen.has(q) && trait.dump > 0) { mem.dumpSeen.add(q); if (simRandom() < trait.dump * 0.6) { mem.dumpT = 0.55; mem.dumpQ = q; } }
+        continue;
+      }
       const urg = clamp(1 - tc / 1.8, 0, 1) * (gapMin < 0 ? 1 : 1 - 0.5 * gapMin / margin);
       if(priority)threats.push({boat:fleet?.boats.find(r=>r.b===q)?.no??null,predictedGapM:gapMin,atSeconds:tc,clearanceM:margin});
       const cl = -rcx * fy + rcy * fx;                     // where it will be, across my bow
@@ -702,6 +710,7 @@ function makeDriver(prof, trait = {}) {
     }
     // near a turn mark there is no room inside: only dodge outward, otherwise lift off
     if (inTurn && steerAdd < 0 && !(mem.emergency > 0)) { thrMul = Math.min(thrMul, CPU_TURN.inDodgeThr); steerAdd = 0; }
+    if (wallHeld) mem.wallT = 0.3;   // (for checks: it held its line against someone this moment)
     // d237: the wall — where it will be in a second, a boat closing on the bank turns off it (住之江: the stand side closes in toward 1M)
     { const p = { x: b.x + Math.cos(b.a) * b.v * WALL_AVOID.t, y: b.y + Math.sin(b.a) * b.v * WALL_AVOID.t }, g = wallGap(p.x, p.y);   // (straight on: cheap)
       if (g < WALL_AVOID.gap) { const away = p.y >= 0 ? -Math.PI / 2 : Math.PI / 2, s = Math.sign(Math.sin(away - b.a)) || -Math.sign(p.y || 1);
@@ -1612,6 +1621,7 @@ function turnRoleOf(b, env, style) {
     if (o.y > b.y + 0.5) { const oc = (o.src || o).commitTurn; if (((o.x - PLAN_HULL.stern) - (b.x + BOW_TIP) >= CLEAR_AHEAD + TURN_ORDER.yieldMargin || (oc && o.x - b.x > TURN_ORDER.commitLead)) && (!yieldTo || o.x > yieldTo.x)) yieldTo = o; continue; }   // clearly in front — not just a nose
     if (o.y >= b.y - 0.5) continue;
     if ((b.x - PLAN_HULL.stern) - (o.x + BOW_TIP) >= CLEAR_AHEAD + TURN_ORDER.yieldMargin) continue;
+    if (wallTarget(o) && (b.x - PLAN_HULL.stern) - (o.x + BOW_TIP) >= 0) continue;   // d305 (まえ: 最内差しが簡単): the player inside me gets the buoy only with its bow in past my stern (舳先がかかる) — not from behind it
     if (style === 'commit' && b.x - o.x > TURN_ORDER.commitLead) continue;   // going flat out with my nose in front: it turns after me (the same test it uses)   // clearly in front of it (the same test it uses to give way): no obstacle
     ins.push(o);
     const d = (b.y - o.y) + Math.max(0, b.x - o.x) * 0.5;
@@ -1674,6 +1684,44 @@ function turnRoleOf(b, env, style) {
 // inside is crowded, lift and turn late and tight behind them all — the 6コース 最内差し)
 const COMMIT = { at: 25, lead: 3.5, dv: 1.0 };   // 叩き: decided this far past the slit; needs this lead (m) and this much more speed (m/s) than the boat inside
 const SIDE_ON = { ang: 0.6, yaw: 0.3, cut: 0.95 };
+/* d305 壁 (まえ: まくりと最内差しが簡単、スタートが決まらなくてもまくれる — CPUが安全のために引いているから。完全に前に出られた
+   以外は内の艇は壁として抵抗、ぶつかって転覆したら無理に絞った側の責任; 斜行はあまり取らない代わりに、沈めた・沈んだら強引に行った
+   方の責任; 強引なのはプレイヤーだからCPU同士の事故はあまり増えないはず): in a race, a CPU boat no longer lifts off or steers
+   out of the way of a boat coming at it from the side unless that boat is clear ahead (its stern past my bow). It keeps its
+   line and its drive — the boat forcing its way in takes the contact (see FORCE). Running up behind a boat is still avoided. */
+const WALL_HOLD = { on: true, vsCpu: false, vs: null, clear: 0, ahead: 0.5 };   // d306 ahead: its middle this far (m) past my bow = it is in front of me (turned in first) → slow and let it go, as before   // vsCpu false: against the player only (all CPUs walling each other: 2M/1M contact accidents 2→7 per 48R); vs: boat numbers treated like the player (tests)
+const FORCE = { on: true, minClose: 1.0, ahead: 0 };
+WALL_HOLD.clear = BOW_TIP + PLAN_HULL.stern + CLEAR_AHEAD;
+// d305: which of two touching boats forced it — the one moving in toward the other faster, by FORCE.minClose m/s or more
+function forcerOf(A, B) {
+  const ux = B.b.x - A.b.x, uy = B.b.y - A.b.y, d = Math.hypot(ux, uy) || 1, nx = ux / d, ny = uy / d;
+  const vel = b => [Math.cos(b.a) * b.v - Math.sin(b.a) * (b.vl || 0), Math.sin(b.a) * b.v + Math.cos(b.a) * (b.vl || 0)];
+  const [ax, ay] = vel(A.b), [bx, by] = vel(B.b);
+  // the part of each velocity across the two boats' common heading (so plain running side by side at speed counts for nothing)
+  const hx = Math.cos(A.b.a) + Math.cos(B.b.a), hy = Math.sin(A.b.a) + Math.sin(B.b.a), hl = Math.hypot(hx, hy) || 1, px = -hy / hl, py = hx / hl;
+  const side = Math.sign(nx * px + ny * py) || 1;   // B is on this side of A, across the heading
+  const cA = (ax * px + ay * py) * side, cB = -(bx * px + by * py) * side;   // m/s each moves toward the other
+  if (cA - cB >= FORCE.minClose && cA > 0.3) return A;
+  if (cB - cA >= FORCE.minClose && cB > 0.3) return B;
+  return null;
+}
+const wallTarget = o => { if (!WALL_HOLD.on || !fleet || !fleet.raceOn || fleet.caution) return false; const q = o.src || o, r = fleet.boats.find(x => x.b === q); return !!r && !r.dq && (WALL_HOLD.vsCpu || r.player || !!(WALL_HOLD.vs && WALL_HOLD.vs.includes(r.no))); };
+function wallHold(b, q, priority, fwd) {
+  if (!WALL_HOLD.on || priority || !fleet || !fleet.raceOn || fleet.caution || q.cap > 0 || b.cap > 0) return false;
+  const qr = fleet.boats.find(r => r.b === q); if (!qr || qr.dq || qr.out || qr.flying) return false;
+  if (!WALL_HOLD.vsCpu && !qr.player && !(WALL_HOLD.vs && WALL_HOLD.vs.includes(qr.no))) return false;
+  const fx = Math.cos(b.a), fy = Math.sin(b.a), along = (q.x - b.x) * fx + (q.y - b.y) * fy;
+  // its stern (along its own heading) past my bow by the clear margin: it is in front — give it the water as before
+  const sAlong = along - PLAN_HULL.stern * Math.cos(wrapRad(q.a - b.a));
+  if (sAlong - BOW_TIP >= CLEAR_AHEAD) return false;
+  // d306 (まえ: 横っ腹にまっすぐ突っ込んでくる — 減速が間に合う距離で先にターンに入られたら内側が悪い): a boat whose middle is past my bow
+  // is in front of me, not alongside — I lift and go behind it as before; the wall is only against a boat alongside (舳先がかかる程度)
+  if (fwd > BOW_TIP + WALL_HOLD.ahead) return false;
+  // straight up its stern, going my way: that is running into it from behind, not a side fight
+  const sameWay = Math.abs(wrapRad(q.a - b.a)) < 0.5, lat = -(q.x - b.x) * fy + (q.y - b.y) * fx;
+  if (sameWay && fwd > 1.5 && Math.abs(lat) < 1.6) return false;
+  return true;
+}   // d305: the boat closing in sideways faster (m/s more) is the one forcing — it carries the contact
 const TBONE = { crossAng: 0.25 };   // d276: hit boat heading in across the other's line by more than this (rad) → it is the one that crossed   // giving way to a boat turning across: heading difference (rad), its turn rate (rad/s), how hard to lift
 const KADO_UKE = { on: true, abortLead: 5, abortK: 8, makuriK: 10, msK: 8, touch: 5.5, liftLead: 4.5, liftP: { calm: 0.8, normal: 0.65, aggr: 0.45 }, liftT: 1.2, liftThr: 0.7, at: 0, maxLead: 4, lat: 9, p: { calm: 0.5, normal: 0.7, aggr: 0.85 }, lost: 6, won: 5, until: 85 };   // d245 カド受け（d247: 張らずに進路を保つ。1艇身＝5m前へ出たら外へ出てまくってよい）: from the slit; only if the dash is < this far ahead; chance by temper; m held off it; m/step out; gives up when it is this far ahead; done when this far in front of it
 const MAKURI3 = { lead: 1.5, p: 0.6, wallP: { calm: 0.25, normal: 0.45, aggr: 0.65 } };   // 3コース: m in front of the 2 to go for it; chance; カド受けの壁 by temper
@@ -3027,7 +3075,8 @@ function fleetStep(dt, playerInput) {
     if (fighter && !fighter.out && time > (fighter.fightRollT || 0)) {
       fighter.fightRollT = time + 0.5;
       const other = fighter === A ? Bt : A;
-      if (simRandom() < SQUEEZE.fightCap * (fighter.prof.hazMul ?? (RISK[fighter.prof.name] || RISK.B1).hit)) accident(fighter, simRandom() < 0.5 ? '転覆' : '落水', `${other.no}号艇の絞りに抵抗して接触`);
+      if (FORCE.on && !other.dq) other.interfere = { q: fighter, t: time, force: true };   // d305: going over under a squeeze is the squeezer's doing
+      if (simRandom() < SQUEEZE.fightCap * (fighter.prof.hazMul ?? (RISK[fighter.prof.name] || RISK.B1).hit)) accident(fighter, simRandom() < 0.5 ? '転覆' : '落水', `${other.no}号艇の絞りで接触`, other);
     }
     if (e.J < 1.5) continue;
     for (let n = 0; n < Math.min(14, 4 + e.J * 2); n++) {
@@ -3048,6 +3097,16 @@ function fleetStep(dt, playerInput) {
       const by = cross ? y : x, on = cross ? x : y;
       if (!by.dq) { by.interfere = { q: on, t: time }; if (!cross) by.tbone = (by.tbone || 0) + 1; }
     }
+    // d305 FORCE (まえ: 沈めたり、沈んだりしたら強引に行った方の責任): the boat that was closing in sideways on the other carries the
+    // contact — if the other goes over it is 妨害失格; if it goes over itself, that is its own doing (the wall is not blamed)
+    if (FORCE.on) { let f = forcerOf(A, Bt);
+      // d306 (まえ): with the player in it, a bow put into the side of a boat that was already in front of it (its middle past that bow)
+      // is the hitter's doing, whoever was moving across — it had the room to slow down
+      if (A.player || Bt.player || wallTarget(A.b) || wallTarget(Bt.b)) for (const [x, y] of [[A, Bt], [Bt, A]]) {
+        const bw = boatBow(x.b), ang = Math.abs(wrapRad(x.b.a - y.b.a)), fwdY = (y.b.x - x.b.x) * Math.cos(x.b.a) + (y.b.y - x.b.y) * Math.sin(x.b.a);
+        if (ang > SIDE_ON.ang && Math.hypot(e.x - bw.x, e.y - bw.y) < 1.6 && fwdY > BOW_TIP + WALL_HOLD.ahead) { f = x; break; }
+      }
+      if (f) { const o = f === A ? Bt : A; if (o.interfere && o.interfere.q === f && o.interfere.t === time) o.interfere = null; if (!f.dq) f.interfere = { q: o, t: time, force: true }; fleet.forces = (fleet.forces || 0) + 1; } }
     (fleet.touchLog || (fleet.touchLog = [])).push({ t: time, a: A, b: Bt, J: e.J, x: e.x, y: e.y, ra: A.drv && A.drv.mem.turnRole && A.drv.mem.turnRole.role, rb: Bt.drv && Bt.drv.mem.turnRole && Bt.drv.mem.turnRole.role, pa: [A.b.x, A.b.y, A.b.a], pb: [Bt.b.x, Bt.b.y, Bt.b.a] });
     sfxHit(e.x, e.y, e.J);
     // contact right after cutting across the victim's path is interference
@@ -3465,7 +3524,7 @@ function accident(r, kind, why, by) {   // by: the boat whose contact put it ove
   r.out = kind; r.dq = true; fleet.accidents++;
   if (VR) VR.ev(kind === '落水' ? 'fall' : 'capsize', r.no, { why, x: r.b.x, y: r.b.y });
   // the boat that cut across it and hit it just before: 妨害失格
-  for (const x of fleet.boats) if (x !== r && !x.dq && (!by || x === by) && x.interfere && x.interfere.q === r && time - x.interfere.t < 3) { x.hindered = true; disqualify(x, `${r.no}号艇を${kind}させた`); }
+  for (const x of fleet.boats) if (x !== r && !x.dq && (!by || x === by) && x.interfere && x.interfere.q === r && time - x.interfere.t < 3 && (!x.interfere.force || x === by)) { x.hindered = true; disqualify(x, `${r.no}号艇を${kind}させた`); }   // d305: a forced contact counts only when that contact put it over
   const b = r.b;
   b.cap = 1e9; b.fallen = kind === '落水'; b.v *= 0.4; b.vl *= 0.3;
   if (b.fallen) { b.fx = b.x - Math.cos(b.a) * 3.5 + Math.sin(b.a) * 1.5; b.fy = b.y - Math.sin(b.a) * 3.5 - Math.cos(b.a) * 1.5; }

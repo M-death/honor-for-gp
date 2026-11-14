@@ -1197,6 +1197,7 @@ function frame3d(now) {
   if (sun.castShadow) sun.shadow.camera.updateProjectionMatrix();
   camera.updateMatrixWorld(); if (refl && mode !== 'top') renderReflection(w * dpr, h * dpr);   // 上空: the mirror would only show the sky
   renderer.render(scene, camera);
+  if (window.recAfter3D) window.recAfter3D();   // d304 簡易リプレイ動画 (rec.js): copy this frame while it is fresh
 }
 
 /* ---------- the switch: a pill in the top bar and the V key ---------- */
