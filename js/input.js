@@ -835,7 +835,7 @@ function currentPad() {
 }
 /* ---- コントローラでメニュー操作: 十字キー／左スティックで選び、A＝決定、B＝キャンセル ----
    Works on whichever menu is on top (overlays, the lab screens, the replay chip). */
-const PAD_MENU = { repeat0: 0.38, repeat: 0.14, stick: 0.55 };
+const PAD_MENU = { repeat0: 0.38, repeat: 0.14, stick: 0.55, scroll: 700 };
 const padNav = { surf: null, el: null, held: 0, t: 0 };
 function padMenuSurface() {
   let best = null, bz = -1;
@@ -873,7 +873,14 @@ function padMenu(g, down, edge, dt) {
     // start on the menu's main button (the first .btn that isn't a ghost), else the first item
     padMenuMark(items.find(e => e.classList.contains('btn') && !e.classList.contains('ghost')) || items[0] || null);
   }
-  const ay = g.axes[1] || 0, ax = g.axes[0] || 0;
+  let ay = g.axes[1] || 0, ax = g.axes[0] || 0;
+  // d313 (まえ: バックボタンの出走表、スクロールしないと読めない時は左スティックで動かす): on the 出走表 the left stick scrolls
+  // the card (up/down) and the wide table (left/right) instead of moving between buttons (十字キー still does)
+  if (surf.id === 'card') {
+    const lx = padDz(ax), ly = padDz(ay), c = surf.querySelector('.card'), tw = surf.querySelector('.tablewrap');
+    if (ly && c) c.scrollTop += ly * dt * PAD_MENU.scroll; if (lx && tw) tw.scrollLeft += lx * dt * PAD_MENU.scroll;
+    ax = ay = 0;
+  }
   const dir = down(12) || ay < -PAD_MENU.stick ? -1 : down(13) || ay > PAD_MENU.stick ? 1 : 0;
   const side = down(14) || ax < -PAD_MENU.stick ? -1 : down(15) || ax > PAD_MENU.stick ? 1 : 0;
   const any = dir || side;
@@ -912,6 +919,7 @@ function padMenu(g, down, edge, dt) {
   if (edge(1)) padMenuCancel(surf);
   return true;
 }
+const R3_HOLD = 0.35;
 function pollPadButtons(dt = 0) {
   const g = currentPad();
   $('padTag').hidden = !g;
@@ -943,7 +951,10 @@ function pollPadButtons(dt = 0) {
   }
   // d269 (まえ): 十字キー 上／下 = 視点を順に切り替え（d286: 選んでいる表示 2D／3D の中で）
   if ((edge(12) || edge(13)) && $('settings').hidden && $('card').hidden) viewCycle(edge(13) ? 1 : -1);
-  if (edge(11) && $('settings').hidden && $('card').hidden && window.View3D && View3D.toggle) View3D.toggle();   // d286: 右スティック押し込み = 表示 2D ⇄ 3D
+  // d286: 右スティック押し込み = 表示 2D ⇄ 3D. d315 (まえ: コントローラーをつなぐと3Dにならない／2Dに戻る): only a deliberate press —
+  // held R3_HOLD s, on a standard-mapped pad, once per press — so a twitchy or oddly mapped button 11 can't flip it
+  if (down(11) && g.mapping === 'standard') { pad.r3 = (pad.r3 || 0) + dt; if (pad.r3 >= R3_HOLD && !pad.r3Done && $('settings').hidden && $('card').hidden && window.View3D && View3D.toggle) { pad.r3Done = true; View3D.toggle(); } }
+  else { pad.r3 = 0; pad.r3Done = false; }
   if (edge(2) && running && $('settings').hidden && $('card').hidden) restartPractice();   // X = 練習をやり直す
   if (edge(3) && running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();
   pad.prev = g.buttons.map(b => b.pressed);

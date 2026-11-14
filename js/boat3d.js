@@ -96,7 +96,7 @@
   function init(){
     if(!canvas){
       canvas=document.createElement('canvas');
-      canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();fail('3D描画の復帰待ち');});
+      canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();fail(api.asleep?'3D視点の間は休止':'3D描画の復帰待ち');});   // d312: sleeps while the 3D view shows (api.sleep/wake)
       canvas.addEventListener('webglcontextrestored',()=>{try{init();}catch(e){fail('3Dを利用できません');}});
     }
     gl=canvas.getContext('webgl',{alpha:true,antialias:false,premultipliedAlpha:true,depth:true,stencil:false,preserveDrawingBuffer:false,powerPreference:'low-power'});
@@ -199,6 +199,8 @@
     ctx.drawImage(canvas,q.x,q.y,q.tile,q.tile,-api.span/2,-api.span/2,api.span,api.span);return true;
   };
   api.status=status;
+  api.sleep=function(){if(api.asleep||!gl)return;const x=gl.getExtension('WEBGL_lose_context');if(!x)return;api.asleep=x;x.loseContext();};
+  api.wake=function(){const x=api.asleep;if(!x)return;api.asleep=null;try{x.restoreContext();}catch(e){}};
   api.setMode=function(mode){api.mode=modeOf(mode);if(api.mode==='new3d'&&window.Boat3DX)Boat3DX.start();try{localStorage.setItem('honorGP.boatRender',api.mode);}catch(e){}status();};
   // Read-only diagnostics for smoke/regression checks. Poses are copied, never written to boats.
   api.inspectPose=(b,inp,t=0)=>api.ready?{matrices:Array.from(pose(b,inp,t)),names:{...data.names}}:null;

@@ -41,6 +41,30 @@ const camS = { x: 0, y: 0, a: 0, init: false };
 
 /* ---------- the GLBs come embedded (js/hfgp3d-glb.js), as boat3dx.js does ---------- */
 const loadScript = src => new Promise((ok, ng) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => ng(Error(src)); document.head.appendChild(s); });
+// d317 (まえ: 待ち時間を可視化できる？): the model files are fetched once with a progress count (the browser keeps them, so the
+// <script> that follows comes from its cache) and the 視点 pill shows MB / % / seconds, then 組み立て中 while they are put together
+const LOADP = { stage: '', got: 0, total: 0, t0: 0, pcStage: '', pcGot: 0, pcTotal: 0 };
+const LOAD_MB = { 'hfgp3d-glb.js': 1.83, 'hfgp3d-glb-pc.js': 3.81 };
+async function loadScriptP(src, pc) {
+  const k = pc ? 'pc' : '', name = src.split('/').pop().split('?')[0];
+  const set = (st, got, tot) => { if (pc) { LOADP.pcStage = st; LOADP.pcGot = got; LOADP.pcTotal = tot; } else { LOADP.stage = st; LOADP.got = got; LOADP.total = tot; } };
+  set('dl', 0, LOAD_MB[name] || 0);
+  try {
+    const r = await fetch(src);
+    if (r.ok && r.body && r.body.getReader) {
+      const len = +r.headers.get('content-length') || 0, rd = r.body.getReader(); let got = 0;
+      const tot = Math.max(LOAD_MB[name] || 0, r.headers.get('content-encoding') ? 0 : len / 1e6);
+      for (;;) { const { done, value } = await rd.read(); if (done) break; got += value.length; set('dl', got / 1e6, tot); }
+    }
+  } catch (e) {}   // (a failed count is no failure: the <script> below still loads it)
+  set('build', 0, 0);
+  await loadScript(src);
+}
+function loadText() {
+  const sec = ((performance.now() - LOADP.t0) / 1000).toFixed(1);
+  if (LOADP.stage === 'dl') return `3D読み込み中 ${LOADP.total ? Math.min(99, Math.round(LOADP.got / LOADP.total * 100)) + '%' : LOADP.got.toFixed(1) + 'MB'} ${sec}秒`;
+  return `3D組み立て中… ${sec}秒`;
+}
 const _loadAsync = GLTFLoader.prototype.loadAsync;
 if (!GLTFLoader.prototype._p3d) {
   GLTFLoader.prototype._p3d = true;
@@ -504,13 +528,17 @@ function drop(b, lx, ly, vx, vy, up, size, life, alpha) {
   S3.vx[i] = (vx * c - vy * s) * U + bvx * .35; S3.vz[i] = (vx * s + vy * c) * U + bvz * .35; S3.vy[i] = up * U;
   S3.life[i] = life * (FX.on ? 1.15 : 1); S3.age[i] = 0; S3.size0[i] = size * Z; S3.a0[i] = Math.min(1, alpha * (FX.on ? 1.15 : 1));
 }
+const SPRAY_SW = { full: .25, n: .8, up: .6, bow: 2.5, bowUp: 1.8 };   // d311: at wakeBump ≥ full — turn spray ×1.8 drops, ×1.6 high; bow slap ×3.5, ×2.8 high
 function emitFor(b, dt) {
   if (fin(b.cap) > 0 || b.fallen) return;
   const S3 = spray3; let acc = S3.acc.get(b) || 0;
   const v = fin(b.v), sk = lim((b.splashK || 0) / 1.2, 0, 1.4), yaw = fin(b.yaw), sl = lim((Math.abs(b.slip || 0) - .05) / .25, 0, 1);
+  // d311 (まえ: 飛沫の高さ・強さにもうねりの影響): crossing wake or the left-over swell (both end up in wakeBump, logged for replays)
+  // throws the turn spray higher and harder and slaps up more off the bow
+  const rr = lim(fin(b.wakeBump) / SPRAY_SW.full, 0, 1), rUp = 1 + SPRAY_SW.up * rr;
   // how many drops this frame (per kind), carried over so a slow frame doesn't lose them
-  const want = { turn: sk > .12 && v > 7 && Math.abs(yaw) > .2 ? 380 * sk * (FX.on ? FX.turn.n : 1) : 0, slide: sl > 0 && v > 6 ? 260 * sl : 0,
-    tail: v > 6 ? 120 * lim((v - 6) / 14, 0, 1) : 0, bow: v > 5 ? 70 * lim(v / 23, 0, 1) : 0 };
+  const want = { turn: sk > .12 && v > 7 && Math.abs(yaw) > .2 ? 380 * sk * (FX.on ? FX.turn.n : 1) * (1 + SPRAY_SW.n * rr) : 0, slide: sl > 0 && v > 6 ? 260 * sl : 0,
+    tail: v > 6 ? 120 * lim((v - 6) / 14, 0, 1) : 0, bow: v > 5 ? 70 * lim(v / 23, 0, 1) * (1 + SPRAY_SW.bow * rr) : 0 };
   acc += (want.turn + want.slide + want.tail + want.bow) * dt * (FX.on ? FX.n : 1);
   let n = Math.floor(acc); acc -= n; S3.acc.set(b, acc);
   const tot = want.turn + want.slide + want.tail + want.bow || 1;
@@ -519,7 +547,7 @@ function emitFor(b, dt) {
     if (pick < want.turn) {   // the outside of the turn: flat hull → a tall heavy wall, banked deep → a low thin sheet
       const side = -Math.sign(yaw), hgt = sk * sk, u = r3();
       const T = FX.on ? FX.turn : null;
-      drop(b, .6 - u * 2.2, side * (.6 + r3() * .2), -1 - r3() * 2, side * (2 + 4.5 * sk * r3()) * (T ? T.out : 1), (1 + 5.5 * hgt * (.5 + r3())) * (T ? T.up : 1) + (T ? 2.5 * sk * r3() : 0), .16 + .3 * sk * r3(), (.5 + .7 * hgt * r3()) * (T ? T.life : 1), .5 + .4 * Math.min(1, sk));
+      drop(b, .6 - u * 2.2, side * (.6 + r3() * .2), -1 - r3() * 2, side * (2 + 4.5 * sk * r3()) * (T ? T.out : 1) * (1 + .3 * rr), ((1 + 5.5 * hgt * (.5 + r3())) * (T ? T.up : 1) + (T ? 2.5 * sk * r3() : 0)) * rUp, .16 + .3 * sk * r3(), (.5 + .7 * hgt * r3()) * (T ? T.life : 1), .5 + .4 * Math.min(1, sk));
     } else if (pick < want.turn + want.slide) {   // skating sideways: a sheet off the side it slides toward
       const side = Math.sign(b.vl) || 1;
       drop(b, .9 - r3() * 2.4, side * .62, -r3(), side * (2 + 3 * sl * r3()), .8 + 2.4 * sl * r3(), .14 + .2 * sl * r3(), .45 + .4 * r3(), .55 * sl + .2);
@@ -527,7 +555,7 @@ function emitFor(b, dt) {
       drop(b, -1.75, (r3() - .5) * .25, -1.5 - r3() * 2.5, (r3() - .5) * .8, 2.2 + r3() * 2.2 * lim(v / 20, 0, 1), .12 + r3() * .2, .55 + r3() * .35, .5);
     } else {   // bow wash, both sides
       const side = r3() < .5 ? -1 : 1;
-      drop(b, .9 + r3() * .3, side * .45, -.5, side * (1 + r3() * 1.8), .6 + r3() * 1.2, .08 + r3() * .12, .3 + r3() * .25, .45);
+      drop(b, .9 + r3() * .3, side * .45, -.5, side * (1 + r3() * 1.8) * (1 + .5 * rr), (.6 + r3() * 1.2) * (1 + SPRAY_SW.bowUp * rr), .08 + r3() * (.12 + .1 * rr), .3 + r3() * .25, .45);
     }
   }
   // 着水: the slap as it lands from a hop
@@ -588,6 +616,9 @@ function wallFeed(b) {
   while (L.length && time - L[0].t > FX.wall.life) L.shift();
   if (fin(b.cap) > 0 || b.fallen) return L;
   const v = fin(b.v), sk = lim((b.splashK || 0) / 1.2, 0, 1.4), yaw = fin(b.yaw), sl = lim((Math.abs(b.slip || 0) - .05) / .25, 0, 1);
+  // d311 (まえ: 飛沫の高さ・強さにもうねりの影響): crossing wake or the left-over swell (both end up in wakeBump, logged for replays)
+  // throws the turn spray higher and harder and slaps up more off the bow
+  const rr = lim(fin(b.wakeBump) / SPRAY_SW.full, 0, 1), rUp = 1 + SPRAY_SW.up * rr;
   const turn = sk > .12 && v > 7 && Math.abs(yaw) > .2 ? Math.min(1.3, sk * 1.5) * lim((v - 7) / 8, 0, 1) : 0, slide = sl > 0 && v > 6 ? sl * .5 : 0;
   const k = Math.max(turn, slide); if (k <= .02) { if (L.length && !L[L.length - 1].end) L.push({ ...L[L.length - 1], t: time, k: 0, end: true }); return L; }
   const side = turn >= slide ? -Math.sign(yaw) || 1 : Math.sign(b.vl) || 1, c = Math.cos(b.a), s = Math.sin(b.a);
@@ -1247,14 +1278,18 @@ function setMode(m) {
   pillText(); camS.init = false;
   document.body.classList.toggle('v3d', m !== '2d');   // d274: the 姿勢 pad sits over the boat in 3D → fainter (index.html)
   if (m !== '2d') boot();
+  // d312: one WebGL context at a time on a phone — the 2D boat renderers give theirs up while the 3D view shows
+  for (const R of [window.Boat3DX, window.Boat3D]) if (R && R.sleep) try { m !== '2d' ? R.sleep() : R.wake(); } catch (e) {}
 }
 // d286: two pills — 表示 (2D ⇄ 3D) and 視点 (the views of that 表示, input.js viewCycle); V = 視点, Shift+V = 表示
 function lastMode() { let m = null; try { m = localStorage.getItem(V3.lastKey); } catch (e) {} return V3.modes.includes(m) && m !== '2d' ? m : 'top'; }
-function toggleDisp() { if (window.View3D.error) return; setMode(mode === '2d' ? lastMode() : '2d'); }
+function toggleDisp() { if (window.View3D.error) return; lostTries = 0; setMode(mode === '2d' ? lastMode() : '2d'); }
 function viewName() { const c = V3.cams[typeof camMode !== 'undefined' ? camMode : ''] || ''; return mode === '2d' || mode === 'top' ? c : V3.names[mode]; }
 function pillText() {
-  const err = window.View3D && window.View3D.error, t = err ? '視点：3D読み込み失敗' : lost ? '視点：2D（3D停止）' : `視点：${mode === '2d' ? '' : mode === 'top' ? '上空・' : ''}${viewName()}`;
-  if (btn.textContent !== t) btn.textContent = t;
+  const err = window.View3D && window.View3D.error, t = err ? '視点：3D読み込み失敗' : lost ? '視点：2D（3D停止）' : mode !== '2d' && !set ? '視点：' + loadText() : `視点：${mode === '2d' ? '' : mode === 'top' ? '上空・' : ''}${viewName()}`;
+  const pcT = mode !== '2d' && set && LOADP.pcStage ? (LOADP.pcStage === 'dl' ? `（PC画質 ${LOADP.pcTotal ? Math.min(99, Math.round(LOADP.pcGot / LOADP.pcTotal * 100)) + '%' : '準備中'}）` : '（PC画質 組み立て中）') : '';
+  const t2 = t + pcT;
+  if (btn.textContent !== t2) btn.textContent = t2;
   const d = mode === '2d' || err || lost ? '2D' : '3D'; if (dbtn.textContent !== '表示：' + d) dbtn.textContent = '表示：' + d;
   const sel = document.getElementById('dispMode'); if (sel && sel.value !== d.toLowerCase()) sel.value = d.toLowerCase();
 }
@@ -1274,8 +1309,9 @@ async function loadModels(tier) {
   if (set && set.tier === tier) return;
   if (modelsBusy) { await modelsBusy; if (set && set.tier === tier) return; }
   modelsBusy = (async () => {
-    if (!window.HFGP3D_GLB) await loadScript(new URL('./hfgp3d-glb.js', import.meta.url).href);
-    if (tier === 'pc1080ti' && !window.HFGP3D_GLB['pc1080ti/boat_lod0.glb']) await loadScript(new URL('./hfgp3d-glb-pc.js', import.meta.url).href);
+    if (!window.HFGP3D_GLB) await loadScriptP(new URL('./hfgp3d-glb.js', import.meta.url).href, false);
+    if (tier === 'pc1080ti' && !window.HFGP3D_GLB['pc1080ti/boat_lod0.glb']) { LOADP.pcStage = 'dl'; LOADP.pcTotal = 0; await loadScript(new URL('./hfgp3d-glb-pc.js', import.meta.url).href); }   // (in the background while 3D runs: a plain <script> — a progress count read on the busy main thread could crawl)
+    if (tier === 'pc1080ti') LOADP.pcStage = 'build';
     const s = await loadAssetSet(new URL('../hfgp3d/', import.meta.url).href, tier);
     for (const a of actors.values()) a.dispose(); actors.clear();
     for (const a of ghostActors.values()) a.dispose(); ghostActors.clear();
@@ -1328,18 +1364,30 @@ function slowWatch(now, cap) {
 }
 gfxUi();
 
-let booting = null;
-function boot() {
-  if (booting) return booting;
+let booting = null, lostTimer = 0;
+// d314 (まえ: また3Dにならなくなった、温度関係ある？): a hot phone takes the GPU back (webglcontextlost) and doesn't always give
+// it back. Restored → carry on one tier lighter (自動); not back within LOST.wait s → a fresh canvas and renderer (the scene and
+// the models are kept; the GPU copies are made again), also one tier lighter, up to LOST.tries times
+const LOST = { wait: 2.5, tries: 3 };
+let lostTries = 0;
+function tierDown() { if (gfxSet !== 'auto') return; const i = GFX.order.indexOf(tierNow); if (i > 0) tierNow = GFX.order[i - 1]; }
+function makeRenderer() {
+  const old = canvas;
   canvas = document.createElement('canvas'); canvas.id = 'cv3d';
   canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;display:none;pointer-events:none';
-  document.getElementById('cv').after(canvas);
+  if (old) { old.replaceWith(canvas); } else document.getElementById('cv').after(canvas);
   renderer = new THREE.WebGLRenderer({ canvas, antialias: Q.aa, powerPreference: PHONE ? 'default' : 'high-performance' });
-  // if the phone takes the GPU back, fall back to 2D instead of freezing the screen
-  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; btn.textContent = '視点：2D（3D停止）'; });
-  canvas.addEventListener('webglcontextrestored', () => { lost = false; tod = ''; setMode(mode); });
+  // if the phone takes the GPU back, fall back to 2D instead of freezing the screen — and try to come back (d314)
+  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; btn.textContent = '視点：2D（3D停止）';
+    clearTimeout(lostTimer); lostTimer = setTimeout(() => { if (!lost || lostTries >= LOST.tries) return; lostTries++; try { renderer.dispose(); } catch (x) {} refl = null; tierDown(); makeRenderer(); lost = false; tod = ''; applyTier(false); setMode(mode); }, LOST.wait * 1000); });
+  canvas.addEventListener('webglcontextrestored', () => { clearTimeout(lostTimer); lost = false; tod = ''; refl = null; tierDown(); applyTier(false); setMode(mode); });   // d312: came back → one tier lighter (自動)
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  if (old) { const w = innerWidth, h = innerHeight, dpr = Math.min(Q.dpr, devicePixelRatio || 1); renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); }
+}
+function boot() {
+  if (booting) return booting;
+  makeRenderer();
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .1, 1500);
   hemi = new THREE.HemisphereLight(0xdfefff, 0x2a4a58, 1.5); scene.add(hemi);
@@ -1347,8 +1395,12 @@ function boot() {
   const sc = sun.shadow.camera; sc.left = -SHADOW.r; sc.right = SHADOW.r; sc.top = SHADOW.r; sc.bottom = -SHADOW.r; sc.near = 10; sc.far = 300; sun.shadow.bias = SHADOW.bias; sun.shadow.normalBias = SHADOW.nBias;
   applyTier(true);
   booting = (async () => {
-    await loadModels(Q.models);
-    window.View3D.ready = true;
+    // d316 (まえ: 3Dにならない、アセットの読み込みに時間がかかってる？): the PC models are 3.8 MB more on top of the 1.8 MB phone set
+    // and nothing showed until both were in. Show 3D as soon as the phone set is in; the PC set follows and swaps in when ready
+    LOADP.t0 = performance.now();
+    await loadModels('mobile');
+    window.View3D.ready = true; LOADP.stage = ''; window.View3D.loadSec = (performance.now() - LOADP.t0) / 1000;
+    if (Q.models !== 'mobile') loadModels(Q.models).then(() => { tod = ''; LOADP.pcStage = ''; window.View3D.loadPcSec = (performance.now() - LOADP.t0) / 1000; }).catch(() => { LOADP.pcStage = ''; });
   })().catch(e => { console.warn('3D視点:', e); btn.textContent = '視点：3D読み込み失敗'; window.View3D.error = String(e); });
   requestAnimationFrame(render);
   return booting;

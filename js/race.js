@@ -114,18 +114,22 @@ const WAKE_CAV = { age: 1.0, ps: 0.7, bump: 0.35, rate: 1.2, time: 0.45, thrust:
 // as a swell on a 3 m grid. It dies slowly round the marks (~28 s: a turn's swell is still there the next lap) and fast on the
 // straights (~10 s); なにわ's 2M rough zone keeps it longer (×wakeLife). It has no direction: crossing it bumps the hull like an
 // old wake — much more in a turn than running straight. Fleet races only (タイムアタック alone is unchanged)
-const SWELL = { on: true, cell: 3, delay: 3, dep: 5, tauMark: 28, tauStr: 10, markR: 60, k: 0.4, inWake: 0.3, straight: 0.25, cross: 0.6 };
+const SWELL = { on: true, waveK: 0.08, windK: 0.03, tideK: 0.2, depWave: 0.04, cell: 3, delay: 8, dep: 3.7, tauMark: 28, tauStr: 10, markR: 60, k: 0.4, inWake: 0.3, straight: 0.1, cross: 0.6 };   // d310 (まえ: 1着の独走を弱めたい): delay 3 → 8 s — boats close behind meet the real wake, not the swell too; the swell is mostly the last lap's, which the leader meets as well; straight 0.25 → 0.1
 let swellG = null;
 function swellReset() { swellG = null; }
 function swellInit() {
   const c = SWELL.cell, x0 = COURSE.xMin - 5, y0 = COURSE.yMin - 5, nx = Math.ceil((COURSE.xMax + 5 - x0) / c), ny = Math.ceil((COURSE.yMax + 5 - y0) / c);
+  // d311 (まえ: 風、波、潮のうねりへの影響): a rough day keeps the swell longer — per cm of wave, per m/s of wind — and 満潮 longer
+  // (水面の逃げ場がない), 干潮 shorter. 淡水/海水 is left to each 場's own description (なにわ: its 2M rough zone)
+  const E = waterEnv || {}, TA = venueOf(VENUE.id).tide || {}, tideN = E.tideLv != null && TA.amp > 0 ? clamp((E.tideLv - 100) / TA.amp, -1, 1) : 0;
+  const envK = Math.max(0.5, 1 + SWELL.waveK * (E.wave || 0) + SWELL.windK * (E.wind || 0) + SWELL.tideK * tideN);
   const tau = new Float32Array(nx * ny);
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
     const x = x0 + (i + .5) * c, y = y0 + (j + .5) * c, dm = Math.min(...COURSE.marks.map(m => Math.hypot(x - m.x, y - m.y)));
     const near = clamp(1 - (dm - SWELL.markR * .6) / (SWELL.markR * .4), 0, 1), z = roughOf() ? roughAt(x, y) : 0;
-    tau[j * nx + i] = (SWELL.tauStr + (SWELL.tauMark - SWELL.tauStr) * near) * (z ? 1 + (roughOf().wakeLife - 1) * z : 1);
+    tau[j * nx + i] = (SWELL.tauStr + (SWELL.tauMark - SWELL.tauStr) * near) * (z ? 1 + (roughOf().wakeLife - 1) * z : 1) * envK;
   }
-  swellG = { x0, y0, nx, ny, tau, v: new Float32Array(nx * ny), tl: new Float32Array(nx * ny), q: [], venue: VENUE.id };
+  swellG = { x0, y0, nx, ny, tau, envK, depK: 1 + SWELL.depWave * (E.wave || 0), v: new Float32Array(nx * ny), tl: new Float32Array(nx * ny), q: [], venue: VENUE.id };
 }
 function swellCell(x, y) { const G = swellG, i = Math.floor((x - G.x0) / SWELL.cell), j = Math.floor((y - G.y0) / SWELL.cell); return i < 0 || j < 0 || i >= G.nx || j >= G.ny ? -1 : j * G.nx + i; }
 function swellAdd(n, amt, now) { const G = swellG; if (n < 0) return; G.v[n] = G.v[n] * Math.exp(-(now - G.tl[n]) / G.tau[n]) + amt; G.tl[n] = now; }
@@ -133,10 +137,10 @@ function swellStep(boats, now, dt) {
   if (!SWELL.on) return;
   if (!swellG || swellG.venue !== VENUE.id) swellInit();
   const G = swellG;
-  for (const b of boats) if (b.v > 3 && !(b.cap > 0)) G.q.push(b.x, b.y, now, wakeStrength(b) * Math.min(1, b.v / 15) * dt * SWELL.dep);
+  for (const b of boats) if (b.v > 3 && !(b.cap > 0)) G.q.push(b.x, b.y, now, wakeStrength(b) * Math.min(1, b.v / 15) * dt * SWELL.dep * G.depK);
   let k = 0;
   while (k < G.q.length && G.q[k + 2] <= now - SWELL.delay) {
-    const x = G.q[k], y = G.q[k + 1], a = G.q[k + 3] * Math.exp(-SWELL.delay / SWELL.tauStr);
+    const x = G.q[k], y = G.q[k + 1], a = G.q[k + 3];
     for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) swellAdd(swellCell(x + di * SWELL.cell, y + dj * SWELL.cell), a * (di || dj ? (di && dj ? .05 : .1) : .4), now);
     k += 4;
   }

@@ -83,7 +83,11 @@ async function init() {
   canvas = document.createElement('canvas');
   renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, premultipliedAlpha: true, powerPreference: 'low-power' });
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.autoClear = false;
-  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); fail('3D描画の復帰待ち'); });
+  // d312 (まえ: スマホで3Dが選べない／2Dに戻る、「新モデルは3D描画の復帰待ち」): the 3D view (play3d) and this 2D boat renderer
+  // each hold a WebGL context and a phone takes one back. While the 3D view shows, this one sleeps (gives its context up) and
+  // wakes when 2D comes back; a context the phone took is picked up again when it is restored
+  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); fail(api.asleep ? '3D視点の間は休止' : '3D描画の復帰待ち'); });
+  canvas.addEventListener('webglcontextrestored', () => { if (set) { api.ready = true; api.failed = false; api.reason = ''; if (window.Boat3D) Boat3D.status(); } });
   scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xdfefff, 0x2a4a58, 1.4));
   sun = new THREE.DirectionalLight(0xffffff, 2.2); scene.add(sun); scene.add(sun.target);
@@ -97,6 +101,8 @@ async function init() {
   api.ready = true; api.reason = '';
   if (window.Boat3D) Boat3D.status();
 }
+api.sleep = () => { if (api.asleep || !renderer) return; api.asleep = true; try { renderer.forceContextLoss(); } catch (e) {} };
+api.wake = () => { if (!api.asleep) return; api.asleep = false; try { renderer.forceContextRestore(); } catch (e) {} };
 let started = false;
 api.start = () => { if (started) return; started = true; api.reason = '読み込み中'; if (window.Boat3D) Boat3D.status();
   init().catch(e => { console.warn('3D（新モデル） unavailable:', e); fail('読み込めません'); }); };

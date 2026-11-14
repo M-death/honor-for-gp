@@ -19,7 +19,7 @@ const TURN = { lean: 0.9, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 
 const WAKE_PLAN = { offs: [-4.5, -3, -1.5, 0, 1.5, 3, 4.5, 6], freeAt: 55, nudge: 1.5 };   // freeAt: m before a mark where line changes are free again
 const WAKE = { width: 1.4, life: 2.4, drag: 1.8, kick: 1.9, grip: 1.6, unsettle: 0.55, fade: 2.5 };   // fade: how fast a wake dies with age (d118 0.7). Fresh wake hits as hard as ever; an old one fades fast
 // 航跡: running in line behind a boat (not crossing its wake) takes the edge off thrust — the closer, the more
-const TRAIL = { range: 60, width: 2.5, max: 0.04, dodgeK: 2.5 };   // d309 (まえ: 直線は効きすぎ) max 0.1 → 0.04          // chance per second of going over, scaled by (load − 1)^1.5 past the danger line
+const TRAIL = { range: 60, width: 2.5, max: 0.015, dodgeK: 2.5 };   // d310 (まえ: 直線ではあまり引き波の影響なし、モーター・チルト次第で追い上げる) 0.04 → 0.015   // d309 (まえ: 直線は効きすぎ) max 0.1 → 0.04          // chance per second of going over, scaled by (load − 1)^1.5 past the danger line
 // 直線: lean up to `free` steers the hull a touch at no cost; past `ok` the posture itself drags (per m/s of speed)
 const STRAIGHT_LEAN = { free: 0.35, ok: 0.5, drag: 0.035 };
 // CPU on a straight (next mark more than `from` m ahead): rudder held within ±steer, the rest of the wanted turn goes to the lean
@@ -518,7 +518,7 @@ function boatContacts(list) {
 }
 
 // ターンの引き波 is big and lingers; a boat running straight leaves only a low wave
-const WAKE_TURN = { straight: 0.3, yawFull: 0.55, lifeK: 1.25, fadeTurn: 1.5 };   // d309 (まえ: 直線は効きすぎ、ターンは効かなすぎ): straight 0.4 → 0.3; a turn's wake lasts 3 s (lifeK 1.35×2.4 → 1.25×2.4) and fades slower (power 1.5 instead of WAKE.fade 2.5)
+const WAKE_TURN = { straight: 0.2, yawFull: 0.55, lifeK: 1.25, fadeTurn: 1.5 };   // d309 (まえ: 直線は効きすぎ、ターンは効かなすぎ): straight 0.4 → 0.3; a turn's wake lasts 3 s (lifeK 1.35×2.4 → 1.25×2.4) and fades slower (power 1.5 instead of WAKE.fade 2.5)
 const wakeStrength = b => WAKE_TURN.straight + (1 - WAKE_TURN.straight) * clamp(Math.abs(b.yaw || 0) / WAKE_TURN.yawFull, 0, 1);
 function boatFx(b, arr, dt) {
   const fx = Math.cos(b.a), fy = Math.sin(b.a), rx = -fy, ry = fx;
@@ -534,7 +534,7 @@ function boatFx(b, arr, dt) {
   if (Math.abs(b.vl) > 1.2 || (Math.abs(b.yaw) > 0.5 && b.v > 9)) {
     const out = Math.abs(b.vl) > 0.3 ? Math.sign(b.vl) : -Math.sign(b.yaw);
     for (let i = 0; i < 2; i++) {
-      const sk = 0.45 + 0.8 * (b.splashK || 0), sp = (3 + simRandom() * 4 + Math.abs(b.vl)) * sk;   // d158: banked deep a thin sheet, flat a big throw
+      const sk = (0.45 + 0.8 * (b.splashK || 0)) * (1 + 0.5 * Math.min(1, (b.wakeBump || 0) / 0.25)), sp = (3 + simRandom() * 4 + Math.abs(b.vl)) * sk;   // d311: wake/swell under the hull throws it further (looks only)   // d158: banked deep a thin sheet, flat a big throw
       spray.push({ x: b.x - fx * 1.2 + rx * out * 0.9, y: b.y - fy * 1.2 + ry * out * 0.9,
         vx: rx * out * sp - fx * 2 + (simRandom() - .5) * 2, vy: ry * out * sp - fy * 2 + (simRandom() - .5) * 2, t: time, life: (0.5 + simRandom() * 0.4) * (0.6 + 0.5 * sk) });
     }
