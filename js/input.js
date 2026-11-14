@@ -93,11 +93,46 @@ function onOri(e) {
   }
   applyAngles(readAngles(e.beta, e.gamma));
 }
+// d298 (まえ: スマホを左右に動かして横・後ろを振り返る、元の位置に戻せば正面): a sideways move of the phone, read from the
+// accelerometer without gravity. Where the phone is can't be tracked (it drifts), so each move is taken as one event: its
+// direction from the speed it builds up (leaky sum of the acceleration along the screen, less the sensor's slow offset),
+// its size from the top speed (a short move: to the side, a long quick one: right round). From the front: a move looks that way (a short one to the side, a long one right round); a move back the
+// other way faces front again; a second move the same way turns right round.
+const SHIFT = { key: 'honorGP.phoneLook', on: true, tau: .7, vOn: .22, vOff: .05, hold: .6, far: .85, side: .55, bias: 1.5 };   // far: peak m/s for a long move; bias: s to learn the sensor's offset
+const shiftS = { v: 0, pk: 0, t: 0, ev: 0, look: 0, amt: 0, last: 0, ab: 0 };
+try { SHIFT.on = localStorage.getItem(SHIFT.key) !== 'off'; } catch (e) {}
+window.phoneLook = 0;
+function screenRightAccel(a) {   // the device's acceleration along the screen's right, however the phone is turned
+  const so = screen.orientation && Number.isFinite(screen.orientation.angle) ? screen.orientation.angle : Number.isFinite(window.orientation) ? window.orientation : 0;
+  const ang = ((so % 360) + 360) % 360;
+  let x = a.x, y = a.y; if (IOS) { x = -x; y = -y; }
+  return ang === 90 ? -y : ang === 270 ? y : ang === 180 ? -x : x;
+}
+function shiftStep(e) {
+  if (!SHIFT.on) { shiftS.look = 0; window.phoneLook = 0; return; }
+  const a = e.acceleration; if (!a || a.x == null || a.y == null) return;
+  const now = performance.now() / 1000, dt = Math.min(.1, now - (shiftS.last || now)); shiftS.last = now; if (dt <= 0) return;
+  const a0 = screenRightAccel(a); if (!shiftS.ev) shiftS.ab += (a0 - shiftS.ab) * Math.min(1, dt / SHIFT.bias);
+  shiftS.v = (shiftS.v + (a0 - shiftS.ab) * dt) * Math.exp(-dt / SHIFT.tau);
+  if (!shiftS.ev && Math.abs(shiftS.v) > SHIFT.vOn && now > shiftS.t) { shiftS.ev = Math.sign(shiftS.v); shiftS.pk = 0; }
+  if (shiftS.ev) {
+    shiftS.pk = Math.max(shiftS.pk, Math.abs(shiftS.v));
+    if (shiftS.ev * shiftS.v < SHIFT.vOff) {   // the move is over
+      const dir = shiftS.ev; shiftS.ev = 0; shiftS.t = now + SHIFT.hold;
+      if (!shiftS.look) { shiftS.look = dir; shiftS.amt = shiftS.pk > SHIFT.far ? 1 : SHIFT.side; }
+      else if (dir === -shiftS.look) shiftS.look = 0;
+      else shiftS.amt = 1;
+    }
+  }
+  window.phoneLook = shiftS.look * shiftS.amt;
+}
+function phoneLookReset() { shiftS.look = 0; shiftS.ev = 0; shiftS.v = 0; window.phoneLook = 0; }
 // fallback: gravity from the accelerometer when orientation events are empty
 const gs = { x: 0, y: 0, z: 0, init: false };
 function onMot(e) {
   if(controlMode==='pad')return;
   diag.mot++;
+  shiftStep(e);   // d298
   if (sensor.src === 'ori') return;
   const g = e.accelerationIncludingGravity;
   if (!g || g.x == null || g.y == null || g.z == null) return;
@@ -1126,3 +1161,7 @@ function updateInput(dt) {
    Shared by the player and any CPU boat.
    inp = { thr 0..1 lever, steer -1..1 rudder (right +), roll -1..1 lean (right +), pitch -1..1 (forward lean +) }
    Returns null, or an event: 'cap:<reason>', 'buoy', 'wall'. */
+
+// d298: 振り返り（スマホ） setting
+{ const el = document.getElementById('phoneLook'); if (el) { el.value = SHIFT.on ? 'on' : 'off';
+  el.addEventListener('change', () => { SHIFT.on = el.value === 'on'; try { localStorage.setItem(SHIFT.key, el.value); } catch (e) {} phoneLookReset(); }); } }

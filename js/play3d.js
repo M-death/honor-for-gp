@@ -21,12 +21,13 @@ const GFX = { key: 'honorGP.gfx3d', wKey: 'honorGP.water3d', order: ['lite', 'ri
     lite: { label: 'スマホ軽量', px: 3, fps: 30, dpr: 1, aa: false, water: 'simple', spray: 0, wake: 8000, rain: 450, sky: 2048, lod: .6, shadow: 0, models: 'mobile', aniso: 2, ripDiv: 20, venue: 0 },
     rich: { label: 'スマホリッチ', px: 5, fps: 0, dpr: 1.25, aa: false, water: 'shade', spray: 2500, wake: 14000, rain: 900, sky: 2048, lod: .8, shadow: 0, models: 'mobile', aniso: 4, ripDiv: 12, venue: 1 },
     pc: { label: 'PC', px: 8, fps: 0, dpr: 1.5, aa: true, water: 'reflect', spray: 7000, wake: 24000, rain: 1400, sky: 4096, lod: 1, shadow: 2048, models: 'pc1080ti', aniso: 8, ripDiv: 7, venue: 2 } },
-  slow: { ms: 26, msCap: 1.35, secs: 4 },   // 自動: step down after this long above ms (or a capped tier's frame × msCap)
+  slow: { ms: 25, msCap: 1.35, secs: 4 },   // 自動: step down after this long above ms (or a capped tier's frame × msCap) — d297 (まえ): 40 fps (25 ms) is the line
   refl: { scale: .5, k: .55, distort: .035 } };   // 反射: render size, strength, ripple distortion
 const gfxGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
 let gfxSet = gfxGet(GFX.key, 'auto'), waterSet = gfxGet(GFX.wKey, 'auto');
 if (gfxSet !== 'auto' && !GFX.tiers[gfxSet]) gfxSet = 'auto';
-let tierNow = gfxSet !== 'auto' ? gfxSet : PHONE ? 'lite' : 'pc', Q = GFX.tiers[tierNow];
+// d297 (まえ: Xperia 1 II でも PC 画質で50fps超え): 自動 starts every device on PC and steps down below 40 fps
+let tierNow = gfxSet !== 'auto' ? gfxSet : 'pc', Q = GFX.tiers[tierNow];
 const waterNow = () => waterSet !== 'auto' && ['simple', 'shade', 'reflect'].includes(waterSet) ? waterSet : Q.water;
 const LITE = PHONE;   // (kept for what only a phone's screen decides)
 let mode = '2d'; try { mode = localStorage.getItem(V3.key) || '2d'; } catch (e) {}
@@ -34,7 +35,7 @@ if (!V3.modes.includes(mode)) mode = '2d';
 const fin = (v, d = 0) => Number.isFinite(v) ? v : d;
 const lim = (v, lo, hi) => Math.max(lo, Math.min(hi, fin(v)));
 
-let renderer, canvas, scene, camera, hemi, sun, set = null, world = null, wakeMesh, tod = '', venueId = '';
+let renderer, canvas, scene, camera, hemi, sun, set = null, world = null, wakeMesh, tod = '', venueId = '', skySeason = '';
 const actors = new Map(), poseS = new WeakMap();   // d280: per-boat smoothed 体重移動 for the turn poses
 const camS = { x: 0, y: 0, a: 0, init: false };
 
@@ -129,8 +130,10 @@ const FAR = {
   // [colour far, colour near] of the silhouettes, the haze at their foot
   ink: { day: ['#9db3c3', '#6f8496', '#c9dbe2'], evening: ['#8a6f86', '#4d3f55', '#e2a07c'], night: ['#151b2e', '#0b0f1c', '#141b33'] },
 };
+// d303 季節の空 (まえ): the day sky by season — 春 hazy, 夏 deep blue, 秋 clear and high, 冬 pale
+const SKY_SEASON = { spring: ['#6aa3d4', '#c4dbe8', '#e9ede4'], summer: ['#3a7fcf', '#a9d0ec', '#dde9ea'], autumn: ['#4a8fd8', '#b3d6ee', '#e0ebee'], winter: ['#7fa9cf', '#c6d9e6', '#e4e9ea'] };
 function skyDome(t) {
-  const [top, mid, low] = FAR.sky[t] || FAR.sky.day, geo = new THREE.SphereGeometry(1200, 24, 16), pos = geo.attributes.position, col = [];
+  const [top, mid, low] = (t === 'day' && SKY_SEASON[skySeason]) || FAR.sky[t] || FAR.sky.day, geo = new THREE.SphereGeometry(1200, 24, 16), pos = geo.attributes.position, col = [];
   const cT = new THREE.Color(top), cM = new THREE.Color(mid), cL = new THREE.Color(low), c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) { const h = pos.getY(i) / 1200; if (h < 0) c.copy(cL); else if (h < .18) c.lerpColors(cL, cM, h / .18); else c.lerpColors(cM, cT, Math.min(1, (h - .18) / .6)); col.push(c.r, c.g, c.b); }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
@@ -242,7 +245,7 @@ function renderReflection(w, h) {
   V.q.set((Math.sign(V.clip.x) + P[8]) / P[0], (Math.sign(V.clip.y) + P[9]) / P[5], -1, (1 + P[10]) / P[14]);
   V.clip.multiplyScalar(2 / V.clip.dot(V.q));
   P[2] = V.clip.x; P[6] = V.clip.y; P[10] = V.clip.z + 1 - .003; P[14] = V.clip.w;
-  const hide = [R.mesh, wakeMesh, WX3.rain, spray3 && spray3.pts, wallMesh, ...(world ? world.noRefl : [])].filter(Boolean), was = hide.map(o => o.visible);
+  const hide = [R.mesh, wakeMesh, WX3.rain, spray3 && spray3.pts, wallMesh, glare.path, sky3.path, swell.mesh, ...(world ? world.noRefl : [])].filter(Boolean), was = hide.map(o => o.visible);
   hide.forEach(o => { o.visible = false; });
   const sh = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false;
   renderer.setRenderTarget(R.rt); renderer.clear(); renderer.render(scene, vc); renderer.setRenderTarget(null);
@@ -353,6 +356,7 @@ function buildWorld() {
   const deco = topDeco(tod); g.add(deco);   // d286
   world_clockHand = hand;   // d291
   world = { g, dist: dm, water, dome, sky2, deco, noRefl: V3d ? V3d.noRefl : [] }; WX3.key = '';
+  swellBuild(water, g);   // d300
   scene.background = new THREE.Color(T.sky); scene.fog = new THREE.Fog(T.fog, 120, 520);
   hemi.color.set(T.hemi[0]); hemi.groundColor.set(T.hemi[1]); hemi.intensity = T.hemi[2]; sun.color.set(T.sun[0]); sun.intensity = T.sun[1];
 }
@@ -429,7 +433,7 @@ const FX = { key: 'honorGP.spray3d', on: false, pool: 2.5, n: 2.2, size: 1.5, up
   wall: { life: 1.5, h: 5.8, out: 1.5, lean: 2.6, minGap: .22, max: 1400, alpha: .62 },
   lens: { near: 1.3, max: 140, hitDrops: 7, slapDrops: 26, fog: .55,
     // d295 (まえ: 上から下でなく横へ、速さに応じて、ターンでは外側へ): the wind of the run pushes the drops out to the sides
-    flow: { vRef: 22, side: .55, turn: .45, down: .10, resp: 5, small: .35 } } };
+    flow: { vRef: 22, side: 1.1, turn: .8, down: .10, resp: 5, small: .45, curve: 1.5, gain: 1.3 } } };   // d296 (まえ: もう少し速く、速度に合わせて勢いがつく)
 try { FX.on = localStorage.getItem(FX.key) === 'big'; } catch (e) {}
 const sprayMax = () => Q.spray * (FX.on ? FX.pool : 1);
 let world_clockHand = null;   // d291 the 大時計's hand (rebuilt with the world)
@@ -610,7 +614,9 @@ function lensStep(dt, rows, me) {
     for (const d of lens.drops) {
       d.age += dt;
       const cx = (d.x - w / 2) / (w / 2), stick = d.r / u0 > 6 ? 1 : F.small;
-      const tx = w * (Math.sign(cx || (Math.random() - .5)) * (.15 + .6 * Math.abs(cx)) * F.side * spd - yaw * F.turn * spd) * stick;   // turning right (a grows) → out to the left
+      // d296: the push grows faster than the speed (curve), and a drop picks up pace the longer the wind has it (gain per s)
+      const push = Math.pow(spd, F.curve) * (1 + d.age * F.gain);
+      const tx = w * (Math.sign(cx || (Math.random() - .5)) * (.15 + .6 * Math.abs(cx)) * F.side - yaw * F.turn) * push * stick;   // turning right (a grows) → out to the left
       const ty = h * F.down * Math.max(0, 1 - spd * 2.5) * stick + (d.r / u0 > 6 ? (d.r / u0 - 6) * 2 * (1 - Math.min(1, spd * 2.5)) : 0);
       const k = Math.min(1, dt * F.resp); d.vx += (tx - d.vx) * k; d.vy += (ty - d.vy) * k;
       d.x += d.vx * dt; d.y += d.vy * dt;
@@ -692,6 +698,48 @@ function ghostActor(kind) {
   }
   return a;
 }
+/* d301 舳先の旗 (まえ: 速度・進行方向に合わせてはためかせて): a small pennant on a short pole at the bow, in the boat's colour.
+   It streams with the apparent wind (the day's wind minus the boat's own run), hangs when there is none, and flutters
+   faster and harder the stronger that wind; a few vertices per boat each frame. Looks only; not on スマホ軽量. */
+const FLAG = { back: .16, up: .03, pole: .40, len: .26, h: .16, seg: 6, k: 8, kPer: .8, w0: 4, wPer: 1.6, a0: .065, aPer: .0026, aMin: .012, droop: 1.15, calm: 5, turnK: 8 };
+const FLAG_COL = ['#eeeeee', '#20242a', '#d73533', '#2867bd', '#e6c128', '#20844f'];
+function flagFor(a, lv, lane) {
+  if (lv.flag !== undefined) return lv.flag;
+  const tip = lv.boat.getObjectByName('BowTip'); if (!tip) return (lv.flag = null);
+  lv.boat.updateMatrixWorld(true); const p = lv.boat.worldToLocal(tip.getWorldPosition(new THREE.Vector3()));
+  const g = new THREE.Group(); g.position.set(p.x, p.y + FLAG.up, p.z + FLAG.back);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.008, .011, FLAG.pole, 5), new THREE.MeshLambertMaterial({ color: 0xc8ccd0 }));
+  pole.position.y = FLAG.pole / 2; g.add(pole);
+  const n = FLAG.seg + 1, pos = new Float32Array(n * 2 * 3), idx = [];
+  for (let i = 0; i < FLAG.seg; i++) { const a0 = i * 2, b0 = a0 + 2; idx.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx);
+  const cloth = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: FLAG_COL[lane - 1] || '#eeeeee', side: THREE.DoubleSide }));
+  cloth.position.y = FLAG.pole - .01; cloth.frustumCulled = false; g.add(cloth);
+  for (const o of [pole, cloth]) o.castShadow = Q === GFX.tiers.pc;
+  lv.boat.add(g); return (lv.flag = { g, cloth, pos, yaw: null, droop: FLAG.droop, ph: Math.random() * 6 });
+}
+function flagStep(a, row, dt) {
+  const b = row.b, lane = lim(Math.round(row.no || 1), 1, 6);
+  for (let l = 0; l < a.levels.length; l++) { const f = a.levels[l].flag; if (f) f.g.visible = false; }
+  if (Q === GFX.tiers.lite || mode === 'top' || a.lod > 1) return;
+  const f = flagFor(a, a.levels[a.lod], lane); if (!f) return; f.g.visible = true;
+  // apparent wind in the boat's own frame (game coords: heading b.a; model: forward −Z, right +X)
+  const ca = Math.cos(b.a), sa = Math.sin(b.a), wx = WX3.ux * WX3.wv - fin(b.v) * ca, wy = WX3.uy * WX3.wv - fin(b.v) * sa;
+  const fw = wx * ca + wy * sa, rt = -wx * sa + wy * ca, s = Math.hypot(fw, rt);
+  const yaw = Math.atan2(rt, -fw);   // the cloth runs out along local +Z turned by yaw: downwind (right +X, back +Z)
+  const k = Math.min(1, dt * FLAG.turnK);
+  if (f.yaw == null) f.yaw = yaw; else { let d = yaw - f.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); f.yaw += d * k; }
+  f.droop += (FLAG.droop * Math.max(0, 1 - s / FLAG.calm) - f.droop) * k;
+  f.cloth.rotation.set(0, f.yaw, 0); f.cloth.rotateX(f.droop);
+  if (!paused) f.ph += dt * (FLAG.w0 + s * FLAG.wPer);
+  // d302 (まえ: 速いほど細かく振動、風にもっていかれそう): stronger wind → faster, shorter, smaller ripples (taut); light wind → slow lazy swing
+  const amp = Math.max(FLAG.aMin, FLAG.a0 - s * FLAG.aPer), kk = FLAG.k + s * FLAG.kPer, P = f.pos;
+  for (let i = 0; i <= FLAG.seg; i++) {
+    const u = i / FLAG.seg, z = u * FLAG.len, x = amp * u * Math.sin(kk * z - f.ph), sag = .02 * u * u * (1 - Math.min(1, s / 12));
+    const j = i * 6; P[j] = x; P[j + 1] = -sag; P[j + 2] = z; P[j + 3] = x * 1.08; P[j + 4] = -FLAG.h + -sag * 1.3; P[j + 5] = z * .96;
+  }
+  f.cloth.geometry.attributes.position.needsUpdate = true; f.cloth.geometry.computeVertexNormals();
+}
 function rowsNow() { return fleet ? fleet.boats.filter(r => !r.gone) : [{ b: B, inp: input, no: 1 }]; }
 function targetRow() { if (!fleet) return { b: B }; return focusRow() || fleet.boats[0]; }
 
@@ -710,7 +758,8 @@ function lookBack(dt) {
   const v = lookTrigger(), now = performance.now() / 1000;
   if (!look.held && v > LOOK.on) { look.held = true; look.side = now - look.upAt < LOOK.tap && look.upAt - look.downAt < LOOK.tap ? 1 : -1; look.downAt = now; }
   else if (look.held && v <= LOOK.on) { look.held = false; look.upAt = now; }
-  const target = look.held ? look.side * LOOK.max * Math.min(1, (v - LOOK.on) / (1 - LOOK.on)) : 0;
+  let target = look.held ? look.side * LOOK.max * Math.min(1, (v - LOOK.on) / (1 - LOOK.on)) : 0;
+  if (!look.held && fleet && window.phoneLook) target = lim(window.phoneLook, -1, 1) * LOOK.max;   // d298: スマホを左右に動かして振り返る (input.js)
   look.cur += (target - look.cur) * (1 - Math.exp(-dt * (look.held ? LOOK.rate : LOOK.back)));
   return look.cur;
 }
@@ -771,7 +820,293 @@ function placeCamera(dt) {
       const bank = lim(t.bank, -.65, .65) * .5; camera.rotateZ(-bank);
     }
   }
+  if (mode === 'racer' || mode === 'chase') camShake(t);
   camera.updateProjectionMatrix();
+}
+/* d299 (まえ: グラフィック効果 3 カメラの振動・衝撃, 標準・スマホ軽量は無し): the engine's buzz through the hull (finer and
+   stronger with speed) and the thump of landing after a hop (by how hard it came down). Looks only. */
+const SHAKE = { vib: .0035, vibRoll: .0018, land: .07, landPitch: .035, landT: .32, chase: .4 };
+function camShake(t) {
+  if (Q === GFX.tiers.lite) return;
+  const k = mode === 'chase' ? SHAKE.chase : 1, sp = lim(fin(t.v) / 22, 0, 1.3), tt = performance.now() / 1000;
+  const f = 38 + sp * 30, vy = (Math.sin(tt * f) + Math.sin(tt * f * 1.37 + 1.1) * .6) * SHAKE.vib * sp * k;
+  camera.position.y += vy; camera.rotateZ((Math.sin(tt * f * .83 + 2) ) * SHAKE.vibRoll * sp * k);
+  const la = fin(t.landAge, 9);
+  if (la < SHAKE.landT) {
+    const hard = lim(fin(t.landV) / 3, 0, 1.3), env = Math.exp(-la * 11) * Math.cos(la * 34) * hard * k;
+    camera.position.y -= SHAKE.land * env; camera.rotateX(-SHAKE.landPitch * env);
+  }
+}
+
+/* d299 (まえ: グラフィック効果 2 太陽のきらめき, 標準・スマホ軽量は無し): a low sun in the sky the light comes from, a path
+   of glints on the water between the eye and the sun, and a lens flare when the sun is in view. Day and evening only (not in
+   rain); looks only. */
+const SUN_OFF = { x: -95, z: -55 };   // d299: where the light comes from (was −60/−80): lower along the course, so the sun shows looking up the straights
+const GLARE = { el: { day: 17, evening: 6 }, dist: 1000, disc: { day: 120, evening: 120 }, path: { len: 700, w0: 8, w1: 160, a: 1.5, aEve: 1.1 },
+  flare: [[0, 1.0, .30], [.35, .18, .13], [.55, .08, .2], [.8, .12, .1], [1.15, .26, .09], [1.45, .1, .15]] };   // [along, size × min(w,h), alpha]
+const glare = { g: null, disc: null, path: null, cv: null, ctx: null, dir: null, on: false };
+function glareTex(r, stops) { const c = document.createElement('canvas'); c.width = c.height = r * 2; const g = c.getContext('2d'), gr = g.createRadialGradient(r, r, 0, r, r, r);
+  for (const [o, col] of stops) gr.addColorStop(o, col); g.fillStyle = gr; g.fillRect(0, 0, r * 2, r * 2); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
+// the glint path: a long strip lying on the water from the eye toward the sun (d303: or the moon), sparkling (hash noise in the shader)
+function glintPath() {
+  const geo = new THREE.PlaneGeometry(1, 1, 1, 1); geo.rotateX(-Math.PI / 2); geo.translate(.5, 0, 0);
+  const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    uniforms: { t: { value: 0 }, a: { value: 1 }, col: { value: new THREE.Color(1, .97, .9) }, w0: { value: GLARE.path.w0 }, w1: { value: GLARE.path.w1 }, len: { value: GLARE.path.len } },
+    vertexShader: 'varying vec2 vU; varying vec3 vW; void main(){ vU = uv; vec4 w = modelMatrix * vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: `uniform float t,a,w0,w1,len; uniform vec3 col; varying vec2 vU; varying vec3 vW;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+      void main(){ float u = vU.x, v = (vU.y - .5) * 2.;
+        float wid = mix(w0, w1, u) / w1; float across = exp(-v*v/(wid*wid*.18));
+        vec2 cell = floor(vW.xz * vec2(1.6, 3.2) + vec2(t*1.3, t*.7)); float r = h(cell), tw = .5 + .5*sin(t*9. + r*40.);
+        float spark = smoothstep(.83, 1., r) * tw;
+        float near = smoothstep(.0, .06, u), far = 1. - smoothstep(.75, 1., u);
+        float glow = .13 * across;
+        gl_FragColor = vec4(col * (spark * 1.6 * across + glow) * near * far * a, 1.); }` }));
+  m.renderOrder = 2; m.frustumCulled = false; return m;
+}
+function glareBuild() {
+  glare.g = new THREE.Group(); scene.add(glare.g);
+  glare.disc = new THREE.Sprite(new THREE.SpriteMaterial({ map: glareTex(64, [[0, 'rgba(255,255,250,1)'], [.25, 'rgba(255,250,225,.95)'], [.5, 'rgba(255,230,170,.35)'], [1, 'rgba(255,210,140,0)']]),
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true }));
+  glare.disc.renderOrder = -1; glare.g.add(glare.disc);
+  glare.path = glintPath(); glare.g.add(glare.path);
+  glare.cv = document.createElement('canvas'); glare.cv.id = 'flare3d'; glare.cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;display:none';
+  canvas.after(glare.cv); glare.ctx = glare.cv.getContext('2d');
+}
+function glareStep(t) {
+  const wx = typeof waterEnv !== 'undefined' && waterEnv && waterEnv.rain;
+  const on = Q !== GFX.tiers.lite && (t === 'day' || t === 'evening') && !wx && (mode === 'racer' || mode === 'chase');
+  if (!glare.g) { if (!on) return; glareBuild(); }
+  glare.g.visible = on; if (!on) { if (glare.cv.style.display !== 'none') glare.cv.style.display = 'none'; return; }
+  const el = GLARE.el[t] * Math.PI / 180, az = Math.atan2(SUN_OFF.z, SUN_OFF.x), cp = camera.position;
+  const dx = Math.cos(az) * Math.cos(el), dz = Math.sin(az) * Math.cos(el), dy = Math.sin(el);
+  glare.disc.position.set(cp.x + dx * GLARE.dist, cp.y + dy * GLARE.dist, cp.z + dz * GLARE.dist);
+  const ds = GLARE.disc[t]; glare.disc.scale.set(ds, ds, 1);
+  glare.disc.material.color.set(t === 'evening' ? 0xffb070 : 0xffffff);
+  // the path runs from under the eye toward the sun's azimuth
+  glare.path.position.set(cp.x, .04, cp.z); glare.path.rotation.y = -az; glare.path.scale.set(GLARE.path.len, 1, GLARE.path.w1);
+  const U = glare.path.material.uniforms; U.t.value = performance.now() / 1000; U.a.value = t === 'evening' ? GLARE.path.aEve : GLARE.path.a;
+  U.col.value.set(t === 'evening' ? 0xffc080 : 0xfff6e6);
+  // lens flare: from the sun on screen through the centre
+  const w = innerWidth, h = innerHeight; if (glare.cv.width !== w || glare.cv.height !== h) { glare.cv.width = w; glare.cv.height = h; }
+  camera.updateMatrixWorld(); const v = glare.disc.position.clone().project(camera), g = glare.ctx; g.clearRect(0, 0, w, h);
+  const inView = v.z < 1 && Math.abs(v.x) < 1.15 && Math.abs(v.y) < 1.15;
+  if (!inView) { glare.cv.style.display = 'none'; return; }
+  glare.cv.style.display = 'block';
+  const sx = (v.x + 1) / 2 * w, sy = (1 - v.y) / 2 * h, cx = w / 2, cy = h / 2, m = Math.min(w, h);
+  const fade = (1 - Math.max(Math.abs(v.x), Math.abs(v.y)) / 1.15) * (t === 'evening' ? .8 : 1);
+  g.globalCompositeOperation = 'lighter';
+  for (const [k, sz, al] of GLARE.flare) {
+    const x = sx + (cx - sx) * k * 2, y = sy + (cy - sy) * k * 2, r = sz * m * .5;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    const c0 = t === 'evening' ? '255,190,130' : '255,245,220';
+    gr.addColorStop(0, `rgba(${c0},${al * fade})`); gr.addColorStop(.6, `rgba(${c0},${al * fade * .35})`); gr.addColorStop(1, `rgba(${c0},0)`);
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  g.globalCompositeOperation = 'source-over';
+}
+
+
+/* d303 季節の空・月 (まえ: 空の季節表現、雲とか／夜は月のパターン、水面に映る): a band of painted clouds round the sky by season
+   (春 霞とぼんやりした雲, 夏 入道雲, 秋 うろこ雲・すじ雲, 冬 低く平たい雲; 雨は一面の雲), drifting slowly with the wind; at night a
+   moon by its phase (節間: moves on day by day; otherwise today's real moon), placed and lit from the sun's side, with its narrow
+   path of light on the water. The season: the 節's, otherwise the month. One mesh + one sprite — light; looks only.
+   スマホ軽量: clouds and the moon, no light path. */
+const SKY3 = { r: 1150, elTop: 55, elBot: -2, drift: .0007, driftPer: .00035, moonDist: 1000, moonSize: 70, haloSize: 300, moonFrom: .06, moonTo: .72,
+  tint: { day: 0xffffff, evening: 0xffbf9c, night: 0x2a3142 }, rainTint: { day: 0xa8aeb4, evening: 0x9a8e88, night: 0x1c2029 },
+  path: { w0: 4, w1: 60, a: 1.7, len: 650 }, synodic: 29.530589, newMoon: Date.UTC(2000, 0, 6, 18, 14) };
+const sky3 = { mesh: null, key: '', tex: new Map(), moon: null, halo: null, path: null, moonKey: '', azOff: 0 };   // (azOff: for checks only)
+function seasonNow() {
+  const S = typeof setsu !== 'undefined' && setsu; if (S && fleet && fleet.setsu && S.season) return S.season;
+  const m = new Date().getMonth() + 1; return m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter';
+}
+function moonPhase() {   // 0 new → .5 full → 1
+  const S = typeof setsu !== 'undefined' && setsu;
+  if (S && fleet && fleet.setsu) { if (S.moon == null) S.moon = Math.random(); return (S.moon + (S.day || 0) / SKY3.synodic) % 1; }
+  return (((Date.now() - SKY3.newMoon) / 864e5 / SKY3.synodic) % 1 + 1) % 1;
+}
+function cloudTex(style) {
+  const W = Q === GFX.tiers.lite ? 1024 : 2048, tk = style + W; if (sky3.tex.has(tk)) return sky3.tex.get(tk);
+  const H = W / 4, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'), k = W / 2048; let sd = { spring: 11, summer: 23, autumn: 37, winter: 51, rain: 77 }[style] || 5;
+  const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, R = (a, b) => a + (b - a) * rnd();
+  const yOf = el => H * (1 - (el - SKY3.elBot) / (SKY3.elTop - SKY3.elBot));
+  const puff = (x, y, r, a, col = '255,255,255', sx = 1) => { for (const dx of [0, -W, W]) { if (x + dx + r * sx < 0 || x + dx - r * sx > W) continue;
+    g.save(); g.translate(x + dx, y); g.scale(sx, 1); const gr = g.createRadialGradient(0, 0, 0, 0, 0, r);
+    gr.addColorStop(0, `rgba(${col},${a})`); gr.addColorStop(.55, `rgba(${col},${a * .55})`); gr.addColorStop(1, `rgba(${col},0)`);
+    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill(); g.restore(); } };
+  const haze = (el, a) => { const gr = g.createLinearGradient(0, H, 0, yOf(el)); gr.addColorStop(0, `rgba(255,255,255,${a})`); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, yOf(el), W, H - yOf(el)); };
+  // a heaped cloud: grey belly first, white tops over it
+  const heap = (x, el, w, h, n, a, belly = '170,178,190') => { const y0 = yOf(el);
+    for (let i = 0; i < n; i++) { const u = rnd(), px = x + (u - .5) * w, py = y0 - rnd() * h * (1 - Math.abs(u - .5) * 1.2), r = R(.18, .32) * Math.min(w, h * 2.2);
+      puff(px, py + r * .35, r * 1.05, a * .55, belly); }
+    for (let i = 0; i < n; i++) { const u = rnd(), px = x + (u - .5) * w * .92, py = y0 - h * .25 - rnd() * h * .8 * (1 - Math.abs(u - .5) * 1.2), r = R(.16, .28) * Math.min(w, h * 2.2); puff(px, py, r, a); } };
+  if (style === 'spring') {
+    haze(14, .55);
+    for (let i = 0; i < 30; i++) heap(R(0, W), R(4, 26), R(140, 360) * k, R(26, 60) * k, 10, R(.32, .5), '200,208,220');
+  } else if (style === 'summer') {
+    haze(6, .35);
+    for (let i = 0; i < 6; i++) {   // 入道雲: towers standing on the horizon
+      const x = R(0, W), w = R(150, 300) * k, h = R(260, 420) * k, base = yOf(R(-1, 3));
+      for (let j = 0; j < 46; j++) { const t = rnd(), py = base - t * h, ww = w * (.55 + .45 * Math.sin(t * Math.PI * .8)) + (t > .8 ? w * .6 * (t - .8) * 5 : 0);
+        const px = x + (rnd() - .5) * ww, r = R(.16, .26) * w; puff(px, py + r * .3, r * 1.05, .5 * (1 - t * .6), '150,160,178'); puff(px - r * .1, py - r * .15, r * .95, .95 * (.55 + t * .45)); }
+    }
+    for (let i = 0; i < 14; i++) heap(R(0, W), R(10, 34), R(70, 150) * k, R(26, 48) * k, 8, R(.6, .85));
+  } else if (style === 'autumn') {
+    haze(5, .2);
+    for (let p = 0; p < 9; p++) {   // うろこ雲: patches of small flecks in rows, high up
+      const cx = R(0, W), cy = yOf(R(16, 42)), w = R(220, 420) * k, h = R(50, 90) * k, rot = R(-.3, .3);
+      for (let i = 0; i < 260 * k + 120; i++) { const u = rnd() - .5, v = rnd() - .5; if (u * u * 4 + v * v * 4 > 1) continue;
+        const x = cx + u * w * Math.cos(rot) - v * h * Math.sin(rot), y = cy + u * w * Math.sin(rot) * .3 + v * h, rr = R(4, 9) * k;
+        puff(x, y + Math.sin(u * 40) * 3 * k, rr * 1.3, R(.75, 1), '255,255,255', 1.6); }
+    }
+    g.lineCap = 'round';
+    for (let i = 0; i < 12; i++) {   // すじ雲: long thin streaks
+      const x = R(0, W), y = yOf(R(30, 52)), L = R(260, 520) * k, bend = R(-40, 40) * k;
+      for (let j = 0; j < 4; j++) { g.strokeStyle = `rgba(255,255,255,${R(.08, .16)})`; g.lineWidth = R(3, 9) * k;
+        for (const dx of [0, -W, W]) { g.beginPath(); g.moveTo(x + dx, y + j * 3 * k); g.quadraticCurveTo(x + dx + L / 2, y + bend + j * 4 * k, x + dx + L, y + bend * .4 + j * 2 * k); g.stroke(); } }
+    }
+  } else if (style === 'winter') {
+    haze(8, .3);
+    for (let i = 0; i < 90; i++) { const x = R(0, W), el = R(3, 24), r = R(40, 90) * k * (1 - el / 40);   // 層積雲: low flat rolls, grey bellies
+      puff(x, yOf(el) + r * .25, r, R(.35, .5), '158,166,178', 3.2); puff(x, yOf(el) - r * .1, r * .8, R(.4, .6), '236,240,244', 3.2); }
+  } else {   // rain: one grey lid with darker lumps
+    g.fillStyle = 'rgba(200,204,210,.9)'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 120; i++) puff(R(0, W), R(0, H), R(40, 120) * k, R(.25, .45), '120,126,136', 2.5);
+  }
+  // fade out at the top edge of the band
+  g.globalCompositeOperation = 'destination-out'; const gt = g.createLinearGradient(0, 0, 0, H * .18); gt.addColorStop(0, 'rgba(0,0,0,1)'); gt.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gt; g.fillRect(0, 0, W, H * .18);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4; sky3.tex.set(tk, t); return t;
+}
+function moonTex(f) {   // f: lit fraction 0…1, the lit side to +x
+  const S = 128, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'), r = S * .46, o = S / 2;
+  g.fillStyle = 'rgba(70,80,105,.55)'; g.beginPath(); g.arc(o, o, r, 0, Math.PI * 2); g.fill();   // earthshine
+  g.save(); g.beginPath(); g.arc(o, o, r, 0, Math.PI * 2); g.clip();
+  const lit = '#f4f1e4', ex = r * Math.abs(1 - 2 * f);
+  g.fillStyle = lit; g.beginPath(); g.arc(o, o, r, -Math.PI / 2, Math.PI / 2); g.fill();   // the sun-side half
+  if (f < .5) { g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.ellipse(o, o, ex, r, 0, 0, Math.PI * 2); g.fill(); g.globalCompositeOperation = 'source-over';
+    g.fillStyle = 'rgba(70,80,105,.55)'; g.beginPath(); g.ellipse(o, o, ex, r, 0, 0, Math.PI * 2); g.fill(); }
+  else { g.beginPath(); g.ellipse(o, o, ex, r, 0, 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = 'rgba(150,150,140,.22)';   // a few 海
+  for (const [x, y, rr] of [[.18, -.2, .22], [.32, .15, .16], [-.1, -.3, .14], [-.2, .2, .2], [.05, .38, .1]]) { g.beginPath(); g.arc(o + x * r, o + y * r, rr * r, 0, Math.PI * 2); g.fill(); }
+  g.restore();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function skyStep(dt) {
+  const e = typeof waterEnv !== 'undefined' && fleet && waterEnv, rain = !!(e && e.rain), style = rain ? 'rain' : skySeason || 'autumn';
+  const show = mode !== 'top';
+  if (!sky3.mesh) {
+    const el0 = SKY3.elBot * Math.PI / 180, el1 = SKY3.elTop * Math.PI / 180;
+    const geo = new THREE.SphereGeometry(SKY3.r, 48, 8, 0, Math.PI * 2, Math.PI / 2 - el1, el1 - el0);
+    sky3.mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true, side: THREE.BackSide, fog: false, depthWrite: false }));
+    sky3.mesh.renderOrder = -1.5; scene.add(sky3.mesh);
+  }
+  const key = style + '|' + tod + '|' + (Q === GFX.tiers.lite ? 'l' : 'h');
+  if (key !== sky3.key) { sky3.key = key; const m = sky3.mesh.material; m.map = cloudTex(style); m.color.set((rain ? SKY3.rainTint : SKY3.tint)[tod] || 0xffffff); m.opacity = tod === 'night' && !rain ? .8 : 1; m.needsUpdate = true; }
+  sky3.mesh.visible = show; sky3.mesh.position.copy(camera.position).setY(0);
+  if (!paused) sky3.mesh.rotation.y += dt * (SKY3.drift + Math.min(WX3.wv, 8) * SKY3.driftPer);
+  // the moon
+  const ph = moonPhase(), on = show && tod === 'night' && !rain && ph > SKY3.moonFrom && ph < SKY3.moonTo;
+  if (!sky3.moon) {
+    sky3.moon = new THREE.Sprite(new THREE.SpriteMaterial({ depthWrite: false, fog: false, transparent: true })); sky3.moon.renderOrder = -1; scene.add(sky3.moon);
+    sky3.halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glareTex(64, [[0, 'rgba(220,230,255,.55)'], [.3, 'rgba(190,205,240,.16)'], [1, 'rgba(160,180,230,0)']]), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true }));
+    sky3.halo.renderOrder = -1.2; scene.add(sky3.halo);
+  }
+  if (!sky3.path && Q !== GFX.tiers.lite) { sky3.path = glintPath(); const U = sky3.path.material.uniforms; U.w0.value = SKY3.path.w0; U.w1.value = SKY3.path.w1; U.col.value.set(0xc8d6ff); scene.add(sky3.path); }
+  sky3.moon.visible = sky3.halo.visible = on; if (sky3.path) sky3.path.visible = on && Q !== GFX.tiers.lite && (mode === 'racer' || mode === 'chase');
+  if (!on) return;
+  const f = (1 - Math.cos(ph * Math.PI * 2)) / 2, fk = Math.round(f * 40);
+  if (sky3.moonKey !== fk) { sky3.moonKey = fk; if (sky3.moon.material.map) sky3.moon.material.map.dispose(); sky3.moon.material.map = moonTex(fk / 40); sky3.moon.material.needsUpdate = true; }
+  // in the evening the moon stands its phase × 360° east of the (just set) sun: 三日月 low in the west, 上弦 high in the south, 満月 rising in the east
+  const sunAz = Math.atan2(SUN_OFF.z, SUN_OFF.x), az = sunAz + ph * Math.PI * 2 + sky3.azOff, el = (ph <= .5 ? 6 + 9 * Math.pow(Math.max(0, Math.sin(ph * Math.PI * 2)), 1.5) : Math.max(4, 6 - (ph - .5) * 12)) * Math.PI / 180;   // kept low (6–15°) so it shows from the boat
+  const cp = camera.position, dx = Math.cos(az) * Math.cos(el), dz = Math.sin(az) * Math.cos(el), dy = Math.sin(el), D = SKY3.moonDist;
+  sky3.moon.position.set(cp.x + dx * D, cp.y + dy * D, cp.z + dz * D); sky3.moon.scale.setScalar(SKY3.moonSize);
+  sky3.halo.position.copy(sky3.moon.position); sky3.halo.scale.setScalar(SKY3.haloSize * (.45 + .55 * f)); sky3.halo.material.opacity = .5 + .5 * f;
+  // turn the lit side toward the sun (below the horizon) on screen
+  camera.updateMatrixWorld(); const E = camera.matrixWorld.elements;   // camera right = column 0, up = column 1
+  const tx = Math.cos(sunAz) * .98 - dx, ty = -.2 - dy, tz = Math.sin(sunAz) * .98 - dz;   // moon → sun (just under the horizon), in the sky
+  sky3.moon.material.rotation = Math.atan2(tx * E[4] + ty * E[5] + tz * E[6], tx * E[0] + ty * E[1] + tz * E[2]);
+  if (sky3.path && sky3.path.visible) {
+    sky3.path.position.set(cp.x, .05, cp.z); sky3.path.rotation.y = -az; sky3.path.scale.set(SKY3.path.len, 1, SKY3.path.w1);
+    const U = sky3.path.material.uniforms; U.t.value = performance.now() / 1000; U.a.value = SKY3.path.a * (.25 + .75 * f) * (1.1 - el / 1.2);
+  }
+}
+
+/* d300 (まえ: グラフィック効果 1 見た目の波（うねり）, 設定で選ぶ・スマホ軽量は無し): a dense grid of water that follows the eye and
+   swells with the day's 波高 and wind (three long crossing waves along the wind); the flat water is dropped a little under it.
+   Boats ride it (hull heave and nose only). Looks only: the race still sees one course-wide wave number. */
+const SWELL = { key: 'honorGP.swell3d', on: false, size: 360, seg: 144, base: .05, perCm: .006, max: .42, under: -.5, edge: .82,
+  waves: [[0, 17, .55, 1], [.45, 11, .3, 1.35], [-.6, 7, .15, 1.8]] };   // [angle off the wind, length m, share of height, speed ×]
+try { SWELL.on = localStorage.getItem(SWELL.key) === 'on'; } catch (e) {}
+const swell = { mesh: null, amp: 0, ux: 1, uy: 0, t: 0, U: null };
+function swellAmp() { return Math.min(SWELL.max, SWELL.base + fin(WX3.wave) * SWELL.perCm); }
+function swellDir() { return WX3.wv > .3 ? [WX3.ux, WX3.uy] : [.94, .34]; }
+function swellH(x, y) {   // the same sum as the shader, for the boats
+  if (!swell.mesh || !swell.mesh.visible) return 0;
+  const [ux, uy] = [swell.ux, swell.uy]; let h = 0;
+  for (const [ang, L, k, sp] of SWELL.waves) {
+    const c = Math.cos(ang), s2 = Math.sin(ang), dx = ux * c - uy * s2, dy = ux * s2 + uy * c, w = Math.PI * 2 / L;
+    h += Math.sin((x * dx + y * dy) * w - swell.t * Math.sqrt(9.8 * w) * sp * .5) * k;
+  }
+  return h * swell.amp;
+}
+function swellBuild(water, g) {
+  swell.mesh = null;
+  if (Q === GFX.tiers.lite) return;
+  const geo = new THREE.PlaneGeometry(SWELL.size, SWELL.size, SWELL.seg, SWELL.seg); geo.rotateX(-Math.PI / 2);
+  const m = water.material.clone(), reflect = waterNow() === 'reflect' && refl;
+  const U = swell.U = { swT: { value: 0 }, swA: { value: 0 }, swD: { value: new THREE.Vector2(1, 0) }, swMin: { value: new THREE.Vector2(COURSE.xMin, COURSE.yMin) },
+    swSize: { value: new THREE.Vector2(COURSE.xMax - COURSE.xMin, COURSE.yMax - COURSE.yMin) }, swHalf: { value: SWELL.size / 2 }, swC: { value: new THREE.Vector2() } };
+  const W = SWELL.waves.map(([a, L, k, sp]) => `vec4(${a.toFixed(3)}, ${L.toFixed(3)}, ${k.toFixed(3)}, ${sp.toFixed(3)})`).join(',');
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    if (reflect) Object.assign(sh.uniforms, { tRefl: { value: refl.rt.texture }, reflTm: { value: refl.tm }, reflK: { value: GFX.refl.k }, reflD: { value: GFX.refl.distort } });
+    sh.vertexShader = `uniform float swT, swA, swHalf; uniform vec2 swD, swMin, swSize, swC; ${reflect ? 'uniform mat4 reflTm; varying vec4 vReflUv;' : ''}
+      const vec4 SWW[3] = vec4[3](${W});
+      vec3 swell(vec2 p){ float h = 0.; vec2 gr = vec2(0.);
+        for (int i = 0; i < 3; i++) { vec4 q = SWW[i]; float c = cos(q.x), s = sin(q.x); vec2 d = vec2(swD.x*c - swD.y*s, swD.x*s + swD.y*c);
+          float w = 6.2831853 / q.y, ph = dot(p, d) * w - swT * sqrt(9.8 * w) * q.w * .5; h += sin(ph) * q.z; gr += d * (w * cos(ph) * q.z); }
+        return vec3(h, gr) * swA; }
+      float swFade(vec2 p){ vec2 r = abs(p - swC) / swHalf; return 1. - smoothstep(${SWELL.edge.toFixed(2)}, 1., max(r.x, r.y)); }
+      ` + sh.vertexShader
+      .replace('#include <beginnormal_vertex>', `vec4 swWp = modelMatrix * vec4(position, 1.); vec3 swS = swell(swWp.xz); float swF = swFade(swWp.xz);
+        vec3 objectNormal = normalize(vec3(-swS.y * swF, 1., -swS.z * swF));
+        #ifdef USE_TANGENT
+          vec3 objectTangent = vec3( tangent.xyz );
+        #endif`)
+      .replace('#include <begin_vertex>', `vec3 transformed = vec3(position); { vec2 swP = (modelMatrix * vec4(position, 1.)).xz; float swG = swFade(swP);
+        transformed.y += swell(swP).x * swG + ${SWELL.under.toFixed(2)} * (1. - swG) * .9; }
+        ${reflect ? 'vReflUv = reflTm * vec4((modelMatrix * vec4(transformed, 1.)).xyz, 1.0);' : ''}`)
+      .replace('#include <uv_vertex>', `#include <uv_vertex>
+        { vec2 wuv = ((modelMatrix * vec4(position, 1.)).xz - swMin) / swSize;
+        #ifdef USE_MAP
+          vMapUv = ( mapTransform * vec3( wuv, 1 ) ).xy;
+        #endif
+        #ifdef USE_NORMALMAP
+          vNormalMapUv = ( normalMapTransform * vec3( wuv, 1 ) ).xy;
+        #endif
+        #ifdef USE_EMISSIVEMAP
+          vEmissiveMapUv = ( emissiveMapTransform * vec3( wuv, 1 ) ).xy;
+        #endif
+        }`);
+    if (reflect) sh.fragmentShader = 'uniform sampler2D tRefl; uniform float reflK; uniform float reflD; varying vec4 vReflUv;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
+      '#include <opaque_fragment>\n { vec2 ruv = vReflUv.xy / vReflUv.w + normal.xy * reflD; vec3 rc = texture2D(tRefl, ruv).rgb;\n' +
+      '   float fr = reflK * (0.18 + 0.82 * pow(1.0 - clamp(abs(dot(normalize(vViewPosition), normal)), 0.0, 1.0), 3.0));\n' +
+      '   gl_FragColor.rgb = mix(gl_FragColor.rgb, rc, fr); }');
+  };
+  m.customProgramCacheKey = () => 'hfgp-swell' + (reflect ? '-r' : '');
+  const mesh = new THREE.Mesh(geo, m); mesh.receiveShadow = water.receiveShadow; mesh.frustumCulled = false; mesh.visible = false;
+  g.add(mesh); swell.mesh = mesh;
+}
+function swellStep(dt) {
+  const on = SWELL.on && swell.mesh && world && (mode === 'racer' || mode === 'chase');
+  if (!swell.mesh) return;
+  swell.mesh.visible = !!on; world.water.position.y = on ? SWELL.under : 0;
+  if (!on) return;
+  swell.amp = swellAmp(); [swell.ux, swell.uy] = swellDir(); swell.t = time;
+  const cp = camera.position, cell = SWELL.size / SWELL.seg;
+  swell.mesh.position.set(Math.round(cp.x / cell) * cell, 0, Math.round(cp.z / cell) * cell);
+  const U = swell.U; U.swT.value = swell.t; U.swA.value = swell.amp; U.swD.value.set(swell.ux, swell.uy); U.swC.value.set(swell.mesh.position.x, swell.mesh.position.z);
 }
 
 /* ---------- frame ---------- */
@@ -779,7 +1114,7 @@ let last = 0, lost = false, draws3d = 0, ms3d = 0;
 function render(now) {
   requestAnimationFrame(render);
   pillText();   // d286: the 視点 pill follows the 2D カメラ too (cheap: only writes on a change)
-  if (mode === '2d' || !set || lost) { if (canvas.style.display !== 'none') { canvas.style.display = 'none'; light2d(false); } if (lens.cv) lens.cv.style.display = 'none'; return; }
+  if (mode === '2d' || !set || lost) { if (canvas.style.display !== 'none') { canvas.style.display = 'none'; light2d(false); } if (lens.cv) lens.cv.style.display = 'none'; if (glare.cv) glare.cv.style.display = 'none'; return; }
   const FRAME_MS = Q.fps ? 1000 / Q.fps : 0;   // the 3D view at 30 fps on スマホ軽量 (the race itself runs as before)
   if (FRAME_MS && now - last < FRAME_MS - 2) return;
   slowWatch(now, FRAME_MS);
@@ -804,7 +1139,8 @@ function frame3d(now) {
   const w = innerWidth, h = innerHeight, dpr = Math.min(Q.dpr, devicePixelRatio || 1);
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); camera.aspect = w / h; }
   const t = todNow();
-  if (t !== tod || VENUE.id !== venueId) { tod = t; venueId = VENUE.id; buildWorld(); }
+  const ssn = seasonNow();   // d303
+  if (t !== tod || VENUE.id !== venueId || ssn !== skySeason) { tod = t; venueId = VENUE.id; skySeason = ssn; buildWorld(); }
   world.dist.visible = !!fleet; world.deco.visible = mode === 'top'; wxApply();
   if (world_clockHand && typeof SS !== 'undefined') {   // d291: the same hand as the HUD clock (view.js): at the top while waiting, one turn per CLOCK s
     const live = SS.phase !== 'off' && SS.phase !== 'entry';
@@ -818,7 +1154,8 @@ function frame3d(now) {
     const capsized = fin(b.cap) > 0 && !b.fallen, gone = fin(b.cap) > 0 || b.fallen;
     const nose = capsized ? 0 : lim((typeof willieMotion === 'function' ? willieMotion(b).nose : (b.wil || 0) * .30) + (b.trim || 0) * .14 + (b.porp || 0) * .045 * Math.sin(time * 18) + (b.hv || 0) * .025, -.12, .75);
     const rb = typeof rideBob === 'function' ? rideBob(b) : { h: 0, nose: 0 };   // d266 走りの揺れ (looks only)
-    a.setGameTransform({ x: b.x, y: b.y, hop: fin(b.hop) + rb.h + (typeof willieMotion === 'function' ? willieMotion(b).h * .5 : 0), modelYaw: -Math.PI / 2 - b.a, modelBank: capsized ? Math.PI : lim(b.bank, -.65, .65) * V3.bank, nose: capsized ? 0 : nose + rb.nose });
+    const sw = swellH(b.x, b.y), swN = sw ? (swellH(b.x + Math.cos(b.a) * 1.5, b.y + Math.sin(b.a) * 1.5) - swellH(b.x - Math.cos(b.a) * 1.5, b.y - Math.sin(b.a) * 1.5)) / 3 : 0;   // d300 riding the swell
+    a.setGameTransform({ x: b.x, y: b.y, hop: fin(b.hop) + rb.h + sw + (typeof willieMotion === 'function' ? willieMotion(b).h * .5 : 0), modelYaw: -Math.PI / 2 - b.a, modelBank: capsized ? Math.PI : lim(b.bank, -.65, .65) * V3.bank, nose: capsized ? 0 : nose + rb.nose + swN });
     const dist = Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1;
     a.chooseLOD((mode === 'top' ? 3.3 * (cam.S || 20) : 3.3 * focal / dist) * Q.lod);
     // d280 (まえ: モンキーターンやウィリーターンの姿勢): the replay's 0.28 turn poses — 体重移動 smoothed over ~0.2 s, モンキー
@@ -828,7 +1165,7 @@ function frame3d(now) {
     a.updatePose({ pitch: lim((b.wil || 0) > .3 && !(fin(b.cap) > 0) ? Math.min(inp.pitch || 0, -.7) : inp.pitch, -1, 1),   /* d272: ウィリー中は体を後ろへ */ roll: lim(ps.roll, -1, 1), steer: -lim(inp.steer, -1, 1) * .30, propAngle: time * (12 + lim(b.v / 23, 0, 1) * 90),
       turn: capsized ? 0 : tu, willie: capsized ? 0 : lim(fin(b.wil) / .6, 0, 1), wheel: lim(inp.steer, -1, 1) });
     const lv = a.levels[a.lod]; if (lv && lv.racer) lv.racer.visible = !gone && !(mode === 'racer' && b === me);
-    a.root.visible = true;
+    a.root.visible = true; flagStep(a, row, dt);
     if (mode === 'top' && !gone) { const tr = topRing(row.no || 1); tr.position.set(b.x, TOP3.ringY, b.y); tr.visible = true; }
   }
   // タイムアタックのゴースト (自己ベスト・相手): the same poses the 2D game draws, see-through
@@ -853,7 +1190,10 @@ function frame3d(now) {
   // 上空: no fog over the 600–900 m to the water (the weather's fog object is kept and put back on the way out)
   if (mode === 'top') { const f = scene.fog; if (f && (!fogKeep || fogKeep.f !== f)) fogKeep = { f, near: f.near, far: f.far }; if (f) { f.near = 1e6; f.far = 1e6 + 1; } }
   else if (fogKeep) { if (scene.fog === fogKeep.f) { scene.fog.near = fogKeep.near; scene.fog.far = fogKeep.far; } fogKeep = null; }
-  sun.position.set(me.x - 60, 120, me.y - 80); sun.target.position.set(me.x, 0, me.y);
+  sun.position.set(me.x + SUN_OFF.x, 120, me.y + SUN_OFF.z); sun.target.position.set(me.x, 0, me.y);
+  glareStep(tod);   // d299
+  skyStep(dt);   // d303
+  swellStep(dt);   // d300
   if (sun.castShadow) sun.shadow.camera.updateProjectionMatrix();
   camera.updateMatrixWorld(); if (refl && mode !== 'top') renderReflection(w * dpr, h * dpr);   // 上空: the mirror would only show the sky
   renderer.render(scene, camera);
@@ -922,6 +1262,8 @@ function gfxUi() {
   const n = $('gfx3dNow'); if (n) n.textContent = gfxSet === 'auto' ? `（いま：${Q.label}）` : '';
   const a = $('gfx3d'), b = $('water3d'); if (a && a.value !== gfxSet) a.value = gfxSet; if (b && b.value !== waterSet) b.value = waterSet;
 }
+{ const el = $('swell3d'); if (el) { el.value = SWELL.on ? 'on' : 'off'; el.addEventListener('change', e => {   // d300 3D波（うねり）
+  SWELL.on = e.target.value === 'on'; try { localStorage.setItem(SWELL.key, e.target.value); } catch (x) {} }); } }
 { const el = $('spray3d'); if (el) { el.value = FX.on ? 'big' : 'std'; el.addEventListener('change', e => {   // d287 3D飛沫 標準／派手
   FX.on = e.target.value === 'big'; try { localStorage.setItem(FX.key, e.target.value); } catch (x) {}
   if (spray3 && SPRAY.max !== sprayMax()) { scene.remove(spray3.pts); spray3.pts.geometry.dispose(); spray3.pts.material.dispose(); spray3 = null; }
@@ -929,7 +1271,7 @@ function gfxUi() {
 }); } }
 for (const [id, key] of [['gfx3d', GFX.key], ['water3d', GFX.wKey]]) { const el = $(id); if (el) el.addEventListener('change', e => {
   const v = e.target.value; try { localStorage.setItem(key, v); } catch (x) {}
-  if (id === 'gfx3d') { gfxSet = v; tierNow = v !== 'auto' ? v : PHONE ? 'lite' : 'pc'; } else waterSet = v;
+  if (id === 'gfx3d') { gfxSet = v; tierNow = v !== 'auto' ? v : 'pc'; } else waterSet = v;
   slowW.n = 0; applyTier(false);
 }); }
 // 自動: a few seconds of slow frames → one step down (this visit only; the setting stays 自動)
@@ -969,5 +1311,5 @@ function boot() {
   requestAnimationFrame(render);
   return booting;
 }
-window.View3D = { ready: false, setMode, toggle: toggleDisp, get last() { return lastMode(); }, get mode() { return mode; }, look, lens, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0 }; } };
+window.View3D = { ready: false, setMode, toggle: toggleDisp, get last() { return lastMode(); }, get mode() { return mode; }, look, lens, sky: sky3, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0 }; } };
 setMode(mode);
