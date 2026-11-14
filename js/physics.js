@@ -19,7 +19,7 @@ const TURN = { lean: 0.9, upBoost: 0.75, downCut: 0.6, thrWide: 0.15, dropGrip: 
 const WAKE_PLAN = { offs: [-4.5, -3, -1.5, 0, 1.5, 3, 4.5, 6], freeAt: 55, nudge: 1.5 };   // freeAt: m before a mark where line changes are free again
 const WAKE = { width: 1.4, life: 2.4, drag: 1.8, kick: 1.9, grip: 1.6, unsettle: 0.55, fade: 2.5 };   // fade: how fast a wake dies with age (d118 0.7). Fresh wake hits as hard as ever; an old one fades fast
 // 航跡: running in line behind a boat (not crossing its wake) takes the edge off thrust — the closer, the more
-const TRAIL = { range: 60, width: 2.5, max: 0.1, dodgeK: 2.5 };          // chance per second of going over, scaled by (load − 1)^1.5 past the danger line
+const TRAIL = { range: 60, width: 2.5, max: 0.04, dodgeK: 2.5 };   // d309 (まえ: 直線は効きすぎ) max 0.1 → 0.04          // chance per second of going over, scaled by (load − 1)^1.5 past the danger line
 // 直線: lean up to `free` steers the hull a touch at no cost; past `ok` the posture itself drags (per m/s of speed)
 const STRAIGHT_LEAN = { free: 0.35, ok: 0.5, drag: 0.035 };
 // CPU on a straight (next mark more than `from` m ahead): rudder held within ±steer, the rest of the wanted turn goes to the lean
@@ -55,7 +55,7 @@ const preStartAfter = (bowX, slow) => clamp(1 - bowX / (slow ? START_ACC.slowFad
 //   whole water gets choppier as the race goes on — the prop bites a little less and the hull grips a little less.
 // 熱ダレ (HEAT): flat out the motor heats up and loses a touch of power; easing the lever lets it cool a bit.
 const CHOP = { full: 110, pow: 1.5, thr: 0.05, grip: 0.03 };   // pow > 1: the first lap's water is still clean, it builds up later
-const HEAT = { T: 90, cool: 0.4, thr: 0.045 };
+const HEAT = { T: 90, cool: 0.4, thr: 0.02 };   // d309 (まえ: 熱ダレを弱く、先行艇は前の周の引き波の残りで落ちていく) 0.045 → 0.02
 // d161 (まえ): the lap-by-lap fade is the race's — 6 boats churning the pool, a motor worked hard (整備 covers it).
 // タイムアタック alone on the water keeps only a trace of it
 const FADE = { ta: 0.2, test: false };   // test: apply the solo fade to a fleet (CPU 単独 time checks)
@@ -518,7 +518,7 @@ function boatContacts(list) {
 }
 
 // ターンの引き波 is big and lingers; a boat running straight leaves only a low wave
-const WAKE_TURN = { straight: 0.4, yawFull: 0.55, lifeK: 1.35 };
+const WAKE_TURN = { straight: 0.3, yawFull: 0.55, lifeK: 1.25, fadeTurn: 1.5 };   // d309 (まえ: 直線は効きすぎ、ターンは効かなすぎ): straight 0.4 → 0.3; a turn's wake lasts 3 s (lifeK 1.35×2.4 → 1.25×2.4) and fades slower (power 1.5 instead of WAKE.fade 2.5)
 const wakeStrength = b => WAKE_TURN.straight + (1 - WAKE_TURN.straight) * clamp(Math.abs(b.yaw || 0) / WAKE_TURN.yawFull, 0, 1);
 function boatFx(b, arr, dt) {
   const fx = Math.cos(b.a), fy = Math.sin(b.a), rx = -fy, ry = fx;

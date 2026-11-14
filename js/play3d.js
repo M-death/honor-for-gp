@@ -315,12 +315,12 @@ function buildWorld() {
   const ring = new THREE.Mesh(new THREE.RingGeometry(4, 4.5, 32), new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide })); ring.position.copy(dial.position); ring.rotation.y = Math.PI; clk.add(ring);
   g.add(clk);
   // turn marks (orange) and the float booms toward the centre
-  const mm = new THREE.MeshLambertMaterial({ color: 0xff7a1a, emissive: tod === 'night' ? 0x552000 : 0x000000 }), wm = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  world_marks.length = 0; const markMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: tod === 'night' ? 0x2a1414 : 0x000000 });
   const bm = new THREE.MeshLambertMaterial({ color: 0xe8e2c8 });
   for (const o of OBSTACLES) {
-    if (o.kind === 'mark') {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(o.r * .85, o.r, 1.6, 20), mm); m.position.set(o.x1, .8, o.y1); g.add(m);
-      const top = new THREE.Mesh(new THREE.CylinderGeometry(o.r * .5, o.r * .85, .5, 20), wm); top.position.set(o.x1, 1.85, o.y1); g.add(top);
+    if (o.kind === 'mark') {   // d307 (まえ: 回る紅白うんこ): the real ターンマーク, 3 段のねじれ紅白, 径 1.1 m・高さ 0.95 m
+      const m = new THREE.Mesh(markGeo(), markMat); m.position.set(o.x1, MARK3.base, o.y1); m.rotation.y = Math.random() * 6.28; g.add(m);
+      world_marks.push({ m, x: o.x1, y: o.y1, w: MARK3.idle });
     } else if (o.kind === 'boom') {
       const L = Math.hypot(o.x2 - o.x1, o.y2 - o.y1), b = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r, L, 8), bm);
       b.rotation.z = Math.PI / 2; b.position.set((o.x1 + o.x2) / 2, .12, (o.y1 + o.y2) / 2); g.add(b);
@@ -436,6 +436,46 @@ const FX = { key: 'honorGP.spray3d', on: false, pool: 2.5, n: 2.2, size: 1.5, up
     flow: { vRef: 22, side: 1.1, turn: .8, down: .10, resp: 5, small: .45, curve: 1.5, gain: 1.3 } } };   // d296 (まえ: もう少し速く、速度に合わせて勢いがつく)
 try { FX.on = localStorage.getItem(FX.key) === 'big'; } catch (e) {}
 const sprayMax = () => Q.spray * (FX.on ? FX.pool : 1);
+// d307 ターンマーク: 実物は「赤と白のトンガリ帽子のようなブイ、3段、横幅110cm・高さ95cm」(boatrace.jp)。下の段は少し水に沈む。
+// 紅白のねじれ縞 (8 本) が見えるので、回っているのが分かる。ゆっくり回り、艇が近くを通ると少し勢いがつく (見た目だけ)
+const MARK3 = { R: .55, H: .95, base: -.18, stripes: 8, twist: 2.4, lobe: .07, tiers: [[0, .42, 1, .80], [.42, .72, .80, .55], [.72, 1, .55, 0]],
+  idle: .5, kickR: 6, kick: .9, maxW: 3, damp: .35 };
+const world_marks = [];
+let markGeoCache = null;
+function markGeo() {
+  if (markGeoCache) return markGeoCache;
+  const { R, H, stripes, twist, lobe, tiers } = MARK3, NS = 112, NH = 72, pos = [], col = [], idx = [];
+  const red = new THREE.Color(0xd8202a).convertSRGBToLinear(), white = new THREE.Color(0xf6f4f0).convertSRGBToLinear(), c = new THREE.Color();
+  const prof = u => {   // radius share at height share u: each 段 bulges out, the top one ends in a point
+    for (const [u0, u1, r0, r1] of tiers) if (u <= u1 + 1e-9) {
+      const k = (u - u0) / (u1 - u0), top = r1 === 0;
+      return top ? r0 * Math.pow(1 - k, .9) * (1 + .25 * Math.sin(Math.PI * Math.min(1, k * 1.3))) : (r0 + (r1 - r0) * k) * (1 + .16 * Math.sin(Math.PI * k)) - .05 * Math.pow(k, 6);
+    }
+    return 0; };
+  for (let j = 0; j <= NH; j++) {
+    const u = j / NH, rr = R * prof(u);
+    for (let i = 0; i <= NS; i++) {
+      const th = i / NS * Math.PI * 2, tw = th + twist * u, ph = tw * stripes / 2;
+      const r = rr * (1 + lobe * Math.cos(ph * 2) * Math.min(1, u * 6));
+      pos.push(Math.cos(th) * r, H * u, Math.sin(th) * r);
+      const s = Math.cos(ph); c.copy(red).lerp(white, Math.min(1, Math.max(0, .5 + s * 6)));
+      col.push(c.r, c.g, c.b);
+    }
+  }
+  let mx = 0; for (let i = 0; i < pos.length; i += 3) mx = Math.max(mx, Math.hypot(pos[i], pos[i + 2]));
+  for (let i = 0; i < pos.length; i += 3) { pos[i] *= R / mx; pos[i + 2] *= R / mx; }   // the widest bulge is the 1.1 m (= the 当たり判定)
+  for (let j = 0; j < NH; j++) for (let i = 0; i < NS; i++) { const a = j * (NS + 1) + i, b = a + NS + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx); g.computeVertexNormals(); return markGeoCache = g;
+}
+function markStep(dt, rows) {
+  for (const k of world_marks) {
+    let push = 0;
+    for (const row of rows) { const b = row.b, d = Math.hypot(b.x - k.x, b.y - k.y); if (d < MARK3.kickR) push += MARK3.kick * (1 - d / MARK3.kickR) * Math.min(1, (b.v || 0) / 20); }
+    k.w = Math.min(MARK3.maxW, k.w + push * dt * 2); k.w += (MARK3.idle - k.w) * Math.min(1, dt * MARK3.damp);
+    k.m.rotation.y += k.w * dt;
+  }
+}
 let world_clockHand = null;   // d291 the 大時計's hand (rebuilt with the world)
 let spray3 = null; const landSeen = new WeakMap(); let lastGameT = null;
 function makeSpray() {
@@ -1168,6 +1208,7 @@ function frame3d(now) {
     a.root.visible = true; flagStep(a, row, dt);
     if (mode === 'top' && !gone) { const tr = topRing(row.no || 1); tr.position.set(b.x, TOP3.ringY, b.y); tr.visible = true; }
   }
+  markStep(dt, rows);
   // タイムアタックのゴースト (自己ベスト・相手): the same poses the 2D game draws, see-through
   for (const gh of ghostActors.values()) gh.root.visible = false;
   if (typeof taGhostsNow === 'function') for (const { b, kind } of taGhostsNow()) {

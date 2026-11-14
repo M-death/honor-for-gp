@@ -95,7 +95,8 @@ function wakeAt(x, y, wakes, now, ahead = 0) {
     // the trough right behind the boat and the two spreading wave lines
     const inTrough = lat < WAKE.width;
     if (fwd < 1.2 && (inTrough || Math.abs(lat - spread) < WAKE.width)) {
-      const k = Math.pow(1 - age / life, WAKE.fade * (zk ? 1 - (1 - RZ.wakeFade) * zk : 1)) * Math.min(1, pt.v / 15) * ps * (zk && RZ.wakeHit ? 1 + (RZ.wakeHit - 1) * zk : 1);   // fresh wake, close behind the boat, hits hardest
+      const tk = clamp((ps - WAKE_TURN.straight) / (1 - WAKE_TURN.straight), 0, 1), fd = WAKE.fade + ((WAKE_TURN.fadeTurn ?? WAKE.fade) - WAKE.fade) * tk;   // d309: a turn's wake fades slower
+      const k = Math.pow(1 - age / life, fd * (zk ? 1 - (1 - RZ.wakeFade) * zk : 1)) * Math.min(1, pt.v / 15) * ps * (zk && RZ.wakeHit ? 1 + (RZ.wakeHit - 1) * zk : 1);   // fresh wake, close behind the boat, hits hardest
       if (k > w) { w = k; ang = pt.a; line = !inTrough; fresh = age < WAKE_CAV.age && ps > WAKE_CAV.ps; }
     }
   }
@@ -109,7 +110,45 @@ const WAKE_LINE = { along: 0.4, bumpBase: 0.1 };
 const WAKE_STRAIGHT = { line: 0.3, turnYaw: 0.35, bump: 0.4 };
 // キャビ: crossing a fresh, still-splashing wave line hard in a turn can pull air into the prop — the thrust goes for a moment
 const WAKE_CAV = { age: 1.0, ps: 0.7, bump: 0.35, rate: 1.2, time: 0.45, thrust: 0.35 };
-function setWake(b, wa) {
+// d309 うねり (まえ: 先行艇は前の周の引き波の残りでタイムを落としていく): every boat's wake, 3 s old and older, is left on the water
+// as a swell on a 3 m grid. It dies slowly round the marks (~28 s: a turn's swell is still there the next lap) and fast on the
+// straights (~10 s); なにわ's 2M rough zone keeps it longer (×wakeLife). It has no direction: crossing it bumps the hull like an
+// old wake — much more in a turn than running straight. Fleet races only (タイムアタック alone is unchanged)
+const SWELL = { on: true, cell: 3, delay: 3, dep: 5, tauMark: 28, tauStr: 10, markR: 60, k: 0.4, inWake: 0.3, straight: 0.25, cross: 0.6 };
+let swellG = null;
+function swellReset() { swellG = null; }
+function swellInit() {
+  const c = SWELL.cell, x0 = COURSE.xMin - 5, y0 = COURSE.yMin - 5, nx = Math.ceil((COURSE.xMax + 5 - x0) / c), ny = Math.ceil((COURSE.yMax + 5 - y0) / c);
+  const tau = new Float32Array(nx * ny);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const x = x0 + (i + .5) * c, y = y0 + (j + .5) * c, dm = Math.min(...COURSE.marks.map(m => Math.hypot(x - m.x, y - m.y)));
+    const near = clamp(1 - (dm - SWELL.markR * .6) / (SWELL.markR * .4), 0, 1), z = roughOf() ? roughAt(x, y) : 0;
+    tau[j * nx + i] = (SWELL.tauStr + (SWELL.tauMark - SWELL.tauStr) * near) * (z ? 1 + (roughOf().wakeLife - 1) * z : 1);
+  }
+  swellG = { x0, y0, nx, ny, tau, v: new Float32Array(nx * ny), tl: new Float32Array(nx * ny), q: [], venue: VENUE.id };
+}
+function swellCell(x, y) { const G = swellG, i = Math.floor((x - G.x0) / SWELL.cell), j = Math.floor((y - G.y0) / SWELL.cell); return i < 0 || j < 0 || i >= G.nx || j >= G.ny ? -1 : j * G.nx + i; }
+function swellAdd(n, amt, now) { const G = swellG; if (n < 0) return; G.v[n] = G.v[n] * Math.exp(-(now - G.tl[n]) / G.tau[n]) + amt; G.tl[n] = now; }
+function swellStep(boats, now, dt) {
+  if (!SWELL.on) return;
+  if (!swellG || swellG.venue !== VENUE.id) swellInit();
+  const G = swellG;
+  for (const b of boats) if (b.v > 3 && !(b.cap > 0)) G.q.push(b.x, b.y, now, wakeStrength(b) * Math.min(1, b.v / 15) * dt * SWELL.dep);
+  let k = 0;
+  while (k < G.q.length && G.q[k + 2] <= now - SWELL.delay) {
+    const x = G.q[k], y = G.q[k + 1], a = G.q[k + 3] * Math.exp(-SWELL.delay / SWELL.tauStr);
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) swellAdd(swellCell(x + di * SWELL.cell, y + dj * SWELL.cell), a * (di || dj ? (di && dj ? .05 : .1) : .4), now);
+    k += 4;
+  }
+  if (k) G.q.splice(0, k);
+}
+function swellAt(x, y, now) {
+  if (!SWELL.on || !swellG) return 0;
+  const n = swellCell(x, y); if (n < 0) return 0;
+  const v = swellG.v[n] * Math.exp(-(now - swellG.tl[n]) / swellG.tau[n]);
+  return SWELL.k * (1 - Math.exp(-v));
+}
+function setWake(b, wa, sw = 0) {
   const cross = Math.abs(Math.sin(b.a - wa.ang));
   const turnK = clamp(Math.abs(b.yaw || 0) / WAKE_STRAIGHT.turnYaw, 0, 1), lineK = wa.line ? WAKE_STRAIGHT.line + (1 - WAKE_STRAIGHT.line) * turnK : 1;
   b.inWake = wa.w * lineK;
@@ -119,6 +158,8 @@ function setWake(b, wa) {
   // d172 (まえ: ポンポン跳ねて減速, running straight in a boat's wake): straight, the hull rides the trough with a smaller hop
   const bumpK = WAKE_STRAIGHT.bump + (1 - WAKE_STRAIGHT.bump) * turnK;
   b.wakeBump = wa.w * lineK * bumpK * (wa.line ? WAKE_LINE.bumpBase + (1 - WAKE_LINE.bumpBase) * cross : 0.35 + 0.65 * cross);
+  b.swell = sw;
+  if (sw > 0) { b.wakeBump = Math.max(b.wakeBump, sw * (SWELL.straight + (1 - SWELL.straight) * turnK) * SWELL.cross); b.inWake = Math.max(b.inWake, sw * SWELL.inWake * (SWELL.straight + (1 - SWELL.straight) * turnK)); }   // d309 うねり
 }
 const nearMarkAt = (x, y, r) => COURSE.marks.some(m => Math.hypot(x - m.x, y - m.y) < r);
 
@@ -178,10 +219,14 @@ const KINEN = { gap: 0.2, pT: 0.35, Lmax: 0.91, kl: 3.4, rel: 42, exR: 0.47, exT
   pathF: 10, pathS: 3.5,               // in the turn, give it up if anyone is within pathF m ahead and pathS m to the side
   oneCut: true };   // d142 お釣り無し (まえ): one cut, held to the release (false = the d140 read-and-correct turn: gap 0.36, hz 20)
 const KINEN_MARKS = () => OBSTACLES.filter(o => o.kind === 'mark'), KINEN_BOOMS = () => OBSTACLES.filter(o => o.kind === 'boom');
+// d308 (まえ): マークの当たり判定が実物大 (r 0.55) になっても CPU はふだん今までの大きさ (planR 1.5) で回る。
+// 勝負どころ (r.battle) だけ実物を基準にギリギリを攻める。先行して安全圏なら今までの回り方
+const MARK_TIGHT = { on: true };
+let markPlanR = null;   // null = planR (set per boat while it drives)
 function kinenGap(c, ob) {
   const fx = Math.cos(c.a), fy = Math.sin(c.a);
   const [px, py, qx, qy] = closestSegSeg(c.x - fx * PLAN_HULL.aft, c.y - fy * PLAN_HULL.aft, c.x + fx * PLAN_HULL.fwd, c.y + fy * PLAN_HULL.fwd, ob.x1, ob.y1, ob.x2, ob.y2);
-  return Math.hypot(px - qx, py - qy) - PLAN_HULL.r - ob.r;
+  return Math.hypot(px - qx, py - qy) - PLAN_HULL.r - (ob.kind === 'mark' ? markPlanR ?? ob.planR ?? ob.r : ob.r);
 }
 // a flat-out, full-lean turn at rudder sv from now: the closest it comes to the mark (−1 = it would cut inside or stall).
 // With the rider's current inputs `o` it also plays out how fast the hands and body get there (the ramp-in and the
@@ -2717,6 +2762,7 @@ const playerRow = () => fleet && fleet.playerNo ? fleet.boats.find(r => r.player
 const playerRacing = r => !!(r && fleet && fleet.fullControl && r.fin == null && !r.out && !(r.flying && r.passed1M) && !(r.dq && !r.flying) && !r.cauAuto);   // d178 (まえ): through the accident slow zone the CPU drives the player's boat too
 function playerActive() { const r = playerRow(); return !!(r && (fleet.entry || (r.st == null && !r.lateTold) || playerRacing(r))); }
 function startFleet() {
+  swellReset();   // d309
   if (runLog) runLogEnd('途中で終了');
   { const fw = wxForced(); if (fw) waterEnv = fw; else if (waterEnv && waterEnv.forced) waterEnv = null; }
   if (VR) VR.begin('demo');
@@ -2878,8 +2924,9 @@ function fleetStep(dt, playerInput) {
   const all = fleet.boats.filter(r => !retiring(r)).map(r => r.b);
   const allC = fleet.boats.map(r => retiring(r) ? GHOST_B : r.b);   // contacts by fleet index; a ghost is parked far away
   // 引き波: how much wake is under each hull, and how square it is crossing it
+  if (fleet.raceOn) swellStep(fleet.boats.filter(r => !r.gone).map(r => r.b), time, dt);   // d309 うねり
   for (const r of fleet.boats) {
-    setWake(r.b, wakeAt(r.b.x, r.b.y, r.wakesOthers, time));
+    setWake(r.b, wakeAt(r.b.x, r.b.y, r.wakesOthers, time), r.st != null && fleet.raceOn ? swellAt(r.b.x, r.b.y, time) : 0);
     // 波: the day's chop under every hull (a rough-riding boat feels it more; 安定板 takes the edge off it)
     const zr = r.st != null && roughOf();   // 2M の荒れ: once the boat is racing (the 待機行動 near 2M is left alone)
     const wvHere = (waterEnv ? waterEnv.wave : 0) + (zr ? roughWave(r.b.x, r.b.y) : 0);
@@ -2942,7 +2989,9 @@ function fleetStep(dt, playerInput) {
       }
       env.finalStretch = r.laps === raceLaps() - 1 && (r.vis & 2) && b.y > 0;   // round the last mark, heading for the line
       if(lab.active)labBeforeDrive(r,env);
+      markPlanR = MARK_TIGHT.on && r.battle ? OBSTACLES[0].r : null;
       o = r.drv.drive(b, env, dt);
+      markPlanR = null;
       if(lab.active)labAfterDrive(r,o,env);
       if (r.player && r.st == null && time - dt > zero + 1 && !r.lateTold) { r.lateTold = true; toast('出遅れ', fleet.fullControl ? '1秒以内に越えられなかった' : '1秒以内に越えられなかった。CPUが引き継ぎ', 'bad'); }
       if (r.player && r.st == null && !r.lateTold) {

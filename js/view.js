@@ -602,12 +602,16 @@ function draw() {
   }
   // turn marks
   for (const m of COURSE.marks) {
-    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(m.x + 0.4, m.y + 0.5, 1.7, 1.5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = C.buoy; ctx.beginPath(); ctx.arc(m.x, m.y, 1.5, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.28; ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(m.x - 0.45, m.y - 0.45, 0.45, 0, Math.PI * 2); ctx.fill();
+    // d307: 実物大 (径 1.1 m) の紅白ねじれ縞を上から — 8 枚の羽根が回る。ズームアウトしても 6 px は残す
+    const mr = Math.max(0.55, 3 / S), spin = (typeof time === 'number' ? time : 0) * 0.5 + (m.x > 0 ? 0 : 1.3);
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(m.x + mr * .3, m.y + mr * .35, mr * 1.1, mr, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f6f4f0'; ctx.beginPath(); ctx.arc(m.x, m.y, mr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d8202a';
+    for (let k = 0; k < 4; k++) { const a0 = spin + k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(m.x, m.y);
+      ctx.quadraticCurveTo(m.x + Math.cos(a0 + .5) * mr * .7, m.y + Math.sin(a0 + .5) * mr * .7, m.x + Math.cos(a0) * mr, m.y + Math.sin(a0) * mr);
+      ctx.arc(m.x, m.y, mr, a0, a0 + Math.PI / 4); ctx.quadraticCurveTo(m.x + Math.cos(a0 + Math.PI / 4 + .5) * mr * .7, m.y + Math.sin(a0 + Math.PI / 4 + .5) * mr * .7, m.x, m.y); ctx.fill(); }
     ctx.fillStyle = 'rgba(233,245,242,.8)'; ctx.font = '700 1.8px "Chakra Petch", sans-serif';
-    ctx.fillText(m.name, m.x, m.y - 2.6);
+    ctx.fillText(m.name, m.x, m.y - Math.max(2.6, mr + 1.4));
   }
 
   if (isNight()) { drawNightWater(S); drawNightGuides(); }

@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd306';
+const GAME_VER = 'd309';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -106,7 +106,7 @@ function setVenue(id, keep = true) {
 // so a boat can't cut inside a mark without hitting it
 const BOOM_LEN = 30;
 const OBSTACLES = [
-  ...COURSE.marks.map(m => ({ kind: 'mark', x1: m.x, y1: m.y, x2: m.x, y2: m.y, r: 1.5 })),
+  ...COURSE.marks.map(m => ({ kind: 'mark', x1: m.x, y1: m.y, x2: m.x, y2: m.y, r: 0.55, planR: 1.5 })),   // d308: 当たり判定は実物大 (径 1.1 m)。planR = CPU がふだん回るときに見るマークの大きさ (d307 までの当たり判定)
   { kind: 'boom', x1: MK - 2, y1: 0, x2: MK - 2 - BOOM_LEN, y2: 0, r: 0.35 },
   { kind: 'boom', x1: -MK + 2, y1: 0, x2: -MK + 2 + BOOM_LEN, y2: 0, r: 0.35 },
 ];
