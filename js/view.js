@@ -475,9 +475,13 @@ function camAutoTargets() {
 }
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  let S = Math.min(W, H) / (camMode === 'close' ? 13 : fleet ? 29 : 23); // px per metre   // d187: ×1.5 closer, the boats are real size now
+  // d328 (まえ: 縦長のリプレイ動画): while a 9:16 video is recorded (rec.js REC_TALL) the camera frames the middle 9:16 of the
+  // screen — that is what the video keeps — so the boat stays in it (less look-ahead, sized to the narrow width)
+  const Wv = window.REC_TALL ? Math.min(W, H * 9 / 16) : W;
+  let S = Math.min(Wv, H) / (camMode === 'close' ? 13 : fleet ? 29 : 23); // px per metre   // d187: ×1.5 closer, the boats are real size now
   const fr = focusRow(), vb = fr ? fr.b : B;
-  const look = camMode === 'close' ? Math.min(5, 3 + vb.v * .12) : 5 + vb.v * 0.45;
+  let look = camMode === 'close' ? Math.min(5, 3 + vb.v * .12) : 5 + vb.v * 0.45;
+  if (window.REC_TALL) look = Math.min(look, Wv / S * .22);
   // camera follow eased by real elapsed time, so an uneven frame doesn't make the view lurch
   const nowD = performance.now(), fdt = Math.min(0.1, Math.max(0, (nowD - (draw.t || nowD)) / 1000)); draw.t = nowD;
   const k = fdt > 0 ? 1 - Math.exp(-7.7 * fdt) : 0.12;
@@ -493,12 +497,12 @@ function draw() {
     const bs=camAutoTargets(), m=CAM_AUTO.margin;
     let x0=Math.min(...bs.map(b=>b.x))-m, x1=Math.max(...bs.map(b=>b.x))+m, y0=Math.min(...bs.map(b=>b.y))-m, y1=Math.max(...bs.map(b=>b.y))+m;
     const cw=COURSE.xMax-COURSE.xMin, ch=COURSE.yMax-COURSE.yMin;
-    const sFull=Math.min(W/cw,H/ch), sMax=Math.min(W,H)/CAM_AUTO.min;
-    const sT=clamp(Math.min(W/(x1-x0),H/(y1-y0)),sFull,Math.max(sFull,sMax));
+    const sFull=Math.min(Wv/cw,H/ch), sMax=Math.min(Wv,H)/CAM_AUTO.min;
+    const sT=clamp(Math.min(Wv/(x1-x0),H/(y1-y0)),sFull,Math.max(sFull,sMax));
     const ka=fdt>0?1-Math.exp(-CAM_AUTO.ease*fdt):0.05;
     cam.s=cam.s?cam.s*Math.exp(Math.log(sT/cam.s)*ka):sT; S=cam.s;
     // keep the view on the water: centre on the boats, but never show past the course edge when it all fits
-    const vw=W/S, vh=H/S;
+    const vw=Wv/S, vh=H/S;
     let tx=(x0+x1)/2, ty=(y0+y1)/2;
     tx=vw>=cw?(COURSE.xMin+COURSE.xMax)/2:clamp(tx,COURSE.xMin+vw/2,COURSE.xMax-vw/2);
     ty=vh>=ch?(COURSE.yMin+COURSE.yMax)/2:clamp(ty,COURSE.yMin+vh/2,COURSE.yMax-vh/2);

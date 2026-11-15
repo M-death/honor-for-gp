@@ -78,16 +78,34 @@ GLTFLoader.prototype.loadAsync = function (url, onProgress) {
   const raw = atob(E[key]), bytes = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
   return this.parseAsync(bytes.buffer, new URL('.', url).href);
 };
-async function init() {
-  if (!window.HFGP3D_GLB) await loadScript(new URL('./hfgp3d-glb.js', import.meta.url).href);
-  canvas = document.createElement('canvas');
+// d326 (まえ: Braveは新モデルにならない、PCサイトにする（＝読み込み直す）とすぐ新モデルになる): a context the phone took and never gave
+// back left 「3D描画の復帰待ち」 for good. As in the 3D view (play3d d314/d318): once the page shows, wait REB.wait s for the
+// browser to give it back, else make a new canvas + renderer (the models stay; their GPU copies are made again), up to REB.tries
+const REB = { wait: 2.5, tries: 3 }; let rebTimer = 0, rebTries = 0;
+function makeRenderer() {
+  canvas = document.createElement('canvas'); tile = 0;
   renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, premultipliedAlpha: true, powerPreference: 'low-power' });
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.autoClear = false;
+  const cv = canvas;
+  cv.addEventListener('webglcontextlost', e => { e.preventDefault(); if (cv !== canvas) return; fail(api.asleep ? '3D視点の間は休止' : '3D描画の復帰待ち'); rebuildLater(); });
+  cv.addEventListener('webglcontextrestored', () => { if (cv !== canvas) return; clearTimeout(rebTimer); if (set) { api.ready = true; api.failed = false; api.reason = ''; if (window.Boat3D) Boat3D.status(); } });
+}
+function rebuildLater() {
+  clearTimeout(rebTimer); if (api.asleep || document.hidden || !set) return;
+  rebTimer = setTimeout(() => {
+    if (api.asleep || document.hidden || api.ready || rebTries >= REB.tries) return;
+    rebTries++; try { renderer.dispose(); } catch (e) {}
+    try { makeRenderer(); } catch (e) { fail('描画できません'); return; }
+    api.ready = true; api.failed = false; api.reason = ''; if (window.Boat3D) Boat3D.status();
+  }, REB.wait * 1000);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(rebTimer); else if (set && !api.ready && !api.asleep) { rebTries = 0; rebuildLater(); } });
+async function init() {
+  if (!window.HFGP3D_GLB) await loadScript(new URL('./hfgp3d-glb.js', import.meta.url).href);
+  try { makeRenderer(); } catch (e) { e.noGL = true; throw e; }
   // d312 (まえ: スマホで3Dが選べない／2Dに戻る、「新モデルは3D描画の復帰待ち」): the 3D view (play3d) and this 2D boat renderer
   // each hold a WebGL context and a phone takes one back. While the 3D view shows, this one sleeps (gives its context up) and
   // wakes when 2D comes back; a context the phone took is picked up again when it is restored
-  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); fail(api.asleep ? '3D視点の間は休止' : '3D描画の復帰待ち'); });
-  canvas.addEventListener('webglcontextrestored', () => { if (set) { api.ready = true; api.failed = false; api.reason = ''; if (window.Boat3D) Boat3D.status(); } });
   scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xdfefff, 0x2a4a58, 1.4));
   sun = new THREE.DirectionalLight(0xffffff, 2.2); scene.add(sun); scene.add(sun.target);
@@ -102,8 +120,8 @@ async function init() {
   if (window.Boat3D) Boat3D.status();
 }
 api.sleep = () => { if (api.asleep || !renderer) return; api.asleep = true; try { renderer.forceContextLoss(); } catch (e) {} };
-api.wake = () => { if (!api.asleep) return; api.asleep = false; try { renderer.forceContextRestore(); } catch (e) {} };
+api.wake = () => { if (!api.asleep) return; api.asleep = false; try { renderer.forceContextRestore(); } catch (e) {} rebTries = 0; rebuildLater(); };   // d326: not given back → a new one
 let started = false;
 api.start = () => { if (started) return; started = true; api.reason = '読み込み中'; if (window.Boat3D) Boat3D.status();
-  init().catch(e => { console.warn('3D（新モデル） unavailable:', e); fail('読み込めません'); }); };
+  init().catch(e => { console.warn('3D（新モデル） unavailable:', e); fail(!e || !e.noGL ? '読み込めません' : 'ブラウザが3D描画を止めています — ブラウザを完全に終了して開き直してください'); }); };   // d327: no WebGL at all ≠ a failed download
 if (window.Boat3D && Boat3D.mode === 'new3d') api.start();

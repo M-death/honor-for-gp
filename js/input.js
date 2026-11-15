@@ -82,7 +82,7 @@ function applyAngles(ang) {
   raw.pitch = dz(clamp(dp / sensor.range));
 }
 function onOri(e) {
-  if(controlMode==='pad')return;
+  if(noSensor())return;
   diag.ori++;
   if (e.beta == null || e.gamma == null) { diag.oriNull++; return; }
   sensor.src = 'ori';
@@ -130,7 +130,7 @@ function phoneLookReset() { shiftS.look = 0; shiftS.ev = 0; shiftS.v = 0; window
 // fallback: gravity from the accelerometer when orientation events are empty
 const gs = { x: 0, y: 0, z: 0, init: false };
 function onMot(e) {
-  if(controlMode==='pad')return;
+  if(noSensor())return;
   diag.mot++;
   shiftStep(e);   // d298
   if (sensor.src === 'ori') return;
@@ -149,7 +149,7 @@ function onMot(e) {
 // and presses OK; that posture becomes level (傾き0) and stays fixed until they set it again.
 const calib = { open: false, ref: null, then: null };
 function openCalib(then) {
-  if(controlMode==='pad'){if(then)then();return;}
+  if(noSensor()){if(then)then();return;}
   $('calUsePad').hidden=controlMode!=='wheel';
   if(controlMode==='wheel')resetPhoneWheel();
   $('calTitle').textContent=controlMode==='wheel'?'スマホ舵の中央を合わせる':'姿勢の基準を合わせる';
@@ -179,12 +179,12 @@ function closeCalib() {
 $('calOk').addEventListener('click', closeCalib);
 $('calUsePad').addEventListener('click',()=>{setControlMode('pad');closeCalib();});
 // the posture the phone is held in when OK is pressed counts as level (傾き0)
-function zeroTilt() { if(controlMode==='pad')return;if(controlMode==='wheel'){resetPhoneWheel();return;}sensor.zeroing = { n: 0, r: 0, p: 0, first: null, until: performance.now() + 350 }; }
+function zeroTilt() { if(noSensor())return;if(controlMode==='wheel'){resetPhoneWheel();return;}sensor.zeroing = { n: 0, r: 0, p: 0, first: null, until: performance.now() + 350 }; }
 function recalibrate(msg) {
   sensor.calib = sensor.last ? sensor.last.slice() : null;
   if (msg) toast('基準リセット', msg, 'info');
 }
-const onTurnScreen = () => { resetVirtualPosture();if(controlMode==='pad')return;if(controlMode==='wheel'){phoneWheel.last=null;resetPhoneWheel();return;} sensor.calib = null; if (running) setTimeout(() => toast('基準リセット', '画面の向きが変わったので、今の持ち方を基準にしました', 'info'), 300); };
+const onTurnScreen = () => { resetVirtualPosture();if(noSensor())return;if(controlMode==='wheel'){phoneWheel.last=null;resetPhoneWheel();return;} sensor.calib = null; if (running) setTimeout(() => toast('基準リセット', '画面の向きが変わったので、今の持ち方を基準にしました', 'info'), 300); };
 if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', onTurnScreen);
 else addEventListener('orientationchange', onTurnScreen);
 
@@ -504,7 +504,7 @@ async function enableTiltInput(){
   try { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') reqs.push(DeviceOrientationEvent.requestPermission()); } catch (e) { ok = false; }
   try { if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') reqs.push(DeviceMotionEvent.requestPermission()); } catch (e) { ok = false; }
   try { const res = await Promise.all(reqs.map(p => p.catch(() => 'error'))); if (res.length && !res.includes('granted')) ok = false; } catch (e) { ok = false; }
-  if(controlMode==='pad')return false;
+  if(noSensor())return false;
   if (!start.listening) { start.listening = true; addEventListener('deviceorientation', onOri); addEventListener('devicemotion', onMot); }
   return ok;
 }
@@ -515,21 +515,21 @@ function disableTiltInput(){
 async function start(after) {
   initAudio();
   lockLandscape();          // must start inside the tap
-  const ok=controlMode==='pad'?true:await enableTiltInput();
+  const ok=noSensor()?true:await enableTiltInput();
   $('start').hidden = true;
   try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
   // check the tilt and fix 傾き0, then the game begins
   const go = () => { running = true; last = performance.now(); if (after) after(); else beginStart(); afterStartCheck(ok); };
   // d227 (まえ: fewer taps): the 持ち方 OK screen only the first time for each 操作モード (and never on PC); after that the
   // posture at the tap is 傾き0 (合わせ直しは設定の「今の持ち方を基準にする」)
-  if (controlMode === 'pad' || !TOUCH_UI || calibSeen()) { zeroTilt(); go(); if (TOUCH_UI && controlMode !== 'pad') setTimeout(() => toast('持ち方', '今の持ち方を基準にしました（設定で合わせ直せます）', 'info'), 400); }
+  if (noSensor() || !TOUCH_UI || calibSeen()) { zeroTilt(); go(); if (TOUCH_UI && !noSensor()) setTimeout(() => toast('持ち方', '今の持ち方を基準にしました（設定で合わせ直せます）', 'info'), 400); }
   else openCalib(go);
 }
 const TOUCH_UI = (() => { try { return matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0; } catch (e) { return false; } })();
 function calibSeen() { try { return localStorage.getItem('honorGP.calibOk.' + controlMode) === '1'; } catch (e) { return false; } }
 function afterStartCheck(ok) {
   setTimeout(() => {
-    if (controlMode==='pad' || sensor.got || fleet || !TOUCH_UI) return;
+    if (noSensor() || sensor.got || fleet || !TOUCH_UI) return;
     const d = `診断：向き ${diag.ori}回（値なし ${diag.oriNull}）／加速度 ${diag.mot}回／${diag.framed ? '埋め込み表示' : '単独表示'}／${window.isSecureContext ? 'HTTPS' : '非HTTPS'}${ok ? '' : '／許可なし'}`;
     showNote((diag.framed
       ? '傾きが検知できていません。アプリ内の埋め込み表示ではセンサーが止められている可能性が高いです。単独のページとして開くと動くはずです。'
@@ -751,6 +751,7 @@ cv.addEventListener('pointerdown', e => {
   if(controlMode==='wheel'&&e.clientX<W*.5)return;
   const side = controlMode==='wheel'?'thr':e.clientX < W * 0.5 ? 'thr' : 'steer';
   ptrs.set(e.pointerId, { side, x0: e.clientX, y0: e.clientY, v0: input.thr });
+  if (side === 'steer' && controlMode === 'fuse') FUSE.pitch = 0;
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
   if (side === 'steer') { steerTouch = true; input.steerT = 0; }
   sideOn(side);
@@ -758,12 +759,12 @@ cv.addEventListener('pointerdown', e => {
 cv.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId); if (!p) return;
   if (p.side === 'thr') input.thr = clamp(p.v0 + (p.y0 - e.clientY) / leverSpan(), 0, 1);
-  else input.steerT = clamp((e.clientX - p.x0) / (Math.min(W, H) * 0.2));
+  else { input.steerT = clamp((e.clientX - p.x0) / (Math.min(W, H) * 0.2)); if (controlMode === 'fuse') FUSE.pitch = clamp((p.y0 - e.clientY) / (Math.min(W, H) * FUSE.span)); }
 });
 function endPtr(e) {
   const p = ptrs.get(e.pointerId); if (!p) return;
   ptrs.delete(e.pointerId);
-  if (p.side === 'steer') { steerTouch = [...ptrs.values()].some(q => q.side === 'steer'); if (!steerTouch) input.steerT = 0; }
+  if (p.side === 'steer') { steerTouch = [...ptrs.values()].some(q => q.side === 'steer'); if (!steerTouch) { input.steerT = 0; FUSE.pitch = 0; } }
   sideOn(p.side);
 }
 cv.addEventListener('pointerup', endPtr);
@@ -775,22 +776,32 @@ function resetVirtualPosture(){
  const zone=$('postureZone');zone.classList.remove('active');$('postureThumb').style.transform='translate(0px,0px)';
  if(id!=null)try{zone.releasePointerCapture(id);}catch(_){}
 }
+/* d329 4．融合パッド (まえ: 縦持ちでも気軽に — 左指でアクセル、右指で傾き（姿勢）と舵の融合パッド。横持ちでも): the right-hand drag
+   is the rudder left/right and the posture up/down (上 = 伏せる, 下 = 起こす・後ろ重心, so ウィリー / 後ろ重心 still work); the
+   lean follows the rudder by itself — a little late and not all the way (FUSE.max), so leaning in by hand
+   (modes 1–3) stays the faster way. FUSE.k: rudder share at which the lean is full; tau: its lag (s) */
+const noSensor = () => controlMode === 'pad' || controlMode === 'fuse';   // modes that never read the tilt sensor
+const FUSE = { k: 2.2, max: .88, tau: .22, span: .2, pitch: 0, roll: 0 };
+function fuseLean(steer, dt) {
+  const tgt = Math.sign(steer) * Math.min(FUSE.max, Math.abs(steer) * FUSE.k * FUSE.max);
+  FUSE.roll += (tgt - FUSE.roll) * (1 - Math.exp(-dt / FUSE.tau)); return FUSE.roll;
+}
 async function setControlMode(mode,persist=true){
- if(!['tilt','pad','wheel'].includes(mode))mode='tilt';
- controlMode=mode;virtualPosture.enabled=mode!=='tilt';resetVirtualPosture();
+ if(!['tilt','pad','wheel','fuse'].includes(mode))mode='tilt';
+ controlMode=mode;virtualPosture.enabled=mode==='pad'||mode==='wheel';resetVirtualPosture();FUSE.pitch=FUSE.roll=0;
  for(const id of ptrs.keys())try{cv.releasePointerCapture(id);}catch(_){}ptrs.clear();steerTouch=false;keys.clear();sideOn('thr');sideOn('steer');
  raw.roll=raw.pitch=input.roll=input.pitch=input.steer=input.steerT=0;
  phoneWheel.base=phoneWheel.last=null;phoneWheel.kind=null;phoneWheel.value=phoneWheel.deg=0;
  $('controlMode').value=mode;if($('pmModeSel'))$('pmModeSel').value=mode;for(const e of document.querySelectorAll('[name="startControlMode"]'))e.checked=e.value===mode;
  $('postureStick').hidden=!virtualPosture.enabled;$('phoneSteerReadout').hidden=mode!=='wheel';$('wheelSettings').hidden=mode!=='wheel';
  document.body.classList.toggle('virtual-pad',virtualPosture.enabled);document.body.classList.toggle('phone-wheel',mode==='wheel');
- const help={tilt:'左手でアクセル、右手で舵。スマホの左右・前後の傾きで姿勢を操作します。',pad:'左手側にアクセルと姿勢パッド、右手側に舵。傾きセンサーは停止します。',wheel:'左手は姿勢パッド、右手はアクセル。スマホをハンドルのように時計回りで右舵、反時計回りで左舵。センサーは舵だけに使います。'};
+ const help={tilt:'左手でアクセル、右手で舵。スマホの左右・前後の傾きで姿勢を操作します。',pad:'左手側にアクセルと姿勢パッド、右手側に舵。傾きセンサーは停止します。',fuse:'左手でアクセル、右手は融合パッド：左右で舵（体の傾きは舵に合わせて自動）、上で伏せる・下で起こす。縦持ちでも遊べます。傾きセンサーは停止します。',wheel:'左手は姿勢パッド、右手はアクセル。スマホをハンドルのように時計回りで右舵、反時計回りで左舵。センサーは舵だけに使います。'};
  $('controlHelp').textContent=$('postureModeNote').textContent=help[mode];
- $('zero').disabled=mode==='pad';$('zero').textContent=mode==='wheel'?'今の持ち方を舵の中央にする':'今の持ち方を姿勢の基準にする';
+ $('zero').disabled=mode==='pad'||mode==='fuse';$('zero').textContent=mode==='wheel'?'今の持ち方を舵の中央にする':'今の持ち方を姿勢の基準にする';
  for(const id of ['invR','invP','sens'])$(id).disabled=mode!=='tilt';
  if(persist)try{localStorage.setItem('honorGP.controlMode',mode);}catch(_){}
  disableTiltInput();sensor.got=false;sensor.calib=null;sensor.last=null;sensor.src=null;gs.init=false;
- if(mode==='pad')$('note').hidden=true;
+ if(mode==='pad'||mode==='fuse')$('note').hidden=true;
  else if(running){const ok=await enableTiltInput();if(controlMode===mode)afterStartCheck(ok);}
 }
 function moveVirtualPosture(e){
@@ -1148,7 +1159,7 @@ function updateInput(dt) {
     input.steer += ((controlMode==='wheel'?phoneWheel.value:gp.steer) - input.steer) * (1 - Math.exp(-dt * 12));
     // left stick = posture; the on-screen posture pad only takes over while a finger is actually on it
     const vp = virtualPosture.enabled && virtualPosture.pointer != null;
-    input.roll += ((vp ? virtualPosture.roll : gp.roll) - input.roll) * k;
+    input.roll += ((controlMode === 'fuse' ? fuseLean(input.steer, dt) : vp ? virtualPosture.roll : gp.roll) - input.roll) * k;
     input.pitch += ((vp ? virtualPosture.pitch : gp.pitch) - input.pitch) * k;
     willieDetect(vp ? virtualPosture.pitch : gp.pitch, dt);
     return;
@@ -1161,7 +1172,8 @@ function updateInput(dt) {
   const kr = (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0);
   const kp = (keys.has('ArrowUp') ? 1 : 0) - (keys.has('ArrowDown') ? 1 : 0);
   let tr = raw.roll, tp = raw.pitch;
-  if(virtualPosture.enabled){tr=virtualPosture.roll;tp=virtualPosture.pitch;if(virtualPosture.pointer==null&&(kr||kp)){tr=kr;tp=kp;}}
+  if(controlMode==='fuse'){tr=fuseLean(input.steer,dt);tp=steerTouch?FUSE.pitch:kp;}
+  else if(virtualPosture.enabled){tr=virtualPosture.roll;tp=virtualPosture.pitch;if(virtualPosture.pointer==null&&(kr||kp)){tr=kr;tp=kp;}}
   else if (kr || kp || !sensor.got) { tr = kr; tp = kp; }
   input.roll += (tr - input.roll) * k;
   input.pitch += (tp - input.pitch) * k;

@@ -27,7 +27,12 @@ const gfxGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e
 let gfxSet = gfxGet(GFX.key, 'auto'), waterSet = gfxGet(GFX.wKey, 'auto');
 if (gfxSet !== 'auto' && !GFX.tiers[gfxSet]) gfxSet = 'auto';
 // d297 (まえ: Xperia 1 II でも PC 画質で50fps超え): 自動 starts every device on PC and steps down below 40 fps
-let tierNow = gfxSet !== 'auto' ? gfxSet : 'pc', Q = GFX.tiers[tierNow];
+// d327 (まえ: BraveでPCにしたら新モデルも読めなくなり、戻してもだめ): a phone's browser that drops the 3D (not from being sent to the
+// background) at some 画質 remembers it: 自動 starts below that 画質 from then on (a chosen 画質 is kept as chosen)
+const GL_CAP = 'honorGP.gl3dCap';
+const autoTier = () => { let c = null; try { c = localStorage.getItem(GL_CAP); } catch (e) {} return GFX.order.includes(c) ? c : 'pc'; };
+function capBelow(t) { if (!PHONE) return; const i = GFX.order.indexOf(t); if (i <= 0) return; const c = GFX.order[i - 1], now = autoTier(); if (GFX.order.indexOf(c) < GFX.order.indexOf(now)) try { localStorage.setItem(GL_CAP, c); } catch (e) {} }
+let tierNow = gfxSet !== 'auto' ? gfxSet : autoTier(), Q = GFX.tiers[tierNow];
 const waterNow = () => waterSet !== 'auto' && ['simple', 'shade', 'reflect'].includes(waterSet) ? waterSet : Q.water;
 const LITE = PHONE;   // (kept for what only a phone's screen decides)
 let mode = '2d'; try { mode = localStorage.getItem(V3.key) || '2d'; } catch (e) {}
@@ -44,21 +49,29 @@ const loadScript = src => new Promise((ok, ng) => { const s = document.createEle
 // d317 (まえ: 待ち時間を可視化できる？): the model files are fetched once with a progress count (the browser keeps them, so the
 // <script> that follows comes from its cache) and the 視点 pill shows MB / % / seconds, then 組み立て中 while they are put together
 const LOADP = { stage: '', step: '', glb: 0, tex: 0, log: [], got: 0, total: 0, t0: 0, pcStage: '', pcGot: 0, pcTotal: 0 };
-const LOAD_MB = { 'hfgp3d-glb.js': 1.83, 'hfgp3d-glb-pc.js': 3.81 };
+const LOAD_NET = { stall: 8, tries: 3 };
+const LOAD_MB = { 'hfgp3d-glb.js': 1.99, 'hfgp3d-glb-pc.js': 3.81 };
 async function loadScriptP(src, pc) {
   const k = pc ? 'pc' : '', name = src.split('/').pop().split('?')[0];
   const set = (st, got, tot) => { if (pc) { LOADP.pcStage = st; LOADP.pcGot = got; LOADP.pcTotal = tot; } else { LOADP.stage = st; LOADP.got = got; LOADP.total = tot; } };
   set('dl', 0, LOAD_MB[name] || 0);
   // d319: the fetched bytes themselves run as the script (a blob URL) — no second download if the browser doesn't keep it
+  // d324 (まえ: Wi-Fi の調子が悪いと終わらなかった): a download that stops for STALL s is dropped and asked for again (up to 3 tries)
   let parts = null;
-  try {
-    const r = await fetch(src);
-    if (r.ok && r.body && r.body.getReader) {
-      const len = +r.headers.get('content-length') || 0, rd = r.body.getReader(); let got = 0; parts = [];
-      const tot = Math.max(LOAD_MB[name] || 0, r.headers.get('content-encoding') ? 0 : len / 1e6);
-      for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; set('dl', got / 1e6, tot); }
-    }
-  } catch (e) { parts = null; }   // (a failed count is no failure: the <script> below still loads it)
+  for (let tr = 0; tr < LOAD_NET.tries && !parts; tr++) {
+    const ac = window.AbortController ? new AbortController() : null; let wd = 0;
+    const kick = () => { clearTimeout(wd); if (ac) wd = setTimeout(() => ac.abort(), LOAD_NET.stall * 1000); };
+    try {
+      if (!pc) LOADP.retry = tr; kick();
+      const r = await fetch(src, { ...(ac ? { signal: ac.signal } : {}), ...(tr ? { cache: 'force-cache' } : {}) });   // d325: a retry takes the browser's saved copy without asking GitHub first
+      if (r.ok && r.body && r.body.getReader) {
+        const len = +r.headers.get('content-length') || 0, rd = r.body.getReader(); let got = 0; const ps = [];
+        const tot = Math.max(LOAD_MB[name] || 0, r.headers.get('content-encoding') ? 0 : len / 1e6);
+        for (;;) { kick(); const { done, value } = await rd.read(); if (done) break; ps.push(value); got += value.length; set('dl', got / 1e6, tot); }
+        parts = ps;
+      } else if (r.ok) break;
+    } catch (e) { parts = null; } finally { clearTimeout(wd); }   // (a failed count is no failure: the <script> below still loads it)
+  }
   set('build', 0, 0); if (!pc) loadStep('script');
   if (parts) { const u = URL.createObjectURL(new Blob(parts, { type: 'text/javascript' })); parts = null; try { await loadScript(u); return; } catch (e) {} finally { URL.revokeObjectURL(u); } }
   await loadScript(src);
@@ -70,8 +83,20 @@ function loadText() {
   const sec = ((performance.now() - LOADP.t0) / 1000).toFixed(1);
   const st = LOADP.step, stT = st === 'model' ? `モデル ${LOADP.glb}/9` : st === 'tex' ? `番号 ${LOADP.tex}/12` : LOAD_STEP[st];
   if (LOADP.stage === 'build' && stT) return `3D組み立て中（${stT}） ${sec}秒`;
-  if (LOADP.stage === 'dl') return `3D読み込み中 ${LOADP.total ? Math.min(99, Math.round(LOADP.got / LOADP.total * 100)) + '%' : LOADP.got.toFixed(1) + 'MB'} ${sec}秒`;
+  if (LOADP.stage === 'dl') return `3D読み込み中${LOADP.retry ? '（取り直し' + LOADP.retry + '）' : ''} ${LOADP.total ? Math.min(99, Math.round(LOADP.got / LOADP.total * 100)) + '%' : LOADP.got.toFixed(1) + 'MB'} ${sec}秒`;
   return `3D組み立て中… ${sec}秒`;
+}
+// d324: rig_rest.json and the 12 number textures are in hfgp3d-glb.js too (tools/embed_hfgp3d.py) — 組み立て asks the network for nothing
+const EMB = /(runtime\/rig_rest\.json|textures\/[a-z_]+_\d\.png)$/;
+function embedded(url) { const E = window.HFGP3D_GLB, m = E && EMB.exec(String(url).split('?')[0]); return m && E[m[1]] || null; }
+if (!window.fetch._p3d) {
+  const _fetch = window.fetch;
+  window.fetch = function (u, o) {
+    const em = embedded(u instanceof Request ? u.url : u);
+    if (em && /\.json$/.test(String(u instanceof Request ? u.url : u))) return Promise.resolve(new Response(Uint8Array.from(atob(em), c => c.charCodeAt(0)), { headers: { 'content-type': 'application/json' } }));
+    return _fetch.call(this, u, o);
+  };
+  window.fetch._p3d = true;
 }
 const _loadAsync = GLTFLoader.prototype.loadAsync;
 if (!GLTFLoader.prototype._p3d) {
@@ -86,6 +111,7 @@ if (!GLTFLoader.prototype._p3d) {
   // d320: count the number-plate textures while the phone set is put together
   const _texLoad = THREE.TextureLoader.prototype.load;
   THREE.TextureLoader.prototype.load = function (url, onLoad, onProg, onErr) {
+    const em = embedded(url); if (em) url = 'data:image/png;base64,' + em;   // d324: the number textures come in hfgp3d-glb.js
     if (LOADP.stage !== 'build') return _texLoad.call(this, url, onLoad, onProg, onErr);
     loadStep('tex'); return _texLoad.call(this, url, t => { LOADP.tex++; onLoad && onLoad(t); }, onProg, onErr);
   };
@@ -1222,7 +1248,10 @@ function light2d(on) {
 function frame3d(now) {
   const cv = document.getElementById('cv'); if (cv.width !== 1) { cv.width = 1; cv.height = 1; }
   const dt = Math.min(.1, (now - (last || now)) / 1000); last = now;
-  const w = innerWidth, h = innerHeight, dpr = Math.min(Q.dpr, devicePixelRatio || 1);
+  // d328 (まえ: リプレイ録画を縦持ち画面に): View3D.frameAspect (w/h) narrows the 3D picture to that shape, centred — the 9:16 video
+  let w = innerWidth; const h = innerHeight, fa = window.View3D.frameAspect, dpr = fa && window.View3D.frameH ? Math.min(3, Math.max(Math.min(Q.dpr, devicePixelRatio || 1), window.View3D.frameH / h)) : Math.min(Q.dpr, devicePixelRatio || 1);   // (the narrow picture drawn sharp enough for the video's height)
+  if (fa && w / h > fa) w = Math.round(h * fa);
+  { const cw = fa ? w + 'px' : '100%', cl = fa ? Math.round((innerWidth - w) / 2) + 'px' : '0px'; if (canvas.style.width !== cw) canvas.style.width = cw; if (canvas.style.left !== cl) canvas.style.left = cl; }
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); camera.aspect = w / h; }
   const t = todNow();
   const ssn = seasonNow();   // d303
@@ -1302,12 +1331,17 @@ function lastMode() { let m = null; try { m = localStorage.getItem(V3.lastKey); 
 // WebGL context (after the GPU was taken back too often) or loading failed, nothing could bring 3D back but a reload —
 // now the 表示 button does that reload itself (3D kept as the choice), and a failed context no longer breaks the module
 let glBlocked = false;
-const stuck3d = () => glBlocked || !!window.View3D.error || (lost && lostTries >= LOST.tries);
-function reload3d() { try { localStorage.setItem(V3.key, mode !== '2d' ? mode : lastMode()); } catch (e) {} location.reload(); }
-function toggleDisp() { if (stuck3d()) { reload3d(); return; } lostTries = 0; setMode(mode === '2d' ? lastMode() : '2d'); }
+const stuck3d = () => glBlocked || (lost && lostTries >= LOST.tries);
+// d323 (まえ: 再読み込みするのがよくないような): no reload any more — a page load with 3D chosen builds everything at once again.
+// A press tries once more in place: a fresh renderer if none could be made, or the lost one rebuilt now
+function retry3d() {
+  if (glBlocked) { glBlocked = false; setMode(mode !== '2d' ? mode : lastMode()); return; }
+  if (lost) { lostTries = 0; lostBg = true; lostRetry(); return; }
+}
+function toggleDisp() { if (glBlocked || (lost && lostTries >= LOST.tries)) { retry3d(); return; } if (window.View3D.error) return; lostTries = 0; setMode(mode === '2d' ? lastMode() : '2d'); }
 function viewName() { const c = V3.cams[typeof camMode !== 'undefined' ? camMode : ''] || ''; return mode === '2d' || mode === 'top' ? c : V3.names[mode]; }
 function pillText() {
-  const err = window.View3D && window.View3D.error, stk = mode !== '2d' && stuck3d(), t = stk ? '視点：3D停止（表示を押すと再読み込み）' : err ? '視点：3D読み込み失敗' : lost ? '視点：2D（3D停止）' : mode !== '2d' && !set ? '視点：' + loadText() : `視点：${mode === '2d' ? '' : mode === 'top' ? '上空・' : ''}${viewName()}`;
+  const err = window.View3D && window.View3D.error, stk = mode !== '2d' && stuck3d(), t = stk ? (glBlocked ? '視点：3D停止（ブラウザを完全に終了して開き直す）' : '視点：3D停止（表示でもう一度）') : err ? '視点：3D読み込み失敗' : lost ? '視点：2D（3D停止）' : mode !== '2d' && !set ? '視点：' + loadText() : `視点：${mode === '2d' ? '' : mode === 'top' ? '上空・' : ''}${viewName()}`;
   const pcT = mode !== '2d' && set && LOADP.pcStage ? (LOADP.pcStage === 'dl' ? `（PC画質 ${LOADP.pcTotal ? Math.min(99, Math.round(LOADP.pcGot / LOADP.pcTotal * 100)) + '%' : '準備中'}）` : '（PC画質 組み立て中）') : '';
   const t2 = t + pcT;
   if (btn.textContent !== t2) btn.textContent = t2;
@@ -1373,7 +1407,7 @@ function gfxUi() {
 }); } }
 for (const [id, key] of [['gfx3d', GFX.key], ['water3d', GFX.wKey]]) { const el = $(id); if (el) el.addEventListener('change', e => {
   const v = e.target.value; try { localStorage.setItem(key, v); } catch (x) {}
-  if (id === 'gfx3d') { gfxSet = v; tierNow = v !== 'auto' ? v : 'pc'; } else waterSet = v;
+  if (id === 'gfx3d') { gfxSet = v; tierNow = v !== 'auto' ? v : autoTier(); } else waterSet = v;
   slowW.n = 0; applyTier(false);
 }); }
 // 自動: a few seconds of slow frames → one step down (this visit only; the setting stays 自動)
@@ -1409,10 +1443,10 @@ function makeRenderer() {
   canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;display:none;pointer-events:none';
   if (old) { old.replaceWith(canvas); } else document.getElementById('cv').after(canvas);
   try { renderer = new THREE.WebGLRenderer({ canvas, antialias: Q.aa, powerPreference: PHONE ? 'default' : 'high-performance' }); glBlocked = false; }
-  catch (e) { glBlocked = true; console.warn('3D視点（WebGL）:', e); throw e; }
+  catch (e) { glBlocked = true; capBelow(tierNow); console.warn('3D視点（WebGL）:', e); throw e; }
   // if the phone takes the GPU back, fall back to 2D instead of freezing the screen — and try to come back (d314)
   const cv = canvas;   // d318: events of an old (replaced) canvas are ignored
-  cv.addEventListener('webglcontextlost', e => { e.preventDefault(); if (cv !== canvas) return; lost = true; lostBg = document.hidden; btn.textContent = '視点：2D（3D停止）'; lostRetry(); });
+  cv.addEventListener('webglcontextlost', e => { e.preventDefault(); if (cv !== canvas) return; lost = true; lostBg = document.hidden; if (!lostBg) capBelow(tierNow); btn.textContent = '視点：2D（3D停止）'; lostRetry(); });
   cv.addEventListener('webglcontextrestored', () => { if (cv !== canvas) return; clearTimeout(lostTimer); lost = false; tod = ''; refl = null; if (!lostBg) tierDown(); lostBg = false; applyTier(false); setMode(mode); });   // d312: came back → one tier lighter (自動); d318: not after a background loss
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -1438,5 +1472,5 @@ function boot() {
   requestAnimationFrame(render);
   return booting;
 }
-window.View3D = { ready: false, setMode, toggle: toggleDisp, get last() { return lastMode(); }, get mode() { return mode; }, look, lens, sky: sky3, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0 }; } };
+window.View3D = { ready: false, setMode, toggle: toggleDisp, get last() { return lastMode(); }, get mode() { return mode; }, look, lens, sky: sky3, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0, geo: renderer ? renderer.info.memory.geometries : 0, tex: renderer ? renderer.info.memory.textures : 0, prog: renderer && renderer.info.programs ? renderer.info.programs.length : 0 }; } };
 setMode(mode);

@@ -6,7 +6,7 @@
    lens drops and sun flare, or 2D) cropped to 16:9, with a small HUD drawn on it (clock, order, the boat's speed, 実況, the
    result). The sound: the same engines / water / clock pips, and the race BGM and goal fanfare when the player raced.
    It takes as long as the race: start −20 s to the end of the log (5 s after the race is decided ≈ when the result shows). */
-const REC = { on: false, mr: null, chunks: [], cv: null, g: null, dest: null, W: 1280, H: 720, pre: 20, warm: 1.2, mime: '', url: null, ext: 'webm', ui: null, ind: null, view: '', no: 0, jk: null, jkI: 0, P: null, cancel: false };
+const REC = { on: false, mr: null, chunks: [], cv: null, g: null, dest: null, W: 1280, H: 720, pre: 20, warm: 1.2, tall: false, mime: '', url: null, ext: 'webm', ui: null, ind: null, view: '', no: 0, jk: null, jkI: 0, P: null, cancel: false };
 const REC_VIEWS = [['3d:chase', '3D 追尾'], ['3d:racer', '3D レーサー'], ['3d:top', '3D 上空'], ['2d:follow', '2D 追いかけ'], ['2d:auto', '2D 全艇']];
 function recMime() {
   if (typeof MediaRecorder === 'undefined') return null;
@@ -27,6 +27,7 @@ function recPanel(host, msgEl) {
     p.style.cssText = 'margin:8px 0 0;padding:8px 10px;border:1px solid var(--hud-line,#355);border-radius:8px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center';
     p.innerHTML = '<b style="width:100%">リプレイ動画を作る（スタート20秒前〜結果まで・等速で録画）</b>' +
       '<label>視点 <select id="recView"></select></label><label>追う艇 <select id="recNo"></select></label>' +
+      '<label>向き <select id="recShape"><option value="wide">横（16:9）</option><option value="tall">縦（9:16・スマホ向け）</option></select></label>' +
       '<button class="btn" id="recGo">録画開始</button><span id="recMsg" style="width:100%;font-size:12px;color:var(--muted,#9bb)"></span><a id="recSave" class="btn" hidden>動画を保存</a><button class="btn ghost" id="recShare" hidden>共有</button>';
   }
   host.after(p); p.hidden = false; p.dataset.msg = msgEl ? msgEl.id : '';
@@ -42,7 +43,9 @@ function recPanel(host, msgEl) {
   for (const r of rows) { const o = document.createElement('option'); o.value = r.no; o.textContent = `${r.no}号艇${r.no === me ? '（自分）' : ''}`; ns.appendChild(o); }
   if (!rows.length) { const o = document.createElement('option'); o.value = 1; o.textContent = '1号艇'; ns.appendChild(o); }
   ns.value = String(me || (fleet && fleet.focus) || 1); ns.parentElement.hidden = rows.length < 2;
-  p.querySelector('#recGo').onclick = () => recStart(vs.value, +ns.value, msgEl);
+  // d328 (まえ: 縦持ち画面に対応できる？): a 9:16 video — the 3D picture is drawn 9:16 while recording (nothing cut off), 2D is cut from the middle
+  const sh = p.querySelector('#recShape'); { let l = ''; try { l = localStorage.getItem('honorGP.recShape') || ''; } catch (e) {} if (l) sh.value = l; }
+  p.querySelector('#recGo').onclick = () => { REC.tall = sh.value === 'tall'; try { localStorage.setItem('honorGP.recShape', sh.value); } catch (e) {} recStart(vs.value, +ns.value, msgEl); };
   if (!REC.url) { p.querySelector('#recSave').hidden = true; p.querySelector('#recShare').hidden = true; p.querySelector('#recMsg').textContent = recCan() ? '' : 'このブラウザは画面の録画ができません'; }
   p.querySelector('#recGo').disabled = !recCan();
 }
@@ -67,6 +70,8 @@ async function recStart(view, no, msgEl) {
   for (const r of P.rows) r.player = r.no === P.playerNo;
   bgm.goalKey = null; bgm.goal = null;
   // from 20 s before the start, held still for a moment so the 3D view has drawn the place
+  window.REC_TALL = REC.tall;
+  if (REC.tall && window.View3D) { View3D.frameAspect = 9 / 16; View3D.frameH = Math.max(innerWidth, innerHeight) * Math.min(2, devicePixelRatio || 1) >= 1800 ? 1920 : 1280; }   // d328: the 3D view drawn in the video's shape
   RPV.play = false; rpvSeekTo(Math.max(P.t0, -REC.pre));
   document.body.classList.add('rpvrec');
   recIndicator(true);
@@ -77,7 +82,8 @@ async function recStart(view, no, msgEl) {
   // the canvas that is recorded, 16:9
   if (!REC.cv) { REC.cv = document.createElement('canvas'); REC.g = REC.cv.getContext('2d'); }
   const big = Math.max(innerWidth, innerHeight) * Math.min(2, devicePixelRatio || 1) >= 1800;
-  REC.W = big ? 1920 : 1280; REC.H = REC.W * 9 / 16; REC.cv.width = REC.W; REC.cv.height = REC.H;
+  if (REC.tall) { REC.W = big ? 1080 : 720; REC.H = REC.W * 16 / 9; } else { REC.W = big ? 1920 : 1280; REC.H = REC.W * 9 / 16; }
+  REC.cv.width = REC.W; REC.cv.height = REC.H;
   recCompose();
   const vs = REC.cv.captureStream(60), tracks = [...vs.getVideoTracks()];
   try {
@@ -130,7 +136,7 @@ function recCompose() {
 }
 const fmtClock = s => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
 function recHud(g, W, H) {
-  const P = REC.P, T = RPV.t, u = H / 720, d = P.d, Hh = d.header || {}, race = Hh.race || {};
+  const P = REC.P, T = RPV.t, u = Math.min(W, H) / 720, d = P.d, Hh = d.header || {}, race = Hh.race || {};
   const box = (x, y, w, h, a = .62) => { g.fillStyle = `rgba(6,14,22,${a})`; g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, 10 * u) : g.rect(x, y, w, h); g.fill(); };
   g.textBaseline = 'middle'; g.textAlign = 'left';
   // top left: what race, the clock
@@ -156,12 +162,13 @@ function recHud(g, W, H) {
   // 実況: the line the game showed, for 4 s
   const J = REC.jk; while (REC.jkI < J.length && J[REC.jkI].t <= T - 4) REC.jkI++;
   const j = J.slice(REC.jkI).find(e => e.t <= T && e.t > T - 4);
-  if (j) { g.font = `700 ${22 * u}px system-ui,sans-serif`; const tw = g.measureText(j.payload.text).width + 40 * u; box((W - tw) / 2, 18 * u, tw, 44 * u, .7); g.fillStyle = '#ffe9a8'; g.textAlign = 'center'; g.fillText(j.payload.text, W / 2, 41 * u); g.textAlign = 'left'; }
+  const fit = (px, wt, txt) => { let f = px; g.font = `${wt} ${f * u}px system-ui,sans-serif`; while (f > 12 && g.measureText(txt).width > W - 72 * u) { f -= 1; g.font = `${wt} ${f * u}px system-ui,sans-serif`; } };   // d328: long lines fit the narrow video
+  if (j) { fit(22, 700, j.payload.text); const tw = g.measureText(j.payload.text).width + 40 * u; box((W - tw) / 2, 18 * u, tw, 44 * u, .7); g.fillStyle = '#ffe9a8'; g.textAlign = 'center'; g.fillText(j.payload.text, W / 2, 41 * u); g.textAlign = 'left'; }
   // the result once decided
   const res = d.results;
   if (res && P.decided != null && T >= P.decided) {
     const t = P.solo ? (res.time != null ? `タイム ${fmtRT(res.time)}${res.rank ? '（' + res.rank + '）' : ''}` : '記録なし') : (res.order || []).slice(0, 6).map(o => `${o.place}着 ${o.no}`).join('　') + (res.kimarite ? `　決まり手 ${res.kimarite}` : '');
-    g.font = `800 ${28 * u}px system-ui,sans-serif`; const tw = g.measureText(t).width + 50 * u; box((W - tw) / 2, H / 2 - 34 * u, tw, 68 * u, .78);
+    fit(28, 800, t); const tw = g.measureText(t).width + 50 * u; box((W - tw) / 2, H / 2 - 34 * u, tw, 68 * u, .78);
     g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText(t, W / 2, H / 2); g.textAlign = 'left';
   }
 }
@@ -179,7 +186,7 @@ function recDone() {
   recEnd(false);
 }
 function recEnd(early) {
-  recTapAudio(false);
+  recTapAudio(false); window.REC_TALL = false; if (window.View3D) { View3D.frameAspect = null; View3D.frameH = 0; }
   REC.on = false; REC.mr = null; REC.chunks = []; REC.P = null;
   document.body.classList.remove('rpvrec'); recIndicator(false);
   if (RPV.on) { for (const r of RPV.P.rows) r.player = false; rpvClose(); }

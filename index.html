@@ -410,7 +410,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
     <div class="menu-top">
       <button class="btn ghost mi-row" id="pmPlayer" aria-expanded="false" data-panel="pmPlayerPanel"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg><span>プレイヤー：<b id="plNow">ゲスト</b> ▸</span></button>
       <div class="menu-list" id="pmPlayerPanel" hidden><div class="plrow" style="margin:0"><label>プレイヤー <select id="plSel" aria-label="記録するプレイヤー"></select></label><input id="plName" maxlength="12" placeholder="名前を追加" aria-label="追加する名前"><button class="btn ghost" id="plAdd">追加</button><button class="btn ghost" id="plDel">消す</button></div></div>
-      <div class="plrow" id="pmModeRow"><label>操作 <select id="pmModeSel" aria-label="操作モード"><option value="tilt">1．傾きあり</option><option value="pad">2．傾きなし・姿勢パッドあり</option><option value="wheel">3．姿勢パッド＋右手アクセル</option></select></label></div>
+      <div class="plrow" id="pmModeRow"><label>操作 <select id="pmModeSel" aria-label="操作モード"><option value="tilt">1．傾きあり</option><option value="pad">2．傾きなし・姿勢パッドあり</option><option value="wheel">3．姿勢パッド＋右手アクセル</option><option value="fuse">4．融合パッド（舵＋傾き・縦持ちOK）</option></select></label></div>
       <div class="plrow" id="pmVenueRow"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 3.5L16 11H5"/><path d="M3 21h18" /></svg><label>コース <select id="pmVenue" class="venue-sel" aria-label="コース"><option value="standard">練習コース</option><option value="suminoe">なにわ競艇場</option></select></label></div>
       <p id="controlHelp" class="menu-help"></p>
       <p id="pmKeys" class="menu-help">PC：W/S＝スロットル　A/D＝舵　矢印＝体重移動／コントローラ：トリガー＝スロットル　右スティック＝舵　左スティック＝体重移動</p>
@@ -622,7 +622,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
   <div class="card" style="max-width:460px">
     <h1 style="font-size:22px">設定</h1>
     <div class="set">
-      <label>操作モード<select id="controlMode"><option value="tilt">1．傾きあり</option><option value="pad">2．傾きなし・姿勢パッドあり</option><option value="wheel">3．姿勢パッド＋右手アクセル</option></select></label>
+      <label>操作モード<select id="controlMode"><option value="tilt">1．傾きあり</option><option value="pad">2．傾きなし・姿勢パッドあり</option><option value="wheel">3．姿勢パッド＋右手アクセル</option><option value="fuse">4．融合パッド（舵＋傾き・縦持ちOK）</option></select></label>
       <div id="wheelSettings" hidden><label>スマホ舵の最大角度 <input type="range" id="wheelRange" min="10" max="60" value="30" step="5"><output id="wheelRangeOut">30°</output></label><label><input type="checkbox" id="wheelInvert"> スマホ舵の左右を反転</label></div>
       <p style="margin:0;font-size:12px" id="postureModeNote">オフ：傾きセンサーで姿勢を操作します。</p>
       <button class="btn" id="zero">今の持ち方を基準にする</button>
