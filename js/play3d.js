@@ -1298,14 +1298,20 @@ function setMode(m) {
 }
 // d286: two pills — 表示 (2D ⇄ 3D) and 視点 (the views of that 表示, input.js viewCycle); V = 視点, Shift+V = 表示
 function lastMode() { let m = null; try { m = localStorage.getItem(V3.lastKey); } catch (e) {} return V3.modes.includes(m) && m !== '2d' ? m : 'top'; }
-function toggleDisp() { if (window.View3D.error) return; lostTries = 0; setMode(mode === '2d' ? lastMode() : '2d'); }
+// d321 (まえ: Chromeも2Dから始まって3Dを選べない、リロードすると組み立て中になる): when the phone's browser won't give a new
+// WebGL context (after the GPU was taken back too often) or loading failed, nothing could bring 3D back but a reload —
+// now the 表示 button does that reload itself (3D kept as the choice), and a failed context no longer breaks the module
+let glBlocked = false;
+const stuck3d = () => glBlocked || !!window.View3D.error || (lost && lostTries >= LOST.tries);
+function reload3d() { try { localStorage.setItem(V3.key, mode !== '2d' ? mode : lastMode()); } catch (e) {} location.reload(); }
+function toggleDisp() { if (stuck3d()) { reload3d(); return; } lostTries = 0; setMode(mode === '2d' ? lastMode() : '2d'); }
 function viewName() { const c = V3.cams[typeof camMode !== 'undefined' ? camMode : ''] || ''; return mode === '2d' || mode === 'top' ? c : V3.names[mode]; }
 function pillText() {
-  const err = window.View3D && window.View3D.error, t = err ? '視点：3D読み込み失敗' : lost ? '視点：2D（3D停止）' : mode !== '2d' && !set ? '視点：' + loadText() : `視点：${mode === '2d' ? '' : mode === 'top' ? '上空・' : ''}${viewName()}`;
+  const err = window.View3D && window.View3D.error, stk = mode !== '2d' && stuck3d(), t = stk ? '視点：3D停止（表示を押すと再読み込み）' : err ? '視点：3D読み込み失敗' : lost ? '視点：2D（3D停止）' : mode !== '2d' && !set ? '視点：' + loadText() : `視点：${mode === '2d' ? '' : mode === 'top' ? '上空・' : ''}${viewName()}`;
   const pcT = mode !== '2d' && set && LOADP.pcStage ? (LOADP.pcStage === 'dl' ? `（PC画質 ${LOADP.pcTotal ? Math.min(99, Math.round(LOADP.pcGot / LOADP.pcTotal * 100)) + '%' : '準備中'}）` : '（PC画質 組み立て中）') : '';
   const t2 = t + pcT;
   if (btn.textContent !== t2) btn.textContent = t2;
-  const d = mode === '2d' || err || lost ? '2D' : '3D'; if (dbtn.textContent !== '表示：' + d) dbtn.textContent = '表示：' + d;
+  const d = mode === '2d' || err || lost || glBlocked ? '2D' : '3D'; if (dbtn.textContent !== '表示：' + d) dbtn.textContent = '表示：' + d;
   const sel = document.getElementById('dispMode'); if (sel && sel.value !== d.toLowerCase()) sel.value = d.toLowerCase();
 }
 const btn = document.createElement('button'); btn.className = 'pill'; btn.id = 'view3dBtn';
@@ -1393,7 +1399,7 @@ let lostTries = 0;
 let lostBg = false;
 function lostRetry() {
   clearTimeout(lostTimer); if (document.hidden) return;
-  lostTimer = setTimeout(() => { if (!lost || document.hidden || lostTries >= LOST.tries) return; if (!lostBg) lostTries++; try { renderer.dispose(); } catch (x) {} refl = null; if (!lostBg) tierDown(); lostBg = false; makeRenderer(); lost = false; tod = ''; applyTier(false); setMode(mode); }, LOST.wait * 1000);
+  lostTimer = setTimeout(() => { if (!lost || document.hidden || lostTries >= LOST.tries) return; if (!lostBg) lostTries++; try { renderer.dispose(); } catch (x) {} refl = null; if (!lostBg) tierDown(); lostBg = false; try { makeRenderer(); } catch (x) { return; } lost = false; tod = ''; applyTier(false); setMode(mode); }, LOST.wait * 1000);
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) { clearTimeout(lostTimer); if (lost) lostBg = true; return; } if (lost) { lostBg = true; lostRetry(); } });
 function tierDown() { if (gfxSet !== 'auto') return; const i = GFX.order.indexOf(tierNow); if (i > 0) tierNow = GFX.order[i - 1]; }
@@ -1402,7 +1408,8 @@ function makeRenderer() {
   canvas = document.createElement('canvas'); canvas.id = 'cv3d';
   canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;display:none;pointer-events:none';
   if (old) { old.replaceWith(canvas); } else document.getElementById('cv').after(canvas);
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: Q.aa, powerPreference: PHONE ? 'default' : 'high-performance' });
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: Q.aa, powerPreference: PHONE ? 'default' : 'high-performance' }); glBlocked = false; }
+  catch (e) { glBlocked = true; console.warn('3D視点（WebGL）:', e); throw e; }
   // if the phone takes the GPU back, fall back to 2D instead of freezing the screen — and try to come back (d314)
   const cv = canvas;   // d318: events of an old (replaced) canvas are ignored
   cv.addEventListener('webglcontextlost', e => { e.preventDefault(); if (cv !== canvas) return; lost = true; lostBg = document.hidden; btn.textContent = '視点：2D（3D停止）'; lostRetry(); });
@@ -1413,7 +1420,7 @@ function makeRenderer() {
 }
 function boot() {
   if (booting) return booting;
-  makeRenderer();
+  try { makeRenderer(); } catch (e) { return null; }   // d321: no WebGL → stay 2D, the 表示 button offers a reload
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .1, 1500);
   hemi = new THREE.HemisphereLight(0xdfefff, 0x2a4a58, 1.5); scene.add(hemi);
