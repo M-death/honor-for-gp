@@ -43,25 +43,33 @@ const camS = { x: 0, y: 0, a: 0, init: false };
 const loadScript = src => new Promise((ok, ng) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => ng(Error(src)); document.head.appendChild(s); });
 // d317 (まえ: 待ち時間を可視化できる？): the model files are fetched once with a progress count (the browser keeps them, so the
 // <script> that follows comes from its cache) and the 視点 pill shows MB / % / seconds, then 組み立て中 while they are put together
-const LOADP = { stage: '', got: 0, total: 0, t0: 0, pcStage: '', pcGot: 0, pcTotal: 0 };
+const LOADP = { stage: '', step: '', glb: 0, tex: 0, log: [], got: 0, total: 0, t0: 0, pcStage: '', pcGot: 0, pcTotal: 0 };
 const LOAD_MB = { 'hfgp3d-glb.js': 1.83, 'hfgp3d-glb-pc.js': 3.81 };
 async function loadScriptP(src, pc) {
   const k = pc ? 'pc' : '', name = src.split('/').pop().split('?')[0];
   const set = (st, got, tot) => { if (pc) { LOADP.pcStage = st; LOADP.pcGot = got; LOADP.pcTotal = tot; } else { LOADP.stage = st; LOADP.got = got; LOADP.total = tot; } };
   set('dl', 0, LOAD_MB[name] || 0);
+  // d319: the fetched bytes themselves run as the script (a blob URL) — no second download if the browser doesn't keep it
+  let parts = null;
   try {
     const r = await fetch(src);
     if (r.ok && r.body && r.body.getReader) {
-      const len = +r.headers.get('content-length') || 0, rd = r.body.getReader(); let got = 0;
+      const len = +r.headers.get('content-length') || 0, rd = r.body.getReader(); let got = 0; parts = [];
       const tot = Math.max(LOAD_MB[name] || 0, r.headers.get('content-encoding') ? 0 : len / 1e6);
-      for (;;) { const { done, value } = await rd.read(); if (done) break; got += value.length; set('dl', got / 1e6, tot); }
+      for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; set('dl', got / 1e6, tot); }
     }
-  } catch (e) {}   // (a failed count is no failure: the <script> below still loads it)
-  set('build', 0, 0);
+  } catch (e) { parts = null; }   // (a failed count is no failure: the <script> below still loads it)
+  set('build', 0, 0); if (!pc) loadStep('script');
+  if (parts) { const u = URL.createObjectURL(new Blob(parts, { type: 'text/javascript' })); parts = null; try { await loadScript(u); return; } catch (e) {} finally { URL.revokeObjectURL(u); } }
   await loadScript(src);
 }
+// d320 (まえ: 組み立て中で200秒): which part of 組み立て — the pill names it and View3D.loadLog keeps [step, s] for each
+const LOAD_STEP = { script: 'データ展開', rig: '骨格', model: 'モデル', tex: '番号' };
+function loadStep(st) { if (LOADP.step === st) return; LOADP.step = st; LOADP.log.push([st, +((performance.now() - LOADP.t0) / 1000).toFixed(1)]); }
 function loadText() {
   const sec = ((performance.now() - LOADP.t0) / 1000).toFixed(1);
+  const st = LOADP.step, stT = st === 'model' ? `モデル ${LOADP.glb}/9` : st === 'tex' ? `番号 ${LOADP.tex}/12` : LOAD_STEP[st];
+  if (LOADP.stage === 'build' && stT) return `3D組み立て中（${stT}） ${sec}秒`;
   if (LOADP.stage === 'dl') return `3D読み込み中 ${LOADP.total ? Math.min(99, Math.round(LOADP.got / LOADP.total * 100)) + '%' : LOADP.got.toFixed(1) + 'MB'} ${sec}秒`;
   return `3D組み立て中… ${sec}秒`;
 }
@@ -71,8 +79,15 @@ if (!GLTFLoader.prototype._p3d) {
   GLTFLoader.prototype.loadAsync = function (url, onProgress) {
     const E = window.HFGP3D_GLB, key = E && Object.keys(E).find(k => String(url).endsWith(k));
     if (!key) return _loadAsync.call(this, url, onProgress);
+    const cnt = LOADP.stage === 'build' && /^mobile\//.test(key); if (cnt) loadStep('model');
     const raw = atob(E[key]), bytes = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-    return this.parseAsync(bytes.buffer, new URL('.', url).href);
+    return this.parseAsync(bytes.buffer, new URL('.', url).href).then(g => { if (cnt) LOADP.glb++; return g; });
+  };
+  // d320: count the number-plate textures while the phone set is put together
+  const _texLoad = THREE.TextureLoader.prototype.load;
+  THREE.TextureLoader.prototype.load = function (url, onLoad, onProg, onErr) {
+    if (LOADP.stage !== 'build') return _texLoad.call(this, url, onLoad, onProg, onErr);
+    loadStep('tex'); return _texLoad.call(this, url, t => { LOADP.tex++; onLoad && onLoad(t); }, onProg, onErr);
   };
 }
 
@@ -1309,9 +1324,11 @@ async function loadModels(tier) {
   if (set && set.tier === tier) return;
   if (modelsBusy) { await modelsBusy; if (set && set.tier === tier) return; }
   modelsBusy = (async () => {
+    if (tier === 'mobile' && !window.View3D.ready) LOADP.stage = 'build';   // d320: (already in from the 2D 新モデル → straight to 組み立て)
     if (!window.HFGP3D_GLB) await loadScriptP(new URL('./hfgp3d-glb.js', import.meta.url).href, false);
     if (tier === 'pc1080ti' && !window.HFGP3D_GLB['pc1080ti/boat_lod0.glb']) { LOADP.pcStage = 'dl'; LOADP.pcTotal = 0; await loadScript(new URL('./hfgp3d-glb-pc.js', import.meta.url).href); }   // (in the background while 3D runs: a plain <script> — a progress count read on the busy main thread could crawl)
     if (tier === 'pc1080ti') LOADP.pcStage = 'build';
+    if (tier === 'mobile' && LOADP.stage === 'build') loadStep('rig');
     const s = await loadAssetSet(new URL('../hfgp3d/', import.meta.url).href, tier);
     for (const a of actors.values()) a.dispose(); actors.clear();
     for (const a of ghostActors.values()) a.dispose(); ghostActors.clear();
@@ -1333,7 +1350,8 @@ function applyTier(first) {
   if (!spray3 && Q.spray > 0) makeSpray();
   if (WX3.rain && WX3.n !== Q.rain) { scene.remove(WX3.rain); WX3.rain.geometry.dispose(); WX3.rain.material.dispose(); WX3.rain = null; WX3.key = ''; }
   if (refl && refl.rt && waterNow() !== 'reflect') { refl.rt.dispose(); refl = null; }
-  if (Q.venue > 0 && !venueReady()) loadVenueModels().then(() => { tod = ''; }).catch(e => console.warn('3D視点（会場）:', e));
+  if (Q.venue > 0 && !venueReady()) Promise.resolve().then(() => booting).then(() => loadVenueModels())   // d319: after the phone models (it took half the line while 3D waited)
+   .then(() => { tod = ''; }).catch(e => console.warn('3D視点（会場）:', e));
   if (!first) { tod = ''; scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); }); loadModels(Q.models).then(() => { tod = ''; }); }
 }
 function gfxUi() {
@@ -1370,6 +1388,14 @@ let booting = null, lostTimer = 0;
 // the models are kept; the GPU copies are made again), also one tier lighter, up to LOST.tries times
 const LOST = { wait: 2.5, tries: 3 };
 let lostTries = 0;
+// d318 (まえ: phone goes back to 2D every time, reload fixes it): a phone drops WebGL when the app/screen goes to the background.
+// Rebuilding while hidden failed and used up the tries → 3D stayed off. Now: wait until the page shows again, don't count it, no tier drop.
+let lostBg = false;
+function lostRetry() {
+  clearTimeout(lostTimer); if (document.hidden) return;
+  lostTimer = setTimeout(() => { if (!lost || document.hidden || lostTries >= LOST.tries) return; if (!lostBg) lostTries++; try { renderer.dispose(); } catch (x) {} refl = null; if (!lostBg) tierDown(); lostBg = false; makeRenderer(); lost = false; tod = ''; applyTier(false); setMode(mode); }, LOST.wait * 1000);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) { clearTimeout(lostTimer); if (lost) lostBg = true; return; } if (lost) { lostBg = true; lostRetry(); } });
 function tierDown() { if (gfxSet !== 'auto') return; const i = GFX.order.indexOf(tierNow); if (i > 0) tierNow = GFX.order[i - 1]; }
 function makeRenderer() {
   const old = canvas;
@@ -1378,9 +1404,9 @@ function makeRenderer() {
   if (old) { old.replaceWith(canvas); } else document.getElementById('cv').after(canvas);
   renderer = new THREE.WebGLRenderer({ canvas, antialias: Q.aa, powerPreference: PHONE ? 'default' : 'high-performance' });
   // if the phone takes the GPU back, fall back to 2D instead of freezing the screen — and try to come back (d314)
-  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; btn.textContent = '視点：2D（3D停止）';
-    clearTimeout(lostTimer); lostTimer = setTimeout(() => { if (!lost || lostTries >= LOST.tries) return; lostTries++; try { renderer.dispose(); } catch (x) {} refl = null; tierDown(); makeRenderer(); lost = false; tod = ''; applyTier(false); setMode(mode); }, LOST.wait * 1000); });
-  canvas.addEventListener('webglcontextrestored', () => { clearTimeout(lostTimer); lost = false; tod = ''; refl = null; tierDown(); applyTier(false); setMode(mode); });   // d312: came back → one tier lighter (自動)
+  const cv = canvas;   // d318: events of an old (replaced) canvas are ignored
+  cv.addEventListener('webglcontextlost', e => { e.preventDefault(); if (cv !== canvas) return; lost = true; lostBg = document.hidden; btn.textContent = '視点：2D（3D停止）'; lostRetry(); });
+  cv.addEventListener('webglcontextrestored', () => { if (cv !== canvas) return; clearTimeout(lostTimer); lost = false; tod = ''; refl = null; if (!lostBg) tierDown(); lostBg = false; applyTier(false); setMode(mode); });   // d312: came back → one tier lighter (自動); d318: not after a background loss
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   if (old) { const w = innerWidth, h = innerHeight, dpr = Math.min(Q.dpr, devicePixelRatio || 1); renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); }
@@ -1399,7 +1425,7 @@ function boot() {
     // and nothing showed until both were in. Show 3D as soon as the phone set is in; the PC set follows and swaps in when ready
     LOADP.t0 = performance.now();
     await loadModels('mobile');
-    window.View3D.ready = true; LOADP.stage = ''; window.View3D.loadSec = (performance.now() - LOADP.t0) / 1000;
+    window.View3D.ready = true; loadStep('done'); LOADP.stage = ''; window.View3D.loadLog = LOADP.log; window.View3D.loadSec = (performance.now() - LOADP.t0) / 1000;
     if (Q.models !== 'mobile') loadModels(Q.models).then(() => { tod = ''; LOADP.pcStage = ''; window.View3D.loadPcSec = (performance.now() - LOADP.t0) / 1000; }).catch(() => { LOADP.pcStage = ''; });
   })().catch(e => { console.warn('3D視点:', e); btn.textContent = '視点：3D読み込み失敗'; window.View3D.error = String(e); });
   requestAnimationFrame(render);
