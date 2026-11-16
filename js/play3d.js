@@ -18,8 +18,8 @@ const PHONE = (() => { try { return matchMedia('(pointer: coarse)').matches && !
    models: hfgp3d set · venue: d280 会場 (0 = the plain stand box, 1 = stand + city / hills + masts, 2 = + the crowd). 自動 = phone → スマホ軽量, PC → PC; if frames run slow for a few seconds it steps down one (this visit only). */
 const GFX = { key: 'honorGP.gfx3d', wKey: 'honorGP.water3d', order: ['lite', 'rich', 'pc'],
   tiers: {
-    lite: { label: 'スマホ軽量', px: 3, fps: 30, dpr: 1, aa: false, water: 'simple', spray: 0, wake: 8000, rain: 450, sky: 2048, lod: .6, shadow: 0, models: 'mobile', aniso: 2, ripDiv: 20, venue: 0 },
-    rich: { label: 'スマホリッチ', px: 5, fps: 0, dpr: 1.25, aa: false, water: 'shade', spray: 2500, wake: 14000, rain: 900, sky: 2048, lod: .8, shadow: 0, models: 'mobile', aniso: 4, ripDiv: 12, venue: 1 },
+    lite: { label: 'スマホ軽量', px: 3, fps: 30, dpr: 1, aa: false, water: 'simple', spray: 0, wake: 8000, rain: 450, sky: 2048, lod: .8, shadow: 0, models: 'mobile', aniso: 2, ripDiv: 20, venue: 0 },
+    rich: { label: 'スマホリッチ', px: 5, fps: 0, dpr: 1.25, aa: false, water: 'shade', spray: 2500, wake: 14000, rain: 900, sky: 2048, lod: 1.2, shadow: 0, models: 'mobile', aniso: 4, ripDiv: 12, venue: 1 },
     pc: { label: 'PC', px: 8, fps: 0, dpr: 1.5, aa: true, water: 'reflect', spray: 7000, wake: 24000, rain: 1400, sky: 4096, lod: 1, shadow: 2048, models: 'pc1080ti', aniso: 8, ripDiv: 7, venue: 2 } },
   slow: { ms: 25, msCap: 1.35, secs: 4 },   // 自動: step down after this long above ms (or a capped tier's frame × msCap) — d297 (まえ): 40 fps (25 ms) is the line
   refl: { scale: .5, k: .55, distort: .035 } };   // 反射: render size, strength, ripple distortion
@@ -41,6 +41,10 @@ const GL_CAP = 'honorGP.gl3dCap';
 const autoTier = () => { let c = null; try { c = localStorage.getItem(GL_CAP); } catch (e) {} return GFX.order.includes(c) ? c : PHONE ? 'rich' : 'pc'; };   // d332 (まえ: 自動はスマホだとスマホリッチから、スマホでPCは特殊な使い方)
 function capBelow(t) { if (!PHONE) return; const i = GFX.order.indexOf(t); if (i <= 0) return; const c = GFX.order[i - 1], now = autoTier(); if (GFX.order.indexOf(c) < GFX.order.indexOf(now)) try { localStorage.setItem(GL_CAP, c); } catch (e) {} }
 let tierNow = gfxSet !== 'auto' ? gfxSet : autoTier(), Q = GFX.tiers[tierNow];
+// d342 (まえ: 設定PCのままやめると、次回3Dが使えない): a phone that starts straight on PC/最高 builds the heavy renderer and
+// pulls 3.8 MB more at once; starts now on スマホリッチ and goes up to the chosen 画質 once 3D has run for a few seconds (PC_LATE)
+const PC_LATE = { tier: '', wait: 5 };
+if (PHONE && GFX.tiers[tierNow].models === 'pc1080ti') { PC_LATE.tier = tierNow; tierNow = 'rich'; Q = GFX.tiers[tierNow]; }
 const waterNow = () => waterSet !== 'auto' && ['simple', 'shade', 'reflect'].includes(waterSet) ? waterSet : Q.water;
 const LITE = PHONE;   // (kept for what only a phone's screen decides)
 let mode = '2d'; try { mode = localStorage.getItem(V3.key) || '2d'; } catch (e) {}
@@ -1496,6 +1500,9 @@ function frame3d(now) {
   for (const a of actors.values()) a.root.visible = false;
   for (const r of topRings.values()) r.visible = false;
   const rows = rowsNow(), me = targetRow().b, focal = h / 2 / Math.tan(camera.fov * Math.PI / 360);
+  // d343 (まえ: 3Dのモデルは2Dの新モデルより粗い): the LOD was picked by CSS pixels — a phone (411 px tall) showed its own boat
+  // in 追尾 on the middle model. Now by the real pixels drawn (× pixel ratio), and the phone tiers lean finer (Q.lod)
+  const lodK = Q.lod * (renderer.getPixelRatio() || 1);
   for (const row of rows) {
     const b = row.b, inp = row.inp || {}, a = actorFor(row);
     const capsized = fin(b.cap) > 0 && !b.fallen, gone = fin(b.cap) > 0 || b.fallen;
@@ -1504,7 +1511,7 @@ function frame3d(now) {
     const sw = swellH(b.x, b.y), swN = sw ? (swellH(b.x + Math.cos(b.a) * 1.5, b.y + Math.sin(b.a) * 1.5) - swellH(b.x - Math.cos(b.a) * 1.5, b.y - Math.sin(b.a) * 1.5)) / 3 : 0;   // d300 riding the swell
     a.setGameTransform({ x: b.x, y: b.y, hop: fin(b.hop) + rb.h + sw + (typeof willieMotion === 'function' ? willieMotion(b).h * .5 : 0), modelYaw: -Math.PI / 2 - b.a, modelBank: capsized ? Math.PI : lim(b.bank, -.65, .65) * V3.bank, nose: capsized ? 0 : nose + rb.nose + swN });
     const dist = Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1;
-    a.chooseLOD((mode === 'top' ? 3.3 * (cam.S || 20) : 3.3 * focal / dist) * Q.lod);
+    a.chooseLOD((mode === 'top' ? 3.3 * (cam.S || 20) : 3.3 * focal / dist) * lodK);
     // d280 (まえ: モンキーターンやウィリーターンの姿勢): the replay's 0.28 turn poses — 体重移動 smoothed over ~0.2 s, モンキー
     // from how far it is leaned (and only at speed), ウィリー from wil, the right hand on the wheel rim (as render_replay.py)
     const ps = poseS.get(b) || { roll: 0 }; ps.roll += (lim(inp.roll, -1, 1) - ps.roll) * Math.min(1, dt / .1); poseS.set(b, ps);
@@ -1521,7 +1528,7 @@ function frame3d(now) {
   if (typeof taGhostsNow === 'function') for (const { b, kind } of taGhostsNow()) {
     const a = ghostActor(kind);
     a.setGameTransform({ x: b.x, y: b.y, hop: 0, modelYaw: -Math.PI / 2 - b.a, modelBank: 0, nose: 0 });
-    a.chooseLOD((mode === 'top' ? 3.3 * (cam.S || 20) : 3.3 * focal / (Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1)) * Q.lod);
+    a.chooseLOD((mode === 'top' ? 3.3 * (cam.S || 20) : 3.3 * focal / (Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1)) * lodK);
     a.updatePose({ propAngle: time * 60 }); a.root.visible = true;
   }
   { const ws = fleet ? fleet.boats.filter(r => !r.gone).map(r => r.wake) : [wake]; if (wrealOn()) drawWakesReal(ws); else { if (wrMesh) wrMesh.visible = false; if (wakeMesh) wakeMesh.visible = true; drawWakes(ws); } }   // d334
@@ -1599,7 +1606,12 @@ async function loadModels(tier) {
   modelsBusy = (async () => {
     if (tier === 'mobile' && !window.View3D.ready) LOADP.stage = 'build';   // d320: (already in from the 2D 新モデル → straight to 組み立て)
     if (!window.HFGP3D_GLB) await loadScriptP(new URL('./hfgp3d-glb.js', import.meta.url).href, false);
-    if (tier === 'pc1080ti' && !window.HFGP3D_GLB['pc1080ti/boat_lod0.glb']) { LOADP.pcStage = 'dl'; LOADP.pcTotal = 0; await loadScript(new URL('./hfgp3d-glb-pc.js', import.meta.url).href); }   // (in the background while 3D runs: a plain <script> — a progress count read on the busy main thread could crawl)
+    if (tier === 'pc1080ti' && !window.HFGP3D_GLB['pc1080ti/boat_lod0.glb']) {
+      LOADP.pcStage = 'dl'; LOADP.pcTotal = 0; const u = new URL('./hfgp3d-glb-pc.js', import.meta.url).href;
+      // d341 (まえ: スマホでPCを選んだときにダウンロード、経過の分かるメッセージ): chosen by hand → a box with the progress (counted
+      // download); chosen by 自動 on a PC → as before, a plain <script> in the background
+      if (PCDL.want) { PCDL.want = false; pcDlShow(); await loadScriptP(u, true); } else await loadScript(u);
+    }   // (in the background while 3D runs: a plain <script> — a progress count read on the busy main thread could crawl)
     if (tier === 'pc1080ti') LOADP.pcStage = 'build';
     if (tier === 'mobile' && LOADP.stage === 'build') loadStep('rig');
     const s = await loadAssetSet(new URL('../hfgp3d/', import.meta.url).href, tier);
@@ -1607,7 +1619,33 @@ async function loadModels(tier) {
     for (const a of ghostActors.values()) a.dispose(); ghostActors.clear();
     set = s;
   })();
-  try { await modelsBusy; } catch (e) { console.warn('3D視点（モデル）:', e); if (tier !== 'mobile' && !set) await loadModels('mobile'); } finally { modelsBusy = null; }
+  try { await modelsBusy; } catch (e) { console.warn('3D視点（モデル）:', e); PCDL.fail = tier !== 'mobile'; if (tier !== 'mobile' && !set) await loadModels('mobile'); } finally { modelsBusy = null; if (tier !== 'mobile') { LOADP.pcStage = ''; PCDL.done = true; } }
+}
+/* d341 PC画質のダウンロード: a small box over the screen while the PC models (3.8 MB) come in — % and MB, then 組み立て中, then
+   gone; 「裏で続ける」 hides it and the 視点 pill keeps the count */
+const PCDL = { want: false, el: null, tm: 0, done: false, fail: false };
+function pcDlShow() {
+  if (!PCDL.el) {
+    const d = document.createElement('div'); d.id = 'pcDlBox';
+    d.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;width:min(340px,86vw);background:rgba(8,20,32,.96);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:14px;padding:16px 18px;box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:14px;line-height:1.5';
+    d.innerHTML = '<b id="pcDlT" style="font-size:16px">PC画質のデータをダウンロード中</b><div style="margin:10px 0 6px;height:10px;border-radius:5px;background:rgba(255,255,255,.15);overflow:hidden"><i id="pcDlBar" style="display:block;height:100%;width:0;background:#ffc21a;transition:width .2s"></i></div><div id="pcDlN" style="font-variant-numeric:tabular-nums">0%</div><small style="opacity:.75">終わるとPC画質に切り替わります（一度ダウンロードすれば次からは不要）</small><div style="text-align:right;margin-top:8px"><button class="btn ghost" id="pcDlHide">裏で続ける</button></div>';
+    document.body.appendChild(d); PCDL.el = d;
+    d.querySelector('#pcDlHide').addEventListener('click', () => { d.hidden = true; clearInterval(PCDL.tm); });
+  }
+  PCDL.done = PCDL.fail = false; PCDL.el.hidden = false; clearInterval(PCDL.tm);
+  const T = PCDL.el.querySelector('#pcDlT'), bar = PCDL.el.querySelector('#pcDlBar'), n = PCDL.el.querySelector('#pcDlN');
+  PCDL.tm = setInterval(() => {
+    if (PCDL.done) {
+      clearInterval(PCDL.tm);
+      if (PCDL.fail) { T.textContent = 'ダウンロードできませんでした'; n.textContent = '通信を確かめて、もう一度PC画質を選んでください'; bar.style.width = '0'; setTimeout(() => { PCDL.el.hidden = true; }, 4000); }
+      else { T.textContent = 'PC画質に切り替えました'; bar.style.width = '100%'; n.textContent = ''; setTimeout(() => { PCDL.el.hidden = true; }, 900); }
+      return;
+    }
+    if (LOADP.pcStage === 'dl') {
+      const tot = LOADP.pcTotal || LOAD_MB['hfgp3d-glb-pc.js'], k = Math.min(.99, LOADP.pcGot / tot);
+      T.textContent = 'PC画質のデータをダウンロード中'; bar.style.width = (k * 100).toFixed(1) + '%'; n.textContent = `${Math.round(k * 100)}%（${LOADP.pcGot.toFixed(1)} / ${tot.toFixed(1)} MB）`;
+    } else if (LOADP.pcStage === 'build') { T.textContent = 'PC画質を組み立て中'; bar.style.width = '100%'; n.textContent = '少しお待ちください'; }
+  }, 200);
 }
 function applyTier(first) {
   Q = GFX.tiers[tierNow];
@@ -1649,7 +1687,7 @@ function gfxUi() {
 }); } }
 for (const [id, key] of [['gfx3d', GFX.key], ['water3d', GFX.wKey]]) { const el = $(id); if (el) el.addEventListener('change', e => {
   const v = e.target.value; try { localStorage.setItem(key, v); } catch (x) {}
-  if (id === 'gfx3d') { gfxSet = v; tierNow = v !== 'auto' ? v : autoTier(); } else waterSet = v;
+  if (id === 'gfx3d') { PC_LATE.tier = ''; gfxSet = v; tierNow = v !== 'auto' ? v : autoTier(); PCDL.want = GFX.tiers[tierNow].models === 'pc1080ti' && !(window.HFGP3D_GLB && window.HFGP3D_GLB['pc1080ti/boat_lod0.glb']); } else waterSet = v;
   slowW.n = 0; applyTier(false);
 }); }
 // 自動: a few seconds of slow frames → one step down (this visit only; the setting stays 自動)
@@ -1678,7 +1716,8 @@ function lostRetry() {
   lostTimer = setTimeout(() => { if (!lost || document.hidden || lostTries >= LOST.tries) return; if (!lostBg) lostTries++; try { renderer.dispose(); } catch (x) {} refl = null; if (!lostBg) tierDown(); lostBg = false; try { makeRenderer(); } catch (x) { return; } lost = false; tod = ''; applyTier(false); setMode(mode); }, LOST.wait * 1000);
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) { clearTimeout(lostTimer); if (lost) lostBg = true; return; } if (lost) { lostBg = true; lostRetry(); } });
-function tierDown() { if (gfxSet !== 'auto') return; const i = GFX.order.indexOf(tierNow); if (i > 0) tierNow = GFX.order[i - 1]; }
+function tierDown() { if (gfxSet !== 'auto' && !(PHONE && tierNow !== 'rich' && tierNow !== 'lite')) return;   // d342: a phone on a chosen PC/最高 that lost the GPU → スマホリッチ for this visit (the setting stays)
+  const i = GFX.order.indexOf(tierNow); if (i > 0) tierNow = GFX.order[i - 1]; }
 function makeRenderer() {
   const old = canvas;
   canvas = document.createElement('canvas'); canvas.id = 'cv3d';
@@ -1709,10 +1748,14 @@ function boot() {
     LOADP.t0 = performance.now();
     await loadModels('mobile');
     window.View3D.ready = true; loadStep('done'); LOADP.stage = ''; window.View3D.loadLog = LOADP.log; window.View3D.loadSec = (performance.now() - LOADP.t0) / 1000;
+    if (PC_LATE.tier) { const up = () => { if (!PC_LATE.tier) return; if (document.hidden || lost) { setTimeout(up, 2000); return; }
+        const t = PC_LATE.tier; PC_LATE.tier = ''; if (gfxSet !== t) return;   // (changed by hand meanwhile)
+        tierNow = t; PCDL.want = !(window.HFGP3D_GLB && window.HFGP3D_GLB['pc1080ti/boat_lod0.glb']); slowW.n = 0; applyTier(false); };
+      setTimeout(up, PC_LATE.wait * 1000); }
     if (Q.models !== 'mobile') loadModels(Q.models).then(() => { tod = ''; LOADP.pcStage = ''; window.View3D.loadPcSec = (performance.now() - LOADP.t0) / 1000; }).catch(() => { LOADP.pcStage = ''; });
   })().catch(e => { console.warn('3D視点:', e); btn.textContent = '視点：3D読み込み失敗'; window.View3D.error = String(e); });
   requestAnimationFrame(render);
   return booting;
 }
-window.View3D = { ready: false, setMode, toggle: toggleDisp, get last() { return lastMode(); }, get mode() { return mode; }, look, lens, sky: sky3, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0, geo: renderer ? renderer.info.memory.geometries : 0, tex: renderer ? renderer.info.memory.textures : 0, prog: renderer && renderer.info.programs ? renderer.info.programs.length : 0 }; } };
+window.View3D = { ready: false, setMode, toggle: toggleDisp, get last() { return lastMode(); }, get mode() { return mode; }, look, lens, sky: sky3, get draws() { return draws3d; }, get ms() { return ms3d; }, get info() { return { tier: tierNow, label: Q.label, water: waterNow(), tris: renderer ? renderer.info.render.triangles : 0, calls: renderer ? renderer.info.render.calls : 0, geo: renderer ? renderer.info.memory.geometries : 0, tex: renderer ? renderer.info.memory.textures : 0, prog: renderer && renderer.info.programs ? renderer.info.programs.length : 0, lods: [...actors.values()].map(a => a.lod).join("") }; } };
 setMode(mode);
