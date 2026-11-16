@@ -393,12 +393,13 @@ function buildWorld() {
   for (const o of OBSTACLES) {
     if (o.kind === 'mark') {   // d307 (まえ: 回る紅白うんこ): the real ターンマーク, 3 段のねじれ紅白, 径 1.1 m・高さ 0.95 m
       const m = new THREE.Mesh(markGeo(), markMat); m.position.set(o.x1, MARK3.base, o.y1); m.rotation.y = Math.random() * 6.28; g.add(m);
-      world_marks.push({ m, x: o.x1, y: o.y1, w: MARK3.idle });
+      world_marks.push({ m, x: o.x1, y: o.y1, w: MARK3.idle, pil: markPillar(g, o.x1, o.y1) });
     } else if (o.kind === 'boom') {
       const L = Math.hypot(o.x2 - o.x1, o.y2 - o.y1), b = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r, L, 8), bm);
       b.rotation.z = Math.PI / 2; b.position.set((o.x1 + o.x2) / 2, .12, (o.y1 + o.y2) / 2); g.add(b);
     }
   }
+  boomLights(g);   // d338
   // 空中線 (distance marks): a wire over the home straight with flags, square to the stand like the start line
   const dm = new THREE.Group(); dm.name = 'dist';
   for (const [d, col] of DIST_MARKS) {
@@ -541,8 +542,57 @@ function markGeo() {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setIndex(idx); g.computeVertexNormals(); return markGeoCache = g;
 }
+/* d337 (まえ: ターンマークがどこかわかりにくい、薄い光の柱みたいなので。夜だと小さくてどこか全然わからん、とくにタイムアタック):
+   a faint column of light over each turn mark (設定 ターンマークの光の柱, あり by default), brighter at dusk and at night,
+   fading upward, never thinner than a few pixels however far; and a soft glow on the water round its foot */
+const PILLAR = { key: 'honorGP.markPillar', on: true, H: 45, R: .6, minK: .011, col: 0xffa060, colDay: 0xff7a30, op: { day: .34, evening: .5, night: .8 }, foot: 6 };   // (by day: plain see-through orange — added light vanishes in a bright sky)
+try { PILLAR.on = localStorage.getItem(PILLAR.key) !== 'off'; } catch (e) {}
+let pillarGeo = null, pillarMat = null;
+function markPillar(g, x, y) {
+  if (!pillarGeo) { pillarGeo = new THREE.CylinderGeometry(1, 1, 1, 20, 1, true); pillarGeo.translate(0, .5, 0); }
+  if (!pillarMat) pillarMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+    uniforms: { H: { value: PILLAR.H }, R: { value: PILLAR.R }, minK: { value: PILLAR.minK }, op: { value: .3 }, add: { value: 1 }, col: { value: new THREE.Color(PILLAR.col) } },
+    vertexShader: `uniform float H, R, minK; varying float vH, vF;
+      void main(){ vec4 c = modelMatrix * vec4(0., 0., 0., 1.); float d = distance(cameraPosition.xz, c.xz), r = max(R, d * minK);
+        vec3 p = c.xyz + vec3(position.x * r, position.y * H, position.z * r); vH = position.y;
+        vec2 n = normalize(position.xz), v = normalize(cameraPosition.xz - p.xz + 1e-4); vF = abs(dot(n, v));
+        gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.); }`,
+    fragmentShader: `uniform float op, add; uniform vec3 col; varying float vH, vF;
+      void main(){ float a = op * pow(1. - vH, 1.7) * (.35 + .65 * vF * vF) * smoothstep(0., .03, vH); gl_FragColor = add > .5 ? vec4(col * a, a) : vec4(col, a); }` });
+  const m = new THREE.Mesh(pillarGeo, pillarMat); m.position.set(x, 0, y); m.frustumCulled = false; m.renderOrder = 3; g.add(m);
+  const f = new THREE.Mesh(new THREE.PlaneGeometry(PILLAR.foot, PILLAR.foot), new THREE.MeshBasicMaterial({ map: haloTex(), color: PILLAR.col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: .3, fog: false }));
+  f.rotation.x = -Math.PI / 2; f.position.set(x, .06, y); f.renderOrder = 2; g.add(f);
+  return { m, f };
+}
+/* d338 (まえ: 消波装置も点滅してればガイドコースに。夜は暗めでコースを見失う): a lamp every 3 m on each 消波装置, at dusk and
+   at night a light running along them toward the mark (like a runway's approach lights) over a dim steady glow; off by day;
+   with the 光の柱 setting */
+const BOOML = { step: 3, h: .75, size: 1.1, minPx: 3, col: 0xffd27a, speed: .8 };
+let boomPts = null;
+function boomLights(g) {
+  const pos = [], kk = [];
+  for (const o of OBSTACLES) if (o.kind === 'boom') {
+    const L = Math.hypot(o.x2 - o.x1, o.y2 - o.y1), n = Math.max(2, Math.round(L / BOOML.step));
+    for (let i = 0; i <= n; i++) { const f = i / n; pos.push(o.x1 + (o.x2 - o.x1) * f, BOOML.h, o.y1 + (o.y2 - o.y1) * f); kk.push(f); }   // (x1 is the mark end: k 0 at the mark)
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('k', new THREE.Float32BufferAttribute(kk, 1));
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    uniforms: { t: { value: 0 }, op: { value: 1 }, size: { value: BOOML.size }, minPx: { value: BOOML.minPx }, scale: { value: 400 }, col: { value: new THREE.Color(BOOML.col) } },
+    vertexShader: `attribute float k; uniform float t, size, minPx, scale; varying float vI;
+      void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.); gl_Position = projectionMatrix * mv;
+        float p = fract(k + t); vI = .3 + .9 * exp(-p * 9.);   // (the flash runs from the outer end to the mark)
+        gl_PointSize = max(minPx, size * scale / -mv.z) * (.8 + .4 * vI); }`,
+    fragmentShader: `uniform float op; uniform vec3 col; varying float vI;
+      void main(){ vec2 d = gl_PointCoord - .5; float r = dot(d, d) * 4.; if (r > 1.) discard; float a = op * vI * (1. - r) * (1. - r); gl_FragColor = vec4(col * a, a); }` });
+  boomPts = new THREE.Points(geo, mat); boomPts.frustumCulled = false; boomPts.renderOrder = 3; g.add(boomPts);
+}
 function markStep(dt, rows) {
+  if (boomPts) { const dark = tod === 'night' || tod === 'evening'; boomPts.visible = PILLAR.on && dark;
+    if (dark) { const U = boomPts.material.uniforms; U.t.value = -time * BOOML.speed; U.op.value = tod === 'night' ? 1 : .7; U.scale.value = renderer ? renderer.getSize(new THREE.Vector2()).y * renderer.getPixelRatio() / 2 / Math.tan(camera.fov * Math.PI / 360) : 400; } }
+  if (pillarMat) { const day = tod !== 'night' && tod !== 'evening', U = pillarMat.uniforms; U.op.value = PILLAR.op[tod] || PILLAR.op.day;
+    if (U.add.value !== (day ? 0 : 1)) { U.add.value = day ? 0 : 1; U.col.value.set(day ? PILLAR.colDay : PILLAR.col); pillarMat.blending = day ? THREE.NormalBlending : THREE.AdditiveBlending; pillarMat.needsUpdate = true; } }
   for (const k of world_marks) {
+    if (k.pil) { k.pil.m.visible = PILLAR.on; k.pil.f.visible = PILLAR.on; k.pil.f.material.opacity = (PILLAR.op[tod] || PILLAR.op.day) * .9; }
     let push = 0;
     for (const row of rows) { const b = row.b, d = Math.hypot(b.x - k.x, b.y - k.y); if (d < MARK3.kickR) push += MARK3.kick * (1 - d / MARK3.kickR) * Math.min(1, (b.v || 0) / 20); }
     k.w = Math.min(MARK3.maxW, k.w + push * dt * 2); k.w += (MARK3.idle - k.w) * Math.min(1, dt * MARK3.damp);
@@ -889,7 +939,7 @@ function drawWakesReal(arrs) {
 // the left-over うねり (race.js swellG cells, 3 m) as a texture over the water: choppy crossing ripples, light tips and dark troughs
 const swellFx = { mesh: null, tex: null, data: null, G: null, t: -1 };
 function swellFxStep() {
-  const G = typeof swellG !== 'undefined' ? swellG : null, on = wrealOn() && G && fleet && !fleet.replay;
+  const G = typeof swellG !== 'undefined' ? swellG : null, on = wrealOn() && G && !(fleet && fleet.replay);   // d339: solo runs keep their own swell too
   if (!on) { if (swellFx.mesh) swellFx.mesh.visible = false; return; }
   if (swellFx.G !== G || !swellFx.mesh) {
     if (swellFx.mesh) { scene.remove(swellFx.mesh); swellFx.mesh.geometry.dispose(); swellFx.mesh.material.dispose(); swellFx.tex.dispose(); }
@@ -1231,6 +1281,52 @@ function moonTex(f) {   // f: lit fraction 0…1, the lit side to +x
   g.restore();
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
+/* d338 (まえ: ナイトレースの夜空に星を): one Points cloud on the sky dome — about 1500 stars (600 on スマホ軽量), fewer and
+   dimmer over the city (なにわ), fading toward the horizon, a slow twinkle; clear nights only. One draw call */
+const STARS = { n: 1500, nLite: 600, r: 1100, elMin: 4, city: .45 };
+// (まえ: 季節で星座を入れ替えて、簡易的なのでいい) the bright figures of the season, by eye not by the clock: [az°, el°, stars [dx°, dy°, bright 0…1, red?]]
+// — one group ahead toward the 1M (+x), one toward the 2M, both on the side away from the stand; shapes as seen, not star charts
+const CONST3 = {
+  winter: [[-14, 20, [[-4, 7, 1, 1], [4, 6, .8], [-1.4, 0, .8], [0, .4, .8], [1.4, .8, .8], [-3, -6, .7], [4.5, -7, 1], [-1, 3.5, .4], [-.6, -2.5, .4]]],   // オリオン
+           [194, 22, [[0, 0, 1], [-14, 13, .9], [14, 15, .7, 1]]]],   // 冬の大三角 (シリウス・プロキオン・ベテルギウス側)
+  spring: [[-14, 22, [[-15, 2, .8], [-10, 4, .8], [-6, 4, .8], [-2, 3, .7], [4, 6, .9], [4, 0, .8], [-2, -1, .7]]],   // 北斗七星
+           [194, 30, [[0, 0, 1, 1], [10, -14, .9], [-12, -6, .7]]]],   // 春の大三角 (アークトゥルス・スピカ・デネボラ)
+  summer: [[-14, 22, [[0, 10, 1], [12, 14, .9], [5, -9, .95]]],   // 夏の大三角
+           [194, 16, [[-8, 6, .6], [-5, 3, .7], [-2, 1, 1, 1], [0, -2, .7], [1, -5, .6], [3, -8, .6], [6, -9, .7], [9, -7, .7], [10, -4, .6]]]],   // さそり座
+  autumn: [[-14, 15, [[0, 0, .8], [13, 0, .8], [13, 12, .8], [0, 12, .8], [-7, 15, .7], [-13, 18, .8]]],   // ペガスス四辺形とアンドロメダ
+           [194, 24, [[-8, 0, .8], [-4, 4, .8], [0, 0, .8], [4, 4, .8], [8, 2, .8]]]] };   // カシオペヤ
+let stars3 = null;
+function makeStars() {
+  const n = Q === GFX.tiers.lite ? STARS.nLite : STARS.n, pos = [], mag = [], ph = [], red = [];
+  let a = 12345; const rnd = () => { a = (a * 1103515245 + 12345) & 0x7fffffff; return a / 0x7fffffff; };
+  for (let i = 0; i < n; i++) {
+    const el = Math.asin(Math.sin(STARS.elMin * Math.PI / 180) + rnd() * (1 - Math.sin(STARS.elMin * Math.PI / 180))), az = rnd() * Math.PI * 2;
+    pos.push(Math.cos(el) * Math.cos(az) * STARS.r, Math.sin(el) * STARS.r, Math.cos(el) * Math.sin(az) * STARS.r);
+    mag.push(Math.pow(rnd(), 3) * .8); ph.push(rnd() * 6.28); red.push(0);
+  }
+  for (const [az0, el0, pts] of CONST3[skySeason] || CONST3.autumn) for (const [dx, dy, b, r] of pts) {
+    const el = (el0 + dy) * Math.PI / 180, az = (az0 + dx / Math.max(.3, Math.cos(el))) * Math.PI / 180;
+    pos.push(Math.cos(el) * Math.cos(az) * STARS.r, Math.sin(el) * STARS.r, Math.cos(el) * Math.sin(az) * STARS.r); mag.push(.85 + .35 * b); ph.push(rnd() * 6.28); red.push(r ? 1 : 0);
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('mag', new THREE.Float32BufferAttribute(mag, 1)); geo.setAttribute('ph', new THREE.Float32BufferAttribute(ph, 1)); geo.setAttribute('red', new THREE.Float32BufferAttribute(red, 1));
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    uniforms: { t: { value: 0 }, k: { value: 1 }, dpr: { value: 1 } },
+    vertexShader: `attribute float mag, ph, red; uniform float t, k, dpr; varying float vA, vR;
+      void main(){ vR = red; float h = normalize(position).y; vA = k * (.4 + .8 * mag) * smoothstep(.05, .35, h) * (.8 + .2 * sin(t * (1.5 + ph) + ph * 7.));
+        gl_PointSize = (1. + 2. * mag) * dpr; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+    fragmentShader: `varying float vA, vR; void main(){ vec2 d = gl_PointCoord - .5; float r = dot(d, d) * 4.; if (r > 1.) discard; float a = min(1., vA) * (1. - r); gl_FragColor = vec4(mix(vec3(.92, .95, 1.), vec3(1., .62, .45), vR) * a, a); }` });
+  stars3 = new THREE.Points(geo, mat); stars3.frustumCulled = false; stars3.renderOrder = -1.45;   // (over the night sky band, which would otherwise veil them)
+  stars3.lite = Q === GFX.tiers.lite; stars3.season = skySeason; scene.add(stars3);
+}
+function starsStep(rain) {
+  const on = tod === 'night' && !rain && mode !== 'top';
+  if (!stars3 && !on) return;
+  if (!stars3 || stars3.lite !== (Q === GFX.tiers.lite) || stars3.season !== skySeason) { if (stars3) { scene.remove(stars3); stars3.geometry.dispose(); stars3.material.dispose(); } makeStars(); }
+  stars3.visible = on; if (!on) return;
+  stars3.position.copy(camera.position).setY(0);
+  const U = stars3.material.uniforms; U.t.value = performance.now() / 1000; U.k.value = VENUE.id !== 'standard' ? STARS.city : 1; U.dpr.value = renderer ? renderer.getPixelRatio() : 1;
+}
 function skyStep(dt) {
   const e = typeof waterEnv !== 'undefined' && fleet && waterEnv, rain = !!(e && e.rain), style = rain ? 'rain' : skySeason || 'autumn';
   const show = mode !== 'top';
@@ -1244,6 +1340,7 @@ function skyStep(dt) {
   if (key !== sky3.key) { sky3.key = key; const m = sky3.mesh.material; m.map = cloudTex(style); m.color.set((rain ? SKY3.rainTint : SKY3.tint)[tod] || 0xffffff); m.opacity = tod === 'night' && !rain ? .8 : 1; m.needsUpdate = true; }
   sky3.mesh.visible = show; sky3.mesh.position.copy(camera.position).setY(0);
   if (!paused) sky3.mesh.rotation.y += dt * (SKY3.drift + Math.min(WX3.wv, 8) * SKY3.driftPer);
+  starsStep(rain);   // d338
   // the moon
   const ph = moonPhase(), on = show && tod === 'night' && !rain && ph > SKY3.moonFrom && ph < SKY3.moonTo;
   if (!sky3.moon) {
@@ -1349,14 +1446,22 @@ function swellStep(dt) {
 }
 
 /* ---------- frame ---------- */
+const PWR = { key: 'honorGP.fps3dCap', cap: 0, idleFps: 5, next: 0 };
+try { PWR.cap = +localStorage.getItem(PWR.key) || 0; } catch (e) {}
+const OVL = [...document.querySelectorAll('.overlay')].filter(o => o.id !== 'start');
+{ const el = $('fpsCap3d'); if (el) { el.value = String(PWR.cap || 0); el.addEventListener('change', e => {
+  PWR.cap = +e.target.value || 0; try { localStorage.setItem(PWR.key, String(PWR.cap)); } catch (x) {} }); } }
 let last = 0, lost = false, draws3d = 0, ms3d = 0;
 function render(now) {
   requestAnimationFrame(render);
   pillText();   // d286: the 視点 pill follows the 2D カメラ too (cheap: only writes on a change)
   if (mode === '2d' || !set || lost) { if (canvas.style.display !== 'none') { canvas.style.display = 'none'; light2d(false); } if (lens.cv) lens.cv.style.display = 'none'; if (glare.cv) glare.cv.style.display = 'none'; return; }
-  const FRAME_MS = Q.fps ? 1000 / Q.fps : 0;   // the 3D view at 30 fps on スマホ軽量 (the race itself runs as before)
-  if (FRAME_MS && now - last < FRAME_MS - 2) return;
-  slowWatch(now, FRAME_MS);
+  // d336 (まえ: 電池消費が激しい → 省電力): 3Dのfps上限 (設定 なし／45／30) and, behind a menu / 結果 / 設定 or while paused,
+  // only 5 pictures a second (the race keeps its own 1/120 s steps; only the 3D picture is drawn less often)
+  const idle = paused || !running || OVL.some(o => !o.hidden);
+  const capFps = Math.min(Q.fps || 999, PWR.cap || 999), FRAME_MS = idle ? 1000 / PWR.idleFps : capFps < 999 ? 1000 / capFps : 0;   // (スマホ軽量: 30 fps)
+  if (FRAME_MS) { if (now < PWR.next - 2) return; PWR.next = Math.max(PWR.next + FRAME_MS, now - FRAME_MS); } else PWR.next = now;   // (45 on a 60 Hz screen: 3 frames of 4)
+  if (!idle) slowWatch(now, capFps < 999 ? 1000 / capFps : 0); else slowW.t = 0;
   if (canvas.style.display !== 'block') { canvas.style.display = 'block'; light2d(true); }
   draws3d++;   // d282 性能ログ: the 3D frames actually drawn (スマホ軽量 draws every other one)
   const t3 = performance.now();
@@ -1533,6 +1638,8 @@ function gfxUi() {
 }
 { const el = $('swell3d'); if (el) { el.value = SWELL.on ? 'on' : 'off'; el.addEventListener('change', e => {   // d300 3D波（うねり）
   SWELL.on = e.target.value === 'on'; try { localStorage.setItem(SWELL.key, e.target.value); } catch (x) {} }); } }
+{ const el = $('markPillar'); if (el) { el.value = PILLAR.on ? 'on' : 'off'; el.addEventListener('change', e => {   // d337
+  PILLAR.on = e.target.value !== 'off'; try { localStorage.setItem(PILLAR.key, e.target.value); } catch (x) {} }); } }
 { const el = $('wake3d'); if (el) { el.value = WREAL.on ? 'real' : 'std'; el.addEventListener('change', e => {   // d334 3D航跡 標準／リアル
   WREAL.on = e.target.value === 'real'; try { localStorage.setItem(WREAL.key, e.target.value); } catch (x) {} }); } }
 { const el = $('spray3d'); if (el) { el.value = FX.on ? 'big' : 'std'; el.addEventListener('change', e => {   // d287 3D飛沫 標準／派手

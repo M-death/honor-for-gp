@@ -9,7 +9,9 @@
 // d262 (まえ: ランキングは一度リセット、これから入れ直す): new motor (d260) + new bands (d261) → a new key for both courses;
 // the d225 records stay in storage and on the server (the 全体ランキング can still show them by version).
 // d265 (まえ: ゴーストと位置がずれるからリセットして): the solo start moved 10 m inside (d264, START.y 30 → 20) → a new key again; d262 records stay viewable by version.
-const TA = { laps: 3, keyBase: 'honorGP.ta.d265', key: 'honorGP.ta.d265' + VENUE.taSuffix, ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
+// d339 (まえ: 一周前の引き波の残りをタイムアタックにも): the run now meets its own うねり (練習 +0.1–0.2 s, なにわ +0.4–0.5 s for a CPU
+// running the same line each lap) → a new key; d265 records stay viewable by version.
+const TA = { laps: 3, keyBase: 'honorGP.ta.d339', key: 'honorGP.ta.d339' + VENUE.taSuffix, ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
 // A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
 // d136: エクストラ (まえ) — GP覇者 and レジェンド sit above 記念クラス

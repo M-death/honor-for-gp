@@ -294,6 +294,7 @@ function boatPhysics(b, inp, dt) {
   const pose = Math.max(up, firm * (TURN.holdPose + TURN.exitPose * down)), downG = down * (1 - TURN.carve * firm);
   const crouchLock = down * firm * clamp((Math.abs(s) - 0.5) / 0.4, 0, 1);
   const monkey = ins * (0.4 + 0.6 * pose) * (1 - 0.5 * downG);
+  b.monkeyK = monkey;   // d340 turn grading (モンキーターン)
   let grip = GRIP_BASE * (1 + 0.15 * pose) * (1 + TURN.lean * ins * (1 + TURN.upBoost * pose - TURN.downCut * downG)) * (1 + 0.5 * Math.min(0, inside))
     * (1 - TURN.thrWide * t * (1 - monkey)) * (1 + TURN.dropGrip * (1 - t))
     * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1) * tiltGrip(b) * (b.hullGrip || 1) * (b.bodyGrip || 1) * (b.weightGrip || 1) * mawariK(b, MAWARI.grip) * (1 - CHOP.grip * chopNow()) * (b.roughGrip || 1) * (1 - air * BOUNCE.airGrip) * (DRIFT.on ? 1 : 1 - (1 - WILLIE.grip) * wil) * (1 - TRIM.grip * clamp(b.trimPop || 0, 0, 1));
@@ -306,6 +307,7 @@ function boatPhysics(b, inp, dt) {
     const bankT = BANK.max * clamp(BANK.lean * r * (1 - BANK.pose + BANK.pose * Math.max(pose, up)) + BANK.carve * yd * turnK, -1, 1);
     b.bank = (b.bank || 0) + (bankT - (b.bank || 0)) * (1 - Math.exp(-BANK.rate * dt));
     bankIn = yd ? yd * b.bank / BANK.max : 0;   // 1 = rolled all the way in, 0 = flat, < 0 = leaning out
+    b.bankIn = bankIn;
     tf = clamp((Math.abs(b.yaw || 0) - 0.15) / 0.45, 0, 1) * clamp(b.v / 10, 0, 1);
     grip *= 1 + BANK.sharp * tf * (bankIn - BANK.ref);   // the chine set deep in bites: a sharper turn
   }
@@ -548,6 +550,7 @@ function splash(b) {
   }
 }
 
+const SOLO_NOWAKE = { w: 0, ang: 0, line: false, fresh: false };
 function step(dt) {
   const previous=timingPose(B,time);
   time += dt;
@@ -558,6 +561,9 @@ function step(dt) {
   if ((soloKind === 'clock' || soloKind === 'ta') && SS.phase === 'count' && !B.logged && !runLog && input.thr >= 0.3) { B.logged = true; runLogBegin(B, '大時計スタート（1艇）', SS.t0 + CLOCK); }
   if (runLog && runLog.b === B && ((B.y < -4 && B.x < MK - 5) || time > SS.t0 + CLOCK + 30)) runLogEnd(`ST ${meas.st == null ? '—' : meas.st < 0 ? 'F' + fmtST(-meas.st) : fmtST(meas.st)} / チルト ${B.tilt}`);
   if (VR) VR.inp(B, binp);
+  // d339 (まえ: 一周前の引き波の残りをタイムアタックにも。2周目3周目にコースを少し変えるのも技術、なにわは2Mに残りやすい):
+  // running alone the boat now meets its own left-over うねり (race.js SWELL, 8 s and older) like a fleet race — from the start on
+  if (typeof swellStep === 'function' && SS.phase !== 'count') { swellStep([B], time, dt); setWake(B, SOLO_NOWAKE, swellAt(B.x, B.y, time)); }
   const ev = boatPhysics(B, binp, dt);
   willieToast(B);
   if (runLog && runLog.b === B) runLogStep(B, binp, SS.t0 + CLOCK, '');
@@ -614,22 +620,42 @@ function step(dt) {
   }
 
   // turn grading
-  if (!T.on && Math.abs(B.yaw) > 0.55 && B.v > 7) Object.assign(T, { on: true, sum: 0, n: 0, maxVl: 0, minV: B.v, entryV: B.v, quiet: 0 });
-  if (T.on) {
-    T.sum += harmony * dt; T.n += dt;
-    T.maxVl = Math.max(T.maxVl, Math.abs(B.vl)); T.minV = Math.min(T.minV, B.v);
-    if (Math.abs(B.yaw) < 0.3) { T.quiet += dt; if (T.quiet > 0.35) gradeTurn(); } else T.quiet = 0;
-  }
+  turnGradeStep(T, B, input.thr, harmony, dt);
 }
 
-function gradeTurn() {
-  T.on = false;
-  if (T.n < 0.6) return;
-  const avg = T.sum / T.n;
-  const detail = `進入 ${kmh(T.entryV)} → 最低 ${kmh(T.minV)} km/h`;
-  if (avg >= 0.68 && T.maxVl < 3.5) toast('モンキーターン', detail, 'good');
-  else if (avg >= 0.42 && T.maxVl < 5.5) toast('まずまず', detail + '（体を起こして、もっと内へ）', 'warn');
-  else toast('流れた', detail + (T.maxVl >= 5 ? '（外へ流された）' : '（体重移動が足りない）'), 'bad');
+// d340 (まえ: モンキーターンって滑らせるんじゃね？ 全速ターンとモンキーターンを分けて、成功したら出す。ウィリーターンも):
+// a finished turn is named only when it worked — no words for a poor one. Only 全速モンキーターン (both below) and ウィリーターン are
+// shown; a plain monkey turn is the basic turn (まえ: 表記はいらない)
+//   モンキーターン  body out over the inside (B.monkeyK), hull rolled deep in, and the stern let go: the hull slides in a controlled
+//                  drift (slip angle 0.2–0.55 rad for a while) without skating off the edge (slideX)
+//   全速ターン      the lever never let go and the speed kept: in at 60 km/h or more, lowest ≥ 55% of the entry and ≥ 41 km/h
+//                  (a tight full-lock turn drops to ~50%)
+//   ウィリーターン  the bow up through the turn (races: 出足・回り足 ○以上 only, so never in タイムアタック) and still upright
+// Solo runs (physics.js step) and the player's boat in a race (race.js) both use it.
+const TURN_NAME = { monkey: 0.45, bank: 0.6, slip0: 0.2, slipMax: 0.55, slipT: 1.0, slide: 0.8, thr: 0.95, keep: 0.55, entry: 16.7, minV: 11.4, wil: 0.5, minT: 0.6 };
+function turnGradeStep(G, b, thr, harm, dt) {
+  if (b.cap > 0) { G.on = false; return; }
+  if (!G.on && Math.abs(b.yaw) > 0.55 && b.v > 7) Object.assign(G, { on: true, sum: 0, n: 0, minV: b.v, entryV: b.v, quiet: 0, thrMin: 1, mk: 0, bk: 0, slipMax: 0, slipT: 0, slideMax: 0, wilMax: 0 });
+  if (!G.on) return;
+  G.sum += harm * dt; G.n += dt; G.minV = Math.min(G.minV, b.v);
+  G.thrMin = Math.min(G.thrMin, thr); G.mk += (b.monkeyK || 0) * dt; G.bk += (b.bankIn || 0) * dt;
+  const sl = Math.abs(b.slip || 0); G.slipMax = Math.max(G.slipMax, sl); if (sl > TURN_NAME.slip0) G.slipT += dt;
+  G.slideMax = Math.max(G.slideMax, b.slideX || 0); G.wilMax = Math.max(G.wilMax, b.wil || 0);
+  if (Math.abs(b.yaw) < 0.3) { G.quiet += dt; if (G.quiet > 0.35) gradeTurn(G, b); } else G.quiet = 0;
+}
+function turnNames(G) {
+  const K = TURN_NAME, n = G.n || 1, out = [];
+  if (G.n < K.minT) return out;
+  if (G.wilMax >= K.wil) out.push('ウィリーターン');
+  const full = G.thrMin >= K.thr && G.entryV >= K.entry && G.minV >= Math.max(K.minV, K.keep * G.entryV) && G.slideMax < K.slide;
+  const monkey = G.mk / n >= K.monkey && G.bk / n >= K.bank && G.slipMax >= K.slip0 && G.slipMax <= K.slipMax && G.slipT >= K.slipT && G.slideMax < K.slide;
+  if (full && monkey) out.push('全速モンキーターン');   // (まえ: モンキーは基本なので単独では出さない)
+  return out;
+}
+function gradeTurn(G, b) {
+  G.on = false;
+  const names = turnNames(G);
+  if (names.length) toast(names.join('・'), `進入 ${kmh(G.entryV)} → 最低 ${kmh(G.minV)} km/h`, 'good');
 }
 
 const kmh = v => Math.round(v * 3.6);

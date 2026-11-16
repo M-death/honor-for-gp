@@ -696,6 +696,7 @@ $('measClose').addEventListener('click', () => { $('meas').hidden = true; paused
 function resetBoat() {
   if (VR && VR.rec && VR.rec.solo) VR.discard();
   resetVirtualPosture();
+  if (typeof swellReset === 'function') swellReset();   // d339 ひとり走りのうねりもやり直しで消す
   Object.assign(B, { x: START.x, y: START.y, a: START.a, v: 4, vl: 0, yaw: 0, porp: 0, cap: 0, zig: null, zigTold: false, ...SOLO_MOTOR, tilt: playerTilt, logged: false });
   if (runLog) runLogEnd('途中でやり直し');
   input.thr = 0; wake.length = 0; spray.length = 0; T.on = false;

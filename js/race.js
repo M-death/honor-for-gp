@@ -113,7 +113,7 @@ const WAKE_CAV = { age: 1.0, ps: 0.7, bump: 0.35, rate: 1.2, time: 0.45, thrust:
 // d309 うねり (まえ: 先行艇は前の周の引き波の残りでタイムを落としていく): every boat's wake, 3 s old and older, is left on the water
 // as a swell on a 3 m grid. It dies slowly round the marks (~28 s: a turn's swell is still there the next lap) and fast on the
 // straights (~10 s); なにわ's 2M rough zone keeps it longer (×wakeLife). It has no direction: crossing it bumps the hull like an
-// old wake — much more in a turn than running straight. Fleet races only (タイムアタック alone is unchanged)
+// old wake — much more in a turn than running straight. d339: solo runs too (physics.js step: own swell in タイムアタック・練習)
 const SWELL = { on: true, waveK: 0.08, windK: 0.03, tideK: 0.2, depWave: 0.04, cell: 3, delay: 8, dep: 3.7, tauMark: 28, tauStr: 10, markR: 60, k: 0.4, inWake: 0.3, straight: 0.1, cross: 0.6 };   // d310 (まえ: 1着の独走を弱めたい): delay 3 → 8 s — boats close behind meet the real wake, not the swell too; the swell is mostly the last lap's, which the leader meets as well; straight 0.25 → 0.1
 let swellG = null;
 function swellReset() { swellG = null; }
@@ -3035,6 +3035,7 @@ function fleetStep(dt, playerInput) {
     const ev = boatPhysics(b, o, dt);
     if (b.wilEv === 'ok' && !(time < (r.wilJkAt || -99) + 10)) { r.wilJkAt = time; jkSay('willie', r.no); if (!(r.player || r === focusRow())) sfxWillie(b.x, b.y); }   // d210: 実況 + 音 for anyone's ウィリー
     if (r.player || r === focusRow()) willieToast(b); else b.wilEv = null;
+    if (r.player && !lab.active && r.st != null && !r.out && !r.dq) turnGradeStep(r.tg || (r.tg = { on: false }), b, o.thr, b.harmony || 0, dt);   // d340 ターンの名前（成功だけ）
     if (r.player && runLog && runLog.b === b) runLogStep(b, o, zero, r.st != null && !r.logSt ? (r.logSt = true, 'スリット通過') : '');
     if(lab.active&&ev)labEvent('physics',r.no,{label:ev});
     if (ev && ev.startsWith('cap:') && !r.out) accident(r, '転覆', ev.slice(4));
