@@ -756,11 +756,21 @@ cv.addEventListener('pointerdown', e => {
   if (side === 'steer') { steerTouch = true; input.steerT = 0; }
   sideOn(side);
 });
+// d335 (まえ: タッチが操作範囲外に出る・枠の外側を触りすぎてブラウザ操作になる): past full the start point follows the finger,
+// so coming back answers at once and the finger never has to travel far from where it landed (no creeping toward the screen edge)
 cv.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId); if (!p) return;
-  if (p.side === 'thr') input.thr = clamp(p.v0 + (p.y0 - e.clientY) / leverSpan(), 0, 1);
-  else { input.steerT = clamp((e.clientX - p.x0) / (Math.min(W, H) * 0.2)); if (controlMode === 'fuse') FUSE.pitch = clamp((p.y0 - e.clientY) / (Math.min(W, H) * FUSE.span)); }
+  if (p.side === 'thr') { const L = leverSpan(), raw = p.v0 + (p.y0 - e.clientY) / L;
+    if (raw > 1) p.y0 -= (raw - 1) * L; else if (raw < 0) p.y0 -= raw * L;
+    input.thr = clamp(p.v0 + (p.y0 - e.clientY) / L, 0, 1); }
+  else { const sx = Math.min(W, H) * 0.2, rx = (e.clientX - p.x0) / sx;
+    if (rx > 1) p.x0 += (rx - 1) * sx; else if (rx < -1) p.x0 += (rx + 1) * sx;
+    input.steerT = clamp((e.clientX - p.x0) / sx);
+    if (controlMode === 'fuse') { const sy = Math.min(W, H) * FUSE.span, ry = (p.y0 - e.clientY) / sy;
+      if (ry > 1) p.y0 -= (ry - 1) * sy; else if (ry < -1) p.y0 -= (ry + 1) * sy;
+      FUSE.pitch = clamp((p.y0 - e.clientY) / sy); } }
 });
+cv.addEventListener('contextmenu', e => e.preventDefault());   // (a long press never opens the browser's menu)
 function endPtr(e) {
   const p = ptrs.get(e.pointerId); if (!p) return;
   ptrs.delete(e.pointerId);

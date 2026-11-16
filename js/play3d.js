@@ -23,14 +23,22 @@ const GFX = { key: 'honorGP.gfx3d', wKey: 'honorGP.water3d', order: ['lite', 'ri
     pc: { label: 'PC', px: 8, fps: 0, dpr: 1.5, aa: true, water: 'reflect', spray: 7000, wake: 24000, rain: 1400, sky: 4096, lod: 1, shadow: 2048, models: 'pc1080ti', aniso: 8, ripDiv: 7, venue: 2 } },
   slow: { ms: 25, msCap: 1.35, secs: 4 },   // 自動: step down after this long above ms (or a capped tier's frame × msCap) — d297 (まえ): 40 fps (25 ms) is the line
   refl: { scale: .5, k: .55, distort: .035 } };   // 反射: render size, strength, ripple distortion
+// d333 (まえ: 最高級としてのフルHDを入れてみよう): 最高（フルHD）= PC plus a picture of about 1920×1080 pixels (same count whatever the shape),
+// never below PC's ×1.5 nor above the screen's own pixels; chosen only by hand (自動 never goes there)
+GFX.tiers.fhd = Object.assign({}, GFX.tiers.pc, { label: '最高（フルHD）', fhdPx: 1920 * 1080 });
+const dprFor = (w, h) => { const dev = devicePixelRatio || 1;
+  return Q.fhdPx ? Math.min(dev, 3, Math.max(Q.dpr, Math.sqrt(Q.fhdPx / Math.max(1, w * h)))) : Math.min(Q.dpr, dev); };
 const gfxGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
 let gfxSet = gfxGet(GFX.key, 'auto'), waterSet = gfxGet(GFX.wKey, 'auto');
 if (gfxSet !== 'auto' && !GFX.tiers[gfxSet]) gfxSet = 'auto';
+// d331 (まえ: スマホは初回起動時だけスマホリッチから、あとは設定どおり): a phone with no 3D画質 saved yet starts on スマホリッチ and keeps it
+if (PHONE) { let saved = null; try { saved = localStorage.getItem(GFX.key); } catch (e) {}
+  if (!saved) { gfxSet = 'rich'; try { localStorage.setItem(GFX.key, 'rich'); } catch (e) {} } }
 // d297 (まえ: Xperia 1 II でも PC 画質で50fps超え): 自動 starts every device on PC and steps down below 40 fps
 // d327 (まえ: BraveでPCにしたら新モデルも読めなくなり、戻してもだめ): a phone's browser that drops the 3D (not from being sent to the
 // background) at some 画質 remembers it: 自動 starts below that 画質 from then on (a chosen 画質 is kept as chosen)
 const GL_CAP = 'honorGP.gl3dCap';
-const autoTier = () => { let c = null; try { c = localStorage.getItem(GL_CAP); } catch (e) {} return GFX.order.includes(c) ? c : 'pc'; };
+const autoTier = () => { let c = null; try { c = localStorage.getItem(GL_CAP); } catch (e) {} return GFX.order.includes(c) ? c : PHONE ? 'rich' : 'pc'; };   // d332 (まえ: 自動はスマホだとスマホリッチから、スマホでPCは特殊な使い方)
 function capBelow(t) { if (!PHONE) return; const i = GFX.order.indexOf(t); if (i <= 0) return; const c = GFX.order[i - 1], now = autoTier(); if (GFX.order.indexOf(c) < GFX.order.indexOf(now)) try { localStorage.setItem(GL_CAP, c); } catch (e) {} }
 let tierNow = gfxSet !== 'auto' ? gfxSet : autoTier(), Q = GFX.tiers[tierNow];
 const waterNow = () => waterSet !== 'auto' && ['simple', 'shade', 'reflect'].includes(waterSet) ? waterSet : Q.water;
@@ -310,7 +318,7 @@ function renderReflection(w, h) {
   V.q.set((Math.sign(V.clip.x) + P[8]) / P[0], (Math.sign(V.clip.y) + P[9]) / P[5], -1, (1 + P[10]) / P[14]);
   V.clip.multiplyScalar(2 / V.clip.dot(V.q));
   P[2] = V.clip.x; P[6] = V.clip.y; P[10] = V.clip.z + 1 - .003; P[14] = V.clip.w;
-  const hide = [R.mesh, wakeMesh, WX3.rain, spray3 && spray3.pts, wallMesh, glare.path, sky3.path, swell.mesh, ...(world ? world.noRefl : [])].filter(Boolean), was = hide.map(o => o.visible);
+  const hide = [R.mesh, wakeMesh, wrMesh, swellFx.mesh, WX3.rain, spray3 && spray3.pts, wallMesh, glare.path, sky3.path, swell.mesh, ...(world ? world.noRefl : [])].filter(Boolean), was = hide.map(o => o.visible);
   hide.forEach(o => { o.visible = false; });
   const sh = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false;
   renderer.setRenderTarget(R.rt); renderer.clear(); renderer.render(scene, vc); renderer.setRenderTarget(null);
@@ -790,6 +798,125 @@ function drawWakes(arrs) {
   wakeMesh.geometry.attributes.position.needsUpdate = true; wakeMesh.geometry.attributes.color.needsUpdate = true;
 }
 
+/* ---------- d334 (まえ: 航跡をリアルに・選択式。引き波の影響が見た目でわかるように、今は白線): 3D航跡 リアル ----------
+   The wake drawn from the same numbers the race uses (race.js wakeAt): the trough right behind the boat (WAKE.width) and the two
+   wave lines spreading at age × (1.4 + v × 0.12), each as a ridge — a light outer face, a foamy crest, a dark back — as strong
+   as the hit a boat would take there now (turn wakes big and lasting, straight ones low; なにわ 2M longer). Behind the boat the
+   prop wash: broken white foam that dies in ~1.5 s. And the left-over うねり the race keeps (race.js swellG: wakes over 8 s old,
+   ~10 s on the straights, ~28 s at the marks) shows as choppy, glinting water where it still slows a boat. Looks only. Not スマホ軽量. */
+const WREAL = { key: 'honorGP.wake3d', on: false, foamLife: 1.6, swellA: .55, swellEvery: .25 };
+try { WREAL.on = localStorage.getItem(WREAL.key) === 'real'; } catch (e) {}
+const wrealOn = () => WREAL.on && tierNow !== 'lite';
+function wakeK(pt, age) {   // = race.js wakeAt's k for this trail point at this age (0 once it no longer hits)
+  if (typeof WAKE === 'undefined' || typeof WAKE_TURN === 'undefined') return Math.max(0, 1 - age / 3) * Math.min(1, pt.v / 15);
+  const RZ = typeof roughOf === 'function' ? roughOf() : null, zk = RZ && RZ.wakeLife > 1 && typeof roughAt === 'function' ? roughAt(pt.x, pt.y) : 0;
+  const ps = pt.s ?? 1, tk = lim((ps - WAKE_TURN.straight) / (1 - WAKE_TURN.straight), 0, 1);
+  const life = WAKE.life * (1 + (WAKE_TURN.lifeK - 1) * tk) * (zk ? 1 + (RZ.wakeLife - 1) * zk : 1);
+  if (age >= life) return 0;
+  const fd = (WAKE.fade + ((WAKE_TURN.fadeTurn ?? WAKE.fade) - WAKE.fade) * tk) * (zk ? 1 - (1 - RZ.wakeFade) * zk : 1);
+  return Math.pow(1 - age / life, fd) * Math.min(1, pt.v / 15) * ps * (zk && RZ.wakeHit ? 1 + (RZ.wakeHit - 1) * zk : 1);
+}
+const hash01 = t => { const x = Math.sin(t * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+// its own mesh: every strip carries across (−1…1, soft edges) and how foamy it is; the shader breaks foam up by world position
+let wrMesh = null, WRMAX = 0;
+function makeWakeReal() {
+  WRMAX = Math.round(Q.wake * 1.2);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(WRMAX * 6 * 3), 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(WRMAX * 6 * 4), 4).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(WRMAX * 6 * 2), 2).setUsage(THREE.DynamicDrawUsage));
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { t: { value: 0 } },
+    vertexShader: 'attribute vec4 color; varying vec4 vC; varying vec2 vU; varying vec2 wp; void main(){ vC = color; vU = uv; vec4 w = modelMatrix * vec4(position, 1.0); wp = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: `uniform float t; varying vec4 vC; varying vec2 vU; varying vec2 wp;
+      float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+        return mix(mix(h2(i), h2(i + vec2(1., 0.)), f.x), mix(h2(i + vec2(0., 1.)), h2(i + vec2(1., 1.)), f.x), f.y); }
+      void main(){ float e = abs(vU.x), prof = 1. - smoothstep(.15, 1., e);
+        float n = vn(wp * 2.3) * .6 + vn(wp * 6.1 + 3.7) * .4, foam = smoothstep(.38, .72, n - .25 * e);
+        float a = vC.a * prof * mix(1., foam, vU.y); if (a < .004) discard; gl_FragColor = vec4(vC.rgb, a); }` });
+  wrMesh = new THREE.Mesh(geo, mat); wrMesh.frustumCulled = false; wrMesh.renderOrder = 1; scene.add(wrMesh);
+}
+function drawWakesReal(arrs) {
+  if (!wrMesh || WRMAX !== Math.round(Q.wake * 1.2)) { if (wrMesh) { scene.remove(wrMesh); wrMesh.geometry.dispose(); wrMesh.material.dispose(); } makeWakeReal(); }
+  wrMesh.visible = true; if (wakeMesh) wakeMesh.visible = false;
+  const G = wrMesh.geometry.attributes, P = G.position.array, C = G.color.array, UV = G.uv.array;
+  const lum = tod === 'night' ? .42 : tod === 'evening' ? .8 : 1;
+  let n = 0;
+  // a strip along p→q, its centre moved off the trail by op / oq (to the left of the heading when > 0); fz = how foamy (0 smooth … 1 broken foam)
+  const strip = (p, q, op, oq, wa, wb, r, gg, bb, al1, al2, fz = 0) => {
+    if (n >= WRMAX || (al1 < .004 && al2 < .004)) return;
+    // (each point's own sideways from its heading, so neighbouring pieces share their edges — no overlaps or gaps in a turn)
+    const pnx = -Math.sin(p.a), pny = Math.cos(p.a), qnx = -Math.sin(q.a), qny = Math.cos(q.a);
+    const ax = p.x + pnx * op, ay = p.y + pny * op, bx = q.x + qnx * oq, by = q.y + qny * oq;
+    const v = [ax + pnx * wa, ay + pny * wa, ax - pnx * wa, ay - pny * wa, bx - qnx * wb, by - qny * wb, bx + qnx * wb, by + qny * wb];
+    const o = n * 18, c = n * 24, u = n * 12, idx = [0, 1, 2, 0, 2, 3], al = [al1, al1, al2, al2], ac = [1, -1, -1, 1];
+    for (let k = 0; k < 6; k++) { const j = idx[k]; P[o + k * 3] = v[j * 2]; P[o + k * 3 + 1] = .04; P[o + k * 3 + 2] = v[j * 2 + 1];
+      C[c + k * 4] = r * lum; C[c + k * 4 + 1] = gg * lum; C[c + k * 4 + 2] = bb * lum; C[c + k * 4 + 3] = al[j]; UV[u + k * 2] = ac[j]; UV[u + k * 2 + 1] = fz; }
+    n++;
+  };
+  const HW = typeof WAKE !== 'undefined' ? WAKE.width : 1.4;
+  for (const arr of arrs) {
+    for (let i = 1; i < arr.length; i++) {
+      const p = arr[i - 1], q = arr[i], ap = time - p.t, aq = time - q.t;
+      if (Math.hypot(q.x - p.x, q.y - p.y) > 4) continue;   // (a jump: a restart, a replay seek)
+      const kp = wakeK(p, ap), kq = wakeK(q, aq), vf = Math.min(1, q.v / 12);
+      const fo = a => Math.pow(Math.max(0, 1 - a / WREAL.foamLife), 1.3) * vf;
+      if (fo(ap) <= 0 && kp <= 0 && kq <= 0) continue;
+      // the trough the hull dug, then the prop wash: a broken white core with stray streaks either side
+      const A = a => Math.min(1, .3 * vf * Math.max(0, 1 - a / 4) + 1.1 * Math.max(kp, kq));
+      strip(p, q, 0, 0, HW * 1.1, HW * 1.1, .03, .09, .12, .26 * A(ap) * (kp > 0 ? 1 : .5), .26 * A(aq) * (kq > 0 ? 1 : .5));
+      const cw = a => Math.min(1.6, .5 + a * .6);
+      strip(p, q, 0, 0, cw(ap), cw(aq), .93, .97, .96, .95 * fo(ap), .95 * fo(aq), .55 + .45 * Math.min(1, ap));
+      for (const side of [-1, 1]) { const off = (pt, a) => side * (.55 + .25 * Math.sin(pt.t * 2.3 + side)) * Math.min(1.6, .6 + a * .7);
+        strip(p, q, off(p, ap), off(q, aq), .3 + ap * .2, .3 + aq * .2, .9, .96, .96, .6 * fo(ap), .6 * fo(aq), 1); }
+      // the two wave lines, each a ridge as wide as the hit (WAKE.width): light outer face, foamy crest, dark back
+      for (const side of [-1, 1]) {
+        const sp = ap * (1.4 + p.v * .12), sq = aq * (1.4 + q.v * .12);
+        if (sq < .3) continue;
+        const fi = x => lim((x - .3) / 1.2, 0, 1);   // (grows out of the wash, no hard start)
+        const ep = fi(sp) * Math.min(1, kp * 1.1 + .3 * vf * Math.max(0, 1 - ap / 3)), eq = fi(sq) * Math.min(1, kq * 1.1 + .3 * vf * Math.max(0, 1 - aq / 3));
+        const w = a => HW * (.45 + .25 * Math.min(1, a / 2));
+        strip(p, q, side * (sp + w(ap) * .9), side * (sq + w(aq) * .9), w(ap), w(aq), .72, .84, .88, .38 * ep, .38 * eq);   // face (catches the sky)
+        const crest = a => .5 * Math.max(.25, Math.min(1, 1.4 - a / 2.5));
+        strip(p, q, side * sp, side * sq, .25 + ep * .3, .25 + eq * .3, .95, .98, .98, 1.3 * crest(ap) * ep, 1.3 * crest(aq) * eq, .45);   // crest (white where it still breaks)
+        strip(p, q, side * (sp - w(ap) * .9), side * (sq - w(aq) * .9), w(ap), w(aq), .02, .07, .1, .42 * ep, .42 * eq);   // back (in its own shade)
+      }
+    }
+  }
+  wrMesh.geometry.setDrawRange(0, n * 6);
+  G.position.needsUpdate = true; G.color.needsUpdate = true; G.uv.needsUpdate = true;
+}
+// the left-over うねり (race.js swellG cells, 3 m) as a texture over the water: choppy crossing ripples, light tips and dark troughs
+const swellFx = { mesh: null, tex: null, data: null, G: null, t: -1 };
+function swellFxStep() {
+  const G = typeof swellG !== 'undefined' ? swellG : null, on = wrealOn() && G && fleet && !fleet.replay;
+  if (!on) { if (swellFx.mesh) swellFx.mesh.visible = false; return; }
+  if (swellFx.G !== G || !swellFx.mesh) {
+    if (swellFx.mesh) { scene.remove(swellFx.mesh); swellFx.mesh.geometry.dispose(); swellFx.mesh.material.dispose(); swellFx.tex.dispose(); }
+    const c = 3, W = G.nx * c, H = G.ny * c;
+    swellFx.data = new Uint8Array(G.nx * G.ny * 4); swellFx.tex = new THREE.DataTexture(swellFx.data, G.nx, G.ny, THREE.RGBAFormat);
+    swellFx.tex.magFilter = swellFx.tex.minFilter = THREE.LinearFilter; swellFx.tex.needsUpdate = true;
+    const geo = new THREE.PlaneGeometry(W, H, 1, 1); geo.rotateX(-Math.PI / 2); geo.translate(G.x0 + W / 2, .035, G.y0 + H / 2);
+    const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
+      uniforms: { map: { value: swellFx.tex }, o: { value: new THREE.Vector2(G.x0, G.y0) }, sz: { value: new THREE.Vector2(W, H) }, t: { value: 0 }, a: { value: WREAL.swellA }, lum: { value: 1 } },
+      vertexShader: 'varying vec2 wp; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); wp = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }',
+      fragmentShader: `uniform sampler2D map; uniform vec2 o, sz; uniform float t, a, lum; varying vec2 wp;
+        void main(){ float s = texture2D(map, (wp - o) / sz).r; if (s < .02) discard;
+          float n = sin(dot(wp, vec2(1.7, .6)) * 1.6 + t * 2.3) * sin(dot(wp, vec2(-.5, 1.3)) * 2.1 - t * 1.7) + .55 * sin(dot(wp, vec2(.9, -1.1)) * 3.4 + t * 3.1);
+          float hi = smoothstep(.45, 1.1, n), lo = smoothstep(-.35, -1.0, n);
+          vec3 col = mix(vec3(.02, .07, .1), vec3(.85, .93, .95), hi / max(.001, hi + lo));
+          float al = s * a * (.18 + .55 * hi + .35 * lo); gl_FragColor = vec4(col * lum, al); }` });
+    swellFx.mesh = new THREE.Mesh(geo, mat); swellFx.mesh.renderOrder = 1; swellFx.mesh.frustumCulled = false; scene.add(swellFx.mesh); swellFx.G = G; swellFx.t = -1;
+  }
+  swellFx.mesh.visible = true;
+  const U = swellFx.mesh.material.uniforms; U.t.value = time; U.lum.value = tod === 'night' ? .42 : tod === 'evening' ? .8 : 1;
+  if (Math.abs(time - swellFx.t) < WREAL.swellEvery) return;
+  swellFx.t = time;
+  const D = swellFx.data, N = G.nx * G.ny;
+  for (let k = 0; k < N; k++) { const v = G.v[k] > 0 ? G.v[k] * Math.exp(-(time - G.tl[k]) / G.tau[k]) : 0; D[k * 4] = v > 0 ? Math.min(255, Math.pow((1 - Math.exp(-v)) / .22, .7) * 255) | 0 : 0; }   // (typical cells .03–.2: shown up to full at .22)
+  swellFx.tex.needsUpdate = true;
+}
+
 /* ---------- boats ---------- */
 function actorFor(row) {
   const body = row.body || {}, sex = body.sex === 'f' ? 'f' : 'm', lane = lim(Math.round(row.no || 1), 1, 6), key = lane + '|' + sex;
@@ -1249,7 +1376,7 @@ function frame3d(now) {
   const cv = document.getElementById('cv'); if (cv.width !== 1) { cv.width = 1; cv.height = 1; }
   const dt = Math.min(.1, (now - (last || now)) / 1000); last = now;
   // d328 (まえ: リプレイ録画を縦持ち画面に): View3D.frameAspect (w/h) narrows the 3D picture to that shape, centred — the 9:16 video
-  let w = innerWidth; const h = innerHeight, fa = window.View3D.frameAspect, dpr = fa && window.View3D.frameH ? Math.min(3, Math.max(Math.min(Q.dpr, devicePixelRatio || 1), window.View3D.frameH / h)) : Math.min(Q.dpr, devicePixelRatio || 1);   // (the narrow picture drawn sharp enough for the video's height)
+  let w = innerWidth; const h = innerHeight, fa = window.View3D.frameAspect, dpr = fa && window.View3D.frameH ? Math.min(3, Math.max(dprFor(w, h), window.View3D.frameH / h)) : dprFor(w, h);   // (the narrow picture drawn sharp enough for the video's height)
   if (fa && w / h > fa) w = Math.round(h * fa);
   { const cw = fa ? w + 'px' : '100%', cl = fa ? Math.round((innerWidth - w) / 2) + 'px' : '0px'; if (canvas.style.width !== cw) canvas.style.width = cw; if (canvas.style.left !== cl) canvas.style.left = cl; }
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); camera.aspect = w / h; }
@@ -1292,7 +1419,8 @@ function frame3d(now) {
     a.chooseLOD((mode === 'top' ? 3.3 * (cam.S || 20) : 3.3 * focal / (Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1)) * Q.lod);
     a.updatePose({ propAngle: time * 60 }); a.root.visible = true;
   }
-  drawWakes(fleet ? fleet.boats.filter(r => !r.gone).map(r => r.wake) : [wake]);
+  { const ws = fleet ? fleet.boats.filter(r => !r.gone).map(r => r.wake) : [wake]; if (wrealOn()) drawWakesReal(ws); else { if (wrMesh) wrMesh.visible = false; if (wakeMesh) wakeMesh.visible = true; drawWakes(ws); } }   // d334
+  swellFxStep();
   if (spray3 || rippleTex) {
     const sdt = lastGameT == null ? 0 : lim(time - lastGameT, 0, .1); lastGameT = time;   // the race clock (a demo can run fast)
     if (spray3) { stepSpray(sdt > 0 ? rows : [], sdt); spray3.pts.material.uniforms.scale.value = h / 2 / Math.tan(camera.fov * Math.PI / 360);
@@ -1394,12 +1522,19 @@ function applyTier(first) {
    .then(() => { tod = ''; }).catch(e => console.warn('3D視点（会場）:', e));
   if (!first) { tod = ''; scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); }); loadModels(Q.models).then(() => { tod = ''; }); }
 }
+// d331 (まえ: スマホでPCを選ぶときは不具合の注意、PCでは不要): a line under 3D画質 while a phone has PC chosen
+const PC_WARN = 'スマホの PC画質・最高（フルHD）は一部の高性能な機種向けです。3Dが止まることがあります。ブラウザによっては、そのあとブラウザを完全に終了するまで3D（2Dの新モデルも）が使えなくなります。止まったらスマホリッチに戻してください。';
 function gfxUi() {
   const n = $('gfx3dNow'); if (n) n.textContent = gfxSet === 'auto' ? `（いま：${Q.label}）` : '';
+  const a0 = $('gfx3d'); if (PHONE && a0) { let w = $('gfx3dWarn');
+    if (!w) { w = document.createElement('small'); w.id = 'gfx3dWarn'; w.style.cssText = 'display:block;color:#e8a04a;margin-top:4px;line-height:1.4'; w.textContent = PC_WARN; (a0.closest('label') || a0).after(w); }
+    w.style.display = gfxSet === 'pc' || gfxSet === 'fhd' ? 'block' : 'none'; }
   const a = $('gfx3d'), b = $('water3d'); if (a && a.value !== gfxSet) a.value = gfxSet; if (b && b.value !== waterSet) b.value = waterSet;
 }
 { const el = $('swell3d'); if (el) { el.value = SWELL.on ? 'on' : 'off'; el.addEventListener('change', e => {   // d300 3D波（うねり）
   SWELL.on = e.target.value === 'on'; try { localStorage.setItem(SWELL.key, e.target.value); } catch (x) {} }); } }
+{ const el = $('wake3d'); if (el) { el.value = WREAL.on ? 'real' : 'std'; el.addEventListener('change', e => {   // d334 3D航跡 標準／リアル
+  WREAL.on = e.target.value === 'real'; try { localStorage.setItem(WREAL.key, e.target.value); } catch (x) {} }); } }
 { const el = $('spray3d'); if (el) { el.value = FX.on ? 'big' : 'std'; el.addEventListener('change', e => {   // d287 3D飛沫 標準／派手
   FX.on = e.target.value === 'big'; try { localStorage.setItem(FX.key, e.target.value); } catch (x) {}
   if (spray3 && SPRAY.max !== sprayMax()) { scene.remove(spray3.pts); spray3.pts.geometry.dispose(); spray3.pts.material.dispose(); spray3 = null; }
@@ -1450,7 +1585,7 @@ function makeRenderer() {
   cv.addEventListener('webglcontextrestored', () => { if (cv !== canvas) return; clearTimeout(lostTimer); lost = false; tod = ''; refl = null; if (!lostBg) tierDown(); lostBg = false; applyTier(false); setMode(mode); });   // d312: came back → one tier lighter (自動); d318: not after a background loss
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  if (old) { const w = innerWidth, h = innerHeight, dpr = Math.min(Q.dpr, devicePixelRatio || 1); renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); }
+  if (old) { const w = innerWidth, h = innerHeight, dpr = dprFor(w, h); renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); }
 }
 function boot() {
   if (booting) return booting;
