@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd348';
+const GAME_VER = 'd350';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -141,7 +141,8 @@ let playerTilt = -0.5;   // the player's own tilt (settings)
 // d260 (まえ: ミスありで1'44"8は速い、展示は速くない → 出足・回り足は平均に戻し、最高速だけ80ちょい): 出足・中速・回り足 1.00、
 // 伸び 1.025 (○と◎のさかい). CPU solo なにわ, tilt −0.5, no wind: top 80.2–80.7 km/h, A1 1'47"4→1'48"0, 記念 1'44"8→1'45"5.
 // (d257 was 出足 1.02 中速 1.02 回り足 1.01.) The 後ろ重心 pop on the exit now buys more (まえ: 出足を補う技術).
-const SOLO_MOTOR = { deashi: 1, mMid: 1, mawari: 1, nobi: 1.025 };
+// d349 (まえ: 今ものすごく乗りやすい、最高速が80出るように、一周目だけでも): 伸び 1.025 → 1.012 — CPU TA top 81.3/81.2/80.9 → 80.1/80.0/79.7 km/h per lap, 1'43"5 → ≈1'44"3. TA records kept (まえ clears them at release).
+const SOLO_MOTOR = { deashi: 1, mMid: 1, mawari: 1, nobi: 1.012 };
 const B = { x: START.x, y: START.y, a: START.a, v: 0, vl: 0, yaw: 0, porp: 0, cap: 0, ...SOLO_MOTOR, tilt: playerTilt };
 const input = { thr: 0, steer: 0, steerT: 0, roll: 0, pitch: 0 };
 const raw = { roll: 0, pitch: 0 };
