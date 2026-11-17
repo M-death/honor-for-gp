@@ -389,6 +389,8 @@ function boatPhysics(b, inp, dt) {
     const fx0 = Math.cos(b.a), fy0 = Math.sin(b.a);
     const ax = b.x - fx0 * HULL_AFT, ay = b.y - fy0 * HULL_AFT, bx2 = b.x + fx0 * HULL_FWD, by2 = b.y + fy0 * HULL_FWD;
     for (const ob of OBSTACLES) {
+      const boom = ob.kind === 'boom';
+      if (boom && b.boomFly > 0) continue;   // in the air over the boom
       const [px, py, qx, qy] = closestSegSeg(ax, ay, bx2, by2, ob.x1, ob.y1, ob.x2, ob.y2);
       let nx = px - qx, ny = py - qy, d = Math.hypot(nx, ny);
       const rr = HULL_R + ob.r;
@@ -396,19 +398,48 @@ function boatPhysics(b, inp, dt) {
       if (d < 1e-4) { nx = b.x - qx; ny = b.y - qy; d = Math.hypot(nx, ny) || 1; }
       nx /= d; ny /= d;
       const pen = rr - Math.min(d, rr);
-      b.x += nx * pen; b.y += ny * pen;
       const vx = fx0 * b.v - fy0 * b.vl, vy = fy0 * b.v + fx0 * b.vl;
       const vn = -(vx * nx + vy * ny);                      // speed straight into it
-      if (vn > 0) {
-        const nvx = vx + nx * vn * 1.2, nvy = vy + ny * vn * 1.2;
-        const loss = clamp(0.02 + vn * (ob.kind === 'mark' ? 0.05 : 0.07), 0.02, 0.55);
-        b.v = Math.max(0, nvx * fx0 + nvy * fy0) * (1 - loss);
-        b.vl = (-nvx * fy0 + nvy * fx0) * 0.5;
-        if (vn > 2.5 && !(b.buoyCool > 0)) { ev = ev || (ob.kind === 'mark' ? 'buoy' : 'boom'); b.buoyCool = 1; }
+      if (vn <= 0) { b.x += nx * pen; b.y += ny * pen; continue; }
+      // d347 (まえ: 掠ったくらいなら少し弾かれて減速して進む。正面からは乗り上げて飛び上がる衝撃、ほぼ転覆か落水。ぶつかってそのまま止まることはない):
+      // the speed is taken once per contact (before, every 1/120 s step of a slide along the mark took it again → 58→34 km/h on a 20° touch)
+      // d348 (まえ: 消波装置も同じ。正面からは乗り上げて飛ばして、ほぼ転覆か落水、たまに上手く着水する): the boom too — and a boat
+      // thrown up off the boom flies over it to the inside (race.js: 故意なら失格、ぶつけられて越えたなら続行)
+      const M = MARK_HIT, first = !(b.markCool > 0), ride = first && vn > M.ride;
+      if (ride && boom) {   // 乗り上げ: over the top — no knock back, it carries on through the air
+        const loss = clamp(M.loss0 + M.lossK * vn + M.rideLoss, 0, M.lossMax);
+        b.v *= 1 - loss; b.vl *= M.keepVl;
+        const H = Math.min(M.hopMax, M.hopK * (vn - M.ride + 1)), hv = Math.sqrt(2 * BOUNCE.g * H);
+        b.hv = Math.max(b.hv || 0, hv); b.hop = Math.max(b.hop || 0, 0.01);
+        b.boomFly = 2 * b.hv / BOUNCE.g + 0.15; b.boomJumpAt = time; b.markCool = M.cool;
+        const pCap = clamp((vn - M.capFromBoom) / (M.capFull - M.capFromBoom), 0, M.capMaxBoom);
+        ev = pCap > 0 && simRandom() < pCap ? 'cap:消波装置に乗り上げた' : ev || 'boom';
+        continue;
+      }
+      b.x += nx * pen; b.y += ny * pen;
+      const nvx = vx + nx * vn * (1 + (first ? M.bounce : 0)), nvy = vy + ny * vn * (1 + (first ? M.bounce : 0));
+      const loss = first ? clamp(M.loss0 + M.lossK * vn + (ride ? M.rideLoss : 0), 0, M.lossMax) : 0;
+      // the knock turns the hull away (bow touch most): heading swings part way to the new run, so it glances off instead of grinding round the mark
+      const sAt = (px - b.x) * fx0 + (py - b.y) * fy0, swing = M.swing * (0.4 + 0.6 * clamp(sAt / HULL_FWD, 0, 1));
+      const dA = Math.atan2(-nvx * fy0 + nvy * fx0, nvx * fx0 + nvy * fy0);
+      if (Math.hypot(nvx, nvy) > 2 && Math.abs(dA) < 1.6) b.a += dA * swing;
+      const fx1 = Math.cos(b.a), fy1 = Math.sin(b.a);
+      b.v = Math.max(0, nvx * fx1 + nvy * fy1) * (1 - loss);
+      b.vl = (-nvx * fy1 + nvy * fx1) * M.keepVl;
+      if (first && vn > 0.5) {
+        b.markCool = M.cool;
+        if (ride) {   // 乗り上げ (mark): thrown up — and from the front it nearly always goes over
+          const H = Math.min(M.hopMax, M.hopK * (vn - M.ride + 1));
+          b.hv = Math.max(b.hv || 0, Math.sqrt(2 * BOUNCE.g * H)); b.hop = Math.max(b.hop || 0, 0.01);
+          const pCap = clamp((vn - M.capFrom) / (M.capFull - M.capFrom), 0, M.capMax);
+          if (pCap > 0 && simRandom() < pCap) ev = 'cap:ターンマークに乗り上げた';
+          else ev = ev || 'buoy';
+        } else if (vn > M.graze) ev = ev || (boom ? 'grazeBoom' : 'graze');
       }
     }
   }
   b.buoyCool = Math.max(0, (b.buoyCool || 0) - dt);
+  b.markCool = Math.max(0, (b.markCool || 0) - dt); b.boomFly = Math.max(0, (b.boomFly || 0) - dt);
   const vBefore = b.v;
   if (wallsFor(b) && vBefore > 5) ev = ev || 'wall';
   if (ev && ev.startsWith('cap:')) b.cap = 2.2;
@@ -438,7 +469,10 @@ function wallsFor(b) {
    normal; the boat driving harder into the other keeps more of its line, an off-centre hit
    spins the hull, and a big enough shove can put a boat over (the physics capsizes it
    when its sideways speed runs away). Returns one event per new touch. */
-const HULL_R = 0.65, HULL_AFT = 0.25, HULL_FWD = 1.58;   // d187 (まえ: real size): 3.1 m × 1.3 m, bow tip 2.23, stern −0.9 (was 0.8/1.4/1.6 = 4.6 × 1.6 m)
+const HULL_R = 0.65, HULL_AFT = 0.25, HULL_FWD = 1.58;
+// d347 ターンマークとの接触: vn = speed straight into the mark (m/s). graze < 4 (≈ under 15° at 55 km/h): a few % and a small knock outward;
+// past ride (≈ 25°+ at speed, or square on when slow) the hull rides up and is thrown; capFrom→capFull it goes over (front-on at speed ≈ always)
+const MARK_HIT = { loss0: 0.01, lossK: 0.022, ride: 7, rideLoss: 0.15, lossMax: 0.5, bounce: 0.3, keepVl: 0.85, graze: 2.5, cool: 0.4, hopK: 0.08, hopMax: 0.55, capFrom: 8, capFull: 11.5, capMax: 0.95, capMaxBoom: 0.85, capFromBoom: 6.5, swing: 0.5 };   // d348 boom: たまに上手く着水する   // d187 (まえ: real size): 3.1 m × 1.3 m, bow tip 2.23, stern −0.9 (was 0.8/1.4/1.6 = 4.6 × 1.6 m)
 const SIDE_PUSH = { k: 0.3, yawMax: 0.15 };
 /* d176 押し出し・押し込み (まえ: a hit only killed both boats' speed — side to side and ダンプ should knock a boat off its line).
    The boat pressing harder into the other (closing speed, rider weight, a little more if it is ahead) keeps its line and most of
@@ -574,7 +608,7 @@ function step(dt) {
     if (ev.startsWith('cap:')) { splash(B); T.on = false; toast('転覆', ev.slice(4), 'bad'); hapticShot(0.45, 1); sfxCapsize(B.x, B.y); }
     else {
       hapticShot(0.15, 0.7); sfxHit(B.x, B.y, 5);
-      if (!hitCool) { toast(ev === 'buoy' ? '接触' : ev === 'boom' ? '消波装置' : '岸壁', ev === 'buoy' ? 'ターンマークに強く当たった' : ev === 'boom' ? 'マーク内側の消波装置に当たった' : 'コースの端にぶつかった', 'bad'); hitCool = 1.5; }
+      if (!hitCool) { if (ev !== 'graze' && ev !== 'grazeBoom') toast(ev === 'buoy' ? '接触' : ev === 'boom' ? '消波装置' : '岸壁', ev === 'buoy' ? 'ターンマークに乗り上げた' : ev === 'boom' ? '消波装置に乗り上げた' : 'コースの端にぶつかった', 'bad'); hitCool = 1.5; }
     }
   }
   slitCapture(practiceSlit,time-(SS.t0+CLOCK),[{no:1,b:B,trait:{course:1}}]);
@@ -601,7 +635,7 @@ function step(dt) {
 
   measStep(previous,current);
   // laps: cross the line at x=0 on the lower straight after rounding both marks
-  if (SS.phase !== 'count' && Math.sign(lap.prevY || B.y) !== Math.sign(B.y) && Math.abs(B.x) < MK - 1) { toast('内側航走', 'ターンマークの内側を通過（レースなら6着扱い）', 'bad'); if (soloKind === 'ta') taFail('内側航走'); }
+  if (SS.phase !== 'count' && Math.sign(lap.prevY || B.y) !== Math.sign(B.y) && Math.abs(B.x) < MK - 1) { if (time - (B.boomJumpAt ?? -99) < 3) toast('内側航走', '消波装置を乗り越えた（レースなら失格）', 'bad'); else toast('内側航走', 'ターンマークの内側を通過（レースなら6着扱い）', 'bad'); if (soloKind === 'ta') taFail('内側航走'); }
   lap.prevY = B.y;
   if (B.x > MK - 15) lap.visR = true;
   if (B.x < -MK + 15) lap.visL = true;

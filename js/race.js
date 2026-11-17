@@ -3039,7 +3039,8 @@ function fleetStep(dt, playerInput) {
     if (r.player && runLog && runLog.b === b) runLogStep(b, o, zero, r.st != null && !r.logSt ? (r.logSt = true, 'スリット通過') : '');
     if(lab.active&&ev)labEvent('physics',r.no,{label:ev});
     if (ev && ev.startsWith('cap:') && !r.out) accident(r, '転覆', ev.slice(4));
-    else if (ev === 'buoy' || ev === 'boom') { if (VR) VR.ev('hit', r.no, { what: ev }); toast(ev === 'buoy' ? 'ターンマーク接触' : '消波装置に接触', `${r.no}号艇`, 'warn'); }
+    else if (ev === 'graze' || ev === 'grazeBoom') { if (VR) VR.ev('hit', r.no, { what: ev }); }
+    else if (ev === 'buoy' || ev === 'boom') { if (VR) VR.ev('hit', r.no, { what: ev }); toast(ev === 'buoy' ? 'ターンマークに乗り上げ' : '消波装置に乗り上げ', `${r.no}号艇`, 'warn'); }
     // 内側航走: crossing the course centreline between the marks means a mark was cut
     if (r.st != null && !r.dq && r.fin == null && !r.relegated && r.prevY != null && Math.sign(r.prevY) !== Math.sign(b.y) && Math.abs(b.x) < MK - 1) {
       if(lab.active)labEvent('inside_course',r.no,{label:'内側航走'});
@@ -3049,6 +3050,10 @@ function fleetStep(dt, playerInput) {
       if (pr && !pr.dq) {
         if (VR) VR.ev('push_out', pr.no, { victim: r.no });
         disqualify(pr, `${r.no}号艇を中央線の内側へ押し出し`);
+      } else if (time - (b.boomJumpAt ?? -99) < 3) {
+        // d348 (まえ: 消波装置を乗り越えたら、故意なら失格。ぶつけられたりの選手責任外ならそのまま続行 — that case is the push above)
+        if (VR) VR.ev('inside_course', r.no, { boom: true });
+        disqualify(r, '消波装置を乗り越えて内側へ');
       } else {
         r.relegated = true; fleet.cutsInside++; if (VR) VR.ev('inside_course', r.no, null);
         toast('内側航走', `${r.no}号艇 ターンマークの内側を通過　6着扱い`, 'bad');
