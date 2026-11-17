@@ -25,8 +25,12 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--water-deep);colo
 body{touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:none;-webkit-touch-callout:none}
 #cv{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 
+/* d346 (まえ: 昼間の文字が見にくい — 起こし見込みなど、影をつける？): a dark edge round the HUD text (four tight shadows + a soft one)
+   so it reads on bright 3D sky and day water; the grey lines are a little lighter too */
+:root{--txt-edge:1px 0 1px rgba(0,0,0,.85),-1px 0 1px rgba(0,0,0,.85),0 1px 1px rgba(0,0,0,.85),0 -1px 1px rgba(0,0,0,.85),0 1px 6px rgba(0,0,0,.6)}
 .hud{position:fixed;pointer-events:none;z-index:2}
-.tl{top:calc(10px + var(--st));left:calc(16px + var(--sl));display:grid;gap:2px;text-shadow:0 1px 3px rgba(0,0,0,.55),0 0 8px rgba(0,0,0,.25)}
+.tl .best:not(.top){color:#d9e7e3}.lbl,.deg,#clockTxt,.corder,#jk{text-shadow:var(--txt-edge)}
+.tl{top:calc(10px + var(--st));left:calc(16px + var(--sl));display:grid;gap:2px;text-shadow:var(--txt-edge)}
 .best{font-size:12px;font-weight:500}
 .spd{display:flex;align-items:baseline;gap:6px}
 .spd b{font-family:var(--f-num);font-weight:700;font-style:italic;font-size:40px;line-height:1;font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:right;letter-spacing:-.01em}
@@ -215,6 +219,9 @@ body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-run
 .posture-zone.active{border-color:#bcf5e2;box-shadow:0 0 0 2px #a5eed633;cursor:grabbing}.posture-zone:focus-visible{outline:2px solid var(--lever);outline-offset:3px}
 body.virtual-pad>.pad{left:calc(70px + var(--sl));bottom:calc(46px + var(--sb) + var(--posture-size));transform:none;max-width:var(--posture-size)}
 body.virtual-pad>.pad .box{display:none}body.virtual-pad>.pad .deg{white-space:normal;font-size:10px;text-align:center}
+body.thr-right>#lever{left:calc(59vw - 20px)}body.thr-center>#lever{left:calc(50vw - 20px)}
+body.thr-right>.posture-stick,body.thr-center>.posture-stick,body.thr-right.virtual-pad>.pad,body.thr-center.virtual-pad>.pad{left:calc(16px + var(--sl))}
+body.thr-center:not(.virtual-pad)>.pad{left:calc(36vw);transform:none}
 body.virtual-pad>.wheel svg{width:min(22vw,26vh,104px);height:min(22vw,26vh,104px)}
 body.lab-running>.posture-stick{display:none!important}
 .menu-card{max-width:620px}
@@ -630,6 +637,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
       <label><input type="checkbox" id="invR"> 左右の傾きを反転</label>
       <label><input type="checkbox" id="invP"> 前後の傾きを反転</label>
       <label><input type="checkbox" id="padRT" checked> コントローラのスロットルを右トリガーにする</label>
+      <label>タッチのアクセルの位置（操作1・2） <select id="touchThr"><option value="left">左（標準）</option><option value="right">右（舵の左どなり）</option><option value="center">真ん中</option></select></label>
       <label><input type="checkbox" id="sndOn" checked> 音</label>
       <label>音量 <input type="range" id="sndVol" min="0" max="100" step="5" value="70"><output id="sndVolOut">70</output></label>
       <label><input type="checkbox" id="bgmOn" checked> BGM</label>

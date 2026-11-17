@@ -742,6 +742,22 @@ addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
 /* ---------- touch: left half = throttle lever, right half = rudder ---------- */
+/* d345 (まえ: 操作2はアクセルと姿勢パッドが隣で誤作動しそう、握ったらほぼアクセルは触らない — アクセルの位置を左・右・真ん中から
+   選べるように): 設定 タッチのアクセル (#touchThr, modes 1 and 2). 左 = the left half as before; 右 = a strip just right of the
+   middle (THR_ZONE.right), the rudder on the rest of the right half; 真ん中 = a strip in the middle, rudder to its right. Outside
+   the strip on the left only the 姿勢パッド answers. The lever stays where it was left when the finger lifts (as before). */
+const THR_ZONE = { right: [.5, .68], center: [.41, .59], key: 'honorGP.touchThr', pos: 'left' };
+try { const v = localStorage.getItem(THR_ZONE.key); if (v === 'right' || v === 'center') THR_ZONE.pos = v; } catch (e) {}
+const thrPosNow = () => controlMode === 'tilt' || controlMode === 'pad' ? THR_ZONE.pos : 'left';
+function touchSide(x) {
+  if (controlMode === 'wheel') return x < W * .5 ? null : 'thr';
+  const pos = thrPosNow(); if (pos === 'left') return x < W * .5 ? 'thr' : 'steer';
+  const [a, b] = THR_ZONE[pos]; return x < W * a ? null : x < W * b ? 'thr' : 'steer';
+}
+function thrPosUi() { const pos = thrPosNow(); document.body.classList.toggle('thr-right', pos === 'right'); document.body.classList.toggle('thr-center', pos === 'center');
+  const el = $('touchThr'); if (el && el.value !== THR_ZONE.pos) el.value = THR_ZONE.pos; }
+if ($('touchThr')) $('touchThr').addEventListener('change', e => { THR_ZONE.pos = ['right', 'center'].includes(e.target.value) ? e.target.value : 'left';
+  try { localStorage.setItem(THR_ZONE.key, THR_ZONE.pos); } catch (x) {} thrPosUi(); });
 const ptrs = new Map();
 let steerTouch = false;
 const leverSpan = () => $('track').getBoundingClientRect().height || 200;
@@ -749,8 +765,7 @@ function sideOn(side) { $(side === 'thr' ? 'lever' : 'wheel').classList.toggle('
 cv.addEventListener('pointerdown', e => {
   if (!running || paused || (fleet && !playerActive())) return;
   e.preventDefault();
-  if(controlMode==='wheel'&&e.clientX<W*.5)return;
-  const side = controlMode==='wheel'?'thr':e.clientX < W * 0.5 ? 'thr' : 'steer';
+  const side = touchSide(e.clientX); if (!side) return;
   ptrs.set(e.pointerId, { side, x0: e.clientX, y0: e.clientY, v0: input.thr });
   if (side === 'steer' && controlMode === 'fuse') FUSE.pitch = 0;
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
@@ -805,7 +820,7 @@ async function setControlMode(mode,persist=true){
  phoneWheel.base=phoneWheel.last=null;phoneWheel.kind=null;phoneWheel.value=phoneWheel.deg=0;
  $('controlMode').value=mode;if($('pmModeSel'))$('pmModeSel').value=mode;for(const e of document.querySelectorAll('[name="startControlMode"]'))e.checked=e.value===mode;
  $('postureStick').hidden=!virtualPosture.enabled;$('phoneSteerReadout').hidden=mode!=='wheel';$('wheelSettings').hidden=mode!=='wheel';
- document.body.classList.toggle('virtual-pad',virtualPosture.enabled);document.body.classList.toggle('phone-wheel',mode==='wheel');
+ document.body.classList.toggle('virtual-pad',virtualPosture.enabled);document.body.classList.toggle('phone-wheel',mode==='wheel');thrPosUi();
  const help={tilt:'左手でアクセル、右手で舵。スマホの左右・前後の傾きで姿勢を操作します。',pad:'左手側にアクセルと姿勢パッド、右手側に舵。傾きセンサーは停止します。',fuse:'左手でアクセル、右手は融合パッド：左右で舵（体の傾きは舵に合わせて自動）、上で伏せる・下で起こす。縦持ちでも遊べます。傾きセンサーは停止します。',wheel:'左手は姿勢パッド、右手はアクセル。スマホをハンドルのように時計回りで右舵、反時計回りで左舵。センサーは舵だけに使います。'};
  $('controlHelp').textContent=$('postureModeNote').textContent=help[mode];
  $('zero').disabled=mode==='pad'||mode==='fuse';$('zero').textContent=mode==='wheel'?'今の持ち方を舵の中央にする':'今の持ち方を姿勢の基準にする';
@@ -869,7 +884,7 @@ function padMenuSurface() {
   return best;
 }
 function padMenuItems(surf) {
-  return [...surf.querySelectorAll('button, select, input, textarea, summary, [tabindex="0"]')].filter(e => !e.disabled && e.offsetParent !== null && !e.closest('[hidden]') && !(e.tagName !== 'SUMMARY' && e.closest('details:not([open])')) && !(e.tagName === 'INPUT' && e.type === 'hidden') && !(e.tagName === 'TEXTAREA' && e.readOnly));
+  return [...surf.querySelectorAll('button, select, input, textarea, summary, [tabindex="0"]')].filter(e => !e.disabled && e.offsetParent !== null && !e.closest('[inert]') && !e.closest('[hidden]') && !(e.tagName !== 'SUMMARY' && e.closest('details:not([open])')) && !(e.tagName === 'INPUT' && e.type === 'hidden') && !(e.tagName === 'TEXTAREA' && e.readOnly));
 }
 function padMenuMark(el) {
   if (padNav.el && padNav.el !== el) padNav.el.classList.remove('padfocus');
@@ -880,7 +895,7 @@ function padMenuMark(el) {
   try { el.scrollIntoView({ block: 'nearest' }); } catch (e) {}
 }
 function padMenuCancel(surf) {
-  const items = [...surf.querySelectorAll('button')].filter(e => !e.disabled && e.offsetParent !== null);
+  const items = [...surf.querySelectorAll('button')].filter(e => !e.disabled && e.offsetParent !== null && !e.closest('[inert]'));
   const c = items.find(e => /(Close|close|No|Skip|Cancel)$/.test(e.id) || /^(やめる|閉じる|キャンセル|いいえ|残さない)/.test(e.textContent.trim()));
   if (c) { c.click(); return true; }
   return false;

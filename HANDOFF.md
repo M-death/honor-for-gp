@@ -1,4 +1,4 @@
-# Honor for GP 波の向こうに — 引き継ぎ資料（d343 時点）
+# Honor for GP 波の向こうに — 引き継ぎ資料（d346 時点）
 
 この資料は、別の会話（AI）や将来の自分が開発を続けるための引き継ぎです。
 **本体は `index.html`（1ファイル）**。この資料と一緒に渡してください。
@@ -430,6 +430,11 @@
 | 体験版 t140 （まえ：インストールしてもインストールメニューが消えない）trial.js：manifest が display fullscreen なので、アプリは display-mode fullscreen で動き standalone の判定に当たらなかった → fullscreen/minimal-ui も見る（ブラウザで全画面中の fullscreen は除く）。ブラウザ側も appinstalled を localStorage honorGP.trialInstalled に覚えてボタンを隠す。beforeinstallprompt がまた来たら（アンインストール）消して出す | trial/js/trial.js・trial/sw.js |
 | d342 ／体験版 t141 （まえ：設定PCのままやめると、次回3Dが使えない状態になる）play3d.js PC_LATE：スマホで 3D画質 PC／最高（フルHD）が保存されていると、起動はスマホリッチで始め、3Dが出て5秒たったら（画面が見えていて3Dが止まっていなければ）選んだ画質へ上げる（PCモデルが無ければ d341 の箱）。起動時に重い描画と3.8MBを同時に始めない。その間に手で画質を変えたら上げない。スマホで手で選んだ PC／最高 のときに3Dが止まったら、この回はスマホリッチに下げる（tierDown、設定は PC のまま）。スマホの PC は起動時の描画がスマホリッチで作られるので AA なし | play3d.js・core.js |
 | d343 ／体験版 t142 （まえ：3Dのモデルは2Dの新モデルより粗い）play3d.js frame3d lodK：3DのLODはCSSピクセルで選んでいたので、スマホ（高さ411px）では追尾の自艇が中くらいのモデル（LOD1）だった → 実際に描くピクセル（×ピクセル比）で選ぶ。Q.lod スマホ軽量 .6→.8・スマホリッチ .8→1.2（PC 1 のまま）。スマホ横 915×411 追尾の自艇 LOD1→0（三角形 +4千ほど）。View3D.info.lods（各艇のLOD）を追加 | play3d.js・core.js |
+| 体験版 t143 （まえ：6艇レース中の「練習をやめる」ボタン（押すと大時計前からの練習）は消す、体験版はタイムアタックと6艇レースだけ）trial.js：上のバーの demoBtn を体験版では出さない（前は fleet 中に出していた）。bgm/bgm.json は game・trial とも tracks 空（まえ：BGMは0から配置し直す、前の曲は消した） | trial/js/trial.js・trial/sw.js・bgm/bgm.json |
+| 体験版 t144 （まえ：PC版のアセットもインストール時に入れられない？）build_trial.py：PCモデル（hfgp3d-glb-pc.js 3.8MB）も sw.js の LATER の最後に入れる。インストール時ではなく、3Dが出たあと（warm）に裏で保存（t138 の初回3Dの取り合いを避ける）。保存後はPC画質を選ぶとすぐ切り替わり、通信なしでも使える。保存量 約10.5→14MB | game/tools/build_trial.py・trial/js/trial.js・trial/sw.js |
+| d344 ／体験版 t145 （まえ：Chromeは最初に100秒ほどかけて3Dにするが何も出ないので不安。3Dにできないときはメニューで準備が終わるまで待たせる、2Dで遊ぶも選べる）play3d.js PREP/prepUi：3Dが選ばれていて準備ができていない間（最初の走行の前だけ）、メニューのカードを箱で覆う：「3Dを準備しています」＋棒（読み込み0〜50%・組み立て50〜100%）＋ loadText（％・段階・秒）＋「2Dで遊ぶ」。準備ができたら自動で消える。下のメニューは inert（パッドの移動も input.js で inert を飛ばす）。2Dで遊ぶ＝setMode('2d', false)：保存は3Dのまま、3Dは裏で読み続け、表示で切り替えられる。体験版はタイトルの下に出る | play3d.js・input.js・core.js |
+| d345 ／体験版 t146 （まえ：操作2はアクセルと姿勢パッドが隣で誤作動しそう、握ったらほぼアクセルは触らない → アクセルの位置を選べるように）設定 操作 タッチのアクセルの位置（操作1・2）#touchThr honorGP.touchThr：左（標準・今まで）／右（舵の左どなり：画面の50〜68%、舵は68%より右）／真ん中（41〜59%、舵は59%より右）。右・真ん中では左側は姿勢パッドだけ（姿勢パッドとその上の表示を左端へ）。レバーの絵も帯の位置へ。指を離してもレバーは残る（今まで通り）。input.js touchSide/thrPosUi、index.html CSS thr-right/thr-center | input.js・index.html・core.js |
+| d346 ／体験版 t147 （まえ：昼間の文字が見にくい、起こし見込みなど、影をつける？）index.html：--txt-edge（上下左右の細い黒の縁＋ぼかし）を左上の表示（.tl）・.lbl・.deg・大時計の数字・進入の並び・実況に。左上の灰色の行（起こし見込みなど）を少し明るく #d9e7e3 | index.html・core.js |
 
 ---
 

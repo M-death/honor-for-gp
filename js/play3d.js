@@ -1557,8 +1557,8 @@ function frame3d(now) {
 }
 
 /* ---------- the switch: a pill in the top bar and the V key ---------- */
-function setMode(m) {
-  mode = m; try { localStorage.setItem(V3.key, m); if (m !== '2d') localStorage.setItem(V3.lastKey, m); } catch (e) {}
+function setMode(m, keep = true) {
+  mode = m; if (keep) try { localStorage.setItem(V3.key, m); if (m !== '2d') localStorage.setItem(V3.lastKey, m); } catch (e) {}
   pillText(); camS.init = false;
   document.body.classList.toggle('v3d', m !== '2d');   // d274: the 姿勢 pad sits over the boat in 3D → fainter (index.html)
   if (m !== '2d') boot();
@@ -1596,6 +1596,39 @@ document.querySelector('.pills').prepend(btn); document.querySelector('.pills').
 setInterval(pillText, 300);   // (in 2D the 3D loop may never have started; the 2D カメラ can change from 設定 / 十字キー)
 { const sel = document.getElementById('dispMode'); if (sel) sel.addEventListener('change', () => { if ((sel.value === '3d') !== (mode !== '2d')) toggleDisp(); }); }
 addEventListener('keydown', e => { if ((e.key === 'v' || e.key === 'V') && !e.repeat && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) (e.shiftKey ? dbtn : btn).click(); });
+
+/* d344 (まえ: Chromeは最初に100秒ほどかけて3Dにするが、何も出ないので不安。3Dにできないときはメニューで準備が終わるまで
+   待たせる、2Dで遊ぶも選べる): while 3D is chosen and not ready yet, the menu card is covered by a box with the progress
+   (読み込み % / 組み立ての段階 / 秒) and 「2Dで遊ぶ」 (this time only: 3D stays the saved choice and keeps loading — 表示 switches
+   to it once it is ready). The box goes away by itself when 3D is ready. */
+const PREP = { el: null };
+function prepK() {
+  if (LOADP.stage === 'dl') return .5 * (LOADP.total ? Math.min(.99, LOADP.got / LOADP.total) : 0);
+  const st = LOADP.step;
+  return .5 + .5 * (st === 'tex' ? .7 + .3 * LOADP.tex / 12 : st === 'model' ? .2 + .5 * LOADP.glb / 9 : st === 'rig' ? .1 : 0);
+}
+function prepUi() {
+  const pm = document.getElementById('pmenu'), card = pm && pm.querySelector('.menu-card'); if (!card) return;
+  const want = mode !== '2d' && !running && !window.View3D.ready && !window.View3D.error && !stuck3d();   // (only before the first run: in a run the 視点 pill keeps the count)
+  if (!PREP.el) {
+    if (!want) return;
+    const d = document.createElement('div'); d.id = 'prep3d';
+    d.style.cssText = 'position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:rgba(8,20,32,.94);border-radius:inherit;color:#fff;padding:16px';
+    d.innerHTML = '<div style="width:min(360px,100%);text-align:center"><b style="font-size:17px">3Dを準備しています</b>'
+      + '<div style="margin:12px 0 6px;height:10px;border-radius:5px;background:rgba(255,255,255,.15);overflow:hidden"><i id="prep3dBar" style="display:block;height:100%;width:0;background:#ffc21a;transition:width .25s"></i></div>'
+      + '<div id="prep3dN" style="font-size:13px;opacity:.9;min-height:1.4em"></div>'
+      + '<p style="font-size:12px;opacity:.75;margin:10px 0 12px;line-height:1.5">初めてのときは少し時間がかかります。終わるとメニューに戻ります。</p>'
+      + '<button class="btn ghost" id="prep3dGo2d">2Dで遊ぶ</button></div>';
+    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+    d.hidden = true; d.style.display = 'none'; card.appendChild(d); PREP.el = d;
+    d.querySelector('#prep3dGo2d').addEventListener('click', e => { e.stopPropagation(); setMode('2d', false); prepUi(); });
+  }
+  if (PREP.el.hidden === want) { PREP.el.hidden = !want; PREP.el.style.display = want ? 'flex' : 'none'; for (const c of card.children) if (c !== PREP.el) c.inert = want; if (want && !pm.hidden) { const b = PREP.el.querySelector('#prep3dGo2d'); const a = document.activeElement; if (!a || !PREP.el.contains(a)) setTimeout(() => b.focus(), 0); } }
+  if (!want) return;
+  PREP.el.querySelector('#prep3dBar').style.width = (prepK() * 100).toFixed(1) + '%';
+  const n = PREP.el.querySelector('#prep3dN'), t = LOADP.t0 ? loadText() : '3Dを読み込み中…'; if (n.textContent !== t) n.textContent = t;
+}
+setInterval(prepUi, 250);
 
 /* ---------- d279 画質の切り替え (settings, or 自動 stepping down) ---------- */
 const SHADOW = { r: 34, bias: -.0004, nBias: .03 };
