@@ -979,12 +979,25 @@ function actorFor(row) {
   a.heightCm = lim(body.height || (sex === 'f' ? 157 : 165), 140, 200);
   return a;
 }
-const ghostActors = new Map(), GHOST_TINT = { best: '#9fe8d4', rival: '#ffb3d9' };
+// d358 足合わせ: flat see-through rings on the water round 羽美 (ashi.js ashiZones), darker the higher the score rate
+let ashiZ = null;
+function ashiZones3() {
+  const z = typeof ashiZones === 'function' ? ashiZones() : null;
+  if (!z) { if (ashiZ) ashiZ.visible = false; return; }
+  if (!ashiZ) { ashiZ = new THREE.Group(); ashiZ.userData.half = [];
+    // d361: two halves per ring — geometry angles 0..π = her inside half once the group is turned by −heading
+    for (const inner of [true, false]) z.r.forEach((r, i) => { const m = new THREE.Mesh(new THREE.RingGeometry(i ? z.r[i - 1] : 0, r, 32, 1, inner ? 0 : Math.PI, Math.PI), new THREE.MeshBasicMaterial({ color: 0xffd65a, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+      m.rotation.x = -Math.PI / 2; m.renderOrder = 2; m.userData.inner = inner; m.userData.i = i; ashiZ.add(m); });
+    scene.add(ashiZ); }
+  ashiZ.visible = true; ashiZ.position.set(z.x, 0.06, z.y); ashiZ.rotation.y = -z.h;
+  for (const m of ashiZ.children) { const ok = m.userData.inner === z.vin; m.material.color.setHex(ok ? 0xffd65a : 0x8ca0b4); m.material.opacity = ok ? z.a[m.userData.i] : z.b[m.userData.i]; }
+}
+const ghostActors = new Map(), GHOST_TINT = { best: '#9fe8d4', rival: '#ffb3d9', umi: '#3fbf7f' };
 function ghostActor(kind) {
   let a = ghostActors.get(kind);
   if (!a) {
     a = set.create({ lane: 1, sex: 'm', heightCm: 165 });
-    for (const m of a.materials) { m.transparent = true; m.opacity = kind === 'rival' ? .45 : .38; m.depthWrite = false;
+    for (const m of a.materials) { m.transparent = true; m.opacity = kind === 'umi' ? .5 : kind === 'rival' ? .45 : .38; m.depthWrite = false;
       const n = m.name.split('.')[0]; if (n === 'BoatPaint' || n === 'RacerPaint' || n === 'BoatLivery') m.color.set(GHOST_TINT[kind]); }
     a.root.traverse(o => { if (o.isMesh) o.renderOrder = 3; });
     scene.add(a.root); ghostActors.set(kind, a);
@@ -1033,7 +1046,7 @@ function flagStep(a, row, dt) {
   }
   f.cloth.geometry.attributes.position.needsUpdate = true; f.cloth.geometry.computeVertexNormals();
 }
-function rowsNow() { return fleet ? fleet.boats.filter(r => !r.gone) : [{ b: B, inp: input, no: 1 }]; }
+function rowsNow() { return fleet ? fleet.boats.filter(r => !r.gone) : [{ b: B, inp: input, no: 1 }, ...(typeof ashiRows === 'function' ? ashiRows() : [])]; }   // d355 足合わせの羽美
 function targetRow() { if (!fleet) return { b: B }; return focusRow() || fleet.boats[0]; }
 
 /* ---------- the camera ---------- */
@@ -1524,6 +1537,7 @@ function frame3d(now) {
   }
   markStep(dt, rows);
   // タイムアタックのゴースト (自己ベスト・相手): the same poses the 2D game draws, see-through
+  ashiZones3();   // d358 足合わせの得点の輪
   for (const gh of ghostActors.values()) gh.root.visible = false;
   if (typeof taGhostsNow === 'function') for (const { b, kind } of taGhostsNow()) {
     const a = ghostActor(kind);

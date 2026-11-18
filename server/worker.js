@@ -1,5 +1,6 @@
 // Honor for GP 波の向こうに — タイムアタック全体ランキング＋ゴースト共有（Cloudflare Workers + D1）
-// 版：server v2（2026-11-03）— v2：版（決まり）の一覧 GET /rules、運営だけの表ごと削除 DELETE /ranking?rules= と DELETE /official?rules=
+// 版：server v3（2026-11-18）— v3：足合わせ（チュートリアルの最終レッスン）の点数ランキング GET/POST /ashi、運営だけの表ごと削除 DELETE /ashi?rules=
+//   v2：版（決まり）の一覧 GET /rules、運営だけの表ごと削除 DELETE /ranking?rules= と DELETE /official?rules=
 // 必要な設定（Cloudflare の画面で）：
 //   D1 バインド   DB          … D1 データベース hfgp を結ぶ
 //   シークレット  ADMIN_KEY   … 運営用の合言葉（公式ゴーストの登録・不正記録の削除に使う）
@@ -18,6 +19,8 @@ const CFG = {
   rulesRe: /^honorGP\.ta\.[A-Za-z0-9_.-]{1,24}$/,   // タイムアタックの決まり（ゲームの TA.key）
   codeChars: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789',    // 読み間違えやすい 0 O 1 I は使わない
   codeLen: 6,
+  ashiRe: /^honorGP\.ashi\.[A-Za-z0-9_.-]{1,24}$/,   // 足合わせの決まり（ゲームの ASHI_K.rules）
+  ashiMax: 3000000,             // 足合わせの点数の上限（100点単位）
 };
 
 const SCHEMA = [
@@ -30,6 +33,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS official (id INTEGER PRIMARY KEY AUTOINCREMENT, rules TEXT NOT NULL, title TEXT NOT NULL, name TEXT NOT NULL,
      t REAL NOT NULL, ghost TEXT NOT NULL, at INTEGER NOT NULL, exp INTEGER)`,
   `CREATE TABLE IF NOT EXISTS hits (k TEXT PRIMARY KEY, n INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS ashi (id INTEGER PRIMARY KEY AUTOINCREMENT, rules TEXT NOT NULL, pid TEXT NOT NULL, name TEXT NOT NULL,
+     score INTEGER NOT NULL, grade TEXT, game TEXT, at INTEGER NOT NULL, UNIQUE(rules, pid))`,
+  `CREATE INDEX IF NOT EXISTS ashi_rank ON ashi(rules, score)`,
 ];
 let schemaReady = false;
 async function ensureSchema(env) {
@@ -225,6 +231,47 @@ async function adminDelete(req, env, table, id) {
   return json(req, env, { ok: true, changed: r.meta.changes });
 }
 
+// ---------- 足合わせ（v3）：点数は大きいほど上。1人1記録（前より高いときだけ入れ替わる） ----------
+function checkAshiRules(r) { if (typeof r !== 'string' || !CFG.ashiRe.test(r)) throw new Bad(400, '足合わせの決まりが不正です'); return r; }
+function checkAshiScore(v) { if (!(Number.isInteger(v) && v >= 0 && v <= CFG.ashiMax && v % 100 === 0)) throw new Bad(400, '点数が範囲外です'); return v; }
+async function ashiRanking(req, env, url) {
+  const rules = checkAshiRules(url.searchParams.get('rules'));
+  const limit = Math.max(1, Math.min(CFG.listMax, +url.searchParams.get('limit') || 50));
+  const { results } = await env.DB.prepare(`SELECT id, name, score, grade, game, at FROM ashi WHERE rules = ? ORDER BY score DESC, at ASC LIMIT ?`).bind(rules, limit).all();
+  const list = results.map((r, i) => ({ rank: i + 1, id: r.id, name: r.name, score: r.score, grade: r.grade, game: r.game, at: r.at }));
+  const total = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ashi WHERE rules = ?`).bind(rules).first()).n;
+  let me = null; const pid = url.searchParams.get('pid');
+  if (pid) {
+    const mine = await env.DB.prepare(`SELECT id, name, score, at FROM ashi WHERE rules = ? AND pid = ?`).bind(rules, String(pid).slice(0, 64)).first();
+    if (mine) {
+      const ahead = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ashi WHERE rules = ? AND (score > ? OR (score = ? AND at < ?))`).bind(rules, mine.score, mine.score, mine.at).first()).n;
+      me = { rank: ahead + 1, id: mine.id, name: mine.name, score: mine.score };
+    }
+  }
+  return json(req, env, { ok: true, rules, total, list, me }, 200, { 'Cache-Control': 'public, max-age=30' });
+}
+async function postAshi(req, env) {
+  const b = await readBody(req);
+  const rules = checkAshiRules(b.rules), score = checkAshiScore(b.score);
+  const pid = String(b.pid || ''); if (!/^[A-Za-z0-9_-]{16,64}$/.test(pid)) throw new Bad(400, '端末の番号が不正です');
+  await limitWrites(req, env);
+  const name = cleanName(b.name), grade = String(b.grade || '').slice(0, 4), game = String(b.game || '').slice(0, 12), now = Date.now();
+  const old = await env.DB.prepare(`SELECT id, score FROM ashi WHERE rules = ? AND pid = ?`).bind(rules, pid).first();
+  let improved = false;
+  if (!old) { await env.DB.prepare(`INSERT INTO ashi (rules, pid, name, score, grade, game, at) VALUES (?,?,?,?,?,?,?)`).bind(rules, pid, name, score, grade, game, now).run(); improved = true; }
+  else if (score > old.score) { await env.DB.prepare(`UPDATE ashi SET name=?, score=?, grade=?, game=?, at=? WHERE id=?`).bind(name, score, grade, game, now, old.id).run(); improved = true; }
+  else await env.DB.prepare(`UPDATE ashi SET name=? WHERE id=?`).bind(name, old.id).run();
+  const mine = await env.DB.prepare(`SELECT id, score, at FROM ashi WHERE rules = ? AND pid = ?`).bind(rules, pid).first();
+  const ahead = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ashi WHERE rules = ? AND (score > ? OR (score = ? AND at < ?))`).bind(rules, mine.score, mine.score, mine.at).first()).n;
+  return json(req, env, { ok: true, improved, id: mine.id, best: mine.score, rank: ahead + 1 });
+}
+async function adminClearAshi(req, env, url) {
+  if (!isAdmin(req, env)) throw new Bad(403, '運営の合言葉が違います');
+  const rules = checkAshiRules(url.searchParams.get('rules'));
+  const r = await env.DB.prepare(`DELETE FROM ashi WHERE rules = ?`).bind(rules).run();
+  return json(req, env, { ok: true, changed: r.meta.changes });
+}
+
 async function cleanup(env) {
   await ensureSchema(env);
   const now = Date.now(), keepHits = new Date(now - 2 * 864e5).toISOString().slice(0, 10);
@@ -243,8 +290,11 @@ export default {
       if (!env.DB) throw new Bad(500, 'D1 が結ばれていません（バインド名 DB）');
       await ensureSchema(env);
       let a;
-      if (p === '/' && m === 'GET') return json(req, env, { ok: true, service: 'hfgp-ranking', version: 2 });
+      if (p === '/' && m === 'GET') return json(req, env, { ok: true, service: 'hfgp-ranking', version: 3 });
       if (p === '/ranking' && m === 'GET') return await ranking(req, env, url);
+      if (p === '/ashi' && m === 'GET') return await ashiRanking(req, env, url);
+      if (p === '/ashi' && m === 'POST') return await postAshi(req, env);
+      if (p === '/ashi' && m === 'DELETE') return await adminClearAshi(req, env, url);
       if (p === '/score' && m === 'POST') return await postScore(req, env);
       if (p === '/score/withdraw' && m === 'POST') return await withdraw(req, env);
       if ((a = p.match(/^\/ghost\/(\d+)$/)) && m === 'GET') return await getRankGhost(req, env, +a[1]);

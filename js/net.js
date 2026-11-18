@@ -90,8 +90,8 @@ function netKeyChanged() { netVer = TA.key; const sel = $('rankVer'); if (sel) d
 venueHooks.push(netKeyChanged);
 async function netVerUi() {
   const sel = $('rankVer'); if (!sel) return;
-  sel.hidden = netTab === 'local';
-  if (netTab === 'local' || sel.dataset.loaded) return;
+  sel.hidden = netTab === 'local' || netTab === 'ashi';
+  if (netTab === 'local' || netTab === 'ashi' || sel.dataset.loaded) return;
   const add = (k, label) => { const had = [...sel.options].find(o => o.value === k); if (had) { had.textContent = label; return; } const o = document.createElement('option'); o.value = k; o.textContent = label; sel.appendChild(o); };
   add(TA.key, `${netVerName(TA.key)}（今の版）`);
   try { const j = await netCall('/rules'); for (const r of j.list) add(r.rules, `${netVerName(r.rules)}${r.rules === TA.key ? '（今の版）' : ''}　${r.n}人`); sel.dataset.loaded = '1'; } catch (e) {}
@@ -102,6 +102,9 @@ async function netShowTab(tab) {
   for (const b of document.querySelectorAll('#rankTabs button')) b.classList.toggle('ghost', b.dataset.tab !== tab);
   const box = $('rankList'), note = $('rankNote'), cur = netVer === TA.key, vtxt = cur ? '' : `（${netVerName(netVer)}の記録・ゴーストはこの版では走れません）`;
   box.textContent = ''; netVerUi();
+  if ($('rankSub')) $('rankSub').textContent = tab === 'ashi' ? '足合わせ（羽美と2周）' : 'タイムアタック（3周）';
+  if ($('rivalRow')) $('rivalRow').hidden = tab === 'ashi';
+  if (tab === 'ashi') { if (typeof ashiRankShow === 'function') ashiRankShow(box, note); return; }   // d362
   if (tab === 'local') { note.textContent = 'この端末で走った速い順に10位まで。プレイヤーの名前はメニューで登録できます。'; taRankTable(box); return; }
   if (tab === 'net') {
     note.textContent = `全国の自己ベスト（1人1記録）。上位${NET.list}位まで。「相手」でその人のゴーストと走れます（公開している人だけ）。${vtxt}`;
@@ -137,6 +140,19 @@ async function netResetTable() {
   if (netTab === 'local') {
     if (!confirm('端末内ランキングを全部消しますか？（自己ベストは残ります）')) return;
     taRankSave([]); netShowTab('local'); toast('ランキング', '端末内ランキングをリセットしました', 'info'); return;
+  }
+  if (netTab === 'ashi') {   // d362
+    if (confirm('足合わせの端末内ランキングを全部消しますか？')) { try { localStorage.removeItem(ASHI_K.rankKey); } catch (e) {} }
+    if (!confirm('足合わせの全体ランキングも全部消しますか？（元に戻せません）')) { netShowTab('ashi'); return; }
+    const key = prompt('運営の合言葉（ADMIN_KEY）'); if (!key) return;
+    try {
+      const r = await fetch(`${NET.url}/ashi?rules=${encodeURIComponent(ASHI_K.rules)}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + key }, cache: 'no-store' });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || r.status);
+      try { localStorage.removeItem(playerKey(ASHI_K.sentKey)); } catch (e) {}
+      toast('ランキング', `足合わせの全体ランキングをリセットしました（${j.changed}件）`, 'info');
+    } catch (e) { toast('ランキング', `リセットできませんでした：${e.message}`, 'bad'); }
+    netShowTab('ashi'); return;
   }
   const what = netTab === 'net' ? '全体ランキング' : '公式ゴースト', ver = netVerName(netVer);
   if (!confirm(`${ver} の${what}を全部消しますか？（元に戻せません）`)) return;

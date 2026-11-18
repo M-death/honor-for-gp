@@ -250,6 +250,7 @@ $('pmTA').addEventListener('click', () => { closeMenu(); if (fleet) quitFleet();
 const GHOST_STYLE = { hull: '#9fe8d4', num: '#0a2c38', label: 'G', helmet: '#9fe8d4' };
 const GHOST_IN = { thr: 0, steer: 0, roll: 0, pitch: 0 };
 function taDrawGhost() {
+  if (typeof TUT !== 'undefined' && TUT.on) { tutDrawGhost(); if (typeof ashiDraw === 'function') ashiDraw(); return; }   // d354 チュートリアルの羽美 (d355 足合わせは本物の艇)
   if (soloKind !== 'ta' || fleet || !(ta.on || ta.done)) return;
   if (taRival) taDrawOne(taRival, RIVAL_STYLE, 0.45);
   if (taBest && taBest.g) taDrawOne(taBest, GHOST_STYLE, 0.38);
@@ -270,6 +271,7 @@ function taGhostPose(src) {
   return gb;
 }
 function taGhostsNow() {   // [{b, kind: 'rival' | 'best'}] while a タイムアタック shows them
+  if (typeof TUT !== 'undefined' && TUT.on) return tutGhosts();   // d354: kind 'umi'
   if (soloKind !== 'ta' || fleet || !(ta.on || ta.done)) return [];
   const out = [], r = taRival && taGhostPose(taRival), m = taBest && taBest.g && taGhostPose(taBest);
   if (r) out.push({ b: r, kind: 'rival' }); if (m) out.push({ b: m, kind: 'best' });
