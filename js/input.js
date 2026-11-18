@@ -737,7 +737,9 @@ function judgeStart(st,at=time) {
 }
 
 /* ---------- keyboard ---------- */
-addEventListener('keydown', e => { if(lab.active || !$('labSetup').hidden || !$('slitPhoto').hidden)return; keys.add(e.code); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); if (e.code === 'Space' && !e.repeat && fleet && fleet.entry && fleet.playerNo) playerDash(); });
+// d353 (まえ: 名前入力でキーボード判定されない？): typing in a text box (名前・合言葉, IME included) never counts as a driving key
+const typingIn = e => { const t = e.target; return e.isComposing || e.keyCode === 229 || (t && (t.isContentEditable || t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && /^(text|search|email|password|url|tel|number)$/.test(t.type || 'text')))); };
+addEventListener('keydown', e => { if(lab.active || !$('labSetup').hidden || !$('slitPhoto').hidden || typingIn(e))return; keys.add(e.code); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); if (e.code === 'Space' && !e.repeat && fleet && fleet.entry && fleet.playerNo) playerDash(); });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
@@ -750,6 +752,7 @@ const THR_ZONE = { right: [.5, .68], center: [.41, .59], key: 'honorGP.touchThr'
 try { const v = localStorage.getItem(THR_ZONE.key); if (v === 'right' || v === 'center') THR_ZONE.pos = v; } catch (e) {}
 const thrPosNow = () => controlMode === 'tilt' || controlMode === 'pad' ? THR_ZONE.pos : 'left';
 function touchSide(x) {
+  if (controlMode === 'ctrl' || controlMode === 'key') return null;   // d351/d352: 5．コントローラー・6．キーボード — no driving by touch
   if (controlMode === 'wheel') return x < W * .5 ? null : 'thr';
   const pos = thrPosNow(); if (pos === 'left') return x < W * .5 ? 'thr' : 'steer';
   const [a, b] = THR_ZONE[pos]; return x < W * a ? null : x < W * b ? 'thr' : 'steer';
@@ -806,28 +809,29 @@ function resetVirtualPosture(){
    is the rudder left/right and the posture up/down (上 = 伏せる, 下 = 起こす・後ろ重心, so ウィリー / 後ろ重心 still work); the
    lean follows the rudder by itself — a little late and not all the way (FUSE.max), so leaning in by hand
    (modes 1–3) stays the faster way. FUSE.k: rudder share at which the lean is full; tau: its lag (s) */
-const noSensor = () => controlMode === 'pad' || controlMode === 'fuse';   // modes that never read the tilt sensor
+const noSensor = () => controlMode === 'pad' || controlMode === 'fuse' || controlMode === 'ctrl' || controlMode === 'key';   // modes that never read the tilt sensor
 const FUSE = { k: 2.2, max: .88, tau: .22, span: .2, pitch: 0, roll: 0 };
 function fuseLean(steer, dt) {
   const tgt = Math.sign(steer) * Math.min(FUSE.max, Math.abs(steer) * FUSE.k * FUSE.max);
   FUSE.roll += (tgt - FUSE.roll) * (1 - Math.exp(-dt / FUSE.tau)); return FUSE.roll;
 }
 async function setControlMode(mode,persist=true){
- if(!['tilt','pad','wheel','fuse'].includes(mode))mode='tilt';
+ if(!['tilt','pad','wheel','fuse','ctrl','key'].includes(mode))mode='tilt';
  controlMode=mode;virtualPosture.enabled=mode==='pad'||mode==='wheel';resetVirtualPosture();FUSE.pitch=FUSE.roll=0;
  for(const id of ptrs.keys())try{cv.releasePointerCapture(id);}catch(_){}ptrs.clear();steerTouch=false;keys.clear();sideOn('thr');sideOn('steer');
  raw.roll=raw.pitch=input.roll=input.pitch=input.steer=input.steerT=0;
  phoneWheel.base=phoneWheel.last=null;phoneWheel.kind=null;phoneWheel.value=phoneWheel.deg=0;
  $('controlMode').value=mode;if($('pmModeSel'))$('pmModeSel').value=mode;for(const e of document.querySelectorAll('[name="startControlMode"]'))e.checked=e.value===mode;
  $('postureStick').hidden=!virtualPosture.enabled;$('phoneSteerReadout').hidden=mode!=='wheel';$('wheelSettings').hidden=mode!=='wheel';
- document.body.classList.toggle('virtual-pad',virtualPosture.enabled);document.body.classList.toggle('phone-wheel',mode==='wheel');thrPosUi();
- const help={tilt:'左手でアクセル、右手で舵。スマホの左右・前後の傾きで姿勢を操作します。',pad:'左手側にアクセルと姿勢パッド、右手側に舵。傾きセンサーは停止します。',fuse:'左手でアクセル、右手は融合パッド：左右で舵（体の傾きは舵に合わせて自動）、上で伏せる・下で起こす。縦持ちでも遊べます。傾きセンサーは停止します。',wheel:'左手は姿勢パッド、右手はアクセル。スマホをハンドルのように時計回りで右舵、反時計回りで左舵。センサーは舵だけに使います。'};
+ document.body.classList.toggle('virtual-pad',virtualPosture.enabled);document.body.classList.toggle('phone-wheel',mode==='wheel');document.body.classList.toggle('ctrl-mode',mode==='ctrl');thrPosUi();
+ const help={tilt:'左手でアクセル、右手で舵。スマホの左右・前後の傾きで姿勢を操作します。',pad:'左手側にアクセルと姿勢パッド、右手側に舵。傾きセンサーは停止します。',fuse:'左手でアクセル、右手は融合パッド：左右で舵（体の傾きは舵に合わせて自動）、上で伏せる・下で起こす。縦持ちでも遊べます。傾きセンサーは停止します。',wheel:'左手は姿勢パッド、右手はアクセル。スマホをハンドルのように時計回りで右舵、反時計回りで左舵。センサーは舵だけに使います。',ctrl:'ボートの操作はコントローラーだけ（トリガー＝スロットル、右スティック＝舵、左スティック＝体重移動）。メニューや設定はマウス・タッチでも操作できます。タイムアタックのランキングはコントローラーの部で集計します。',key:'ボートの操作はキーボードだけ（W・S＝レバー、A・D＝舵、矢印＝体重移動）。メニューや設定はマウスでも操作できます。タイムアタックのランキングはキーボードの部で集計します。'};
  $('controlHelp').textContent=$('postureModeNote').textContent=help[mode];
- $('zero').disabled=mode==='pad'||mode==='fuse';$('zero').textContent=mode==='wheel'?'今の持ち方を舵の中央にする':'今の持ち方を姿勢の基準にする';
+ $('zero').disabled=mode==='pad'||mode==='fuse'||mode==='ctrl'||mode==='key';$('zero').textContent=mode==='wheel'?'今の持ち方を舵の中央にする':'今の持ち方を姿勢の基準にする';
  for(const id of ['invR','invP','sens'])$(id).disabled=mode!=='tilt';
  if(persist)try{localStorage.setItem('honorGP.controlMode',mode);}catch(_){}
  disableTiltInput();sensor.got=false;sensor.calib=null;sensor.last=null;sensor.src=null;gs.init=false;
- if(mode==='pad'||mode==='fuse')$('note').hidden=true;
+ if(typeof taKeyUpdate==='function')taKeyUpdate();
+ if(mode==='pad'||mode==='fuse'||mode==='ctrl'||mode==='key')$('note').hidden=true;
  else if(running){const ok=await enableTiltInput();if(controlMode===mode)afterStartCheck(ok);}
 }
 function moveVirtualPosture(e){
@@ -1060,9 +1064,13 @@ function readPad() {
   const thr = trig(pad.useRT ? 7 : 6);
   const steer = padDz(g.axes[2] || 0), roll = padDz(g.axes[0] || 0), pitch = -padDz(g.axes[1] || 0);
   if (thr > 0.02 || steer || roll || pitch) pad.seenAt = performance.now();
-  // once touched, the controller drives until it has sat idle for 3 s (so touch/keys can take back over)
-  if (pad.seenAt < 0 || performance.now() - pad.seenAt > 3000) return null;
-  return { thr, steer, roll, pitch };
+  // d351 (まえ: 操作モードにコントローラーを入れる。ボート操作はコントローラー、それ以外はマウスやタッチでも): in 5．コントローラー
+  // the pad always drives; in the other modes it never drives the boat (menus・視点 buttons still work) — the first stick/trigger
+  // in a run switches the mode to コントローラー (ranking: its own board)
+  if (controlMode === 'ctrl') return { thr, steer, roll, pitch };
+  if (!(thr > 0.02 || steer || roll || pitch)) return null;   // only a stick/trigger actually in use now switches
+  if (running && !paused && !(fleet && fleet.replay)) { setControlMode('ctrl'); toast('操作モード', '5．コントローラーにしました', 'info'); return { thr, steer, roll, pitch }; }
+  return null;
 }
 addEventListener('gamepadconnected', e => toast('コントローラ接続', `${pad.useRT ? '右' : '左'}トリガー＝スロットル／右スティック＝舵／左スティック＝体重移動`, 'info'));
 addEventListener('gamepaddisconnected', () => toast('コントローラ切断', 'タッチ・キーボード操作に戻りました', 'info'));
@@ -1176,6 +1184,7 @@ function willieDetect(tp, dt) {
   if (w.t - w.armed < P.win && squeezed && (!P.needDrop || w.t - w.dropAt < P.dropWin)) { input.willie = true; w.armed = -9; }
   w.prevThr = input.thr;
 }
+const DRIVE_KEYS = ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 function updateInput(dt) {
   const k = 1 - Math.exp(-dt * 10);
   const gp = readPad();
@@ -1190,17 +1199,28 @@ function updateInput(dt) {
     willieDetect(vp ? virtualPosture.pitch : gp.pitch, dt);
     return;
   }
-  if (keys.has('KeyW')) input.thr = Math.min(1, input.thr + dt * 1.2);
-  if (keys.has('KeyS')) input.thr = Math.max(0, input.thr - dt * 1.2);
-  const ks = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+  if (controlMode === 'ctrl') {   // d351: no controller (yet / unplugged): the lever closes, rudder and body centre — keys and touch don't drive
+    input.thr += (0 - input.thr) * k; input.steer += (0 - input.steer) * k; input.roll += (0 - input.roll) * k; input.pitch += (0 - input.pitch) * k;
+    willieDetect(input.pitch, dt); return;
+  }
+  // d352 (まえ: キーボードも6に): 6．キーボード drives by keys only; in 1〜4 the keys never drive — the first driving key in a run
+  // switches the mode to 6 (ranking: its own board), like the controller
+  if (controlMode !== 'key' && running && !paused && !(fleet && fleet.replay) && DRIVE_KEYS.some(c => keys.has(c))) {
+    const held = [...keys]; setControlMode('key'); for (const c of held) keys.add(c); toast('操作モード', '6．キーボードにしました', 'info');
+  }
+  const KEYM = controlMode === 'key';
+  if (KEYM && keys.has('KeyW')) input.thr = Math.min(1, input.thr + dt * 1.2);
+  if (KEYM && keys.has('KeyS')) input.thr = Math.max(0, input.thr - dt * 1.2);
+  const ks = KEYM ? (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0) : 0;
   const st = controlMode==='wheel'?phoneWheel.value:steerTouch ? input.steerT : ks;
   input.steer += (st - input.steer) * (1 - Math.exp(-dt * 9));
-  const kr = (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0);
-  const kp = (keys.has('ArrowUp') ? 1 : 0) - (keys.has('ArrowDown') ? 1 : 0);
+  const kr = KEYM ? (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0) : 0;
+  const kp = KEYM ? (keys.has('ArrowUp') ? 1 : 0) - (keys.has('ArrowDown') ? 1 : 0) : 0;
   let tr = raw.roll, tp = raw.pitch;
-  if(controlMode==='fuse'){tr=fuseLean(input.steer,dt);tp=steerTouch?FUSE.pitch:kp;}
-  else if(virtualPosture.enabled){tr=virtualPosture.roll;tp=virtualPosture.pitch;if(virtualPosture.pointer==null&&(kr||kp)){tr=kr;tp=kp;}}
-  else if (kr || kp || !sensor.got) { tr = kr; tp = kp; }
+  if (KEYM) { tr = kr; tp = kp; }
+  else if(controlMode==='fuse'){tr=fuseLean(input.steer,dt);tp=steerTouch?FUSE.pitch:0;}
+  else if(virtualPosture.enabled){tr=virtualPosture.roll;tp=virtualPosture.pitch;}
+  else if (!sensor.got) { tr = 0; tp = 0; }
   input.roll += (tr - input.roll) * k;
   input.pitch += (tp - input.pitch) * k;
   willieDetect(tp, dt);

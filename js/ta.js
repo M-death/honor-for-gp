@@ -76,6 +76,7 @@ function beginTA() {
   ta.rankPlace = 0; ta.rankAt = null;
   beginStart();
   soloKind = 'ta'; waterEnv = null;
+  ta.on = false; taKeyUpdate();   // d351: the board this run counts for (コントローラー or not)
   Object.assign(ta, { on: true, zero: SS.t0 + CLOCK, lastAt: SS.t0 + CLOCK, laps: [], st: null, path: [], nextPt: SS.t0, done: false, log: [], ev: [], corners: [], cur: null, cSide: -1 });
   if (VR) VR.begin('ta');
   toast(`タイムアタック（${VENUE.name}）`, `${playerName()}　大時計スタートから${TA.laps}周　${taBest ? '自己ベスト ' + fmtRT(taBest.t) : '走ったタイムで級を判定'}`, 'info');
@@ -288,7 +289,18 @@ let taRival = null;
 const taRivalLoad = () => { try { taRival = taGhostCheck(JSON.parse(localStorage.getItem(TA_GHOST.rivalKey) || 'null')); } catch (e) { taRival = null; } };
 taRivalLoad();
 // d236: another venue = another table — its own bests, device ranking and rival ghost (a ghost from the other venue doesn't load)
-venueHooks.push(() => { TA.key = TA.keyBase + VENUE.taSuffix; taReload(); taRivalLoad(); });
+venueHooks.push(() => taKeyUpdate(true));
+// d351 (まえ: ランキングはコントローラーとタッチで分ける): 5．コントローラー runs have their own records, ghosts and ranking (key + '.ctrl').
+// A run that used the controller at any point stays in the controller board until it ends (no switching back to touch mid-run).
+function taKeyUpdate(force) {
+  // d352: 6．キーボード too (key + '.key'). Strongest wins for a run that mixed them: コントローラー > キーボード > タッチ
+  const R = { '': 0, '.key': 1, '.ctrl': 2 }, now = controlMode === 'ctrl' ? '.ctrl' : controlMode === 'key' ? '.key' : '';
+  const was = ta.on ? (TA.key.endsWith('.ctrl') ? '.ctrl' : TA.key.endsWith('.key') ? '.key' : '') : '';
+  const k = TA.keyBase + VENUE.taSuffix + (R[was] > R[now] ? was : now);
+  if (k === TA.key && !force) return;
+  TA.key = k; taReload(); taRivalLoad(); if (typeof netKeyChanged === 'function') netKeyChanged();
+}
+taKeyUpdate(true);
 function taGhostFile(src) {
   return { format: TA_GHOST.format, version: TA_GHOST.version, game: GAME_VER, rules: TA.key, laps: TA.laps, dt: TA.ghostDt,
     name: playerName(), t: src.t, lapTimes: src.laps, st: src.st, rank: src.rank || taRank(src.t), at: src.at || Date.now(), g0: src.g0, g: src.g };

@@ -85,8 +85,9 @@ function netRivalBtn(label, load) {
 // d226 (まえ): the ranking can be shown by version (TA.key). The physics stays put, but a serious hole may get fixed — then TA.key moves on and
 // the old version's table stays readable here. Ghosts can only be raced on the version they were made on.
 let netVer = TA.key;
-const netVerName = k => { const m = k.replace(/^honorGP\.ta\./, '').split('.'); const v = m[1] && Object.values(VENUES_GEO).find(g => g.taSuffix === '.' + m[1]); return `${m[0]} ${v ? v.name : m[1] || VENUES_GEO.standard.name}`; };   // d236: the venue rides on the key
-venueHooks.push(() => { netVer = TA.key; const sel = $('rankVer'); if (sel) delete sel.dataset.loaded; });
+const netVerName = k => { const m = k.replace(/^honorGP\.ta\./, '').split('.'), ctrl = m.includes('ctrl'), kb = m.includes('key'), mm = m.filter(x => x !== 'ctrl' && x !== 'key'); const v = mm[1] && Object.values(VENUES_GEO).find(g => g.taSuffix === '.' + mm[1]); return `${mm[0]} ${v ? v.name : mm[1] || VENUES_GEO.standard.name}${ctrl ? '・コントローラー' : kb ? '・キーボード' : (+mm[0].slice(1) >= 350 ? '・タッチ' : '')}`; };   // d351: the controller board rides on the key too   // d236: the venue rides on the key
+function netKeyChanged() { netVer = TA.key; const sel = $('rankVer'); if (sel) delete sel.dataset.loaded; }
+venueHooks.push(netKeyChanged);
 async function netVerUi() {
   const sel = $('rankVer'); if (!sel) return;
   sel.hidden = netTab === 'local';
