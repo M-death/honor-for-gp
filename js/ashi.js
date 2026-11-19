@@ -99,6 +99,7 @@ function ashiHudStep(dt) {
   h.classList.toggle('hot', ASHI.comboT > 0); h.dataset.lv = ASHI.comboT > 0 ? String(Math.min(ASHI_K.multMax, 1 + Math.floor(ASHI.comboT / ASHI_K.multEvery))) : '0';
   const mult = Math.min(ASHI_K.multMax, 1 + Math.floor(ASHI.comboT / ASHI_K.multEvery));
   $('ashiCb').textContent = ASHI.comboT > 0 ? `コンボ ${ASHI.comboT.toFixed(0)}秒 ×${mult}${ASHI.turnOn ? '　ターン×2' : ''}${ASHI.pot ? '　+' + ashiFmt(ASHI.pot) : ''}` : '';
+  if (ASHI.phase === 'show' || (ASHI.phase === 'end' && ASHI.fin)) { $('ashiLbl').textContent = '足合わせ　確定'; $('ashiCb').textContent = ASHI.fin ? `ランク ${ASHI.fin.r}` : ''; h.classList.remove('hot'); h.dataset.lv = '0'; return; }
   const lapTxt = ASHI.phase === 'lead' ? 'スリットからスタート' : ASHI.phase === 'swap' ? '入れ替え中…スリットから2周目' : ASHI.phase === 'run' ? (ASHI.mB.lap < 1 ? '1周目・内側' : '2周目・外側') : '';
   $('ashiLbl').textContent = '足合わせ　' + lapTxt;
 }
@@ -106,7 +107,7 @@ function ashiHudStep(dt) {
 // ---- flow ----
 function ashiBegin() {
   ashiUi();
-  ASHI.on = true; ASHI.phase = 'lead'; Object.assign(ASHI, { score: 0, pot: 0, comboT: 0, tick: 0, out: 0, shown: 0, contactT: 0, capT: 0, swapSt: 0, uOff: ASHI_K.rU1, bOff: ASHI_K.rB1 });
+  ASHI.on = true; ASHI.phase = 'lead'; ASHI.fin = null; ASHI.kirai = false; Object.assign(ASHI, { score: 0, pot: 0, comboT: 0, tick: 0, out: 0, shown: 0, contactT: 0, capT: 0, swapSt: 0, uOff: ASHI_K.rU1, bOff: ASHI_K.rB1 });
   soloKind = 'tut'; resetBoat(); SS.phase = 'off'; $('clock').hidden = true; practiceSlit = null; meas.on = false;
   B.nobi = ASHI_K.nobi;
   const S0 = -75, pb = ashiLine(S0, ASHI_K.rB1), pu = ashiLine(S0, ASHI_K.rU1);
@@ -119,12 +120,65 @@ function ashiBegin() {
 }
 function ashiEnd() { ASHI.on = false; ASHI.phase = ''; ASHI.U = null; if ($('ashiHud')) $('ashiHud').hidden = true; }
 function ashiRank(s) { for (const [r, f] of ASHI_K.ranks) if (s >= ASHI_K.perfect * f) return r; return 'C'; }
-function ashiFinish() {
-  ASHI.score += ASHI.pot; ASHI.pot = 0; ASHI.phase = 'end';
-  const s = ASHI.score, r = ashiRank(s), nb = s > ASHI.best;
+// d363 (まえ): after lap 2 the score is fixed, then 羽美 says 「私の全速を見せてあげる、ついてきて」 and runs her real race
+// set-up — tilt 3.0, a ◎ motor — round 1M, down the back straight and round 2M; the player drives free with the usual
+// TA motor (top ≈80 km/h): follow her, or get passed. Blocking her on purpose (sitting in her path while she closes, or
+// hitting her) → 「いじわる、きらい」. The result card comes after her 2M.
+const ASHI_SHOW = { w: 9, look: 1.7, nobi: 1.07, deashi: 1.05, mMid: 1.05, endS: 3 * ASHI_L - MK + 20, maxT: 45, path: 2.6, ahead: 16, dodge: 7, blockK: 2.2 };
+// d364 (まえ: 羽美はガチのライン、もっと内側を、レース中と同じ感じで): the show lap follows her real TA line (TUT_PATH,
+// not the eased tutorial copy): 2–3 m off the marks, her own lean/trim from that run, flat out
+// w: the line near each mark pushed out by w m (tapering to nothing 40 m away) — her motor carries more speed than the TA one
+function ashiMakeRaw(w) { const n = TUT_PATH.length / 8, p = []; let s = 0;
+  for (let i = 0; i < n; i++) { const j = i * 8; let x = TUT_PATH[j], y = TUT_PATH[j + 1]; const mx = Math.sign(x) * MK, d = Math.hypot(x - mx, y);
+    if (d < 40 && d > 0.01) { const f = (d + w * (1 - d / 40)) / d; x = mx + (x - mx) * f; y *= f; }
+    if (i) s += Math.hypot(x - p[i - 1].x, y - p[i - 1].y);
+    p.push({ x, y, roll: TUT_PATH[j + 6], pitch: TUT_PATH[j + 7], s }); }
+  return { p, n, L: s + Math.hypot(p[0].x - p[n - 1].x, p[0].y - p[n - 1].y) }; }
+let ASHI_RAW = null;
+function ashiRawAt(S) {
+  const { p, n, L } = ASHI_RAW; const s = ((S % L) + L) % L; let lo = 0, hi = n - 1;
+  if (s >= p[n - 1].s) { const a = p[n - 1], b = p[0], f = (s - a.s) / (L - a.s); return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, roll: a.roll, pitch: a.pitch }; }
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (p[m].s <= s) lo = m; else hi = m; }
+  const a = p[lo], b = p[hi], f = (s - a.s) / ((b.s - a.s) || 1);
+  return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, roll: a.roll + (b.roll - a.roll) * f, pitch: a.pitch + (b.pitch - a.pitch) * f };
+}
+// her progress along the raw line: the nearest point a little ahead of the last
+function ashiRawTrack(b, S0) {
+  let best = S0, bd = 1e9; for (let d = -4; d <= 30; d += 0.5) { const q = ashiRawAt(S0 + d), e = (q.x - b.x) ** 2 + (q.y - b.y) ** 2; if (e < bd) { bd = e; best = S0 + d; } }
+  return best;
+}
+function ashiRawStart(b) { let best = 0, bd = 1e9; for (let s = 0; s < ASHI_RAW.L; s += 1) { const q = ashiRawAt(s), e = (q.x - b.x) ** 2 + (q.y - b.y) ** 2 + (Math.cos(b.a) * (q.x - b.x) + Math.sin(b.a) * (q.y - b.y) < 0 ? 1e6 : 0); if (e < bd) { bd = e; best = s; } } return best; }
+function ashiShowDrive(U, inp, dt) {
+  ASHI.rs = ashiRawTrack(U, ASHI.rs);
+  const look = Math.max(6, U.v * ASHI_SHOW.look), t = ashiRawAt(ASHI.rs + look), h = ashiRawAt(ASHI.rs + 3);
+  // dodging: the aim moves outside (to her left: the loops run clockwise) by ASHI.dodge
+  const ta = Math.atan2(t.y - U.y, t.x - U.x), ox = -Math.sin(ta) * ASHI.dodge, oy = Math.cos(ta) * ASHI.dodge;
+  let e = Math.atan2(t.y + oy - U.y, t.x + ox - U.x) - U.a; e = Math.atan2(Math.sin(e), Math.cos(e));
+  const k = 1 - Math.exp(-dt * 9), st = clamp(2.6 * e, -1, 1);
+  inp.steer += (st - inp.steer) * k;
+  inp.roll += (clamp(Math.min(h.roll, inp.steer * 1.3), -1, 1) - inp.roll) * k;
+  inp.pitch += (h.pitch - inp.pitch) * k;
+  inp.thr += ((ASHI.lift ? clamp(0.75 + 0.5 * (B.v - 1 - U.v), 0, 1) : 1) - inp.thr) * (1 - Math.exp(-dt * 6));
+}
+function ashiFix() {
+  ashiBank(); const s = ASHI.score, r = ashiRank(s), nb = s > ASHI.best;
   if (nb) { ASHI.best = s; try { localStorage.setItem(ASHI_K.key, String(s)); } catch (e) {} }
   ashiRankAdd(s, r);
-  const say = { SS: '…すごすぎ。わたしより、上手かも。', S: 'すごい…ずっと、となりにいた。', A: 'うん、いい感じ。…レースでも、こうやって並ぶの。', B: 'もうちょっと、寄ってきていいよ。', C: '…遠かったね。もう一回、走ろ。' }[r];
+  ASHI.fin = { s, r, nb };
+}
+function ashiShowBegin() {
+  ashiFix(); ASHI.phase = 'show'; ASHI_RAW = ashiMakeRaw(ASHI_SHOW.w); ASHI.rs = ashiRawStart(ASHI.U); ASHI.showT = 0; ASHI.blockT = 0; ASHI.kirai = false; ASHI.dodge = 0;
+  B.nobi = SOLO_MOTOR.nobi; B.deashi = SOLO_MOTOR.deashi; B.mMid = SOLO_MOTOR.mMid; B.mawari = SOLO_MOTOR.mawari;   // the player's full motor back (≈80 km/h)
+  Object.assign(ASHI.U, { tilt: 3, tiltTurn: 1, tiltFit: null, nobi: ASHI_SHOW.nobi, deashi: ASHI_SHOW.deashi, mMid: ASHI_SHOW.mMid, mawari: ASHI_SHOW.mMid });
+  tutBar('私の全速を見せてあげる、ついてきて');
+}
+function ashiKirai(why) {
+  if (ASHI.kirai) return; ASHI.kirai = true; ASHI.kiraiWhy = why; tutBar('いじわる、きらい');
+}
+function ashiFinish() {
+  ASHI.phase = 'end'; if (!ASHI.fin) ashiFix();
+  const { s, r, nb } = ASHI.fin;
+  const say = ASHI.kirai ? '…じゃましたでしょ。いじわる。きらい。' : { SS: '…すごすぎ。わたしより、上手かも。', S: 'すごい…ずっと、となりにいた。', A: 'うん、いい感じ。…レースでも、こうやって並ぶの。', B: 'もうちょっと、寄ってきていいよ。', C: '…遠かったね。もう一回、走ろ。' }[r];
   tutTalk('足合わせ　結果', [`${ashiFmt(s)} 点　ランク ${r}${nb ? '　自己ベスト！' : `　（ベスト ${ashiFmt(ASHI.best)}）`}`, say], '',
     [['次へ', () => { ashiEnd(); tutStep(TUT.step + 1); }, true], ['もう一回', () => { tutGo(); ashiBegin(); }]]);
   // d362 (まえ): a personal best can go to the 全体ランキング straight from the result card
@@ -162,10 +216,12 @@ function ashiStep(dt) {
   const U = ASHI.U, gap = ASHI.mB.S - ASHI.mU.S;
   // her line: outside on lap 1 and in the lead-in, inside once the swap has moved the player out
   if (ASHI.phase === 'swap' && ASHI.swapSt >= 1 && ASHI.bOff > ASHI_K.rB1 + 3.5) ASHI.uOff = Math.max(ASHI_K.rU2, ASHI.uOff - dt * 3);
-  ashiDrive(U, ASHI.uin, ASHI.mU, ASHI.uOff, ASHI.phase === 'swap' ? clamp(Math.max(B.v, ashiUmiV(0) - 3) + 0.6 * (gap - (ASHI.want || 0)), 6, ASHI_K.vMax) : ashiUmiV(gap), dt);
+  if (ASHI.phase === 'show') ashiShowDrive(U, ASHI.uin, dt);
+  else ashiDrive(U, ASHI.uin, ASHI.mU, ASHI.uOff, ASHI.phase === 'swap' ? clamp(Math.max(B.v, ashiUmiV(0) - 3) + 0.6 * (gap - (ASHI.want || 0)), 6, ASHI_K.vMax) : ashiUmiV(gap), dt);
   boatPhysics(U, ASHI.uin, dt);
   if (U.cap <= 0) boatFx(U, wake, dt);
   if (U.cap > 0 && U.cap < 0.05) { const p = ashiLine(ASHI.mU.S, ASHI.uOff); Object.assign(U, { x: p.x, y: p.y, a: p.a, v: 12, cap: 0 }); }
+  ASHI.bInto = ashiInto(B, U); ASHI.uInto = ashiInto(U, B);   // d363: who pressed into whom, before the contact resolves
   const evs = (B.cap > 0 || U.cap > 0) ? [] : boatContacts([B, U]);
   ASHI.contactT = Math.max(0, ASHI.contactT - dt);
   // phases by the player's progress (S = 0 is the slit)
@@ -173,7 +229,8 @@ function ashiStep(dt) {
   if (ASHI.phase === 'lead' && S >= 0) { ASHI.phase = 'run'; tutBar('スタート！　…となり、離れないでね。'); }
   else if (ASHI.phase === 'run' && ASHI.mB.lap === 0 && S >= ASHI_SWAP) { ashiBank(); ASHI.phase = 'swap'; ASHI.swapSt = 0; ASHI.want = -9; ASHI.hand = { thr: input.thr, steer: input.steer, roll: input.roll, pitch: input.pitch }; tutBar('入れ替えるね。スリットから、今度は外側。'); }
   else if (ASHI.phase === 'swap' && S >= ASHI_L) { ASHI.phase = 'run'; ASHI.bOff = ASHI_K.rB2; ASHI.uOff = ASHI_K.rU2; ASHI.hand = null; tutBar('2周目！　外から、ついてきて。'); }
-  else if (ASHI.phase === 'run' && S >= 2 * ASHI_L) { ashiFinish(); return; }
+  else if (ASHI.phase === 'run' && S >= 2 * ASHI_L) { ashiShowBegin(); return; }
+  if (ASHI.phase === 'show') { ashiShowStep(dt, evs); return; }
   if (ASHI.phase !== 'run') return;
   // the player capsized: the combo is gone, back alongside her
   if (B.cap > 0) { if (ASHI.comboT) ashiLose('…だいじょうぶ？'); ASHI.capT += dt;
@@ -193,6 +250,28 @@ function ashiStep(dt) {
     // d360 (まえ: コンボは継続しながら3秒ごとに加点): every 3 s of an unbroken combo its points go into the score
     ASHI.commitT = (ASHI.commitT || 0) + dt; if (ASHI.commitT >= ASHI_K.commit) { ASHI.commitT = 0; ashiCommit(); }
   } else if (ASHI.pot || ASHI.comboT) { ASHI.out += dt; if (ASHI.out > ASHI_K.grace) ashiBank(); }
+}
+// d363 the show run: she drives flat out; a player in her path ahead makes her swing wide, then lift; staying there = blocking
+function ashiInto(a, c) {   // a's sideways speed toward c, across the two boats' mean heading (a rear-end by c isn't a's doing)
+  const mx = Math.cos(a.a) + Math.cos(c.a), my = Math.sin(a.a) + Math.sin(c.a), ml = Math.hypot(mx, my) || 1;
+  let nx = -my / ml, ny = mx / ml; if ((c.x - a.x) * nx + (c.y - a.y) * ny < 0) { nx = -nx; ny = -ny; }
+  const fx = Math.cos(a.a), fy = Math.sin(a.a); return Math.max(0, (fx * a.v - fy * (a.vl || 0)) * nx + (fy * a.v + fx * (a.vl || 0)) * ny); }
+function ashiShowStep(dt, evs) {
+  const U = ASHI.U, K = ASHI_SHOW; ASHI.showT += dt;
+  const fx = Math.cos(U.a), fy = Math.sin(U.a), dx = B.x - U.x, dy = B.y - U.y, fw = dx * fx + dy * fy, lat = -dx * fy + dy * fx;
+  // her path = the line she is on a little ahead (the dodge widens it, away from the centreline)
+  // her raw line level with the player, and that line moved out by her dodge (outside = her left: the loops run clockwise)
+  const r0 = ashiRawAt(ASHI.rs + Math.max(2, fw)), r1 = ashiRawAt(ASHI.rs + Math.max(2, fw) + 1), ta = Math.atan2(r1.y - r0.y, r1.x - r0.x);
+  const rawD = Math.hypot(B.x - r0.x, B.y - r0.y), dodD = Math.hypot(B.x - (r0.x - Math.sin(ta) * ASHI.dodge), B.y - (r0.y + Math.cos(ta) * ASHI.dodge));
+  const near = B.cap <= 0 && fw > -4 && fw < K.ahead && U.v > B.v - 1;
+  ASHI.dodge = near && rawD < K.path + 1.5 ? Math.min(K.dodge, ASHI.dodge + dt * 5) : near && ASHI.dodge > 0 && fw > -4 ? ASHI.dodge : Math.max(0, ASHI.dodge - dt * 1.5);
+  ASHI.lift = B.cap <= 0 && fw > 2 && fw < 9 && dodD < K.path && U.v > B.v + 0.5;   // still in her way on the line she swung out to: she has to ease
+  if (ASHI.lift) ASHI.blockT += dt; else ASHI.blockT = Math.max(0, ASHI.blockT - dt * 0.25);
+  if (ASHI.blockT > K.blockK) ashiKirai('block');
+  if (evs.length && !ASHI.contactT) { ASHI.contactT = 1; sfxHit && sfxHit(B.x, B.y, 4); hapticShot && hapticShot(0.2, 0.8);
+    if (ASHI.bInto > 2 * ASHI.uInto + 1 || ASHI.blockT > 0.4) ashiKirai(`hit ${ASHI.bInto.toFixed(1)}/${ASHI.uInto.toFixed(1)}`); }
+  if (B.cap > 0) { ASHI.capT += dt; if (ASHI.capT > 2.2) { ASHI.capT = 0; const p = ashiLine(ASHI.mU.S - 15, ASHI_K.rB2); Object.assign(B, { x: p.x, y: p.y, a: p.a, v: 12, cap: 0, vl: 0, yaw: 0 }); ASHI.mB = ashiMatcher(ASHI.mU.S - 15); } }
+  if (ASHI.mU.S >= K.endS || ASHI.showT > K.maxT) ashiFinish();
 }
 // d359 (まえ: 連続コンボ加算中は数字の動きをだんだん派手に): each tick a +N rises from the score and the number kicks,
 // both bigger with the combo level; level ups flash ×N; the score itself grows, glows, burns and goes rainbow (CSS data-lv)
@@ -238,6 +317,7 @@ function ashiLose(say) {
 const ashiValidIn = () => !(ASHI.phase === 'swap' || (ASHI.mB && ASHI.mB.lap >= 1));   // the player's scoring side: her inside on lap 1
 function ashiDraw() {
   if (!ASHI.on || !ASHI.U) return;
+  if (ASHI.phase === 'show' || ASHI.phase === 'end') { drawBoatAt(ASHI.U, ASHI.uin, UMI_REAL, false); return; }
   const U = ASHI.U, R = ASHI_K.lv, cx = U.x + Math.cos(U.a) * 0.66, cy = U.y + Math.sin(U.a) * 0.66;   // hull middle
   ctx.save();
   // the scoring half gold, the other half grey (d361)
@@ -253,7 +333,7 @@ function ashiDraw() {
   drawBoatAt(U, ASHI.uin, UMI_REAL, false);
 }
 // for play3d: [radius, alpha] from the outside in, centre
-function ashiZones() { if (!ASHI.on || !ASHI.U) return null; return { x: ASHI.U.x + Math.cos(ASHI.U.a) * 0.66, y: ASHI.U.y + Math.sin(ASHI.U.a) * 0.66, h: ASHI.U.a, vin: ashiValidIn(), r: ASHI_K.lv, a: ASHI_K.zoneA.map((a, i) => a * (ASHI.zone === i ? 1.6 : 1)), b: ASHI_K.zoneA.map(a => a * 0.8) }; }
+function ashiZones() { if (!ASHI.on || !ASHI.U || ASHI.phase === 'show' || ASHI.phase === 'end') return null; return { x: ASHI.U.x + Math.cos(ASHI.U.a) * 0.66, y: ASHI.U.y + Math.sin(ASHI.U.a) * 0.66, h: ASHI.U.a, vin: ashiValidIn(), r: ASHI_K.lv, a: ASHI_K.zoneA.map((a, i) => a * (ASHI.zone === i ? 1.6 : 1)), b: ASHI_K.zoneA.map(a => a * 0.8) }; }
 function ashiRows() { return ASHI.on && ASHI.U ? [{ b: ASHI.U, inp: ASHI.uin, no: 6, body: { sex: 'f', height: 145 } }] : []; }
 { const _ui = updateInput; updateInput = function (dt) { _ui(dt); ashiInput(dt); }; }
 { const _st = step; step = function (dt) { _st(dt); ashiStep(dt); if (ASHI.on) ashiHudStep(dt); }; }

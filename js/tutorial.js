@@ -32,10 +32,20 @@ function tutMatch(b) {
   const { p, n } = TP; let best = TUT.idx, bd = 1e9;
   for (let k = -15; k <= 60; k++) { const i = (TUT.idx + k + n) % n, d = (p[i].x - b.x) ** 2 + (p[i].y - b.y) ** 2; if (d < bd) { bd = d; best = i; } }
   if (best < TUT.idx - n / 2) TUT.lap++; else if (best > TUT.idx + n / 2) TUT.lap--;
-  TUT.idx = best; TUT.S = TUT.lap * TP.L + p[best].s; TUT.off = Math.sqrt(bd);
+  // d365: the point between the nearest path points (the path points are ~2 m apart; snapping to them made her jump)
+  const a = p[best], c = p[(best + 1) % n], sx = c.x - a.x, sy = c.y - a.y, sl2 = sx * sx + sy * sy || 1;
+  const f = clamp(((b.x - a.x) * sx + (b.y - a.y) * sy) / sl2, -1, 1), segL = best + 1 < n ? c.s - a.s : TP.L - a.s;
+  TUT.idx = best; TUT.S = TUT.lap * TP.L + a.s + f * segL; TUT.off = Math.sqrt(bd);
+}
+// d365 (まえ: チュートリアルの羽美の動きがガクガク): her place runs smoothly at the player's speed, eased toward
+// 「lead m ahead of the player」 — it used to be pinned to the player's position, so every wobble of the player moved her
+function tutGhostRun(dt) {
+  const tgt = TUT.S + TUT.lead;
+  if (TUT.gS == null || Math.abs(tgt - TUT.gS) > 25) TUT.gS = tgt;
+  TUT.gS += Math.max(0, Math.max(0, B.v) + 0.8 * (tgt - TUT.gS)) * dt;
 }
 function tutGhostPose() {
-  const g = tutAt(TUT.S + TUT.lead), nx = tutAt(TUT.S + TUT.lead + 0.6);
+  const gS = TUT.gS != null ? TUT.gS : TUT.S + TUT.lead, g = tutAt(gS), nx = tutAt(gS + 0.6);
   const gb = { x: g.x, y: g.y, a: g.a, v: g.v, vl: 0, yaw: 0, porp: 0, cap: 0, load: 0 };
   const dx = nx.x - g.x, dy = nx.y - g.y, fx = Math.cos(g.a), fy = Math.sin(g.a);
   gb.slip = Math.atan2(-fy * dx + fx * dy, Math.max(0.05, fx * dx + fy * dy));
@@ -191,7 +201,7 @@ function tutAssist(dt) {
   if (!TUT.on || TUT.phase !== 'run' || paused) return;
   const st = TUT_STEPS[TUT.step]; if (!st || st.clock || st.ashi) return;
   if (B.cap > 0) return;
-  tutMatch(B);
+  tutMatch(B); tutGhostRun(dt);
   // her hands keep their own smoothed values (updateInput rewrites input.* from the player's touch every frame)
   const here = tutAt(TUT.S), k = 1 - Math.exp(-dt * 8), H = TUT.hand || (TUT.hand = { thr: input.thr, steer: 0, roll: 0, pitch: 0 });
   for (const ch of st.auto) {
