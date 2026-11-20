@@ -23,6 +23,7 @@ function actorFor(row) {
   const key = lane + '|' + sex;
   let a = actors.get(key);
   if (!a) { a = set.create({ lane, sex, heightCm: 165 }); a.root.visible = false; scene.add(a.root); actors.set(key, a); hullColor(a, lane); }
+  if (a.setSuit) a.setSuit(row.racerId || row.name || row.no);   // d369
   a.heightCm = limit(body.height || (sex === 'f' ? 157 : 165), 140, 200);
   return a;
 }

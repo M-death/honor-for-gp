@@ -5,7 +5,7 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1', 'venue-layout-v1', 'race-info-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1', 'venue-layout-v1', 'race-info-v1', 'sky-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
   audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163',    // d236: venue fields come from VENUE (練習コース: 'standard' v1, 住之江: 'suminoe' v2)
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
@@ -388,6 +388,7 @@ VR = (() => {
       : { grade: !R.solo && sgMode ? 'SG' : null, venueName: VENUE.name, venueId: VENUE.id, date: null, ...(R.info || (R.info = raceInfo(R.mode, R.tod))) };   // d249 venue; d250 race-info-v1
     const env = Object.assign(R.solo || !waterEnv ? { calm: true, laps: R.solo ? TA.laps : 3 } : { laps: raceLaps(), dir: waterEnv.dir, wind: waterEnv.wind, windVec: { wx: waterEnv.wx, wy: waterEnv.wy },
       tideFlow: waterEnv.cx, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, tideLv: waterEnv.tideLv }, { timeOfDay: R.tod || (R.night ? 'night' : 'day'), lighting: { night: 'floodlights', evening: 'sunset' }[R.tod || (R.night ? 'night' : 'day')] || 'daylight' });   // d217 ナイトレース
+    env.sky = vlogSky(env);   // d368 (まえ: リプレイにも季節の空・星座・月を) the same values play3d.js draws the 3D sky with
     let seedH = 2166136261; for (const ch of R.id) seedH = Math.imul(seedH ^ ch.charCodeAt(0), 16777619) >>> 0;
     return {
       mode: R.mode, sg: !R.solo && !!sgMode, race, setsu: st ? { day: st.day, race: st.R, kind: st.kind || null } : null, entryResult: !R.solo && fleet.entryResult ? fleet.entryResult.text : null,
@@ -538,3 +539,19 @@ if ($('vlogOn')) {
 if ($('vlHold')) $('vlHold').addEventListener('click', () => { vlHold = !vlHold; vlUi(); });
 if ($('resVid')) $('resVid').addEventListener('click', () => { clearTimeout(resTimer); resTimer = 0; clearInterval(resCountT); resCountT = 0; VR.save($('resVidMsg')); });
 if ($('taVid')) $('taVid').addEventListener('click', () => VR.save($('taVidMsg')));
+
+// d368 sky-v1: season (clouds + constellations) and moon phase as play3d.js uses them (seasonNow / moonPhase), so a replay can draw the same sky.
+// 節間: the 節's season and its moon (setsu.moon + day/29.53); otherwise the device clock's month and the real moon.
+function vlogSky(env) {
+  const inSetsu = typeof setsu !== 'undefined' && setsu && typeof fleet !== 'undefined' && fleet && fleet.setsu;
+  const month = new Date().getMonth() + 1, byMonth = month >= 3 && month <= 5 ? 'spring' : month >= 6 && month <= 8 ? 'summer' : month >= 9 && month <= 11 ? 'autumn' : 'winter';
+  const season = inSetsu && setsu.season || byMonth;   // = play3d.js seasonNow()
+  const syn = 29.530589, real = (((Date.now() - Date.UTC(2000, 0, 6, 18, 14)) / 864e5 / syn) % 1 + 1) % 1;
+  let ph = real;   // play3d.js moonPhase() (play3d keeps it to itself, so the same rule here)
+  if (inSetsu) { if (setsu.moon == null) setsu.moon = Math.random(); ph = (setsu.moon + (setsu.day || 0) / syn) % 1; }
+  const tod = env && env.timeOfDay || 'day', rain = !!(env && env.rain);
+  return { v: 'sky-v1', season, clouds: rain ? 'rain' : season, constellations: season, moonPhase: +ph.toFixed(4),
+           moonVisible: tod === 'night' && !rain && ph > .06 && ph < .72,   // = play3d.js SKY3.moonFrom / moonTo (waning moons rise after the last race)
+           source: inSetsu ? 'setsu' : 'clock', localDate: (d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'))(new Date()),
+           note: 'season spring|summer|autumn|winter (clouds: 春 霞 / 夏 入道雲 / 秋 うろこ・すじ雲 / 冬 層積雲 / rain 一面); moonPhase 0 new → .5 full → 1; at dusk the moon stands phase×360° east of the sun (play3d.js SKY3/CONST3)' };
+}

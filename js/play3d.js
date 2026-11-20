@@ -99,7 +99,7 @@ function loadText() {
   return `3D組み立て中… ${sec}秒`;
 }
 // d324: rig_rest.json and the 12 number textures are in hfgp3d-glb.js too (tools/embed_hfgp3d.py) — 組み立て asks the network for nothing
-const EMB = /(runtime\/rig_rest\.json|textures\/[a-z_]+_\d\.png)$/;
+const EMB = /(runtime\/rig_rest\.json|textures\/[a-z_]+_\d\.png|textures\/racer_real_[a-z]+_[a-z]+_[12]k\.(?:png|jpg))$/;   // d369: + the realistic racers' textures
 function embedded(url) { const E = window.HFGP3D_GLB, m = E && EMB.exec(String(url).split('?')[0]); return m && E[m[1]] || null; }
 if (!window.fetch._p3d) {
   const _fetch = window.fetch;
@@ -123,7 +123,7 @@ if (!GLTFLoader.prototype._p3d) {
   // d320: count the number-plate textures while the phone set is put together
   const _texLoad = THREE.TextureLoader.prototype.load;
   THREE.TextureLoader.prototype.load = function (url, onLoad, onProg, onErr) {
-    const em = embedded(url); if (em) url = 'data:image/png;base64,' + em;   // d324: the number textures come in hfgp3d-glb.js
+    const em = embedded(url); if (em) url = 'data:image/' + (/\.jpg$/.test(String(url).split('?')[0]) ? 'jpeg' : 'png') + ';base64,' + em;   // d324: the number textures come in hfgp3d-glb.js
     if (LOADP.stage !== 'build') return _texLoad.call(this, url, onLoad, onProg, onErr);
     loadStep('tex'); return _texLoad.call(this, url, t => { LOADP.tex++; onLoad && onLoad(t); }, onProg, onErr);
   };
@@ -976,6 +976,7 @@ function actorFor(row) {
   const body = row.body || {}, sex = body.sex === 'f' ? 'f' : 'm', lane = lim(Math.round(row.no || 1), 1, 6), key = lane + '|' + sex;
   let a = actors.get(key);
   if (!a) { a = set.create({ lane, sex, heightCm: 165 }); scene.add(a.root); actors.set(key, a); }
+  if (a.setSuit) a.setSuit(row.racerId || row.name || row.no);   // d369: the inner suit's colours follow the racer (as in the replay)
   a.heightCm = lim(body.height || (sex === 'f' ? 157 : 165), 140, 200);
   return a;
 }
@@ -998,7 +999,7 @@ function ghostActor(kind) {
   if (!a) {
     a = set.create({ lane: 1, sex: 'm', heightCm: 165 });
     for (const m of a.materials) { m.transparent = true; m.opacity = kind === 'umi' ? .5 : kind === 'rival' ? .45 : .38; m.depthWrite = false;
-      const n = m.name.split('.')[0]; if (n === 'BoatPaint' || n === 'RacerPaint' || n === 'BoatLivery') m.color.set(GHOST_TINT[kind]); }
+      const n = m.name.split('.')[0]; if (n === 'BoatPaint' || n === 'RacerPaint' || n === 'BoatLivery' || n === 'RacerReal') m.color.set(GHOST_TINT[kind]); }
     a.root.traverse(o => { if (o.isMesh) o.renderOrder = 3; });
     scene.add(a.root); ghostActors.set(kind, a);
   }

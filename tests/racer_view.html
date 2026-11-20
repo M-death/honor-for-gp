@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><title>racer view</title>
+<style>body{margin:0;background:#9cc}</style>
+<script type="importmap">{"imports":{"three":"../hfgp3d/viewer/vendor/three.module.js"}}</script>
+<script type="module">
+// d369 test page: the 6 racers close up (tests/racer_view.html?tier=mobile|pc1080ti&pose=cruise|turn)
+import * as THREE from 'three';
+import { loadAssetSet } from '../hfgp3d/runtime/boat_actor.js';
+const q = new URLSearchParams(location.search), tier = q.get('tier') || 'mobile', pose = q.get('pose') || 'cruise', side = +(q.get('yaw') || 0.6);
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(1600, 900); r.outputColorSpace = THREE.SRGBColorSpace; document.body.appendChild(r.domElement);
+const sc = new THREE.Scene(); sc.background = new THREE.Color('#a9cfe0');
+sc.add(new THREE.HemisphereLight('#ffffff', '#5a7080', 1.6)); const sun = new THREE.DirectionalLight('#fff4e0', 2.4); sun.position.set(5, 10, 6); sc.add(sun);
+const cam = new THREE.PerspectiveCamera(30, 16 / 9, .1, 100);
+const set = await loadAssetSet('../hfgp3d/', tier);
+for (let i = 0; i < 6; i++) {
+  const a = set.create({ lane: i + 1, sex: i % 2 ? 'f' : 'm', heightCm: 165 }); a.setSuit('racer' + i);
+  a.setGameTransform({ x: (i - 2.5) * 2.1, y: 0, modelYaw: side }); a.setLOD(0);
+  a.updatePose(pose === 'turn' ? { roll: -0.9, pitch: 0.3, turn: 1, steer: -.4, wheel: -.5 } : { pitch: .5 });
+  sc.add(a.root);
+}
+cam.position.set(0, 3.2, 9.5); cam.lookAt(0, .7, 0);
+r.render(sc, cam); window.done = true;
+</script>

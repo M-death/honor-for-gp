@@ -6,6 +6,8 @@ root = Path(__file__).resolve().parents[1]
 parts = []
 for f in sorted((root / 'hfgp3d/pc1080ti').glob('*.glb')):
     parts.append(f'  "pc1080ti/{f.name}": "' + base64.b64encode(f.read_bytes()).decode('ascii') + '"')
+for f in sorted((root / 'hfgp3d/textures').glob('*_2k.*')):   # d369: realistic racers' PC textures
+    parts.append(f'  "textures/{f.name}": "' + base64.b64encode(f.read_bytes()).decode('ascii') + '"')
 (root / 'js/hfgp3d-glb-pc.js').write_text(
     '// PC画質の 3D モデル（hfgp3d/pc1080ti）を埋め込んだもの。tools/embed_hfgp3d_pc.py で作り直す。\n'
     'window.HFGP3D_GLB = Object.assign(window.HFGP3D_GLB || {}, {\n' + ',\n'.join(parts) + '\n});\n', encoding='utf-8')

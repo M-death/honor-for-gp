@@ -9,7 +9,8 @@ for f in sorted((root / 'hfgp3d/mobile').glob('*.glb')):
     parts.append(f'  "mobile/{f.name}": "' + base64.b64encode(f.read_bytes()).decode('ascii') + '"')
 # d324 (まえ: Wi-Fi の調子が悪いと「組み立て中」が終わらなかった): the rig and the 12 number textures ride along too, so 組み立て
 # needs no request of its own (play3d.js answers fetch / TextureLoader from these)
-for f in [root / 'hfgp3d/runtime/rig_rest.json', *sorted((root / 'hfgp3d/textures').glob('*.png'))]:
+# d369: the realistic racers' phone textures (racer_real_*_1k) too; the 2k ones go with the PC models (embed_hfgp3d_pc.py)
+for f in [root / 'hfgp3d/runtime/rig_rest.json', *sorted(f for f in (root / 'hfgp3d/textures').glob('*.*') if f.suffix in ('.png', '.jpg') and '_2k.' not in f.name)]:
     parts.append(f'  "{f.parent.name}/{f.name}": "' + base64.b64encode(f.read_bytes()).decode('ascii') + '"')
 (root / 'js/hfgp3d-glb.js').write_text(
     '// 3D（新モデル）の GLB（hfgp3d/mobile）をそのまま埋め込んだもの。tools/embed_hfgp3d.py で作り直す。\n'

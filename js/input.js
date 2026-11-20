@@ -353,7 +353,7 @@ function updateAudioAll() { updateAudio(); try { updateBgm(); } catch (e) {} }
    goal   the fanfare: once, the moment the player finishes (or, if out of the race, when it's over), or a タイムアタック ends
    A track that runs out loops its [loopA, loopB] (bar-aligned, chosen by ear-free analysis of the files). */
 const BGM = { sync: 0.3, fade: 1.0, goalFade: 0.25,
-  enabled: false, tr: {},   // d209: everything about the tracks lives in bgm/bgm.json (enabled, file, loop, startAt, from) — swap music there, see bgm/BGM.md
+  enabled: false, tr: {}, free: false,   // d209: everything about the tracks lives in bgm/bgm.json (enabled, file, loop, startAt, from) — swap music there, see bgm/BGM.md
   keep: ['menu', 'goal'] };   // buffers kept decoded; the long ones are dropped when not in use (a 3-minute track is ~70 MB decoded)
 function bgmConfig() {
   const show = on => { for (const id of ['bgmOn', 'bgmVol']) { const el = $(id); if (el && el.closest('label')) el.closest('label').hidden = !on; } };
@@ -361,8 +361,8 @@ function bgmConfig() {
   try { fetch('bgm/bgm.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
     if (!j || !j.tracks) return;
     const tr = {};
-    for (const k of ['menu', 'race', 'race2', 'ta', 'goal']) { const t = j.tracks[k]; if (t && t.file) tr[k] = { file: 'bgm/' + t.file, loop: Array.isArray(t.loop) && t.loop[1] > t.loop[0] ? t.loop : null, startAt: +t.startAt || 0, from: +t.from || 0, once: k === 'goal' }; }
-    BGM.tr = tr; BGM.enabled = !!j.enabled; show(BGM.enabled);
+    for (const k of ['title', 'menu', 'race', 'race2', 'ta', 'tut', 'goal']) { const t = j.tracks[k]; if (t && t.file) tr[k] = { file: 'bgm/' + t.file, loop: Array.isArray(t.loop) && t.loop[1] > t.loop[0] ? t.loop : null, startAt: +t.startAt || 0, from: +t.from || 0, once: k === 'goal' }; }
+    BGM.tr = tr; BGM.enabled = !!j.enabled; BGM.free = !!j.free; show(BGM.enabled);
   }).catch(() => {}); } catch (e) {}
 }
 const bgm = { on: true, vol: 0.6, buf: {}, loading: {}, cur: null, out: null, goal: null, goalKey: null, mem: {} };
@@ -371,7 +371,7 @@ function bgmLoad(key) {
   if (!snd.ctx || !BGM.tr[key] || bgm.buf[key] || bgm.loading[key]) return;
   bgm.loading[key] = fetch(BGM.tr[key].file).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
     .then(ab => new Promise((ok, ng) => { const p = snd.ctx.decodeAudioData(ab, ok, ng); if (p && p.then) p.then(ok, ng); }))
-    .then(b => { bgm.buf[key] = b; }).catch(() => {}).finally(() => { bgm.loading[key] = null; });
+    .then(b => { const L = BGM.tr[key] && BGM.tr[key].loop; if (L && L[1] > b.duration) L[1] = b.duration; bgm.buf[key] = b; })   // loop [0, 9999] = the whole file.catch(() => {}).finally(() => { bgm.loading[key] = null; });
 }
 function bgmPos(c) {   // where the playing track is now (seconds into the file)
   let p = c.off + (snd.ctx.currentTime - c.t0) * (c.rate || 1);
@@ -401,19 +401,33 @@ function bgmStart(key, pos, fade) {
   bgmStop(bgm.cur, fade); bgm.cur = cur;
   return true;
 }
-const BGM_MENU = ['start', 'pmenu', 'setsu', 'setsuNewBox', 'waku', 'manualBox', 'raceSetup'];
+const BGM_MENU = ['start', 'pmenu', 'setsu', 'setsuNewBox', 'waku', 'manualBox', 'raceSetup', 'settings'];
 const bgmShown = id => $(id) && !$(id).hidden;
 // what should be playing now: { key, pos (synced tracks only) } or null
 function bgmWant() {
   if (!BGM.enabled || !bgm.on || !snd.on || !snd.ctx || document.hidden) return null;
+  // d366 (体験版 BGM, まえ): title screen, then 羽美's tutorial + 足合わせ (incl. her show lap) have their own tracks
+  if (BGM.tr.title && bgmShown('titleScr')) return { key: 'title' };
+  if (BGM.tr.tut && ((typeof TUT !== 'undefined' && TUT.on) || (typeof ASHI !== 'undefined' && ASHI.on))) return { key: 'tut' };
   const pr = typeof playerRow === 'function' && fleet ? playerRow() : null;
   // the fanfare: latched once per race / per タイムアタック run
   if (fleet && pr && !lab.active) {
     const done = fleet.order && fleet.order.length && fleet.order.length >= fleet.boats.filter(r => !r.out && !r.flying).length;
     if (bgm.goalKey !== fleet && (pr.fin != null || ((pr.out || pr.flying) && done))) { bgm.goalKey = fleet; bgm.goal = 'start'; }
-  } else if (soloKind === 'ta' && ta.done && bgm.goalKey !== ta.zero) { bgm.goalKey = ta.zero; bgm.goal = 'start'; }
+  } else if (BGM.tr.goal && soloKind === 'ta' && ta.done && bgm.goalKey !== ta.zero) { bgm.goalKey = ta.zero; bgm.goal = 'start'; }
+  // no fanfare track (まえ: ゴールの時は無し): the race music fades out at the goal, the menu music comes back with the results
+  if ((bgm.goal === 'start' || bgm.goal === 'play') && !BGM.tr.goal) bgm.goal = 'quiet';
+  if (bgm.goal === 'quiet' && bgm.goalKey === fleet && !BGM_MENU.some(bgmShown) && !bgmShown('resBox')) return null;
   if (bgm.goal === 'start' || bgm.goal === 'play') return { key: 'goal' };
-  const afterGoal = bgm.goal === 'done' && (bgm.goalKey === fleet || bgm.goalKey === ta.zero);
+  // d367 (まえ: 途中でメニューを出した時はメニュー曲にかえない、モードを終えてメニューに行ったらメニュー曲): the pause menu and what opens
+  // from it (設定・操作説明・ランキング) keep the music of a race / TA still going; after the goal / a finished TA run it's the menu music
+  if (['pmenu', 'settings', 'manualBox', 'rankBox'].some(bgmShown) && bgm.cur && !bgm.cur.ended) {
+    const k = bgm.cur.key;
+    if (((k === 'race' || k === 'race2') && fleet && pr && !lab.active && !(bgm.goal && bgm.goalKey === fleet))
+      || (k === 'ta' && !fleet && ((soloKind === 'ta' && !ta.done) || soloKind === 'tenji'))) return { key: k };
+  }
+  if (!BGM.tr.goal && soloKind === 'ta' && !fleet && bgmShown('taBox')) return { key: 'ta' };   // TA music plays on through the finish card and retries
+  const afterGoal = (bgm.goal === 'done' || bgm.goal === 'quiet') && (bgm.goalKey === fleet || bgm.goalKey === ta.zero);
   if (afterGoal || BGM_MENU.some(bgmShown) || bgmShown('resBox') || bgmShown('taBox')) {
     if (bgmShown('raceSetup')) bgmLoad(raceCfg.start === 'pit' ? 'race' : 'race2');   // decode the race track while the player picks
     return { key: 'menu' };
@@ -427,6 +441,7 @@ function bgmWant() {
     if (SS.phase === 'entry') { if (fleet.entry && fleet.entry.go != null && time >= fleet.entry.go) pos = time - fleet.entry.go; else bgmLoad(key); }
     else if (SS.t0 != null) pos = tr.startAt + (time - (SS.t0 + CLOCK));
     if (pos == null || pos < (tr.from || 0)) return pos == null ? null : { key: 'wait:' + key };
+    if (BGM.free && bgm.cur && bgm.cur.key === key && !bgm.cur.ended) return { key };   // d367: started on the clock, then left to run (no jump after the pause menu)
     return { key, pos };
   }
   if (!fleet && (soloKind === 'ta' || soloKind === 'tenji')) { bgmLoad('goal'); return { key: 'ta' }; }
@@ -441,7 +456,7 @@ function updateBgm() {
   for (const k in bgm.buf) {
     if (!bgm.buf[k] || BGM.keep.includes(k)) continue;
     const need = (w && (w.key === k || w.key === 'wait:' + k)) || (cur && cur.key === k) || (bgmShown('raceSetup') && k === (raceCfg.start === 'pit' ? 'race' : 'race2'))
-      || (fleet && playerRow() && !bgm.goal && k === (fleet.autoIdle ? 'race2' : 'race')) || (!fleet && k === 'ta' && (soloKind === 'ta' || soloKind === 'tenji'));   // kept through a pause
+      || (fleet && playerRow() && !bgm.goal && k === (fleet.autoIdle ? 'race2' : 'race')) || (!fleet && k === 'ta' && (soloKind === 'ta' || soloKind === 'tenji')) || (k === 'tut' && ((typeof TUT !== 'undefined' && TUT.on) || (typeof ASHI !== 'undefined' && ASHI.on)));   // kept through a pause
     if (!need) bgm.buf[k] = null;
   }
   if (!w || w.key.startsWith('wait:')) { if (w) bgmLoad(w.key.slice(5)); if (cur) { bgmStop(cur, BGM.fade * 0.5); bgm.cur = null; } return; }
@@ -461,7 +476,7 @@ function updateBgm() {
   else if (Math.abs(bgmPos(cur) - (BGM.tr[w.key].loop && w.pos >= BGM.tr[w.key].loop[1] ? BGM.tr[w.key].loop[0] + (w.pos - BGM.tr[w.key].loop[0]) % (BGM.tr[w.key].loop[1] - BGM.tr[w.key].loop[0]) : w.pos)) > thr) bgmStart(w.key, w.pos, 0.08);
 }
 // browsers only allow sound after the viewer interacts: wake it up on any tap, click or key
-for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { if (snd.ctx && snd.ctx.state === 'suspended') snd.ctx.resume().catch(() => {}); }, true);
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { if (!snd.ctx && BGM.enabled) initAudio(); if (snd.ctx && snd.ctx.state === 'suspended') snd.ctx.resume().catch(() => {}); }, true);
 
 // Stop the phone's auto-rotate from flipping the screen mid-race: go full screen and lock the
 // orientation the phone is in now (Android Chrome etc.; iPhone browsers don't allow either, so it's skipped).
