@@ -1,4 +1,4 @@
-# Honor for GP 波の向こうに — 引き継ぎ資料（d369 時点）
+# Honor for GP 波の向こうに — 引き継ぎ資料（d370 時点）
 
 この資料は、別の会話（AI）や将来の自分が開発を続けるための引き継ぎです。
 **本体は `index.html`（1ファイル）**。この資料と一緒に渡してください。
@@ -458,6 +458,7 @@
 | d367 ／体験版 t169 （まえ：途中でメニューを出した時はメニュー曲にかえない、モードを終了させてメニューに行ったらメニュー曲）input.js bgmWant：途中のメニュー（pmenu・設定・操作説明・ランキング）では、走っている6艇レース（ゴール前）・TA（走行中＝ta.done でない）・チュートリアルの曲のまま。ゴール後・TAを走り終えた後のメニューはメニュー曲。bgm.json free:true＝レース曲は始めだけ時計に合わせ、その後は合わせ直さない（ポーズ明けに曲が飛ばない） | input.js・core.js／体験版 trial.js・bgm/bgm.json |
 | d368 （まえ：リプレイにも季節の雲・星座・月を。まず本体のログだけ）vlog.js：ヘッダー conditions.sky（sky-v1、formatFeatures に sky-v1）＝ season（spring/summer/autumn/winter）・clouds（雨なら rain）・constellations・moonPhase（0新月→.5満月→1）・moonVisible（夜・雨でない・.06〜.72）・source（setsu＝節の季節と setsu.moon＋日/29.53、clock＝端末の月と実際の月齢）・localDate。値は play3d.js の seasonNow／moonPhase と同じ決め方（play3d の関数は外から見えないので vlogSky で同じ式）。レースの計算は変えていない。体験版は未反映 | vlog.js・core.js |
 | d369 （まえ：本編のレーサーのアセットをリプレイ作成（0.37）に合わせたい）レーサーをリプレイ0.37のリアルモデル（Tripo版・骨20本は同じ）に。hfgp3d/{mobile,pc1080ti}/racer_*_lod0-2.glb を作り直し（元 12万三角形 → スマホ 9000/3500/1500、PC 36000/12000/4000、材質 RacerReal、旧モデルは hfgp3d/legacy_v1/）。色は 0.37 の realistic_colors.py と同じ：外のベスト＝勝負服（艇番色）、襟＝カポック（黄、テクスチャに焼き込み）、袖＝インナー（選手ごと SUITS、racerId/名前から）、番号なし。hfgp3d/textures/racer_real_{male,female}_{base,mask}_{1k,2k}：base は色を変える所を抜いたテクスチャ、mask は R ベスト・G 袖・B ライン の重み×濃淡/2。boat_actor.js realShader（onBeforeCompile で mask×色を足す）・setSuit、play3d/boat3dx が選手ごとに setSuit、ゴーストの色も RacerReal に。埋め込み：1k は hfgp3d-glb.js（2.0→4.3MB）、2k は hfgp3d-glb-pc.js。作り方：bpy で色の区域を UV に焼く・Decimate・glTF 書き出し（作業スクリプトは work/real の bake.py・export.py）。確認ページ tests/racer_view.html | boat_actor.js・play3d.js・boat3dx.js・hfgp3d-glb.js・hfgp3d-glb-pc.js・hfgp3d/・core.js |
+| d370 （まえ：ポリゴンより艶やかなライティング）PC画質のレーサーに Tripo の艶の地図（rm：G＝粗さ・B＝金属）と凹凸の地図（normal）を使う：hfgp3d/textures/racer_real_{male,female}_{rm,normal}_2k.jpg（hfgp-glb-pc.js に埋め込み、12→14MB）。boat_actor.js：pc1080ti のときだけ roughnessMap/metalnessMap/normalMap（normalScale 1,-1）。スマホは今まで通り | boat_actor.js・hfgp3d-glb-pc.js・hfgp3d/textures・core.js |
 
 ---
 
