@@ -25,7 +25,9 @@ export async function loadAssetSet(baseURL='../',tier='mobile'){
  // d369: the realistic racers' base / mask textures (phone 1k, PC 2k); a racer set without RacerReal never uses them
  const rs=tier==='pc1080ti'?'2k':'1k',one=(f,srgb)=>tex.loadAsync(new URL(`textures/${f}`,base).href).then(t=>{t.colorSpace=srgb?THREE.SRGBColorSpace:THREE.NoColorSpace;t.flipY=false;return t;}).catch(()=>null);
  const real=[males,females].some(g=>{let y=false;g[0].scene.traverse(o=>{if(o.isMesh&&[].concat(o.material).some(m=>m.name.split('.')[0]==='RacerReal'))y=true;});return y;});
- textures.real={};if(real)for(const sx of ['male','female'])textures.real[sx]={base:await one(`racer_real_${sx}_base_${rs}.jpg`,true),mask:await one(`racer_real_${sx}_mask_${rs}.png`,false)};
+ textures.real={};if(real)for(const sx of ['male','female'])textures.real[sx]={base:await one(`racer_real_${sx}_base_${rs}.jpg`,true),mask:await one(`racer_real_${sx}_mask_${rs}.png`,false),
+  // d370 (まえ: ポリゴンより艶やかなライティング): PC also takes Tripo's roughness/metal (G/B) and normal maps — helmet, visor, boots shine
+  rm:tier==='pc1080ti'?await one(`racer_real_${sx}_rm_2k.jpg`,false):null,normal:tier==='pc1080ti'?await one(`racer_real_${sx}_normal_2k.jpg`,false):null};
  return {tier,boats,males,females,rest,textures,create(opts){return new BoatActor(this,opts)}};
 }
 export class BoatActor{
@@ -40,7 +42,7 @@ export class BoatActor{
     if(o.isSkinnedMesh)o.frustumCulled=false;
     const change=m=>{if(materialCopies.has(m))return materialCopies.get(m);const copy=m.clone(),n=copy.name.split('.')[0];
      if(n==='BoatPaint'||n==='RacerPaint')copy.color.set(LANE_COLORS[lane-1]);
-     if(n==='RacerReal'){const rt=set.textures.real[sex==='f'?'female':'male'];if(rt&&rt.base&&rt.mask){copy.map=rt.base;copy.color.set('#ffffff');realShader(copy,rt.mask,lane);copy.needsUpdate=true;}}
+     if(n==='RacerReal'){const rt=set.textures.real[sex==='f'?'female':'male'];if(rt&&rt.base&&rt.mask){copy.map=rt.base;copy.color.set('#ffffff');realShader(copy,rt.mask,lane);if(rt.rm){copy.roughnessMap=copy.metalnessMap=rt.rm;copy.roughness=1;copy.metalness=1;}if(rt.normal){copy.normalMap=rt.normal;copy.normalScale.set(1,-1);}copy.needsUpdate=true;}}
      if(n==='BoatNumber')copy.map=set.textures.boat_number[lane-1];if(n==='RacerNumber')copy.map=set.textures.racer_bib[lane-1];
      materialCopies.set(m,copy);this.materials.push(copy);return copy;};o.material=Array.isArray(o.material)?o.material.map(change):change(o.material);
    });
