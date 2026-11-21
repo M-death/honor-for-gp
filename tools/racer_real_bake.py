@@ -6,6 +6,7 @@ kind, src, out, RES = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
 CFG = {'male': {'collarZ': (1.43, 1.43), 'warm': .022, 'vestLum': .67, 'suitLum': .69, 'stripeLum': .22},
        'female': {'collarZ': (1.483, 1.44), 'warm': .05, 'vestLum': .76, 'suitLum': .85, 'stripeLum': .19}}[kind]
 KAP = np.array([.80, .55, .02])
+KAP_LANE = True   # d373 (まえ: 中と外はどちらも枠色に): the kapok collar goes into the lane-colour channel instead of yellow
 TORSO = ('Spine', 'Chest', 'Hips', 'Neck', 'Clavicle_L', 'Clavicle_R'); ARMS = ('UpperArm_L', 'UpperArm_R', 'Forearm_L', 'Forearm_R')
 bpy.ops.wm.open_mainfile(filepath=src)
 o = bpy.data.objects['RacerMesh_' + kind]; me = o.data
@@ -70,8 +71,8 @@ tl = lin(tex)
 # sequential mixes as in 0.37: body, kapok, suit, stripe → effective weights
 eb = body * (1 - suit) * (1 - stripe); ek = kap * (1 - suit) * (1 - stripe); es = suit * (1 - stripe); et = stripe
 keep = 1 - eb - ek - es - et
-baseL = tl * keep[..., None] + (ek * shade(CFG['vestLum']))[..., None] * KAP
-mask = np.stack([eb * shade(CFG['vestLum']), es * shade(CFG['suitLum']), et * shade(CFG['stripeLum'])], -1) / 2.
+baseL = tl * keep[..., None] + (0 if KAP_LANE else (ek * shade(CFG['vestLum']))[..., None] * KAP)
+mask = np.stack([(eb + ek * KAP_LANE) * shade(CFG['vestLum']), es * shade(CFG['suitLum']), et * shade(CFG['stripeLum'])], -1) / 2.
 Image.fromarray((np.clip(srgb(baseL), 0, 1) * 255 + .5).astype(np.uint8)).save(out + f'/{kind}_base_{RES}.png')
 Image.fromarray((np.clip(mask, 0, 1) * 255 + .5).astype(np.uint8)).save(out + f'/{kind}_mask_{RES}.png')
 # preview with sample colours (lane 3 red, suit blue/grey)
