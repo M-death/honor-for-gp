@@ -8,6 +8,14 @@ export const LANE_COLORS=['#eeeeee','#20242a','#d73533','#2867bd','#e6c128','#20
    0.37 (realistic_colors.py): the outer vest = 勝負服 in the lane colour, the collar = the kapok (yellow, baked in the texture),
    the sleeves = the racer's own inner suit (SUITS, picked by racerId / name). The base texture has those zones cut out; the mask
    texture holds each zone's weight × shading / 2 (R vest, G suit, B stripe), added back here in the lane / suit colours. */
+/* d374 (まえ: 新モデリングのボート、なにわカラーも): the hull's paint zones (materials HullSide / HullMain / HullTrim of the new boat)
+   take their colours from the venue's livery; 'lane' = the boat's lane colour. Old boats (no such materials) are not touched. */
+export const LIVERIES={standard:{side:'lane',main:'#f3f4f1',trim:'lane'},naniwa:{side:'#8a4db8',main:'#8a4db8',trim:'#2ef209'},
+ lane:{side:'lane',main:'lane',trim:'#f3f4f1'}};
+/* d375 (まえ: のっぺりしてる): painted hulls shine — low roughness, a stronger sky reflection, and on PC a hard clear coat that
+   catches the sun as a sharp highlight */
+const GLOSS=(m,tier)=>{m.roughness=.16;m.envMapIntensity=1.6;if(tier==='pc1080ti'&&'clearcoat' in m){m.clearcoat=1;m.clearcoatRoughness=.05;}};
+const HULL_ZONES={HullSide:'side',HullMain:'main',HullTrim:'trim'};
 export const SUITS=[['#1d2b4a','#e9ecef'],['#b3262e','#16181d'],['#eef0f2','#1f5fae'],['#16181d','#d4a52a'],['#1e7a55','#f1f1ec'],['#4b2a6e','#c9ccd2'],['#d8641e','#1b2740'],['#5fa8d8','#f4f4f2']];
 export function suitIndex(key){let h=2166136261;for(const c of String(key??''))h=Math.imul(h^c.codePointAt(0),16777619)>>>0;return h%SUITS.length;}
 function realShader(m,mask,lane){
@@ -33,7 +41,7 @@ export async function loadAssetSet(baseURL='../',tier='mobile'){
 export class BoatActor{
  constructor(set,{lane=1,sex='m',heightCm=165}={}){
   if(!Number.isInteger(lane)||lane<1||lane>6)throw new Error('lane must be 1–6');
-  this.set=set;this.lane=lane;this.sex=sex;this.heightCm=heightCm;this.root=new THREE.Group();this.root.name=`RaceActor_${lane}`;this.levels=[];this.lod=0;this.materials=[];
+  this.set=set;this.lane=lane;this.sex=sex;this.heightCm=heightCm;this.root=new THREE.Group();this.root.name=`RaceActor_${lane}`;this.levels=[];this.lod=0;this.materials=[];this.hull=[];this.livery='';
   for(let l=0;l<3;l++){
    const boat=clone(set.boats[l].scene),racer=clone((sex==='f'?set.females:set.males)[l].scene);boat.updateMatrixWorld(true);racer.updateMatrixWorld(true);
    const pose=new RacerPose(racer,set.rest),mount=boat.getObjectByName('RacerMount');if(!mount)throw new Error('Missing RacerMount');mount.add(racer);
@@ -43,13 +51,16 @@ export class BoatActor{
     const change=m=>{if(materialCopies.has(m))return materialCopies.get(m);const copy=m.clone(),n=copy.name.split('.')[0];
      if(n==='BoatPaint'||n==='RacerPaint')copy.color.set(LANE_COLORS[lane-1]);
      if(n==='RacerReal'){const rt=set.textures.real[sex==='f'?'female':'male'];if(rt&&rt.base&&rt.mask){copy.map=rt.base;copy.color.set('#ffffff');realShader(copy,rt.mask,lane);if(rt.rm){copy.roughnessMap=copy.metalnessMap=rt.rm;copy.roughness=1;copy.metalness=1;}if(rt.normal){copy.normalMap=rt.normal;copy.normalScale.set(1,-1);}copy.needsUpdate=true;}}
+     if(HULL_ZONES[n]){this.hull.push([copy,HULL_ZONES[n]]);GLOSS(copy,set.tier);}
      if(n==='BoatNumber')copy.map=set.textures.boat_number[lane-1];if(n==='RacerNumber')copy.map=set.textures.racer_bib[lane-1];
      materialCopies.set(m,copy);this.materials.push(copy);return copy;};o.material=Array.isArray(o.material)?o.material.map(change):change(o.material);
    });
    this.root.add(boat);boat.visible=l===0;this.levels.push({boat,racer,pose,motor:boat.getObjectByName('MotorSteer'),prop:boat.getObjectByName('Propeller')});
   }
-  this.updatePose({});
+  this.setLivery('standard');this.updatePose({});
  }
+ /** d374: the venue's hull colours (LIVERIES key) */
+ setLivery(name){if(!LIVERIES[name])name='standard';if(this.livery===name)return this;this.livery=name;const L=LIVERIES[name],lane=name==='lane'&&this.lane===2?'#3a3f47':LANE_COLORS[this.lane-1];for(const [m,z] of this.hull)m.color.set(L[z]==='lane'?lane:L[z]);return this;}
  /** d369: the realistic racer's inner suit (sleeves) — by racerId / name, as in the replay */
  setSuit(key){const i=suitIndex(key);if(this.suit===i)return this;this.suit=i;for(const m of this.materials){const u=m.userData.real;if(u){u.realSuit.value.set(SUITS[i][0]);u.realAcc.value.set(SUITS[i][1]);}}return this;}
  setLOD(level){level=clamp(Math.round(level),0,2);if(this.lod!==level){this.levels[this.lod].boat.visible=false;this.lod=level;this.levels[level].boat.visible=true;this.updatePose(this.lastPose??{});}return this;}

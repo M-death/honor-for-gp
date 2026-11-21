@@ -397,7 +397,7 @@ function buildWorld() {
   for (const o of OBSTACLES) {
     if (o.kind === 'mark') {   // d307 (まえ: 回る紅白うんこ): the real ターンマーク, 3 段のねじれ紅白, 径 1.1 m・高さ 0.95 m
       const m = new THREE.Mesh(markGeo(), markMat); m.position.set(o.x1, MARK3.base, o.y1); m.rotation.y = Math.random() * 6.28; g.add(m);
-      world_marks.push({ m, x: o.x1, y: o.y1, w: MARK3.idle, pil: markPillar(g, o.x1, o.y1) });
+      world_marks.push({ m, x: o.x1, y: o.y1, w: MARK3.idle, pil: markPillar(g, o.x1, o.y1), mo: typeof MARKMO !== 'undefined' ? MARKMO.st.find(s => s.id === (o.x1 >= 0 ? '1M' : '2M')) : null });
     } else if (o.kind === 'boom') {
       const L = Math.hypot(o.x2 - o.x1, o.y2 - o.y1), b = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r, L, 8), bm);
       b.rotation.z = Math.PI / 2; b.position.set((o.x1 + o.x2) / 2, .12, (o.y1 + o.y2) / 2); g.add(b);
@@ -597,6 +597,12 @@ function markStep(dt, rows) {
     if (U.add.value !== (day ? 0 : 1)) { U.add.value = day ? 0 : 1; U.col.value.set(day ? PILLAR.colDay : PILLAR.col); pillarMat.blending = day ? THREE.NormalBlending : THREE.AdditiveBlending; pillarMat.needsUpdate = true; } }
   for (const k of world_marks) {
     if (k.pil) { k.pil.m.visible = PILLAR.on; k.pil.f.visible = PILLAR.on; k.pil.f.material.opacity = (PILLAR.op[tod] || PILLAR.op.day) * .9; }
+    // d372: the pose comes from the race (race.js MARKMO, the same numbers the video log records); log frame (x, y, z up) → three (x, up, y):
+    // a mirror, so the quaternion's vector part flips sign; spin +x→+y is −Y here
+    // in the in-game replay: the log's pose (rpvMarkPose → null for an old log without it: the old look-only spin below)
+    const rp = typeof rpvMarkPose === 'function' ? rpvMarkPose(k.x >= 0 ? '1M' : '2M') : undefined, q = rp !== undefined ? rp : k.mo ? markPose(k.mo) : null;
+    if (q) { k.m.position.set(k.x + q[0], MARK3.base + q[2], k.y + q[1]); k.m.quaternion.set(-q[3], -q[5], -q[4], q[6]); k.m.rotateY(-q[7]); continue; }
+    k.m.position.set(k.x, MARK3.base, k.y); k.m.rotation.x = 0; k.m.rotation.z = 0;
     let push = 0;
     for (const row of rows) { const b = row.b, d = Math.hypot(b.x - k.x, b.y - k.y); if (d < MARK3.kickR) push += MARK3.kick * (1 - d / MARK3.kickR) * Math.min(1, (b.v || 0) / 20); }
     k.w = Math.min(MARK3.maxW, k.w + push * dt * 2); k.w += (MARK3.idle - k.w) * Math.min(1, dt * MARK3.damp);
@@ -977,6 +983,7 @@ function actorFor(row) {
   let a = actors.get(key);
   if (!a) { a = set.create({ lane, sex, heightCm: 165 }); scene.add(a.root); actors.set(key, a); }
   if (a.setSuit) a.setSuit(row.racerId || row.name || row.no);   // d369: the inner suit's colours follow the racer (as in the replay)
+  if (a.setLivery) a.setLivery(VENUE.id === 'suminoe' ? 'naniwa' : 'standard');   // d374: the venue's hull colours (なにわ = purple / green)
   a.heightCm = lim(body.height || (sex === 'f' ? 157 : 165), 140, 200);
   return a;
 }
@@ -999,7 +1006,8 @@ function ghostActor(kind) {
   if (!a) {
     a = set.create({ lane: 1, sex: 'm', heightCm: 165 });
     for (const m of a.materials) { m.transparent = true; m.opacity = kind === 'umi' ? .5 : kind === 'rival' ? .45 : .38; m.depthWrite = false;
-      const n = m.name.split('.')[0]; if (n === 'BoatPaint' || n === 'RacerPaint' || n === 'BoatLivery' || n === 'RacerReal') m.color.set(GHOST_TINT[kind]); }
+      const n = m.name.split('.')[0]; if (n === 'BoatPaint' || n === 'RacerPaint' || n === 'BoatLivery' || n === 'RacerReal' || n === 'HullSide' || n === 'HullMain' || n === 'HullTrim') m.color.set(GHOST_TINT[kind]); }
+    a.setLivery = null;   // d374: keep the ghost tint (actorFor never recolours a ghost)
     a.root.traverse(o => { if (o.isMesh) o.renderOrder = 3; });
     scene.add(a.root); ghostActors.set(kind, a);
   }

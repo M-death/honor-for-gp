@@ -247,3 +247,15 @@ $('rpvFile').addEventListener('change', async e => {
   const f = e.target.files && e.target.files[0]; if (!f) return;
   try { rpvStart(await rpvParse(f)); } catch (err) { toast('リプレイ', '再生できませんでした：' + err.message, 'warn'); }
 });
+// d372 turn-mark-motion-v1: the marks' pose at the replay's time (undefined = no replay running, null = an older log without it)
+function rpvMarkPose(id) {
+  if (!RPV.on || !RPV.P) return undefined;
+  const P = RPV.P, mo = P.d.header && P.d.header.turnMarkMotion, tm = P.d.turnMarkFrames;
+  if (!mo || !tm || !tm.length) return null;
+  const j = mo.marks.findIndex(m => m.id === id), nf = mo.fields.length; if (j < 0) return null;
+  const fi = clamp((RPV.t - P.t0) * P.hz, 0, tm.length - 1), i0 = Math.floor(fi), i1 = Math.min(tm.length - 1, i0 + 1), f = fi - i0;
+  const A = tm[i0], C = tm[i1], o = j * nf, q = [];
+  for (let i = 0; i < nf; i++) q.push(A[o + i] + (C[o + i] - A[o + i]) * f);
+  const n = Math.hypot(q[3], q[4], q[5], q[6]) || 1; for (let i = 3; i < 7; i++) q[i] /= n;
+  return q;
+}

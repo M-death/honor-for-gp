@@ -32,6 +32,7 @@ function actorFor(row) {
 // lighter so the shape still reads).
 const HULL_TINT = ['#ffffff', '#3a3f47', '#d73533', '#2867bd', '#e6c128', '#20844f'];
 function hullColor(a, lane) {
+  if (a.setLivery) { a.setLivery('lane'); if (a.hull && a.hull.length) return; }   // d374: new boats — the whole hull in the lane colour (2D view)
   for (const l of [0, 1]) a.levels[l].boat.traverse(o => { if (!o.isMesh || o.isSkinnedMesh) return;
     for (const m of [].concat(o.material)) if (m.name.split('.')[0] === 'BoatLivery') m.color.set(HULL_TINT[lane - 1]); });
 }

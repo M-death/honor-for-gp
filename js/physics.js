@@ -604,7 +604,8 @@ function step(dt) {
   harmony = B.harmony || 0;
   hitCool = Math.max(0, hitCool - dt);
   if (ev) {
-    if (VR) VR.ev(ev.startsWith('cap:') ? 'capsize' : 'hit', 1, ev.startsWith('cap:') ? { why: ev.slice(4) } : { what: ev });
+    if (VR) VR.ev(ev.startsWith('cap:') ? 'capsize' : 'hit', 1, ev.startsWith('cap:') ? { why: ev.slice(4) } : hitPayload(ev, B));
+    if (ev === 'buoy' || ev === 'graze') markMoHit(B);
     if (ev.startsWith('cap:')) { splash(B); T.on = false; toast('転覆', ev.slice(4), 'bad'); hapticShot(0.45, 1); sfxCapsize(B.x, B.y); }
     else {
       hapticShot(0.15, 0.7); sfxHit(B.x, B.y, 5);
@@ -613,6 +614,7 @@ function step(dt) {
   }
   slitCapture(practiceSlit,time-(SS.t0+CLOCK),[{no:1,b:B,trait:{course:1}}]);
   if (soloKind === 'ta') taStep();
+  markMoStep(dt, [B]);
   if (VR) VR.frame();
   if (B.cap > 0) return;
   boatFx(B, wake, dt);

@@ -5,11 +5,14 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1', 'venue-layout-v1', 'race-info-v1', 'sky-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1', 'venue-layout-v1', 'race-info-v1', 'sky-v1', 'turn-mark-motion-v1', 'hit-target-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
   audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163',    // d236: venue fields come from VENUE (練習コース: 'standard' v1, 住之江: 'suminoe' v2)
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
 const VL_NF = VL_FIELDS.length;
+// d372 turn-mark-motion-v1: after the boats, each sample carries the two marks' pose (race.js markPose), written out as turnMarkFrames
+const VL_MKF = ['dx', 'dy', 'dz', 'qx', 'qy', 'qz', 'qw', 'spin'], VL_MKN = 2;
+const vlStride = R => R.nb * VL_NF + VL_MKN * VL_MKF.length;
 // decimals kept in the file for each field (null = whole number)
 const VL_DEC = [2, 2, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3, 3, null, null, null, 2, 2, 3, 3, 2];
 const VL_ANGLE = new Set([2, 5]);                 // heading, slip: interpolate the short way round ±π
@@ -237,16 +240,17 @@ VR = (() => {
   }
   function store(vals, t) {
     if (!R.cur || R.curN === VLOG.chunk) {
-      if ((R.chunks.length + 1) * VLOG.chunk * R.nb * VL_NF * 4 > VLOG.maxMiB * 1048576) { R.full = true; finish('ram_limit', t); return false; }
-      R.cur = new Float32Array(VLOG.chunk * R.nb * VL_NF); R.curN = 0; R.chunks.push(R.cur);
+      if ((R.chunks.length + 1) * VLOG.chunk * vlStride(R) * 4 > VLOG.maxMiB * 1048576) { R.full = true; finish('ram_limit', t); return false; }
+      R.cur = new Float32Array(VLOG.chunk * vlStride(R)); R.curN = 0; R.chunks.push(R.cur);
     }
-    R.cur.set(vals, R.curN * R.nb * VL_NF); R.curN++; R.n++;
+    R.cur.set(vals, R.curN * vlStride(R)); R.curN++; R.n++;
     return true;
   }
   const lerpA = (a, b, f) => { let d = b - a; d = Math.atan2(Math.sin(d), Math.cos(d)); return a + d * f; };
   function blend(p, c, f, jump) {
-    const o = new Float64Array(p.V.length), nf = jump ? (f < 1 ? 0 : 1) : f;
+    const o = new Float64Array(p.V.length), nf = jump ? (f < 1 ? 0 : 1) : f, nbF = R.nb * VL_NF;
     for (let i = 0; i < o.length; i++) {
+      if (i >= nbF) { o[i] = p.V[i] + (c.V[i] - p.V[i]) * f; continue; }   // the marks (spin is accumulated: plain lerp)
       const k = i % VL_NF;
       o[i] = VL_STEP.has(k) ? (nf < 0.5 ? p.V[i] : c.V[i]) : VL_ANGLE.has(k) ? lerpA(p.V[i], c.V[i], nf) : p.V[i] + (c.V[i] - p.V[i]) * nf;
       if (k === 21 || k === 22) o[i] = nf < 0.5 ? p.V[i] : c.V[i];
@@ -272,8 +276,9 @@ VR = (() => {
     const rows = rowsOf();
     if (!R.nb) R.nb = rows.length;
     const rankOf = R.solo ? () => 1 : (row => { const i = fleet.rank.indexOf(row.r); return i < 0 ? 0 : i + 1; });
-    const V = new Float64Array(R.nb * VL_NF);
+    const V = new Float64Array(vlStride(R));
     rows.forEach((row, k) => snap(V, k, row, rankOf));
+    if (typeof MARKMO !== 'undefined') MARKMO.st.forEach((m, j) => V.set(markPose(m), R.nb * VL_NF + j * VL_MKF.length));
     watch(rows);
     plays();
     const c = { T: time, V, jump: false };
@@ -349,6 +354,7 @@ VR = (() => {
         V[o + 4] *= Math.exp(-dt * 2); V[o + 5] *= Math.exp(-dt * 3); V[o + 13] = 0; V[o + 17] = 0; V[o + 6] = 0; V[o + 7] = 0; V[o + 23] = 0;
         V[o + 14] = fl & (VL_FLAG.capHull | VL_FLAG.fallen) ? 0 : engineRpm({ v, turnLoadV: 0 }, 0);
       }
+      for (let j = 0; j < VL_MKN; j++) V[R.nb * VL_NF + j * VL_MKF.length + 7] += (typeof MARKMO !== 'undefined' ? MARKMO.idle : .5) * dt;   // the marks keep turning slowly
       if (!store(V, t)) return;
     }
     R.terminal = { t: end, V: Float64Array.from(V) };
@@ -413,7 +419,19 @@ VR = (() => {
       flags: VL_FLAG, model: { specId: VLOG.modelSpecId, colorsFrom: 'entries[].colors' },
       audio: { audioProfileId: VLOG.audioProfileId, idle: IDLE, rpmFormula: 'clamp(0.15 + 0.55*(IDLE + (1-IDLE)*thr) + 0.35*v/23 - 0.1*turnLoad, 0, 1.15)',
         pitchHz: '58 + 150*rpm + (no % 6)*1.7', voices: R.solo ? [{ no: 1, detuneHz: 1.7 }] : fleet.boats.map(r => ({ no: r.no, detuneHz: (r.no % 6) * 1.7 })) },
-      effectSeed: seedH
+      effectSeed: seedH,
+      // d372 (リプレイ側の要望書 2026-11-21 ターンマークの動作ログ): looks only — contact uses the fixed circle at basePosition (contactR)
+      turnMarkMotion: { schema: 'turn-mark-motion-v1', timeSource: 'race-frame-time (turnMarkFrames[i] belongs to frames[i])', positionUnit: 'm', angleUnit: 'rad',
+        coordinateSystem: 'game-log-xy-z-up: x, y as the frames (+y down on the 2D screen), z up from the still water line', quaternionOrder: 'xyzw',
+        transformOrder: 'translate * tilt * localZSpin: p = basePosition + [dx,dy,dz] + R(q) * Rz(spin) * local',
+        quaternion: 'Hamilton product on the (x, y, z) components as written; it carries the mark axis (local +z) to the lean. qz is always 0 (no spin inside q)',
+        spin: 'accumulated (never wrapped); + turns +x toward +y about the mark axis (Rz(a) = [[cos a, -sin a, 0], [sin a, cos a, 0], [0, 0, 1]] in these components)',
+        fields: VL_MKF, marks: MARKMO.st.map(m => ({ id: m.id, basePosition: [m.x, m.y, 0] })),
+        base: 'basePosition = where the still mark meets the still water line, on its axis; the game draws the mark body from z = ' + (-0.18) + ' (0.18 m under water) to ' + (0.95 - 0.18).toFixed(2) + ' m',
+        size: { widthM: 1.1, heightM: 0.95, underwaterM: 0.18 }, contactR: 0.55, contactMoves: false,
+        dz: 'final heave incl. waves and boats passing (no tide in it: the game has no water level change on the marks)',
+        note: 'game physics (race.js markMoStep): heave with the natural waves (period 2.6 s), lean downwind and with the waves, boats within 6 m lean it away / dip it / spin it up, a touch (hit buoy|graze) knocks it over and spins it' },
+      hitTargets: { note: 'hit events carry payload.markId (1M|2M) for buoy|graze and payload.barrierId for boom|grazeBoom', barriers: [{ id: 'boom_1m', from: [MK - 2, 0], to: [MK - 2 - BOOM_LEN, 0] }, { id: 'boom_2m', from: [-MK + 2, 0], to: [-MK + 2 + BOOM_LEN, 0] }] }
     };
   }
   async function build() {
@@ -438,9 +456,22 @@ VR = (() => {
     for (const ch of R.chunks) {
       const nIn = ch === R.cur ? R.curN : VLOG.chunk, lines = [];
       for (let j = 0; j < nIn; j++, i++) {
-        const V = ch.subarray(j * R.nb * VL_NF, (j + 1) * R.nb * VL_NF), fr = [Math.round((R.origin + i / VLOG.hz) * 1e6) / 1e6];
+        const V = ch.subarray(j * vlStride(R), (j + 1) * vlStride(R)), fr = [Math.round((R.origin + i / VLOG.hz) * 1e6) / 1e6];
         for (let k = 0; k < R.nb; k++) fr.push(boatJson(V, k));
         lines.push(JSON.stringify(fr));
+      }
+      if (lines.length) { parts.push((first ? '' : ',') + lines.join(',')); first = false; }
+      await new Promise(res => setTimeout(res, 0));
+    }
+    // d372 turnMarkFrames: one row per frame (same index and time as frames): 1M's 8 numbers then 2M's (header.turnMarkMotion)
+    parts.push('],"turnMarkFrames":[');
+    first = true;
+    for (const ch of R.chunks) {
+      const nIn = ch === R.cur ? R.curN : VLOG.chunk, lines = [], w = vlStride(R), o0 = R.nb * VL_NF;
+      for (let j = 0; j < nIn; j++) {
+        const row = [];
+        for (let m = 0; m < VL_MKN; m++) for (let f = 0; f < VL_MKF.length; f++) { const v = ch[j * w + o0 + m * VL_MKF.length + f]; row.push(Number.isFinite(v) ? Math.round(v * 1e5) / 1e5 : 0); }
+        lines.push(JSON.stringify(row));
       }
       if (lines.length) { parts.push((first ? '' : ',') + lines.join(',')); first = false; }
       await new Promise(res => setTimeout(res, 0));

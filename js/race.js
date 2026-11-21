@@ -49,6 +49,7 @@ function timeToLine(d, v, crouch = 0, pre = true, boat = null) {
   while (x < d && t < 20) { const vr = v - w; let acc = THRUST * thrustK(v) * startPullK(v, pre, boat) * motorK(boat, v) * wk - dk * vr * Math.abs(vr) - 0.1 * v - bump * (0.8 + v * 0.07) * WAKE.drag; if (acc > 0) acc *= startGainK(v, pre); v += acc * 0.05; x += (v + drift) * 0.05; t += 0.05; }
   return t;
 }
+const RECOV = { thr: 0.45, hitT: 20 };   // d371 立て直し: lever while turning round, s after a mark/boom hit it applies
 const wrapRad = a => Math.atan2(Math.sin(a), Math.cos(a));
 // Aim point on the racing line, pulled back if the straight run to it would clip a turn mark
 // or cut across the boom inside it (a long look-ahead otherwise shortcuts the corner).
@@ -1213,7 +1214,23 @@ function makeDriver(prof, trait = {}) {
         if(lab.active&&env.labDirective){if(env.labDirective.R!=null)R=env.labDirective.R;if(env.labDirective.gap!=null)gap=Math.min(env.labDirective.gap,R);}
         if(lab.active)mem.labTrace.courseLine={...line,R,gap};
       }
-      const s = loopS(R, b.x, b.y, gap);
+      let s = loopS(R, b.x, b.y, gap);
+      // d371 (まえ: 1号艇、変だった): once into a turn, how far round it is never goes back. A boat stopped on the mark
+      // (乗り上げ) or a change of R/gap used to re-project it to "before the turn" → it ran back up the straight and re-ran the mark
+      {
+        // only after a mark/boom hit: in ordinary racing the line choice (R/gap) is left to steer as before
+        const M_ = arcX(R, gap), A_ = Math.PI * R, ti_ = turnInfo(R, s, gap), hit = time - (b.markHitAt ?? -99) < RECOV.hitT;
+        if (ti_.inTurn) {
+          const k = s < 4 * M_ + A_ ? 0 : 1, a0 = k ? 4 * M_ + A_ : 2 * M_, f = (s - a0) / A_;
+          if (!mem.tlock || mem.tlock.k !== k) mem.tlock = { k, f };
+          else if (f < mem.tlock.f) { if (hit) s = a0 + mem.tlock.f * A_; }
+          else mem.tlock.f = f;
+        } else if (mem.tlock) {
+          const k = mem.tlock.k, before = k ? (s >= 2 * M_ + A_ && s < 4 * M_ + A_) : s < 2 * M_;
+          if (before && Math.sign(b.x) === (k ? -1 : 1) && Math.abs(b.x) > MK - 40) { if (hit) s = (k ? 4 * M_ + A_ : 2 * M_) + mem.tlock.f * A_; }
+          else mem.tlock = null;
+        }
+      }
       let look = (prof.look0 ?? 7) + b.v * (prof.lookK ?? 0.55);
       // A long look-ahead cuts the chord across an outside arc. Follow the intended wide turn.
       if(first&&courseCpu&&(tactic==='makuri'||tactic==='makurisashi'&&mem.cpuLine?.stage==='outside_entry'))look=Math.min(look,R*.75+6);
@@ -1414,6 +1431,14 @@ function makeDriver(prof, trait = {}) {
       }
       if(lab.active)Object.assign(mem.labTrace,{target:{x:tx,y:ty},R,gap});
       const err = wrapRad(Math.atan2(ty - b.y, tx - b.x) - b.a);
+      // d371 立て直し: facing well away from its line near a mark (乗り上げで止まった後など) — turn round slowly the outside way,
+      // never sweeping across the centreline inside the mark, then pick the line up again
+      if (time - (b.markHitAt ?? -99) < RECOV.hitT && Math.abs(b.x) > MK - 25 && Math.abs(b.y) < 30 && Math.abs(err) > (mem.recov ? 0.8 : 1.75)) {
+        if (!mem.recov) {
+          const h = b.a, aim = h + err, inw = Math.sign(b.y || 1) > 0 ? -Math.PI / 2 : Math.PI / 2, m2 = a => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+          mem.recov = { dir: m2(inw - h) < m2(aim - h) ? -1 : 1 };   // the inward heading lies on the anticlockwise way round → go clockwise
+        }
+      } else mem.recov = null;
       if(prioNow()&&!trait.dumpOk){mem.dumpT=0;mem.dumpQ=null;}else considerDump(b, env.others, dt);
       const dumping = mem.dumpT > 0;
       steerT = clamp(err * (prof.gain ?? 2.2) * (accelerating ? 0.75 : 1) + (dumping ? 0.65 : av.steerAdd) + (simRandom() * 2 - 1) * prof.wobble * (accelerating ? 0.5 : 1));
@@ -1542,6 +1567,7 @@ function makeDriver(prof, trait = {}) {
       if (!mem.push && !(first && mem.ft && mem.ft.phase !== 'done') && !(first && (tactic === 'makuri' || mem.commit)) && (!(env.battle || env.chase) || near1M && !env.chase) && (b.load || 0) > 0.95 + 0.06 * (1 - Math.min(1, care))) { thrT *= 0.9; }
       // swerving against the lean (dodging outward mid-turn): take the body out of it too
       if (Math.abs(steerT) > 0.2 && rollT !== 0 && Math.sign(steerT) !== Math.sign(rollT)) rollT *= 0.6;
+      if (mem.recov) { steerT = mem.recov.dir; thrT = Math.min(thrT, RECOV.thr); rollT = 0; pitchT = Math.min(pitchT, 0); }
       if(lab.active){const targets=labTraceInputs(mem,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},b,prof,o);thrT=targets.thr;steerT=targets.steer;rollT=targets.roll;pitchT=targets.pitch;}
       if(!lab.active&&prioNow()){
         const safe=labPriorityPlan(b,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},mem,prof,o);
@@ -2920,7 +2946,7 @@ const RETIRE_GONE = { edge: 7, v: 4, maxT: 30 };
 const retiring = r => !!(r.flying && r.passed1M);
 const GHOST_B = { x: 1e6, y: 1e6, a: 0, v: 0, cap: 0 };
 function fleetStep(dt, playerInput) {
-  if (fleet.entry) { entryStep(dt, playerInput); if (VR) VR.frame(); return; }
+  if (fleet.entry) { entryStep(dt, playerInput); markMoStep(dt, fleet.boats.map(r => r.b)); if (VR) VR.frame(); return; }
   const timingBefore=fleet.boats.map(r=>timingPose(r.b,time));
   time += dt;
   const zero = SS.t0 + CLOCK;
@@ -3039,8 +3065,8 @@ function fleetStep(dt, playerInput) {
     if (r.player && runLog && runLog.b === b) runLogStep(b, o, zero, r.st != null && !r.logSt ? (r.logSt = true, 'スリット通過') : '');
     if(lab.active&&ev)labEvent('physics',r.no,{label:ev});
     if (ev && ev.startsWith('cap:') && !r.out) accident(r, '転覆', ev.slice(4));
-    else if (ev === 'graze' || ev === 'grazeBoom') { if (VR) VR.ev('hit', r.no, { what: ev }); }
-    else if (ev === 'buoy' || ev === 'boom') { if (VR) VR.ev('hit', r.no, { what: ev }); toast(ev === 'buoy' ? 'ターンマークに乗り上げ' : '消波装置に乗り上げ', `${r.no}号艇`, 'warn'); }
+    else if (ev === 'graze' || ev === 'grazeBoom') { if (ev === 'graze') markMoHit(b); if (VR) VR.ev('hit', r.no, hitPayload(ev, b)); }
+    else if (ev === 'buoy' || ev === 'boom') { b.markHitAt = time; if (ev === 'buoy') markMoHit(b); if (VR) VR.ev('hit', r.no, hitPayload(ev, b)); toast(ev === 'buoy' ? 'ターンマークに乗り上げ' : '消波装置に乗り上げ', `${r.no}号艇`, 'warn'); }
     // 内側航走: crossing the course centreline between the marks means a mark was cut
     if (r.st != null && !r.dq && r.fin == null && !r.relegated && r.prevY != null && Math.sign(r.prevY) !== Math.sign(b.y) && Math.abs(b.x) < MK - 1) {
       if(lab.active)labEvent('inside_course',r.no,{label:'内側航走'});
@@ -3228,6 +3254,7 @@ function fleetStep(dt, playerInput) {
     if(!lab.active)setTimeout(() => toast('レース結果', fleet ? resultLine() : '', 'good'), 300);
   }
   if (fleet.endAt && time > fleet.endAt && !fleet.resShown) {if(lab.active)labFinish('レース終了');else { fleet.resShown = true; resultShow(fleet.setsu ? () => setsuRaceDone() : () => nextRace()); }}
+  markMoStep(dt, fleet.boats.map(r => r.b));
   if (VR) VR.frame();
 }
 
@@ -3809,5 +3836,48 @@ function skipRace() {
 }
 $('cardBtn').addEventListener('click', () => { if (!fleet) return; paused = true; buildCard(); $('card').hidden = false; });
 $('cardClose').addEventListener('click', () => { paused = false; last = performance.now(); $('card').hidden = true; });
+
+/* ---------- d372 ターンマークの浮き沈み (まえ: 微妙な判定だから、ぷかぷか動くだけでいい) ----------
+   Looks only: the contact circle stays fixed at the mark (OBSTACLES). The marks bob with the waves, lean with the wind and
+   the waves, are shoved and dipped by boats passing close, and spin (faster after a boat goes by or touches). Stepped with the
+   physics (fleetStep / solo step) so the video log (vlog.js turnMarkFrames, turn-mark-motion-v1) records exactly what play3d draws. */
+const MARKMO = { idle: .5, kickR: 6, kick: .9, maxW: 3, damp: .35,   // spin (as d307 MARK3)
+  tiltK: 14, tiltC: 3, tiltMax: .22, dzK: 12, dzC: 5, hK: 3, hC: 3,   // springs: lean, heave, drift
+  wavePer: 2.6, waveDz: [.004, .006], waveTilt: [.012, .006], windTilt: .004, windMax: .04,   // wave cm → heave m / lean rad
+  passTilt: 1.1, passDz: .35, passH: .25, hitTilt: 2.2, hitW: 1.8,
+  st: [{ id: '1M', x: MK, ph: 0.0, spin: 0.7 }, { id: '2M', x: -MK, ph: 1.9, spin: 2.9 }].map(m => Object.assign(m, { y: 0, dx: 0, dy: 0, vx: 0, vy: 0, dz: 0, vz: 0, tx: 0, ty: 0, wx: 0, wy: 0, w: .5 })) };
+function markMoStep(dt, boats) {
+  const M = MARKMO, e = typeof waterEnv !== 'undefined' && waterEnv && !waterEnv.calm ? waterEnv : null, A = e ? e.wave || 0 : 0;
+  const wv = e ? Math.hypot(e.wx || 0, e.wy || 0) : 0, ux = wv > .01 ? e.wx / wv : 1, uy = wv > .01 ? e.wy / wv : 0, wind = e ? e.wind || 0 : 0;
+  for (const m of M.st) {
+    const ph = time * 2 * Math.PI / M.wavePer + m.ph, s = Math.sin(ph), c = Math.cos(ph);
+    const zT = (M.waveDz[0] + M.waveDz[1] * A) * s, lean = Math.min(M.windMax, M.windTilt * wind), wt = (M.waveTilt[0] + M.waveTilt[1] * A) * c;
+    let ax = (lean + wt) * ux, ay = (lean + wt) * uy, push = 0;
+    for (const b of boats) {
+      if (!b || b.cap > 0) continue;
+      const qx = m.x - b.x, qy = m.y - b.y, d = Math.hypot(qx, qy);
+      if (d >= M.kickR || d < 1e-3) continue;
+      const k = (1 - d / M.kickR) * Math.min(1, (b.v || 0) / 20);
+      push += M.kick * k;
+      m.wx += M.passTilt * k * qx / d * dt * 4; m.wy += M.passTilt * k * qy / d * dt * 4;   // the bow wave leans it away
+      m.vz -= M.passDz * k * dt * 4; m.vx += M.passH * k * qx / d * dt; m.vy += M.passH * k * qy / d * dt;
+    }
+    m.wx += (-M.tiltK * (m.tx - ax) - M.tiltC * m.wx) * dt; m.wy += (-M.tiltK * (m.ty - ay) - M.tiltC * m.wy) * dt;
+    m.tx += m.wx * dt; m.ty += m.wy * dt;
+    const tl = Math.hypot(m.tx, m.ty); if (tl > M.tiltMax) { m.tx *= M.tiltMax / tl; m.ty *= M.tiltMax / tl; }
+    m.vz += (-M.dzK * (m.dz - zT) - M.dzC * m.vz) * dt; m.dz += m.vz * dt;
+    m.vx += (-M.hK * m.dx - M.hC * m.vx) * dt; m.vy += (-M.hK * m.dy - M.hC * m.vy) * dt; m.dx += m.vx * dt; m.dy += m.vy * dt;
+    m.w = Math.min(M.maxW, m.w + push * dt * 2); m.w += (M.idle - m.w) * Math.min(1, dt * M.damp); m.spin += m.w * dt;
+  }
+}
+const markIdAt = x => x >= 0 ? '1M' : '2M', boomIdAt = x => x >= 0 ? 'boom_1m' : 'boom_2m';
+// a touch: knocked over away from the boat and set spinning
+function markMoHit(b) { const m = MARKMO.st[b.x >= 0 ? 0 : 1], qx = m.x - b.x, qy = m.y - b.y, d = Math.hypot(qx, qy) || 1; m.wx += MARKMO.hitTilt * qx / d; m.wy += MARKMO.hitTilt * qy / d; m.w = Math.min(MARKMO.maxW, m.w + MARKMO.hitW); }
+// the pose as the log stores it: [dx, dy, dz, qx, qy, qz, qw, spin] — q carries the mark's axis (local +z) over to the lean
+function markPose(m) {
+  const th = Math.hypot(m.tx, m.ty), s = th > 1e-9 ? Math.sin(th / 2) / th : .5;
+  return [m.dx, m.dy, m.dz, -m.ty * s, m.tx * s, 0, Math.cos(th / 2), m.spin];
+}
+const hitPayload = (ev, b) => ev === 'buoy' || ev === 'graze' ? { what: ev, markId: markIdAt(b.x) } : ev === 'boom' || ev === 'grazeBoom' ? { what: ev, barrierId: boomIdAt(b.x) } : { what: ev };
 
 /* ---------- recorded slit photographs ---------- */

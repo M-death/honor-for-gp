@@ -3,7 +3,7 @@ import * as THREE from 'three';
 const V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 const C=new THREE.Matrix4().makeRotationX(-Math.PI/2),CI=C.clone().invert();
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-const GRIPS={L:V(-.245,-.055,.48),R:V(.10,-.03,.41)};
+const GRIPS={L:V(-.245,-.055,.48),R:V(.115,-.03,.41)};   // d374: R on the rim of the new boat's wheel (radius 0.115)
 const TURN_POSE={monkey:{pelvis:[.12,-.58,.84],lean:1.36,side:.55,head_up:1.18,ankle_in:[.12,-.42,.29],ankle_out:[.34,-.86,.29],toe_in:[.15,.95,-.28],toe_out:[.50,.80,-.30]},
  willie:{pelvis:[.08,-.74,.64],lean:.80,side:.30,head_up:.70,ankle_in:[.13,-.44,.29],ankle_out:[.24,-.58,.29],toe_in:[.05,.95,-.30],toe_out:[.15,.95,-.30]}};
 const WHEEL={center:V(0,-.03,.41),axis:V(0,.77,-.64).normalize(),max:.9};
