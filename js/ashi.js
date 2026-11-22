@@ -68,6 +68,7 @@ function ashiUi() {
   if ($('ashiHud')) return;
   const css = document.createElement('style');
   css.textContent = `#ashiHud{position:fixed;left:50%;top:calc(98px + var(--st,0px));transform:translateX(-50%);z-index:4;pointer-events:none;text-align:center;color:#fff;text-shadow:0 1px 3px #000a}
+@media (max-width:1000px){#ashiHud{top:calc(140px + var(--st,0px))}}
 #ashiHud .lbl{font-size:12px;font-weight:700;opacity:.85}#ashiHud .sc{font:800 30px/1.1 var(--num-font,system-ui);transition:transform .12s,color .12s;display:inline-block}
 #ashiHud.hot .sc{color:#ffd23f;transform:scale(1.35);text-shadow:0 0 12px #ffb30088,0 1px 3px #000}#ashiHud .cb{font-size:13px;font-weight:800;color:#ffd23f;min-height:18px}
 #ashiHud.lost .sc{color:#ff6b6b;animation:ashiShake .35s}@keyframes ashiShake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}

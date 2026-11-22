@@ -581,6 +581,17 @@ $('invP').addEventListener('change', e => { sensor.invP = e.target.checked; });
 $('sens').addEventListener('input', e => { sensor.range = +e.target.value; $('sensOut').textContent = e.target.value + '°'; });
 $('reset').addEventListener('click', () => { $('settings').hidden = true; paused = false; last = performance.now(); restartPractice(); });
 $('again').addEventListener('click', () => { if (!running || paused) return; paused = true; $('pmenu').hidden = false; });
+// d387 (まえ: どのモードでもXボタンはやり直しと画面に出しといて。タッチならそこを触ればやり直し、間違って触らない上のほうに):
+// a やり直し pill in the top-right row (Ⓧ on a controller, R on the keyboard, tap it on touch); hidden where nothing can be redone
+const canRetry = () => running && !(fleet && (fleet.setsu || fleet.replay || (!fleet.playerNo && !fleet.raceCfg)));
+function retryPill() {
+  const b = $('retryBtn'); if (!b) return;
+  const show = canRetry(), t = controlMode === 'ctrl' ? 'Ⓧ やり直し' : controlMode === 'key' ? 'R やり直し' : 'やり直し';
+  if (b.hidden === show) b.hidden = !show; if (b.textContent !== t) b.textContent = t;
+}
+setInterval(retryPill, 400);
+$('retryBtn').addEventListener('click', e => { e.currentTarget.blur(); if (canRetry() && $('settings').hidden && $('card').hidden) restartPractice(); });
+addEventListener('keydown', e => { if (e.code !== 'KeyR' || e.repeat || typingIn(e) || lab.active) return; if (canRetry() && $('settings').hidden && $('card').hidden && !paused) restartPractice(); });
 // 練習の種類: 'p6' 6艇スタート練習 / 'race' レース練習（3周）; solo: 'tenji' 展示航走 / 'clock' 大時計スタート
 let practiceKind = 'race', soloKind = 'clock';
 const WAKU_NOTE = {
@@ -1013,7 +1024,7 @@ function pollPadButtons(dt = 0) {
   // held R3_HOLD s, on a standard-mapped pad, once per press — so a twitchy or oddly mapped button 11 can't flip it
   if (down(11) && g.mapping === 'standard') { pad.r3 = (pad.r3 || 0) + dt; if (pad.r3 >= R3_HOLD && !pad.r3Done && $('settings').hidden && $('card').hidden && window.View3D && View3D.toggle) { pad.r3Done = true; View3D.toggle(); } }
   else { pad.r3 = 0; pad.r3Done = false; }
-  if (edge(2) && running && $('settings').hidden && $('card').hidden) restartPractice();   // X = 練習をやり直す
+  if (edge(2) && canRetry() && $('settings').hidden && $('card').hidden) restartPractice();   // X = 練習をやり直す (d387: not where the pill is hidden)
   if (edge(3) && running && !paused && fleet && fleet.entry && fleet.playerNo) playerDash();
   pad.prev = g.buttons.map(b => b.pressed);
 }
