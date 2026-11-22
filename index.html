@@ -566,7 +566,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
 <div class="overlay" id="rankBox" hidden>
   <div class="card">
     <h1 style="font-size:22px"><small id="rankSub">タイムアタック（3周）</small>ランキング</h1>
-    <div class="row" id="rankTabs"><button class="btn" data-tab="local">端末内</button><button class="btn ghost" data-tab="net">全体</button><button class="btn ghost" data-tab="official">公式ゴースト</button><button class="btn ghost" data-tab="ashi">足合わせ</button><select id="rankVer" hidden title="版"></select></div>
+    <div class="row" id="rankTabs"><button class="btn" data-tab="local">端末内</button><button class="btn ghost" data-tab="net">全体</button><button class="btn ghost" data-tab="official">公式ゴースト</button><button class="btn ghost" data-tab="ashi">足合わせ</button><select id="rankVer" hidden title="版"></select><select id="rankIn" hidden title="操作"><option value="all">総合</option><option value="ctrl">🎮 コントローラー</option><option value="key">⌨️ キーボード</option><option value="touch">👆 タッチ</option></select></div>
     <p id="rankNote" style="font-size:12px;margin:0 0 6px"></p>
     <div id="rankList"></div>
     <div class="plrow" id="rivalRow" style="margin:6px 0 0"><span id="rivalTxt" style="font-size:13px;flex-basis:100%">相手：なし</span><button class="btn ghost" id="rivalLoad">ゴーストを読み込む</button><button class="btn ghost" id="codeLoad">合言葉で受け取る</button><button class="btn ghost" id="shareCode">合言葉で渡す</button><button class="btn ghost" id="rivalOff" hidden>外す</button><span id="shareTxt" hidden style="font-size:13px;flex-basis:100%"></span><input type="file" id="rivalFile" accept=".json,application/json" hidden></div>
@@ -656,13 +656,13 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
       <div id="perfRow" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label><input type="checkbox" id="perfOn"> 性能ログを記録する（媒体・視点・画質ごとの最高／最低／平均fps）</label><label><input type="checkbox" id="perf1M"> スタート〜1周1Mだけ測る</label><button type="button" class="btn ghost" id="perfView">性能ログを見る</button></div>
       <label id="screenModeRow">画面（PC） <select id="screenMode"><option value="full">全画面</option><option value="window">ウィンドウ</option></select></label>
       <label>表示 <select id="dispMode"><option value="2d">2D</option><option value="3d">3D</option></select></label>
+      <label id="liveryRow">ボートの塗装（3D） <select id="liverySel"><option value="">会場の標準</option><option value="naniwa">なにわカラー</option><option value="naniwa_cat">なにわカラー（キャラ模様）</option><option value="practice">練習場カラー</option></select></label>
       <label>カメラ <select id="camMode"><option value="follow">追いかけ</option><option value="close">拡大追尾（艇を大きく見る）</option><option value="auto">自動ズーム（PC向け・全艇が入るまで引く）</option></select></label>
       <label>時間帯 <select id="todMode"><option value="auto">自動（節間はレースの時刻で）</option><option value="day">昼</option><option value="evening">夕方</option><option value="night">ナイター</option></select></label>
       <label>2D解像度 <select id="dpr2d"><option value="2">標準（×2まで）</option><option value="1.5">×1.5まで</option><option value="1">×1（軽い）</option></select></label>
       <label>3D画質 <select id="gfx3d"><option value="auto">自動</option><option value="lite">スマホ軽量</option><option value="rich">スマホリッチ</option><option value="pc">PC</option><option value="fhd">最高（フルHD）</option></select> <small id="gfx3dNow" style="color:var(--muted)"></small></label>
       <label>3Dのfps上限 <select id="fpsCap3d"><option value="0">なし</option><option value="45">45（省電力）</option><option value="30">30（もっと省電力）</option></select></label>
       <label>3D水面 <select id="water3d"><option value="auto">画質に合わせる</option><option value="simple">簡易（処理なし）</option><option value="shade">陰影</option><option value="reflect">反射（重い）</option></select></label>
-      <label>振り返り（スマホ） <select id="phoneLook"><option value="on">左右に動かす</option><option value="off">しない</option></select></label>
       <label>3D波（うねり） <select id="swell3d"><option value="off">なし</option><option value="on">あり（やや重い）</option></select></label>
       <label>3D飛沫 <select id="spray3d"><option value="std">標準</option><option value="big">派手</option></select></label>
       <label>ターンマークの光の柱 <select id="markPillar"><option value="on">あり</option><option value="off">なし</option></select></label>

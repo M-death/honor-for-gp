@@ -12,6 +12,10 @@ for f in sorted((root / 'hfgp3d/mobile').glob('*.glb')):
 # d369: the realistic racers' phone textures (racer_real_*_1k) too; the 2k ones go with the PC models (embed_hfgp3d_pc.py)
 for f in [root / 'hfgp3d/runtime/rig_rest.json', *sorted(f for f in (root / 'hfgp3d/textures').glob('*.*') if f.suffix in ('.png', '.jpg') and '_2k.' not in f.name)]:
     parts.append(f'  "{f.parent.name}/{f.name}": "' + base64.b64encode(f.read_bytes()).decode('ascii') + '"')
+# d376: the venue paint sheets (hfgp3d/liveries/<venue>/livery.json + its images, hfgp-livery-v1) — small flat PNGs
+for f in sorted((root / 'hfgp3d/liveries').glob('*/*.*')):
+    if f.suffix.lower() in ('.json', '.png', '.jpg', '.jpeg', '.webp'):
+        parts.append(f'  "liveries/{f.parent.name}/{f.name}": "' + base64.b64encode(f.read_bytes()).decode('ascii') + '"')
 (root / 'js/hfgp3d-glb.js').write_text(
     '// 3D（新モデル）の GLB（hfgp3d/mobile）をそのまま埋め込んだもの。tools/embed_hfgp3d.py で作り直す。\n'
     'window.HFGP3D_GLB = {\n' + ',\n'.join(parts) + '\n};\n', encoding='utf-8')

@@ -74,51 +74,153 @@ footer{color:var(--muted);font-size:12px}
 .mnav button:focus-visible,.manga img:focus-visible{outline:3px solid var(--lever);outline-offset:2px}
 @media (max-width:520px){.row{grid-template-columns:1fr;gap:4px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.lang{justify-self:start;display:flex;gap:0;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.lang button{font:inherit;font-weight:700;font-size:13px;padding:5px 14px;border:0;background:var(--surface);color:var(--ink);cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--lever);color:var(--bg)}
+.lang button:focus-visible{outline:3px solid var(--lever);outline-offset:-3px}
+html[data-lang="ja"] [data-l="en"],html[data-lang="en"] [data-l="ja"]{display:none!important}
 </style>
 
 </head><body>
 <main>
-  <header style="display:grid;gap:8px">
-    <h1><small>HONOR FOR GP 波の向こうに</small>操作説明書</h1>
-    <p class="lead">ボートを動かす操作は4つだけです。スマホのタッチ、コントローラ、キーボードのどれでも同じ4つを操作します。</p>
+  <header style="display:grid;gap:10px">
+    <h1><small>HONOR FOR GP 波の向こうに</small><span data-l="ja">操作説明書</span><span data-l="en">How to Play</span></h1>
+    <div class="lang" role="group" aria-label="Language / 言語"><button type="button" data-set="ja" aria-pressed="true">日本語</button><button type="button" data-set="en" aria-pressed="false">English</button></div>
+    <p class="lead" data-l="ja">ボートを動かす操作は4つだけです。スマホのタッチ、コントローラ、キーボードのどれでも同じ4つを操作します。本気で走るならコントローラがおすすめです。</p>
+    <p class="lead" data-l="en">You drive the boat with just four controls. Touch, controller and keyboard all work the same four. For serious racing, a controller is recommended.</p>
   </header>
 
   <section aria-labelledby="h-manga">
-    <h2 id="h-manga">漫画で見る</h2>
+    <h2 id="h-manga"><span data-l="ja">漫画で見る</span><span data-l="en">Manga guide</span></h2>
+    <p class="lead" data-l="en">The manga is in Japanese only.</p>
     <div class="manga">
       <img id="mangaImg" src="manga/p1.webp" alt="操作説明の漫画 1ページ目" tabindex="0" width="1024" height="1536">
-      <div class="mnav" role="group" aria-label="漫画のページ">
-        <button type="button" id="mPrev" aria-label="前のページ">◀</button>
+      <div class="mnav" role="group" aria-label="漫画のページ / Manga pages">
+        <button type="button" id="mPrev" aria-label="前のページ / Previous page">◀</button>
         <span id="mPages" style="display:contents"></span>
-        <button type="button" id="mNext" aria-label="次のページ">▶</button>
+        <button type="button" id="mNext" aria-label="次のページ / Next page">▶</button>
       </div>
     </div>
   </section>
 
   <section aria-labelledby="h-basic">
-    <h2 id="h-basic">基本の4つ</h2>
-    <div class="basics">
+    <h2 id="h-basic"><span data-l="ja">基本の4つ</span><span data-l="en">The four controls</span></h2>
+    <div class="basics" data-l="ja">
       <div class="basic"><b>レバー（アクセル）</b><span>握るほど速くなる。ターンの手前で緩め、出口でまた握る。</span></div>
       <div class="basic"><b>舵（ハンドル）</b><span>左右に切って曲がる。離すとまっすぐに戻る。</span></div>
       <div class="basic"><b>体重移動（左右）</b><span>曲がる側に体重をかけると、艇が傾いて鋭く回れる。</span></div>
       <div class="basic"><b>姿勢（前後）</b><span>前に伏せると直線が伸びる。後ろに起こすと安定する。</span></div>
     </div>
+    <div class="basics" data-l="en">
+      <div class="basic"><b>Throttle lever</b><span>The more you squeeze, the faster you go. Ease off before a turn, squeeze again on the way out.</span></div>
+      <div class="basic"><b>Steering</b><span>Turn left or right. Let go and it returns to straight.</span></div>
+      <div class="basic"><b>Weight shift (left/right)</b><span>Lean into the turn to bank the boat and turn tighter.</span></div>
+      <div class="basic"><b>Posture (forward/back)</b><span>Crouch forward for more speed on the straight. Sit back for stability.</span></div>
+    </div>
   </section>
 
-  <nav class="tabs" role="tablist" aria-label="操作方法">
-    <button role="tab" id="tab-touch" aria-controls="p-touch" aria-selected="true">スマホ（タッチ）</button>
-    <button role="tab" id="tab-pad" aria-controls="p-pad" aria-selected="false">コントローラ</button>
-    <button role="tab" id="tab-key" aria-controls="p-key" aria-selected="false">キーボード</button>
+  <nav class="tabs" role="tablist" aria-label="操作方法 / Input">
+    <button role="tab" id="tab-pad" aria-controls="p-pad" aria-selected="true"><span data-l="ja">コントローラ</span><span data-l="en">Controller</span></button>
+    <button role="tab" id="tab-key" aria-controls="p-key" aria-selected="false"><span data-l="ja">キーボード</span><span data-l="en">Keyboard</span></button>
+    <button role="tab" id="tab-touch" aria-controls="p-touch" aria-selected="false"><span data-l="ja">スマホ（タッチ）</span><span data-l="en">Phone (touch)</span></button>
   </nav>
 
+  <!-- コントローラ -->
+  <section class="panel" id="p-pad" role="tabpanel" aria-labelledby="tab-pad">
+    <h2><span data-l="ja">コントローラ</span><span data-l="en">Controller</span></h2>
+    <p data-l="ja">Xbox・PlayStation系のコントローラをPCやスマホにつなぐと使えます。走っている間にスティックやトリガーに触れると、操作モードが「5．コントローラー」に切り替わります。このモードではボートはコントローラーだけで動き、メニューや設定はマウスやタッチでも操作できます。タイムアタックの記録とランキングは「コントローラー」「キーボード」「タッチ」で別々です。</p>
+    <p data-l="en">Connect an Xbox or PlayStation style controller to your PC or phone. Touch a stick or trigger during a run and the control mode switches to "5. コントローラー" (controller). In this mode only the controller drives the boat; menus and settings still work with mouse or touch. Time attack records and rankings are kept separately for controller, keyboard and touch.</p>
+    <div class="rows" data-l="ja">
+      <div class="rowhead">走る</div>
+      <div class="row"><div class="in"><kbd>RT</kbd> 右トリガー</div><div class="do">レバー<small>引いた分だけ握る。離すと戻る。設定で左トリガー（<kbd>LT</kbd>）に変えられます。</small></div></div>
+      <div class="row"><div class="in">右スティック 左右</div><div class="do">舵</div></div>
+      <div class="row"><div class="in">左スティック 左右</div><div class="do">体重移動</div></div>
+      <div class="row"><div class="in">左スティック 上／下</div><div class="do">上で伏せる、下で起こす</div></div>
+      <div class="rowhead">見る</div>
+      <div class="row"><div class="in"><kbd>LB</kbd> ／ <kbd>RB</kbd></div><div class="do">左／右を振り返る（3D）<small>1回で真横、2回で斜め後ろ、3回で正面。反対側のボタンで1つ戻ります（<kbd>LB</kbd>→<kbd>RB</kbd>で左を見て正面へ）。向いたままターンもできます。</small></div></div>
+      <div class="row"><div class="in"><kbd>LT</kbd> 左トリガー</div><div class="do">握っている間だけ振り返る（3D）<small>引いた分だけ回り、離すと正面。すぐにもう一度引くと反対側。スロットルを左トリガーにしたときは右トリガーです。</small></div></div>
+      <div class="row"><div class="in">十字キー 上／下</div><div class="do">視点を切り替える<small>今の表示（2D／3D）の中で順に切り替えます。</small></div></div>
+      <div class="rowhead">スタート前・その他</div>
+      <div class="row"><div class="in"><kbd>A</kbd></div><div class="do">コースを主張（ピット離れのとき）</div></div>
+      <div class="row"><div class="in"><kbd>B</kbd> または <kbd>Y</kbd></div><div class="do">引く（ダッシュへ）</div></div>
+      <div class="row"><div class="in"><kbd>X</kbd></div><div class="do">今の走りを最初からやり直す</div></div>
+      <div class="row"><div class="in"><kbd>Start</kbd></div><div class="do">メニューを開く／閉じる</div></div>
+      <div class="rowhead">メニュー</div>
+      <div class="row"><div class="in">十字キー・左スティック</div><div class="do">項目を選ぶ<small>選択肢のある項目は左右で値が変わります。</small></div></div>
+      <div class="row"><div class="in"><kbd>A</kbd> ／ <kbd>B</kbd></div><div class="do">決定 ／ キャンセル（閉じる）</div></div>
+    </div>
+    <div class="rows" data-l="en">
+      <div class="rowhead">DRIVE</div>
+      <div class="row"><div class="in"><kbd>RT</kbd> right trigger</div><div class="do">Throttle<small>Squeezes as far as you pull. Let go and it closes. Can be moved to the left trigger (<kbd>LT</kbd>) in the settings.</small></div></div>
+      <div class="row"><div class="in">Right stick left/right</div><div class="do">Steering</div></div>
+      <div class="row"><div class="in">Left stick left/right</div><div class="do">Weight shift</div></div>
+      <div class="row"><div class="in">Left stick up/down</div><div class="do">Up: crouch. Down: sit back.</div></div>
+      <div class="rowhead">LOOK</div>
+      <div class="row"><div class="in"><kbd>LB</kbd> / <kbd>RB</kbd></div><div class="do">Look left / right (3D)<small>1 press: to the side. 2: back over the shoulder. 3: front again. The other button steps back one (<kbd>LB</kbd> then <kbd>RB</kbd> = left, then front). The view stays put while you turn.</small></div></div>
+      <div class="row"><div class="in"><kbd>LT</kbd> left trigger</div><div class="do">Look back while held (3D)<small>Turns as far as you pull; let go to face front. Pull again quickly for the other side. Uses the right trigger if the throttle is on the left.</small></div></div>
+      <div class="row"><div class="in">D-pad up/down</div><div class="do">Change view<small>Cycles the views of the current display (2D or 3D).</small></div></div>
+      <div class="rowhead">BEFORE THE START / OTHER</div>
+      <div class="row"><div class="in"><kbd>A</kbd></div><div class="do">Claim a course (when leaving the pit)</div></div>
+      <div class="row"><div class="in"><kbd>B</kbd> or <kbd>Y</kbd></div><div class="do">Drop back (to the dash position)</div></div>
+      <div class="row"><div class="in"><kbd>X</kbd></div><div class="do">Restart the current run</div></div>
+      <div class="row"><div class="in"><kbd>Start</kbd></div><div class="do">Open / close the menu</div></div>
+      <div class="rowhead">MENUS</div>
+      <div class="row"><div class="in">D-pad / left stick</div><div class="do">Move between items<small>Left/right changes the value of an item with choices.</small></div></div>
+      <div class="row"><div class="in"><kbd>A</kbd> / <kbd>B</kbd></div><div class="do">OK / cancel (close)</div></div>
+    </div>
+  </section>
+
+  <!-- キーボード -->
+  <section class="panel" id="p-key" role="tabpanel" aria-labelledby="tab-key" hidden>
+    <h2><span data-l="ja">キーボード</span><span data-l="en">Keyboard</span></h2>
+    <p data-l="ja">PC向けです。走っている間に下のキーを押すと、操作モードが「6．キーボード」に切り替わり、ボートはキーボードだけで動きます（タイムアタックの記録とランキングは「キーボード」の部）。レバーはキーを押している間だけ少しずつ動き、離した位置で止まります。4つを同時に操るのは難しいので、慣れてきたらコントローラがおすすめです。</p>
+    <p data-l="en">For PC. Press any of the keys below during a run and the control mode switches to "6. キーボード" (keyboard); only the keyboard drives the boat (time attack records go to the keyboard board). The throttle moves gradually while a key is held and stays where you let go. Working all four at once is hard, so a controller is recommended once you get used to it.</p>
+    <div class="rows" data-l="ja">
+      <div class="rowhead">走る</div>
+      <div class="row"><div class="in"><kbd>W</kbd></div><div class="do">レバーを握る<small>押している間、少しずつ上がる（全開まで約0.8秒）。</small></div></div>
+      <div class="row"><div class="in"><kbd>S</kbd></div><div class="do">レバーを緩める</div></div>
+      <div class="row"><div class="in"><kbd>A</kbd> <kbd>D</kbd></div><div class="do">舵（左・右）<small>離すとまっすぐに戻る。</small></div></div>
+      <div class="row"><div class="in"><kbd>←</kbd> <kbd>→</kbd></div><div class="do">体重移動（左・右）</div></div>
+      <div class="row"><div class="in"><kbd>↑</kbd></div><div class="do">伏せる</div></div>
+      <div class="row"><div class="in"><kbd>↓</kbd></div><div class="do">起こす</div></div>
+      <div class="rowhead">見る</div>
+      <div class="row"><div class="in"><kbd>Q</kbd> ／ <kbd>E</kbd></div><div class="do">左／右を振り返る（3D）<small>コントローラの <kbd>LB</kbd>／<kbd>RB</kbd> と同じ。1回で真横、2回で斜め後ろ、3回で正面。反対側のキーで1つ戻ります。</small></div></div>
+      <div class="row"><div class="in"><kbd>V</kbd></div><div class="do">視点を切り替える</div></div>
+      <div class="row"><div class="in"><kbd>Shift</kbd>＋<kbd>V</kbd></div><div class="do">2D／3D の表示を切り替える</div></div>
+      <div class="rowhead">スタート前・その他</div>
+      <div class="row"><div class="in"><kbd>Space</kbd></div><div class="do">引く（ダッシュへ）</div></div>
+      <div class="row"><div class="in">マウスで「主張」</div><div class="do">コースを主張<small>キーは割り当てていません。画面のボタンをクリックします。</small></div></div>
+      <div class="row"><div class="in"><kbd>Esc</kbd></div><div class="do">全画面を抜けてウィンドウ表示にする<small>設定の「画面（PC）」で全画面に戻せます。</small></div></div>
+    </div>
+    <div class="rows" data-l="en">
+      <div class="rowhead">DRIVE</div>
+      <div class="row"><div class="in"><kbd>W</kbd></div><div class="do">Open the throttle<small>Rises gradually while held (about 0.8 s to full).</small></div></div>
+      <div class="row"><div class="in"><kbd>S</kbd></div><div class="do">Close the throttle</div></div>
+      <div class="row"><div class="in"><kbd>A</kbd> <kbd>D</kbd></div><div class="do">Steer left / right<small>Let go and it returns to straight.</small></div></div>
+      <div class="row"><div class="in"><kbd>←</kbd> <kbd>→</kbd></div><div class="do">Weight shift left / right</div></div>
+      <div class="row"><div class="in"><kbd>↑</kbd></div><div class="do">Crouch</div></div>
+      <div class="row"><div class="in"><kbd>↓</kbd></div><div class="do">Sit back</div></div>
+      <div class="rowhead">LOOK</div>
+      <div class="row"><div class="in"><kbd>Q</kbd> / <kbd>E</kbd></div><div class="do">Look left / right (3D)<small>Same as the controller's <kbd>LB</kbd>/<kbd>RB</kbd>: 1 press to the side, 2 back over the shoulder, 3 front again. The other key steps back one.</small></div></div>
+      <div class="row"><div class="in"><kbd>V</kbd></div><div class="do">Change view</div></div>
+      <div class="row"><div class="in"><kbd>Shift</kbd>+<kbd>V</kbd></div><div class="do">Switch between 2D and 3D</div></div>
+      <div class="rowhead">BEFORE THE START / OTHER</div>
+      <div class="row"><div class="in"><kbd>Space</kbd></div><div class="do">Drop back (to the dash position)</div></div>
+      <div class="row"><div class="in">Click "主張"</div><div class="do">Claim a course<small>No key for this: click the on-screen button.</small></div></div>
+      <div class="row"><div class="in"><kbd>Esc</kbd></div><div class="do">Leave full screen<small>Go back to full screen from 画面（PC） in the settings.</small></div></div>
+    </div>
+  </section>
+
   <!-- タッチ -->
-  <section class="panel" id="p-touch" role="tabpanel" aria-labelledby="tab-touch">
-    <h2>スマホ（タッチ）</h2>
-    <p>スマホは横向きで遊びます。操作モードは3つあり、最初の画面か設定で選べます。</p>
-    <div class="modes" role="group" aria-label="操作モード">
-      <button type="button" data-mode="tilt" aria-pressed="true">1．傾きあり</button>
-      <button type="button" data-mode="pad" aria-pressed="false">2．傾きなし・姿勢パッド</button>
-      <button type="button" data-mode="wheel" aria-pressed="false">3．姿勢パッド＋右手アクセル</button>
+  <section class="panel" id="p-touch" role="tabpanel" aria-labelledby="tab-touch" hidden>
+    <h2><span data-l="ja">スマホ（タッチ）</span><span data-l="en">Phone (touch)</span></h2>
+    <p data-l="ja">操作モードは4つあり、最初の画面か設定で選べます。1〜3は横向き、4は縦持ちでも遊べます。スマホでは振り返りはできません（コントローラをつなぐと使えます）。</p>
+    <p data-l="en">There are four touch control modes; choose one on the first screen or in the settings. Modes 1–3 are played in landscape; mode 4 also works in portrait. Looking back is not available on touch (connect a controller to use it).</p>
+    <div class="modes" role="group" aria-label="操作モード / Control mode">
+      <button type="button" data-mode="tilt" aria-pressed="true">1．傾きあり<span data-l="en"> (tilt)</span></button>
+      <button type="button" data-mode="pad" aria-pressed="false">2．傾きなし・姿勢パッド<span data-l="en"> (posture pad)</span></button>
+      <button type="button" data-mode="wheel" aria-pressed="false">3．姿勢パッド＋右手アクセル<span data-l="en"> (wheel)</span></button>
+      <button type="button" data-mode="fuse" aria-pressed="false">4．融合パッド<span data-l="en"> (combined pad)</span></button>
     </div>
 
     <div class="figure" aria-hidden="true">
@@ -128,25 +230,25 @@ footer{color:var(--muted);font-size:12px}
         <g data-fig="tilt">
           <rect class="zone2" x="30" y="30" width="285" height="240" rx="14"/>
           <rect class="zone" x="325" y="30" width="285" height="240" rx="14"/>
-          <text x="172" y="70" text-anchor="middle" font-size="18" font-weight="700">左半分：レバー</text>
-          <text x="172" y="92" text-anchor="middle" class="sub">上下になぞる</text>
+          <text x="172" y="70" text-anchor="middle" font-size="18" font-weight="700"><tspan data-l="ja">左半分：レバー</tspan><tspan data-l="en">Left half: throttle</tspan></text>
+          <text x="172" y="92" text-anchor="middle" class="sub"><tspan data-l="ja">上下になぞる</tspan><tspan data-l="en">slide up / down</tspan></text>
           <line class="arrow" x1="172" y1="230" x2="172" y2="120" style="color:var(--ink)"/>
-          <text x="467" y="70" text-anchor="middle" font-size="18" font-weight="700">右半分：舵</text>
-          <text x="467" y="92" text-anchor="middle" class="sub">左右になぞる・離すと中央</text>
+          <text x="467" y="70" text-anchor="middle" font-size="18" font-weight="700"><tspan data-l="ja">右半分：舵</tspan><tspan data-l="en">Right half: steering</tspan></text>
+          <text x="467" y="92" text-anchor="middle" class="sub"><tspan data-l="ja">左右になぞる・離すと中央</tspan><tspan data-l="en">slide left / right, let go = centre</tspan></text>
           <line class="arrow" x1="400" y1="170" x2="534" y2="170" style="color:var(--ink)"/>
           <line class="arrow" x1="534" y1="170" x2="400" y2="170" style="color:var(--ink)"/>
-          <text x="320" y="262" text-anchor="middle" class="sub">スマホ本体を傾けて体重移動・姿勢</text>
+          <text x="320" y="262" text-anchor="middle" class="sub"><tspan data-l="ja">スマホ本体を傾けて体重移動・姿勢</tspan><tspan data-l="en">tilt the phone for weight shift and posture</tspan></text>
         </g>
         <g data-fig="pad" hidden>
           <rect class="zone2" x="30" y="30" width="285" height="240" rx="14"/>
           <rect class="zone" x="325" y="30" width="285" height="240" rx="14"/>
-          <text x="172" y="66" text-anchor="middle" font-size="18" font-weight="700">左半分：レバー</text>
+          <text x="172" y="66" text-anchor="middle" font-size="18" font-weight="700"><tspan data-l="ja">左半分：レバー</tspan><tspan data-l="en">Left half: throttle</tspan></text>
           <line class="arrow" x1="230" y1="230" x2="230" y2="110" style="color:var(--ink)"/>
           <circle cx="110" cy="190" r="52" class="zone" />
           <circle cx="110" cy="190" r="16" fill="var(--water)"/>
-          <text x="110" y="122" text-anchor="middle" class="sub">姿勢パッド</text>
-          <text x="467" y="70" text-anchor="middle" font-size="18" font-weight="700">右半分：舵</text>
-          <text x="467" y="92" text-anchor="middle" class="sub">左右になぞる・離すと中央</text>
+          <text x="110" y="122" text-anchor="middle" class="sub"><tspan data-l="ja">姿勢パッド</tspan><tspan data-l="en">posture pad</tspan></text>
+          <text x="467" y="70" text-anchor="middle" font-size="18" font-weight="700"><tspan data-l="ja">右半分：舵</tspan><tspan data-l="en">Right half: steering</tspan></text>
+          <text x="467" y="92" text-anchor="middle" class="sub"><tspan data-l="ja">左右になぞる・離すと中央</tspan><tspan data-l="en">slide left / right, let go = centre</tspan></text>
           <line class="arrow" x1="400" y1="170" x2="534" y2="170" style="color:var(--ink)"/>
           <line class="arrow" x1="534" y1="170" x2="400" y2="170" style="color:var(--ink)"/>
         </g>
@@ -155,68 +257,47 @@ footer{color:var(--muted);font-size:12px}
           <rect class="zone2" x="325" y="30" width="285" height="240" rx="14"/>
           <circle cx="150" cy="170" r="60" class="zone"/>
           <circle cx="150" cy="170" r="18" fill="var(--water)"/>
-          <text x="172" y="70" text-anchor="middle" font-size="18" font-weight="700">左手：姿勢パッド</text>
-          <text x="467" y="70" text-anchor="middle" font-size="18" font-weight="700">右半分：レバー</text>
+          <text x="172" y="70" text-anchor="middle" font-size="18" font-weight="700"><tspan data-l="ja">左手：姿勢パッド</tspan><tspan data-l="en">Left hand: posture pad</tspan></text>
+          <text x="467" y="70" text-anchor="middle" font-size="18" font-weight="700"><tspan data-l="ja">右半分：レバー</tspan><tspan data-l="en">Right half: throttle</tspan></text>
           <line class="arrow" x1="467" y1="230" x2="467" y2="110" style="color:var(--ink)"/>
-          <text x="320" y="262" text-anchor="middle" class="sub">スマホ本体をハンドルのように回して舵</text>
+          <text x="320" y="262" text-anchor="middle" class="sub"><tspan data-l="ja">スマホ本体をハンドルのように回して舵</tspan><tspan data-l="en">turn the phone like a wheel to steer</tspan></text>
+        </g>
+        <g data-fig="fuse" hidden>
+          <rect class="zone2" x="30" y="30" width="285" height="240" rx="14"/>
+          <rect class="zone" x="325" y="30" width="285" height="240" rx="14"/>
+          <text x="172" y="70" text-anchor="middle" font-size="18" font-weight="700"><tspan data-l="ja">左半分：レバー</tspan><tspan data-l="en">Left half: throttle</tspan></text>
+          <line class="arrow" x1="172" y1="230" x2="172" y2="120" style="color:var(--ink)"/>
+          <text x="467" y="70" text-anchor="middle" font-size="18" font-weight="700"><tspan data-l="ja">右半分：融合パッド</tspan><tspan data-l="en">Right half: combined pad</tspan></text>
+          <text x="467" y="92" text-anchor="middle" class="sub"><tspan data-l="ja">左右で舵・上下で姿勢</tspan><tspan data-l="en">left/right steer, up/down posture</tspan></text>
+          <line class="arrow" x1="400" y1="170" x2="534" y2="170" style="color:var(--ink)"/>
+          <line class="arrow" x1="534" y1="170" x2="400" y2="170" style="color:var(--ink)"/>
+          <line class="arrow" x1="467" y1="230" x2="467" y2="120" style="color:var(--ink)"/>
+          <text x="320" y="262" text-anchor="middle" class="sub"><tspan data-l="ja">体の傾きは舵に合わせて自動</tspan><tspan data-l="en">weight shift follows the steering by itself</tspan></text>
         </g>
       </svg>
     </div>
 
     <div class="rows" id="touchRows"></div>
 
-    <div class="rows">
-      <div class="rowhead">画面のボタン（ピット離れのとき）</div>
-      <div class="row"><div class="in"><span class="pill">主張</span></div><div class="do">一つ内側のコースを狙う<small>押すたびに一つ内へ。押さなければ枠のまま。</small></div></div>
+    <div class="rows" data-l="ja">
+      <div class="rowhead">画面のボタン</div>
+      <div class="row"><div class="in"><span class="pill">主張</span></div><div class="do">一つ内側のコースを狙う（ピット離れのとき）<small>押すたびに一つ内へ。押さなければ枠のまま。</small></div></div>
       <div class="row"><div class="in"><span class="pill">引く</span></div><div class="do">ダッシュ位置へ下がる<small>2マークを回ってから、スタートラインに正対するまでの間に押す。</small></div></div>
-      <div class="row"><div class="in">右上の歯車</div><div class="do">設定を開く</div></div>
+      <div class="row"><div class="in"><span class="pill">視点</span> <span class="pill">表示</span></div><div class="do">視点を切り替える ／ 2D・3D を切り替える</div></div>
+      <div class="row"><div class="in">右上の歯車</div><div class="do">メニュー・設定を開く</div></div>
     </div>
-  </section>
-
-  <!-- コントローラ -->
-  <section class="panel" id="p-pad" role="tabpanel" aria-labelledby="tab-pad" hidden>
-    <h2>コントローラ</h2>
-    <p>Xbox・PlayStation系のコントローラをPCやスマホにつなぐと使えます。走っている間にスティックやトリガーに触れると、操作モードが「5．コントローラー」に切り替わります。このモードではボートはコントローラーだけで動き、メニューや設定はマウスやタッチでも操作できます。タイムアタックの記録とランキングは「コントローラー」「キーボード」「タッチ」で別々です。</p>
-    <div class="rows">
-      <div class="rowhead">走る</div>
-      <div class="row"><div class="in"><kbd>RT</kbd> 右トリガー</div><div class="do">レバー<small>引いた分だけ握る。離すと戻る。設定で左トリガー（<kbd>LT</kbd>）に変えられます。</small></div></div>
-      <div class="row"><div class="in">右スティック 左右</div><div class="do">舵</div></div>
-      <div class="row"><div class="in">左スティック 左右</div><div class="do">体重移動</div></div>
-      <div class="row"><div class="in">左スティック 上／下</div><div class="do">上で伏せる、下で起こす</div></div>
-      <div class="row"><div class="in">十字キー 上／下</div><div class="do">視点を切り替える<small>2D（追いかけ・拡大追尾・自動ズーム）と3D（追尾・レーサー）を順に切り替えます。</small></div></div>
-      <div class="rowhead">スタート前・その他</div>
-      <div class="row"><div class="in"><kbd>A</kbd></div><div class="do">コースを主張（ピット離れのとき）</div></div>
-      <div class="row"><div class="in"><kbd>B</kbd> または <kbd>Y</kbd></div><div class="do">引く（ダッシュへ）</div></div>
-      <div class="row"><div class="in"><kbd>X</kbd></div><div class="do">今の練習を最初からやり直す</div></div>
-      <div class="row"><div class="in"><kbd>Start</kbd></div><div class="do">設定を開く／閉じる</div></div>
-      <div class="rowhead">メニュー</div>
-      <div class="row"><div class="in">十字キー・左スティック</div><div class="do">項目を選ぶ<small>選択肢のある項目は左右で値が変わります。</small></div></div>
-      <div class="row"><div class="in"><kbd>A</kbd> ／ <kbd>B</kbd></div><div class="do">決定 ／ キャンセル（閉じる）</div></div>
-    </div>
-  </section>
-
-  <!-- キーボード -->
-  <section class="panel" id="p-key" role="tabpanel" aria-labelledby="tab-key" hidden>
-    <h2>キーボード</h2>
-    <p>PC向けです。走っている間に下のキーを押すと、操作モードが「6．キーボード」に切り替わり、ボートはキーボードだけで動きます（タイムアタックの記録とランキングは「キーボード」の部）。レバーはキーを押している間だけ少しずつ動き、離した位置で止まります。</p>
-    <div class="rows">
-      <div class="rowhead">走る</div>
-      <div class="row"><div class="in"><kbd>W</kbd></div><div class="do">レバーを握る<small>押している間、少しずつ上がる（全開まで約0.8秒）。</small></div></div>
-      <div class="row"><div class="in"><kbd>S</kbd></div><div class="do">レバーを緩める</div></div>
-      <div class="row"><div class="in"><kbd>A</kbd> <kbd>D</kbd></div><div class="do">舵（左・右）<small>離すとまっすぐに戻る。</small></div></div>
-      <div class="row"><div class="in"><kbd>←</kbd> <kbd>→</kbd></div><div class="do">体重移動（左・右）</div></div>
-      <div class="row"><div class="in"><kbd>↑</kbd></div><div class="do">伏せる</div></div>
-      <div class="row"><div class="in"><kbd>↓</kbd></div><div class="do">起こす</div></div>
-      <div class="rowhead">スタート前・その他</div>
-      <div class="row"><div class="in"><kbd>Space</kbd></div><div class="do">引く（ダッシュへ）</div></div>
-      <div class="row"><div class="in">マウスで「主張」</div><div class="do">コースを主張<small>キーは割り当てていません。画面のボタンをクリックします。</small></div></div>
-      <div class="row"><div class="in"><kbd>Esc</kbd></div><div class="do">全画面を抜けてウィンドウ表示にする<small>設定の「画面（PC）」で全画面に戻せます。</small></div></div>
+    <div class="rows" data-l="en">
+      <div class="rowhead">ON-SCREEN BUTTONS</div>
+      <div class="row"><div class="in"><span class="pill">主張</span></div><div class="do">Claim the next course inside (when leaving the pit)<small>Each press moves you one course in. Don't press it to keep your own lane.</small></div></div>
+      <div class="row"><div class="in"><span class="pill">引く</span></div><div class="do">Drop back to the dash position<small>Press after rounding the 2nd mark, before you line up square to the start line.</small></div></div>
+      <div class="row"><div class="in"><span class="pill">視点</span> <span class="pill">表示</span></div><div class="do">Change view / switch between 2D and 3D</div></div>
+      <div class="row"><div class="in">Gear (top right)</div><div class="do">Open the menu and settings</div></div>
     </div>
   </section>
 
   <section aria-labelledby="h-tech" style="gap:12px">
-    <h2 id="h-tech">上級テクニック</h2>
-    <div class="tip">
+    <h2 id="h-tech"><span data-l="ja">上級テクニック</span><span data-l="en">Advanced techniques</span></h2>
+    <div class="tip" data-l="ja">
       <h3>ウィリーターン</h3>
       <p>姿勢を後ろへ素早く2回（タタン）入れて、そのままレバーを全開に握ります。舳先を上げたまま回るので、引き波に強くターンの出口が速くなります。</p>
       <ul>
@@ -225,7 +306,16 @@ footer{color:var(--muted);font-size:12px}
         <li>キーボードは <kbd>↓</kbd><kbd>↓</kbd>＋<kbd>W</kbd>、コントローラは左スティック下を2回＋トリガー。</li>
       </ul>
     </div>
-    <div class="tip">
+    <div class="tip" data-l="en">
+      <h3>Wheelie turn</h3>
+      <p>Flick your posture back twice quickly, then hold the throttle wide open. The boat turns with its bow up, riding over wakes and coming out of the turn faster.</p>
+      <ul>
+        <li>Only works with a motor rated "○" or better for both acceleration (出足) and turning (回り足).</li>
+        <li>Get it wrong and you lose speed, or lose balance and capsize.</li>
+        <li>Keyboard: <kbd>↓</kbd><kbd>↓</kbd>+<kbd>W</kbd>. Controller: left stick down twice + trigger.</li>
+      </ul>
+    </div>
+    <div class="tip" data-l="ja">
       <h3>舳先の跳ね上げ（後ろ重心）</h3>
       <p>ターンの出口で、伏せた姿勢から一気に後ろへ起こすと舳先が跳ね上がり、一瞬だけ加速が強くなります。すぐ伏せ直すのがコツです。</p>
       <ul>
@@ -233,40 +323,71 @@ footer{color:var(--muted);font-size:12px}
         <li>引き波の上や、艇を深く傾けたままだと転覆しやすくなります。</li>
       </ul>
     </div>
+    <div class="tip" data-l="en">
+      <h3>Bow lift (weight back)</h3>
+      <p>On the way out of a turn, snap from a crouch to sitting back: the bow pops up and you get a brief burst of acceleration. Crouch again right away.</p>
+      <ul>
+        <li>Do it mid-turn and the propeller slips, so the boat slides wide.</li>
+        <li>On a wake, or with the boat banked hard, you can easily capsize.</li>
+      </ul>
+    </div>
   </section>
 
-  <footer>操作の向きが逆に感じたら、設定で左右・前後の傾きを反転できます（体験版は「詳しい操作設定」の中）。</footer>
+  <footer><span data-l="ja">操作の向きが逆に感じたら、設定で左右・前後の傾きを反転できます（体験版は「詳しい操作設定」の中）。</span><span data-l="en">If a direction feels reversed, you can flip left/right and forward/back tilt in the settings (in the trial, under 詳しい操作設定).</span></footer>
 </main>
 
 <script>
+// language: ?lang=en|ja, then the saved choice, then the browser's language
+const LANG_KEY = 'honorGP.manualLang';
+function setLang(l, save) {
+  document.documentElement.lang = l; document.documentElement.dataset.lang = l;
+  document.title = l === 'en' ? 'Honor for GP — How to Play' : 'Honor for GP 操作説明書';
+  for (const b of document.querySelectorAll('.lang button')) b.setAttribute('aria-pressed', String(b.dataset.set === l));
+  if (save) try { localStorage.setItem(LANG_KEY, l); } catch (e) {}
+  if (typeof drawTouch === 'function' && window.touchMode) drawTouch(window.touchMode);
+}
+{ let l = new URLSearchParams(location.search).get('lang');
+  if (l !== 'en' && l !== 'ja') { try { l = localStorage.getItem(LANG_KEY); } catch (e) { l = null; } }
+  if (l !== 'en' && l !== 'ja') l = /^ja\b/i.test(navigator.language || 'ja') ? 'ja' : 'en';
+  setLang(l, false); }
+for (const b of document.querySelectorAll('.lang button')) b.addEventListener('click', () => setLang(b.dataset.set, true));
 const TOUCH = {
   tilt: [
-    ['左半分を上下になぞる', 'レバー', '触れた位置から上へなぞるほど握る。指を離してもその位置で止まる。'],
-    ['右半分を左右になぞる', '舵', '指を離すとまっすぐに戻る。'],
-    ['スマホを左右に傾ける', '体重移動', ''],
-    ['スマホを前後に傾ける', '伏せる／起こす', '構えた姿勢が基準。設定の「今の持ち方を姿勢の基準にする」で取り直せる。']
+    [['左半分を上下になぞる', 'Left half: slide up/down'], ['レバー', 'Throttle'], ['触れた位置から上へなぞるほど握る。指を離してもその位置で止まる。', 'The further up from where you touched, the more throttle. It stays put when you lift your finger.']],
+    [['右半分を左右になぞる', 'Right half: slide left/right'], ['舵', 'Steering'], ['指を離すとまっすぐに戻る。', 'Lift your finger and it returns to straight.']],
+    [['スマホを左右に傾ける', 'Tilt the phone left/right'], ['体重移動', 'Weight shift'], ['', '']],
+    [['スマホを前後に傾ける', 'Tilt the phone forward/back'], ['伏せる／起こす', 'Crouch / sit back'], ['構えた姿勢が基準。設定の「今の持ち方を姿勢の基準にする」で取り直せる。', 'Measured from how you hold the phone. Reset it with 今の持ち方を姿勢の基準にする in the settings.']]
   ],
   pad: [
-    ['左半分を上下になぞる', 'レバー', '触れた位置から上へなぞるほど握る。指を離してもその位置で止まる。'],
-    ['右半分を左右になぞる', '舵', '指を離すとまっすぐに戻る。'],
-    ['姿勢パッドを左右', '体重移動', 'パッドは左手側の丸いスティック。'],
-    ['姿勢パッドを上下', '上で伏せる、下で起こす', 'スマホの傾きセンサーは使わない。']
+    [['左半分を上下になぞる', 'Left half: slide up/down'], ['レバー', 'Throttle'], ['触れた位置から上へなぞるほど握る。指を離してもその位置で止まる。', 'The further up from where you touched, the more throttle. It stays put when you lift your finger.']],
+    [['右半分を左右になぞる', 'Right half: slide left/right'], ['舵', 'Steering'], ['指を離すとまっすぐに戻る。', 'Lift your finger and it returns to straight.']],
+    [['姿勢パッドを左右', 'Posture pad left/right'], ['体重移動', 'Weight shift'], ['パッドは左手側の丸いスティック。', 'The pad is the round stick on the left-hand side.']],
+    [['姿勢パッドを上下', 'Posture pad up/down'], ['上で伏せる、下で起こす', 'Up: crouch. Down: sit back.'], ['スマホの傾きセンサーは使わない。', 'The tilt sensor is not used.']]
   ],
   wheel: [
-    ['スマホ本体を回す', '舵', 'ハンドルのように回す。中央は「今の持ち方を舵の中央にする」で決める。'],
-    ['右半分を上下になぞる', 'レバー', '指を離してもその位置で止まる。'],
-    ['姿勢パッドを左右', '体重移動', ''],
-    ['姿勢パッドを上下', '上で伏せる、下で起こす', '']
+    [['スマホ本体を回す', 'Turn the phone'], ['舵', 'Steering'], ['ハンドルのように回す。中央は「今の持ち方を舵の中央にする」で決める。', 'Turn it like a steering wheel. Set the centre with 今の持ち方を舵の中央にする.']],
+    [['右半分を上下になぞる', 'Right half: slide up/down'], ['レバー', 'Throttle'], ['指を離してもその位置で止まる。', 'It stays put when you lift your finger.']],
+    [['姿勢パッドを左右', 'Posture pad left/right'], ['体重移動', 'Weight shift'], ['', '']],
+    [['姿勢パッドを上下', 'Posture pad up/down'], ['上で伏せる、下で起こす', 'Up: crouch. Down: sit back.'], ['', '']]
+  ],
+  fuse: [
+    [['左半分を上下になぞる', 'Left half: slide up/down'], ['レバー', 'Throttle'], ['指を離してもその位置で止まる。', 'It stays put when you lift your finger.']],
+    [['右半分を左右になぞる', 'Right half: slide left/right'], ['舵', 'Steering'], ['体の傾きは舵に合わせて自動でつく（少し遅れて、目一杯までは傾かない）。', 'Weight shift follows the steering by itself (a little late, and never all the way).']],
+    [['右半分を上下になぞる', 'Right half: slide up/down'], ['上で伏せる、下で起こす', 'Up: crouch. Down: sit back.'], ['舵と同じ指で、なぞる向きを斜めにすれば両方同時に。', 'Slide diagonally with the same finger to do both at once.']],
+    [['縦持ち', 'Portrait'], ['そのまま遊べる', 'Works as is'], ['気軽に遊ぶ向け。手で傾ける1〜3のほうが速く回れます。', 'Made for casual play. Modes 1–3, where you shift your weight yourself, turn faster.']]
   ]
 };
+window.touchMode = 'tilt';
 function drawTouch(mode) {
+  window.touchMode = mode;
+  const li = document.documentElement.dataset.lang === 'en' ? 1 : 0;
   const box = document.getElementById('touchRows');
   box.textContent = '';
   for (const [inp, what, note] of TOUCH[mode]) {
     const row = document.createElement('div'); row.className = 'row';
-    const a = document.createElement('div'); a.className = 'in'; a.textContent = inp;
-    const b = document.createElement('div'); b.className = 'do'; b.textContent = what;
-    if (note) { const s = document.createElement('small'); s.textContent = note; b.appendChild(s); }
+    const a = document.createElement('div'); a.className = 'in'; a.textContent = inp[li];
+    const b = document.createElement('div'); b.className = 'do'; b.textContent = what[li];
+    if (note[li]) { const s = document.createElement('small'); s.textContent = note[li]; b.appendChild(s); }
     row.append(a, b); box.appendChild(row);
   }
   for (const g of document.querySelectorAll('#touchFig [data-fig]')) g.toggleAttribute('hidden', g.dataset.fig !== mode);   // SVG has no .hidden property
@@ -303,6 +424,7 @@ function showTab(id) {
   }
 }
 for (const t of document.querySelectorAll('[role="tab"]')) t.addEventListener('click', () => showTab(t.id));
+if (matchMedia('(pointer: coarse)').matches) showTab('tab-touch');   // a phone opens on its own tab
 </script>
 
 </body></html>

@@ -2,7 +2,7 @@
 <style>body{margin:0;background:#9cc}</style>
 <script type="importmap">{"imports":{"three":"../hfgp3d/viewer/vendor/three.module.js"}}</script>
 <script type="module">
-// d369 test page: the 6 racers close up (tests/racer_view.html?tier=mobile|pc1080ti&pose=cruise|turn&livery=standard|naniwa|lane&night=1)
+// d369 test page: the 6 racers close up (tests/racer_view.html?tier=mobile|pc1080ti&pose=cruise|turn&livery=practice|naniwa|lane&night=1; d376: sheets from hfgp3d/liveries, sample surnames)
 import * as THREE from 'three';
 import { loadAssetSet } from '../hfgp3d/runtime/boat_actor.js';
 const q = new URLSearchParams(location.search), tier = q.get('tier') || 'mobile', pose = q.get('pose') || 'cruise', side = +(q.get('yaw') || 0.6);
@@ -14,11 +14,12 @@ try { const es = new THREE.Scene(), sg = new THREE.SphereGeometry(50, 32, 16), c
 const cam = new THREE.PerspectiveCamera(30, 16 / 9, .1, 100);
 const set = await loadAssetSet('../hfgp3d/', tier);
 for (let i = 0; i < 6; i++) {
-  const a = set.create({ lane: i + 1, sex: i % 2 ? 'f' : 'm', heightCm: 165 }); a.setSuit('racer' + i); if (a.setLivery) a.setLivery(q.get('livery') || 'standard');
+  const a = set.create({ lane: i + 1, sex: i % 2 ? 'f' : 'm', heightCm: 165 }); a.setSuit('racer' + i); if (a.setLivery) a.setLivery(q.get('livery') || 'practice', ['羽田 美海', '湖上 瑞月', '上田 真夜', '甲斐 シルヴィ', '帆高 伊津', '夏目 水'][i]);
   a.setGameTransform({ x: (i - 2.5) * 2.1, y: 0, modelYaw: side }); a.setLOD(0);
   a.updatePose(pose === 'turn' ? { roll: -0.9, pitch: 0.3, turn: 1, steer: -.4, wheel: -.5 } : { pitch: .5 });
-  sc.add(a.root);
+  sc.add(a.root); (window.actors ??= []).push(a);
 }
 const cz = +(q.get('dist') || 9.5); cam.position.set(0, 3.2 * cz / 9.5, cz); cam.lookAt(0, .5, 0); cam.fov = cz > 12 ? 30 : 40; cam.updateProjectionMatrix();
+if (set.livery && (q.get('livery') || 'practice') !== 'lane') { await set.livery(q.get('livery') || 'practice'); await new Promise(ok => setTimeout(ok, 50)); }
 r.render(sc, cam); window.done = true;
 </script>
