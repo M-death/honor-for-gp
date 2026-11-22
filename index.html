@@ -38,7 +38,7 @@ body{touch-action:none;user-select:none;-webkit-user-select:none;overscroll-beha
 .lap,.best{font-family:var(--f-num);font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;color:var(--fg)}
 .best{color:var(--muted)}
 .tr{top:calc(10px + var(--st));right:calc(16px + var(--sr));display:grid;grid-template-columns:auto auto;gap:8px;justify-items:end;align-items:start}
-.pills{grid-column:1/-1;grid-row:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:300px}
+.pills{grid-column:1/-1;grid-row:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:420px}
 .pill.alt{border-color:var(--lever);color:var(--lever)}
 .padtag{font-size:11px;letter-spacing:.06em;color:var(--good)}
 .demotag{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--lever)}
@@ -292,7 +292,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
   .spd b{font-size:32px}.lap{font-size:13px}.best{font-size:11px}
   .chip{width:22px;height:22px;font-size:12px}.corder i{width:17px;height:17px;font-size:10px}
   .tr{top:calc(6px + var(--st));gap:6px}
-  .pills{gap:4px;max-width:260px}.pill{height:28px;padding:0 10px;font-size:11px}
+  .pills{gap:4px;max-width:360px}.pill{height:28px;padding:0 10px;font-size:11px}
   #mini{width:120px;height:36px}#gear{width:34px;height:34px}
   .track{height:min(36vh,130px);width:36px}
   .wheel svg{width:min(28vh,96px);height:min(28vh,96px)}
@@ -320,6 +320,7 @@ body.v3d .pad{opacity:.55}body.v3d .pad .box{background:rgba(5,24,31,.35)}
 
 <div class="hud tr">
   <div class="pills">
+    <button id="retryBtn" class="pill" hidden>やり直し</button>
     <button id="again" class="pill">メニュー</button>
     <button id="devBtn" class="pill alt" aria-expanded="false">開発 ▸</button>
     <button id="labLaunch" class="pill alt">挙動検証</button>
