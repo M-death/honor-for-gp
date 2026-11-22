@@ -1,0 +1,62 @@
+{
+ "schema": "hfgp-livery-v1",
+ "name": "naniwa",
+ "images": {
+  "base": "base.png",
+  "gloss": "gloss.png"
+ },
+ "paint": {
+  "roughness": 0.12,
+  "coat": 1.0,
+  "coatRoughness": 0.02
+ },
+ "marks": [
+  {
+   "type": "text",
+   "text": "NANIWA",
+   "panel": "T",
+   "u": 0.5906,
+   "v": 0.5,
+   "height": 0.0909,
+   "maxWidth": 0.1832,
+   "rotate": 90,
+   "italic": 0.18,
+   "fill": "#b6f000",
+   "edge": "#12041c",
+   "edgeWidth": 0.08
+  },
+  {
+   "type": "number",
+   "panel": "S",
+   "u": 0.1674,
+   "v": 0.3662,
+   "height": 0.3906,
+   "italic": 0.12,
+   "fill": "contrast",
+   "edge": "lane",
+   "edgeWidth": 0.1
+  },
+  {
+   "type": "number",
+   "panel": "P",
+   "u": 0.8326,
+   "v": 0.3662,
+   "height": 0.3906,
+   "italic": 0.12,
+   "fill": "contrast",
+   "edge": "lane",
+   "edgeWidth": 0.1
+  }
+ ],
+ "parts": {
+  "lip": "#2ef209",
+  "inner": "#5e1f9c"
+ },
+ "boundsM": {
+  "ymin": -1.21,
+  "ymax": 1.9564,
+  "zmin": -0.0744,
+  "zmax": 0.54,
+  "half": 0.6598
+ }
+}

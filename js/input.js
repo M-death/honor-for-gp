@@ -98,9 +98,9 @@ function onOri(e) {
 // direction from the speed it builds up (leaky sum of the acceleration along the screen, less the sensor's slow offset),
 // its size from the top speed (a short move: to the side, a long quick one: right round). From the front: a move looks that way (a short one to the side, a long one right round); a move back the
 // other way faces front again; a second move the same way turns right round.
-const SHIFT = { key: 'honorGP.phoneLook', on: true, tau: .7, vOn: .22, vOff: .05, hold: .6, far: .85, side: .55, bias: 1.5 };   // far: peak m/s for a long move; bias: s to learn the sensor's offset
+// d379 (まえ: スマホの横移動で視界を回すのはものすごくやりにくい → やめる): off for good, the setting is gone (code kept)
+const SHIFT = { key: 'honorGP.phoneLook', on: false, tau: .7, vOn: .22, vOff: .05, hold: .6, far: .85, side: .55, bias: 1.5 };   // far: peak m/s for a long move; bias: s to learn the sensor's offset
 const shiftS = { v: 0, pk: 0, t: 0, ev: 0, look: 0, amt: 0, last: 0, ab: 0 };
-try { SHIFT.on = localStorage.getItem(SHIFT.key) !== 'off'; } catch (e) {}
 window.phoneLook = 0;
 function screenRightAccel(a) {   // the device's acceleration along the screen's right, however the phone is turned
   const so = screen.orientation && Number.isFinite(screen.orientation.angle) ? screen.orientation.angle : Number.isFinite(window.orientation) ? window.orientation : 0;
@@ -625,7 +625,7 @@ $('note').addEventListener('click', () => { $('note').hidden = true; });
 
 /* ---------- オリジナル展示タイム style measurement (スタート練習, 2 laps) ----------
    (d146, まえ's reference drawings of the real measuring points)
-   展示タイム   back straight, 150 m from the start-line extension to the 2M line (伸び)
+   展示タイム   back straight, 150 m ending 25 m before the 2M line (伸び; d377 — was start-line extension → 2M line)
    直線タイム   back straight, 120 m from the 1M line to the start-line extension (行き足)
    まわり足     from 22 m before 1M on the home side, round 1M, to 23 m out on the back side (回り足)
    一周タイム   one full lap, gate on the start-line extension of the back straight */
@@ -633,21 +633,23 @@ $('note').addEventListener('click', () => { $('note').hidden = true; });
 // does not measure (なにわ: 直線) is left out — not measured, not shown.
 const VENUE_MEAS = {
   standard: { gates: {   // 練習コース: the sections as before
-      tenji: { from: { x: 0, side: -1 }, to: { x: -MK, side: -1 } },
+      // d377 (まえ: この一周タイムでこの展示は遅すぎる): 150 m ending 25 m before 2M — the line itself caught the turn-in of a full-speed turn
+      tenji: { from: { x: 25, side: -1 }, to: { x: -MK + 25, side: -1 } },
       choku: { from: { x: 120, side: -1 }, to: { x: 0, side: -1 } },
       mawari: { from: { x: MK - 22, side: 1 }, to: { x: MK - 23, side: -1 } } },
     lap: { x: 0, side: -1 },
-    note: '展示＝バックのスタートライン延長から2マークまで150m（伸び）／直線＝1マークからスタートライン延長まで120m（行き足）／まわり足＝1マーク手前22mから回って出口23mまで／一周＝バックのスタートライン延長から次の周の同じ所まで',
-    ticks: [['tenji', 'from', '直線 終／展示 始／一周'], ['tenji', 'to', '展示 終'], ['choku', 'from', '直線 始'], ['mawari', 'from', 'まわり足 始'], ['mawari', 'to', 'まわり足 終', -2.6]] },
+    note: '展示＝バックの2マーク手前175mから25mまで150m（伸び）／直線＝1マークからスタートライン延長まで120m（行き足）／まわり足＝1マーク手前22mから回って出口23mまで／一周＝バックのスタートライン延長から次の周の同じ所まで',
+    ticks: [['choku', 'to', '直線 終／一周'], ['tenji', 'from', '展示 始'], ['tenji', 'to', '展示 終'], ['choku', 'from', '直線 始'], ['mawari', 'from', 'まわり足 始'], ['mawari', 'to', 'まわり足 終', -2.6]] },
   // なにわ (the real water's 展示: 1マークを回って75m地点から150m, auto-timed — acceleration shows; オリジナル展示 is 一周 and
   // まわり足 only. まわり足 runs from the home straight before 1M round to the start of the 展示 section: from まえ's figure
   // and the 11.68 s average, worked back with the CPU's line → 95 m before 1M)
   suminoe: { gates: {
-      tenji: { from: { x: MK - 75, side: -1 }, to: { x: MK - 225, side: -1 } },
+      // d378 (まえ: こっそり練習場と同じ区間に): 展示 = the same 150 m as 練習コース (ending 25 m before 2M); まわり足 still ends 75 m after 1M
+      tenji: { from: { x: 25, side: -1 }, to: { x: -MK + 25, side: -1 } },
       mawari: { from: { x: MK - 95, side: 1 }, to: { x: MK - 75, side: -1 } } },
     lap: { x: MK - 95, side: 1 },
-    note: '展示＝1マークを回って75mから150m（加速）／まわり足＝1マーク手前95mから回って1マーク後75mまで／一周＝1マーク手前95mから次の周の同じ所まで（なにわ競艇場の区間。直線は測りません）',
-    ticks: [['tenji', 'from', '展示 始／まわり足 終'], ['tenji', 'to', '展示 終'], ['mawari', 'from', 'まわり足 始／一周']] },
+    note: '展示＝バックの2マーク手前175mから25mまで150m（伸び）／まわり足＝1マーク手前95mから回って1マーク後75mまで／一周＝1マーク手前95mから次の周の同じ所まで（なにわ競艇場の区間。直線は測りません）',
+    ticks: [['mawari', 'to', 'まわり足 終'], ['tenji', 'from', '展示 始'], ['tenji', 'to', '展示 終'], ['mawari', 'from', 'まわり足 始／一周']] },
 };
 const GATES = {}, LAP_GATE = { x: 0, side: -1 };
 let MEAS_NOTE = '';

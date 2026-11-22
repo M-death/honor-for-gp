@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd375';
+const GAME_VER = 'd384';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -48,6 +48,18 @@ const VENUES_GEO = {
 };
 const VENUE_LIST = ['standard', 'suminoe'];
 let VENUE = VENUES_GEO.standard;
+// d384 (まえ: 本編は塗装を選べる、体験版はその時の本編に合わせて版ごとに固定。好きな画像を貼れて制御できなくなるのは避ける): only the
+// official paint sheets shipped in the build (hfgp3d/liveries/<id>, hfgp-livery-v1), chosen by id. '' = the venue's own. The trial sets
+// LIVERY.fix (one id per venue, no choice). The id goes into the replay log (header.replayDesign.boat) so the replay paints the same.
+const LIVERY = { key: 'honorGP.livery', pick: '', fix: null,
+  list: { naniwa: 'なにわカラー', naniwa_cat: 'なにわカラー（キャラ模様）', practice: '練習場カラー' },
+  def: { suminoe: 'naniwa', standard: 'practice' } };
+try { LIVERY.pick = localStorage.getItem(LIVERY.key) || ''; } catch (e) {}
+function liveryId(venueId = VENUE.id) {
+  const d = LIVERY.def[venueId] || 'practice';
+  if (LIVERY.fix) return LIVERY.list[LIVERY.fix[venueId]] ? LIVERY.fix[venueId] : d;
+  return LIVERY.list[LIVERY.pick] ? LIVERY.pick : d;
+}
 const venueEdge = (pts, x) => { const i = x <= pts[1][0] ? 0 : 1, [x0, y0] = pts[i], [x1, y1] = pts[i + 1]; return y0 + (y1 - y0) * (x - x0) / (x1 - x0); };
 const standY = x => venueEdge(VENUE.stand, x);          // the stand-side wall (+y)
 const backY = x => -venueEdge(VENUE.back, x);           // the far wall (−y)

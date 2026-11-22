@@ -1,0 +1,71 @@
+{
+ "schema": "hfgp-livery-v1",
+ "name": "practice",
+ "images": {
+  "base": "base.png",
+  "lane": "lane.png",
+  "gloss": "gloss.png"
+ },
+ "paint": {
+  "roughness": 0.26,
+  "coat": 0.35,
+  "coatRoughness": 0.18
+ },
+ "marks": [
+  {
+   "type": "number",
+   "panel": "S",
+   "u": 0.0859,
+   "v": 0.354,
+   "height": 0.2865,
+   "italic": 0.1,
+   "fill": "lane",
+   "edge": "#0c0c0c",
+   "edgeWidth": 0.08
+  },
+  {
+   "type": "surname",
+   "panel": "S",
+   "u": 0.2245,
+   "v": 0.354,
+   "height": 0.203,
+   "maxWidth": 0.1769,
+   "fill": "#f6f6f2",
+   "edge": "#0c0c0c",
+   "edgeWidth": 0.08
+  },
+  {
+   "type": "number",
+   "panel": "P",
+   "u": 0.9141,
+   "v": 0.354,
+   "height": 0.2865,
+   "italic": 0.1,
+   "fill": "lane",
+   "edge": "#0c0c0c",
+   "edgeWidth": 0.08
+  },
+  {
+   "type": "surname",
+   "panel": "P",
+   "u": 0.7755,
+   "v": 0.354,
+   "height": 0.203,
+   "maxWidth": 0.1769,
+   "fill": "#f6f6f2",
+   "edge": "#0c0c0c",
+   "edgeWidth": 0.08
+  }
+ ],
+ "parts": {
+  "lip": "#e4ecf4",
+  "inner": "#e4ecf4"
+ },
+ "boundsM": {
+  "ymin": -1.21,
+  "ymax": 1.9564,
+  "zmin": -0.0744,
+  "zmax": 0.54,
+  "half": 0.6598
+ }
+}

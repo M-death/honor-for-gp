@@ -99,13 +99,15 @@ function loadText() {
   return `3D組み立て中… ${sec}秒`;
 }
 // d324: rig_rest.json and the 12 number textures are in hfgp3d-glb.js too (tools/embed_hfgp3d.py) — 組み立て asks the network for nothing
-const EMB = /(runtime\/rig_rest\.json|textures\/[a-z_]+_\d\.png|textures\/racer_real_[a-z]+_[a-z]+_[12]k\.(?:png|jpg))$/;   // d369: + the realistic racers' textures
+const ENV_LAMP = { k: 14, r: 4 };   // d384: floodlight brightness (×, linear HDR) and size (m) in the night reflections
+const EMB = /(runtime\/rig_rest\.json|textures\/[a-z_]+_\d\.png|textures\/racer_real_[a-z]+_[a-z]+_[12]k\.(?:png|jpg)|liveries\/[a-z0-9_-]+\/[A-Za-z0-9_.-]+\.(?:json|png|jpe?g|webp))$/;   // d369: + the realistic racers' textures; d376: + the venue paint sheets
 function embedded(url) { const E = window.HFGP3D_GLB, m = E && EMB.exec(String(url).split('?')[0]); return m && E[m[1]] || null; }
 if (!window.fetch._p3d) {
   const _fetch = window.fetch;
   window.fetch = function (u, o) {
     const em = embedded(u instanceof Request ? u.url : u);
-    if (em && /\.json$/.test(String(u instanceof Request ? u.url : u))) return Promise.resolve(new Response(Uint8Array.from(atob(em), c => c.charCodeAt(0)), { headers: { 'content-type': 'application/json' } }));
+    const ext = em && (/\.(json|png|jpe?g|webp)$/.exec(String(u instanceof Request ? u.url : u).split('?')[0]) || [])[1];
+    if (ext && (ext === 'json' || /\/liveries\//.test(String(u instanceof Request ? u.url : u)))) return Promise.resolve(new Response(Uint8Array.from(atob(em), c => c.charCodeAt(0)), { headers: { 'content-type': ext === 'json' ? 'application/json' : 'image/' + (ext === 'jpg' ? 'jpeg' : ext) } }));   // d376: livery images too
     return _fetch.call(this, u, o);
   };
   window.fetch._p3d = true;
@@ -428,6 +430,9 @@ function buildWorld() {
   const dome = skyDome(tod), sky2 = skyline(tod, VENUE.id); g.add(dome); g.add(sky2);
   if (Q !== GFX.tiers.lite || HQ) {   // the sky (and skyline) reflected in the water and on the boats
     const envScene = new THREE.Scene(); envScene.add(skyDome(tod)); envScene.add(skyline(tod, VENUE.id));
+    // d384 (replay side: 映えるのは映り込み — 夜は照明塔が船体に帯で映る): the floodlights as bright HDR points in the reflections
+    if (tod === 'night') { const lm = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, .93, .8).multiplyScalar(ENV_LAMP.k) }), lh = V3d && V3d.lampH || 18;
+      for (const [x, y] of NIGHT_POLES) { const p = new THREE.Mesh(new THREE.SphereGeometry(ENV_LAMP.r, 10, 8), lm); p.position.set(x, lh, y); envScene.add(p); } }
     const pm = new THREE.PMREMGenerator(renderer), rt = pm.fromScene(envScene, 0.02, .1, 2500);
     if (scene.environment) scene.environment.dispose(); scene.environment = rt.texture; pm.dispose();
   }
@@ -983,7 +988,7 @@ function actorFor(row) {
   let a = actors.get(key);
   if (!a) { a = set.create({ lane, sex, heightCm: 165 }); scene.add(a.root); actors.set(key, a); }
   if (a.setSuit) a.setSuit(row.racerId || row.name || row.no);   // d369: the inner suit's colours follow the racer (as in the replay)
-  if (a.setLivery) a.setLivery(VENUE.id === 'suminoe' ? 'naniwa' : 'standard');   // d374: the venue's hull colours (なにわ = purple / green)
+  if (a.setLivery) a.setLivery(liveryId(), row.name);   // d384: the chosen / fixed paint (core.js LIVERY); d376: the venue's paint sheet (hfgp3d/liveries, same files as the replay), surname mark from the name
   a.heightCm = lim(body.height || (sex === 'f' ? 157 : 165), 140, 200);
   return a;
 }
@@ -1006,7 +1011,7 @@ function ghostActor(kind) {
   if (!a) {
     a = set.create({ lane: 1, sex: 'm', heightCm: 165 });
     for (const m of a.materials) { m.transparent = true; m.opacity = kind === 'umi' ? .5 : kind === 'rival' ? .45 : .38; m.depthWrite = false;
-      const n = m.name.split('.')[0]; if (n === 'BoatPaint' || n === 'RacerPaint' || n === 'BoatLivery' || n === 'RacerReal' || n === 'HullSide' || n === 'HullMain' || n === 'HullTrim') m.color.set(GHOST_TINT[kind]); }
+      const n = m.name.split('.')[0]; if (n === 'BoatPaint' || n === 'RacerPaint' || n === 'BoatLivery' || n === 'RacerReal' || n === 'HullSide' || n === 'HullMain' || n === 'HullTrim' || n === 'HullLivery' || n === 'HullLip' || n === 'HullInner') m.color.set(GHOST_TINT[kind]); }
     a.setLivery = null;   // d374: keep the ghost tint (actorFor never recolours a ghost)
     a.root.traverse(o => { if (o.isMesh) o.renderOrder = 3; });
     scene.add(a.root); ghostActors.set(kind, a);
@@ -1069,13 +1074,30 @@ function lookTrigger() {
   try { if (typeof currentPad !== 'function' || typeof pad === 'undefined') return 0; const g = currentPad(); if (!g) return 0;
     const b = g.buttons[pad.useRT ? 6 : 7]; return b ? b.value || (b.pressed ? 1 : 0) : 0; } catch (e) { return 0; }
 }
+// d381 (まえ: 押すたびに切り替え、向いたまま回れる): LB steps the view left, RB right — 1 press: to the side, 2: back over
+// that shoulder, 3: front again. The other button steps one back toward the front (LB then RB = left, then front).
+const SHLOOK = { ang: [0, Math.PI / 2, Math.PI * 0.75] }, shl = { k: 0, l: false, r: false };
+function shoulderLook(dt) {
+  let l = false, r = false;
+  try { if (typeof currentPad === 'function') { const g = currentPad(); if (g) { l = !!(g.buttons[4] && g.buttons[4].pressed); r = !!(g.buttons[5] && g.buttons[5].pressed); } } } catch (e) {}
+  if (typeof keys !== 'undefined') { l = l || keys.has('KeyQ'); r = r || keys.has('KeyE'); }   // d382 (まえ): Q / E on the keyboard, the same steps
+  if (fleet && fleet.replay || !running) { shl.k = 0; shl.l = l; shl.r = r; return null; }   // the replay keeps LB/RB for its speed
+  const step = d => { shl.k = shl.k * d < 0 ? shl.k + d : Math.abs(shl.k) >= 2 ? 0 : shl.k + d; };
+  if (l && !shl.l) step(-1);
+  if (r && !shl.r) step(1);
+  shl.l = l; shl.r = r;
+  return shl.k ? Math.sign(shl.k) * SHLOOK.ang[Math.abs(shl.k)] : null;
+}
 function lookBack(dt) {
   const v = lookTrigger(), now = performance.now() / 1000;
   if (!look.held && v > LOOK.on) { look.held = true; look.side = now - look.upAt < LOOK.tap && look.upAt - look.downAt < LOOK.tap ? 1 : -1; look.downAt = now; }
   else if (look.held && v <= LOOK.on) { look.held = false; look.upAt = now; }
   let target = look.held ? look.side * LOOK.max * Math.min(1, (v - LOOK.on) / (1 - LOOK.on)) : 0;
   if (!look.held && fleet && window.phoneLook) target = lim(window.phoneLook, -1, 1) * LOOK.max;   // d298: スマホを左右に動かして振り返る (input.js)
-  look.cur += (target - look.cur) * (1 - Math.exp(-dt * (look.held ? LOOK.rate : LOOK.back)));
+  // d380/d381 (まえ: コントローラーで両側の振り返りがやりにくい): LB/RB step the view (shoulderLook); the trigger, while held, wins
+  const sh = shoulderLook(dt);
+  if (sh !== null && !look.held) target = sh;
+  look.cur += (target - look.cur) * (1 - Math.exp(-dt * (look.held || sh !== null ? LOOK.rate : LOOK.back)));
   return look.cur;
 }
 /* d295 頭の視点: where the racer model's head is (after its pose this frame), a little forward of the head bone (the eyes).
@@ -1613,6 +1635,11 @@ function pillText() {
 }
 const btn = document.createElement('button'); btn.className = 'pill'; btn.id = 'view3dBtn';
 btn.addEventListener('click', e => { e.stopPropagation(); if (typeof viewCycle === 'function') viewCycle(1); pillText(); btn.blur(); });
+// d384: ボートの塗装 (settings) — official sheets only (core.js LIVERY); the trial fixes it per version (LIVERY.fix, no row)
+{ const ls = document.getElementById('liverySel');
+  if (ls) { ls.value = LIVERY.list[LIVERY.pick] ? LIVERY.pick : '';
+    ls.addEventListener('change', () => { LIVERY.pick = ls.value; try { localStorage.setItem(LIVERY.key, ls.value); } catch (e) {}
+      for (const a of actors.values()) if (a.setLivery && a.livery && a.livery !== 'lane') a.setLivery(liveryId(), a.livName || ''); }); } }
 const dbtn = document.createElement('button'); dbtn.className = 'pill'; dbtn.id = 'dispBtn';
 dbtn.addEventListener('click', e => { e.stopPropagation(); toggleDisp(); dbtn.blur(); });
 document.querySelector('.pills').prepend(btn); document.querySelector('.pills').prepend(dbtn);
@@ -1671,6 +1698,8 @@ async function loadModels(tier) {
     if (tier === 'pc1080ti') LOADP.pcStage = 'build';
     if (tier === 'mobile' && LOADP.stage === 'build') loadStep('rig');
     const s = await loadAssetSet(new URL('../hfgp3d/', import.meta.url).href, tier);
+    // d376: the venue's paint sheet is ready before the boats show (else they'd start in the plain lane colour); the other venue's in the background
+    if (s.livery) { const mine = liveryId(); try { await s.livery(mine); } catch (e) {} for (const v of Object.keys(LIVERY.def)) if (liveryId(v) !== mine) s.livery(liveryId(v)).catch(() => {}); }   // d384: the other venue's sheet ready too
     for (const a of actors.values()) a.dispose(); actors.clear();
     for (const a of ghostActors.values()) a.dispose(); ghostActors.clear();
     set = s;

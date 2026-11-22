@@ -397,7 +397,9 @@ VR = (() => {
     env.sky = vlogSky(env);   // d368 (まえ: リプレイにも季節の空・星座・月を) the same values play3d.js draws the 3D sky with
     let seedH = 2166136261; for (const ch of R.id) seedH = Math.imul(seedH ^ ch.charCodeAt(0), 16777619) >>> 0;
     return {
-      mode: R.mode, sg: !R.solo && !!sgMode, race, setsu: st ? { day: st.day, race: st.R, kind: st.kind || null } : null, entryResult: !R.solo && fleet.entryResult ? fleet.entryResult.text : null,
+      mode: R.mode, sg: !R.solo && !!sgMode, race,
+      // d384: the paint sheet id (hfgp-livery-v1 folder name)
+      replayDesign: { boat: typeof liveryId === 'function' ? liveryId(VENUE.id) : null }, setsu: st ? { day: st.day, race: st.R, kind: st.kind || null } : null, entryResult: !R.solo && fleet.entryResult ? fleet.entryResult.text : null,
       entries: ents, playerNo: R.solo ? 1 : fleet.playerNo || null, conditions: env,
       venue: { name: VENUE.name, venueId: VENUE.id, courseVersion: VENUE.courseVersion, markX: MK, startLineX: 0, startLineK: VENUE.slitK, stand: VENUE.stand, back: VENUE.back, behind1: VENUE.behind1, behind2: VENUE.behind2, outline: VENUE_OUTLINE.map(([x, y]) => [+x.toFixed(2), +y.toFixed(2)]), laneYAtSlit: LANE.ys, ...venueLayout() },   // d235 venue-geometry-v1, d250 venue-layout-v1
       units: { x: 'm, +x = right on the 2D screen (toward 1M)', y: 'm, +y = down on the 2D screen', heading: 'rad, 0 = +x, positive turns toward +y', v: 'm/s along the heading',
