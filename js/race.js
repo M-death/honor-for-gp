@@ -3842,10 +3842,14 @@ $('cardClose').addEventListener('click', () => { paused = false; last = performa
    the waves, are shoved and dipped by boats passing close, and spin (faster after a boat goes by or touches). Stepped with the
    physics (fleetStep / solo step) so the video log (vlog.js turnMarkFrames, turn-mark-motion-v1) records exactly what play3d draws. */
 const MARKMO = { idle: .5, kickR: 6, kick: .9, maxW: 3, damp: .35,   // spin (as d307 MARK3)
+  // d392 (まえ: 回転方向は物理的に合ってる？): signed spin. A passing boat's wake pushes the mark's near face along the boat's
+  // travel, so the mark turns the way the boat goes round it: sign of (mark→boat) × v = dx*vy − dy*vx. Boats orbit both marks
+  // with that sign negative (x right, y down), so idle and touches use dir −1 (turn-mark-spin-signed-v1)
+  dir: -1,
   tiltK: 14, tiltC: 3, tiltMax: .22, dzK: 12, dzC: 5, hK: 3, hC: 3,   // springs: lean, heave, drift
   wavePer: 2.6, waveDz: [.004, .006], waveTilt: [.012, .006], windTilt: .004, windMax: .04,   // wave cm → heave m / lean rad
   passTilt: 1.1, passDz: .35, passH: .25, hitTilt: 2.2, hitW: 1.8,
-  st: [{ id: '1M', x: MK, ph: 0.0, spin: 0.7 }, { id: '2M', x: -MK, ph: 1.9, spin: 2.9 }].map(m => Object.assign(m, { y: 0, dx: 0, dy: 0, vx: 0, vy: 0, dz: 0, vz: 0, tx: 0, ty: 0, wx: 0, wy: 0, w: .5 })) };
+  st: [{ id: '1M', x: MK, ph: 0.0, spin: 0.7 }, { id: '2M', x: -MK, ph: 1.9, spin: 2.9 }].map(m => Object.assign(m, { y: 0, dx: 0, dy: 0, vx: 0, vy: 0, dz: 0, vz: 0, tx: 0, ty: 0, wx: 0, wy: 0, w: -.5 })) };
 function markMoStep(dt, boats) {
   const M = MARKMO, e = typeof waterEnv !== 'undefined' && waterEnv && !waterEnv.calm ? waterEnv : null, A = e ? e.wave || 0 : 0;
   const wv = e ? Math.hypot(e.wx || 0, e.wy || 0) : 0, ux = wv > .01 ? e.wx / wv : 1, uy = wv > .01 ? e.wy / wv : 0, wind = e ? e.wind || 0 : 0;
@@ -3857,8 +3861,8 @@ function markMoStep(dt, boats) {
       if (!b || b.cap > 0) continue;
       const qx = m.x - b.x, qy = m.y - b.y, d = Math.hypot(qx, qy);
       if (d >= M.kickR || d < 1e-3) continue;
-      const k = (1 - d / M.kickR) * Math.min(1, (b.v || 0) / 20);
-      push += M.kick * k;
+      const k = (1 - d / M.kickR) * Math.min(1, (b.v || 0) / 20), cr = -qx * Math.sin(b.a || 0) + qy * Math.cos(b.a || 0);   // (mark→boat = −q) × heading
+      push += M.kick * k * (cr > 0 ? 1 : cr < 0 ? -1 : M.dir);
       m.wx += M.passTilt * k * qx / d * dt * 4; m.wy += M.passTilt * k * qy / d * dt * 4;   // the bow wave leans it away
       m.vz -= M.passDz * k * dt * 4; m.vx += M.passH * k * qx / d * dt; m.vy += M.passH * k * qy / d * dt;
     }
@@ -3867,12 +3871,12 @@ function markMoStep(dt, boats) {
     const tl = Math.hypot(m.tx, m.ty); if (tl > M.tiltMax) { m.tx *= M.tiltMax / tl; m.ty *= M.tiltMax / tl; }
     m.vz += (-M.dzK * (m.dz - zT) - M.dzC * m.vz) * dt; m.dz += m.vz * dt;
     m.vx += (-M.hK * m.dx - M.hC * m.vx) * dt; m.vy += (-M.hK * m.dy - M.hC * m.vy) * dt; m.dx += m.vx * dt; m.dy += m.vy * dt;
-    m.w = Math.min(M.maxW, m.w + push * dt * 2); m.w += (M.idle - m.w) * Math.min(1, dt * M.damp); m.spin += m.w * dt;
+    m.w = Math.max(-M.maxW, Math.min(M.maxW, m.w + push * dt * 2)); m.w += (M.idle * M.dir - m.w) * Math.min(1, dt * M.damp); m.spin += m.w * dt;
   }
 }
 const markIdAt = x => x >= 0 ? '1M' : '2M', boomIdAt = x => x >= 0 ? 'boom_1m' : 'boom_2m';
 // a touch: knocked over away from the boat and set spinning
-function markMoHit(b) { const m = MARKMO.st[b.x >= 0 ? 0 : 1], qx = m.x - b.x, qy = m.y - b.y, d = Math.hypot(qx, qy) || 1; m.wx += MARKMO.hitTilt * qx / d; m.wy += MARKMO.hitTilt * qy / d; m.w = Math.min(MARKMO.maxW, m.w + MARKMO.hitW); }
+function markMoHit(b) { const m = MARKMO.st[b.x >= 0 ? 0 : 1], qx = m.x - b.x, qy = m.y - b.y, d = Math.hypot(qx, qy) || 1; m.wx += MARKMO.hitTilt * qx / d; m.wy += MARKMO.hitTilt * qy / d; const cr = -qx * Math.sin(b.a || 0) + qy * Math.cos(b.a || 0), sg = cr > 0 ? 1 : cr < 0 ? -1 : MARKMO.dir; m.w = Math.max(-MARKMO.maxW, Math.min(MARKMO.maxW, m.w + sg * MARKMO.hitW)); }
 // the pose as the log stores it: [dx, dy, dz, qx, qy, qz, qw, spin] — q carries the mark's axis (local +z) over to the lean
 function markPose(m) {
   const th = Math.hypot(m.tx, m.ty), s = th > 1e-9 ? Math.sin(th / 2) / th : .5;

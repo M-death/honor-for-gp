@@ -5,7 +5,7 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1', 'venue-layout-v1', 'race-info-v1', 'sky-v1', 'turn-mark-motion-v1', 'hit-target-v1', 'rider-motion-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1', 'venue-layout-v1', 'race-info-v1', 'sky-v1', 'turn-mark-motion-v1', 'hit-target-v1', 'rider-motion-v1', 'turn-mark-spin-signed-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
   audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163',    // d236: venue fields come from VENUE (練習コース: 'standard' v1, 住之江: 'suminoe' v2)
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
@@ -354,7 +354,7 @@ VR = (() => {
         V[o + 4] *= Math.exp(-dt * 2); V[o + 5] *= Math.exp(-dt * 3); V[o + 13] = 0; V[o + 17] = 0; V[o + 6] = 0; V[o + 7] = 0; V[o + 23] = 0;
         V[o + 14] = fl & (VL_FLAG.capHull | VL_FLAG.fallen) ? 0 : engineRpm({ v, turnLoadV: 0 }, 0);
       }
-      for (let j = 0; j < VL_MKN; j++) V[R.nb * VL_NF + j * VL_MKF.length + 7] += (typeof MARKMO !== 'undefined' ? MARKMO.idle : .5) * dt;   // the marks keep turning slowly
+      for (let j = 0; j < VL_MKN; j++) V[R.nb * VL_NF + j * VL_MKF.length + 7] += (typeof MARKMO !== 'undefined' ? MARKMO.idle * MARKMO.dir : -.5) * dt;   // the marks keep turning slowly (d392 signed)
       if (!store(V, t)) return;
     }
     R.terminal = { t: end, V: Float64Array.from(V) };

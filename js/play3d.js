@@ -399,7 +399,7 @@ function buildWorld() {
   for (const o of OBSTACLES) {
     if (o.kind === 'mark') {   // d307 (まえ: 回る紅白うんこ): the real ターンマーク, 3 段のねじれ紅白, 径 1.1 m・高さ 0.95 m
       const m = new THREE.Mesh(markGeo(), markMat); m.position.set(o.x1, MARK3.base, o.y1); m.rotation.y = Math.random() * 6.28; g.add(m);
-      world_marks.push({ m, x: o.x1, y: o.y1, w: MARK3.idle, pil: markPillar(g, o.x1, o.y1), mo: typeof MARKMO !== 'undefined' ? MARKMO.st.find(s => s.id === (o.x1 >= 0 ? '1M' : '2M')) : null });
+      world_marks.push({ m, x: o.x1, y: o.y1, w: -MARK3.idle, pil: markPillar(g, o.x1, o.y1), mo: typeof MARKMO !== 'undefined' ? MARKMO.st.find(s => s.id === (o.x1 >= 0 ? '1M' : '2M')) : null });
     } else if (o.kind === 'boom') {
       const L = Math.hypot(o.x2 - o.x1, o.y2 - o.y1), b = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r, L, 8), bm);
       b.rotation.z = Math.PI / 2; b.position.set((o.x1 + o.x2) / 2, .12, (o.y1 + o.y2) / 2); g.add(b);
@@ -609,9 +609,9 @@ function markStep(dt, rows) {
     if (q) { k.m.position.set(k.x + q[0], MARK3.base + q[2], k.y + q[1]); k.m.quaternion.set(-q[3], -q[5], -q[4], q[6]); k.m.rotateY(-q[7]); continue; }
     k.m.position.set(k.x, MARK3.base, k.y); k.m.rotation.x = 0; k.m.rotation.z = 0;
     let push = 0;
-    for (const row of rows) { const b = row.b, d = Math.hypot(b.x - k.x, b.y - k.y); if (d < MARK3.kickR) push += MARK3.kick * (1 - d / MARK3.kickR) * Math.min(1, (b.v || 0) / 20); }
-    k.w = Math.min(MARK3.maxW, k.w + push * dt * 2); k.w += (MARK3.idle - k.w) * Math.min(1, dt * MARK3.damp);
-    k.m.rotation.y += k.w * dt;
+    for (const row of rows) { const b = row.b, d = Math.hypot(b.x - k.x, b.y - k.y); if (d < MARK3.kickR) { const cr = (b.x - k.x) * Math.sin(b.a || 0) - (b.y - k.y) * Math.cos(b.a || 0); push += MARK3.kick * (1 - d / MARK3.kickR) * Math.min(1, (b.v || 0) / 20) * (cr > 0 ? 1 : -1); } }
+    k.w = Math.max(-MARK3.maxW, Math.min(MARK3.maxW, k.w + push * dt * 2)); k.w += (-MARK3.idle - k.w) * Math.min(1, dt * MARK3.damp);   // d392 signed (as race.js MARKMO.dir)
+    k.m.rotation.y -= k.w * dt;   // (spin +x→+y is −Y here)
   }
 }
 let world_clockHand = null;   // d291 the 大時計's hand (rebuilt with the world)

@@ -610,7 +610,7 @@ function draw() {
     // d372: spin and drift from race.js MARKMO (in a replay, the log's) — looks only
     const id = m0.x > 0 ? '1M' : '2M', rp = typeof rpvMarkPose === 'function' ? rpvMarkPose(id) : undefined, mo = typeof MARKMO !== 'undefined' ? MARKMO.st.find(s => s.id === id) : null;
     const q = rp !== undefined ? rp : mo ? markPose(mo) : null, m = q ? { x: m0.x + q[0], y: m0.y + q[1], name: m0.name } : m0;
-    const mr = Math.max(0.55, 3 / S), spin = q ? q[7] : (typeof time === 'number' ? time : 0) * 0.5 + (m.x > 0 ? 0 : 1.3);
+    const mr = Math.max(0.55, 3 / S), spin = q ? q[7] : -(typeof time === 'number' ? time : 0) * 0.5 + (m.x > 0 ? 0 : 1.3);   // d392 signed (as MARKMO.dir)
     ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(m.x + mr * .3, m.y + mr * .35, mr * 1.1, mr, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#f6f4f0'; ctx.beginPath(); ctx.arc(m.x, m.y, mr, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#d8202a';
