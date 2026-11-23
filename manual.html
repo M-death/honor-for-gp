@@ -397,14 +397,14 @@ function drawTouch(mode) {
 }
 for (const bt of document.querySelectorAll('.modes button')) bt.addEventListener('click', () => drawTouch(bt.dataset.mode));
 drawTouch('tilt');
-// 漫画: 6 pages and the 番外編; tap the page (or ▶) for the next one
-const MANGA = [['p1', '1'], ['p2', '2'], ['p3', '3'], ['p4', '4'], ['p5', '5'], ['p6', '6'], ['extra', '番外編']];
+// 漫画: 6 pages, the 番外編 (start), d390: 番外編 タイムアタック / レースモード + 追加編 1–2 (look, view, retry, 融合パッド); tap the page (or ▶) for the next one
+const MANGA = [['p1', '1'], ['p2', '2'], ['p3', '3'], ['p4', '4'], ['p5', '5'], ['p6', '6'], ['extra', '番外編'], ['ta', 'TA'], ['race', 'レース'], ['add1', '追加1'], ['add2', '追加2']];
 let mPage = 0;
 function showManga(i) {
   mPage = Math.max(0, Math.min(MANGA.length - 1, i));
   const img = document.getElementById('mangaImg');
   img.src = 'manga/' + MANGA[mPage][0] + '.webp';
-  img.alt = '操作説明の漫画 ' + (MANGA[mPage][1] === '番外編' ? '番外編' : MANGA[mPage][1] + 'ページ目');
+  img.alt = '操作説明の漫画 ' + (/^\d+$/.test(MANGA[mPage][1]) ? MANGA[mPage][1] + 'ページ目' : MANGA[mPage][1]);
   for (const b of document.querySelectorAll('#mPages button')) b.setAttribute('aria-current', String(+b.dataset.i === mPage));
   document.getElementById('mPrev').disabled = mPage === 0;
   document.getElementById('mNext').disabled = mPage === MANGA.length - 1;

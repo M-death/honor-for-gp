@@ -5,7 +5,7 @@
    It lives in memory for the race on screen only. It becomes a file only when リプレイ保存 is pressed on the result,
    and it is dropped the moment the player moves on — no history, nothing in localStorage / IndexedDB / anywhere.
    It only reads the race: no RNG (simRandom / Math.random), no writes to boats, rows or the fleet. */
-const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1', 'venue-layout-v1', 'race-info-v1', 'sky-v1', 'turn-mark-motion-v1', 'hit-target-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
+const VLOG = { formatFeatures: ['highlights-v1', 'trim-pop-v1', 'racer-profile-v1', 'hull-size-v1', 'gone-v1', 'night-v1', 'evening-v1', 'venue-geometry-v1', 'venue-layout-v1', 'race-info-v1', 'sky-v1', 'turn-mark-motion-v1', 'hit-target-v1', 'rider-motion-v1'], hz: 60, pre: 20, post: 5, maxMiB: 32, chunk: 600, format: 'hfgp-video-replay', formatVersion: 1,
   audioProfileId: 'hfgp-engine-d164', modelSpecId: 'boat3d-d163',    // d236: venue fields come from VENUE (練習コース: 'standard' v1, 住之江: 'suminoe' v2)
   contactGap: 0.25, contactMinJ: 0.05, bumpEv: 0.3, landEv: 0.5, waitPost: 3 };
 const VL_FIELDS = ['x', 'y', 'heading', 'v', 'bank', 'slip', 'hop', 'wil', 'porp', 'roll', 'pitch', 'steer', 'thr', 'splashK', 'rpm', 'vl', 'yaw', 'wakeBump', 'flags', 'lap', 'rank', 'fx', 'fy', 'hv', 'landV', 'progress'];
@@ -368,9 +368,13 @@ VR = (() => {
   // d172 体格 for the rider model (height and sex change the look; weight is the riding weight's source)
   const bodyJson = bd => bd ? { sex: bd.sex, heightCm: bd.height, weightKg: bd.weight, rideWeightKg: bd.rideWt } : { sex: 'm', heightCm: SETSU.body.ref, weightKg: SETSU.minWt.m, rideWeightKg: SETSU.minWt.m };
   function header() {
-    const ents = R.solo ? [{ no: 1, name: playerName(), class: null, colors: [PLAYER_STYLE.hull, PLAYER_STYLE.num], course: 1, player: true, motor: { deashi: B.deashi ?? 1, mid: B.mMid ?? null, mawari: B.mawari ?? 1, nobi: B.nobi ?? 1 }, tilt: B.tilt ?? 0, body: bodyJson(null) }]
+    // d391 (リプレイ依頼, まえ 2026-11-23): per-rider fixed riding motion for the replay only (look, not physics).
+    // 羽美 = 'umi_low' (伏せはカウルに隠れるくらい低く). Others = null → replay draws the usual posture. Values: [a-z0-9_].
+    // Like replayDesign.boat, a new value must be added with the same name on both the game and the replay side.
+    const entMotion = r => (r && r.prof && r.prof.named === 'umi') ? 'umi_low' : null;
+    const ents = R.solo ? [{ no: 1, name: playerName(), class: null, colors: [PLAYER_STYLE.hull, PLAYER_STYLE.num], course: 1, player: true, motor: { deashi: B.deashi ?? 1, mid: B.mMid ?? null, mawari: B.mawari ?? 1, nobi: B.nobi ?? 1 }, tilt: B.tilt ?? 0, motion: null, body: bodyJson(null) }]
       : fleet.boats.map(r => ({ no: r.no, name: r.name || (r.player ? playerName() : null), class: r.prof ? profJa(r.prof) : null, colors: r.col, course: r.trait.course, slow: !!r.trait.slow,
-        player: !!r.player, motor: { deashi: r.b.deashi ?? 1, mawari: r.b.mawari ?? 1, nobi: r.b.nobi ?? 1 }, tilt: r.b.tilt ?? 0, body: bodyJson(r.body) }));
+        player: !!r.player, motor: { deashi: r.b.deashi ?? 1, mawari: r.b.mawari ?? 1, nobi: r.b.nobi ?? 1 }, tilt: r.b.tilt ?? 0, motion: entMotion(r), body: bodyJson(r.body) }));
     const st = !R.solo && fleet.setsu && fleet.setsu.race;
     // d175 racer-profile-v1: who rides (name always, 登録番号, 読み, 成績, motor/boat numbers) and what race this is. Unknown = null
     const noProf = { racerId: null, nameKana: null, branch: null, term: null, age: null, stats: { winRate: null, localWinRate: null, top2Rate: null, avgST: null, flying: null, late: null },
