@@ -1,4 +1,4 @@
-// Honor for GP — ボートの物理（グリップ・旋回・引き波・推力・モーター・水面・熱ダレ）・接触・リプレイログ・トースト
+//⁠​‌​​‌​​​​‌‌​‌‌‌‌​‌‌​‌‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌‌​​‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌​​​‌‌‌​‌​‌​​​​​​‌​​​​​‌‌‌​​‌‌​‌​‌‌​​‌‌‌​‌​​​‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌‌‌​‌‌‌​​‌​‌‌​​‌​​​​‌​​‌​​​‌‌‌‌​​​‌‌‌​​​​​​‌‌​​‌​​‌‌‌‌‌​​​‌‌‌​​​​​​‌‌​​​​‌‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌​‌‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​​‌​‌​​​​‌‌​​​‌‌​​‌​‌​​‌​​‌​​​​​​​‌‌​​‌​​​‌‌​​​​​​‌‌​​‌​​​‌‌​‌‌​​​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌​‌​‌​‌​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​​​​‌‌‌‌‌‌​​​‌‌‌​​​​​‌​‌​‌‌‌​​‌​​‌​​​​​​​‌​‌​​​​‌​​‌‌​‌​​‌​‌‌​‌​‌​​​‌​​​‌‌​​‌​‌​‌‌​​​​‌​‌‌‌​‌​​​‌‌​‌​​​​​‌​‌​​‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌‌​‌‌‌‌​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​‌​‌‌​‌‌‌​​‌‌​​​​‌​‌‌​‌‌​​​​‌​​​​​​‌‌​​​‌‌​‌‌​‌‌‌‌​‌‌​​‌​​​‌‌​​‌​‌​​‌​‌‌​​​​‌​​​​​​‌‌​​​​‌​‌‌​‌‌​​​‌‌​‌‌​​​​‌​​​​​​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​​​‌‌‌​‌​​​‌‌‌​​‌‌​​‌​​​​​​‌‌‌​​‌​​‌‌​​‌​‌​‌‌‌​​‌‌​‌‌​​‌​‌​‌‌‌​​‌​​‌‌‌​‌‌​​‌‌​​‌​‌​‌‌​​‌​​​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌​​‌​​​​‌​​​‌‌​​‌​​​‌‌‌​‌​‌​​​​​​‌​‌‌​‌​‌​‌​​‌‌​‌​​‌​​‌​‌​​​‌‌‌​​‌​‌‌​‌​​‌‌​​​‌⁠ Honor for GP — ボートの物理（グリップ・旋回・引き波・推力・モーター・水面・熱ダレ）・接触・リプレイログ・トースト
 // ---- 物理の数値（レースの挙動を調整するときはこのファイルと race.js だけを触る）
 const GRIP_BASE = 5;           // sideways grip; with the turn-rate cap this sets how wide a turn swings at speed (d148–d151 tried 4 and 3.6 for wider turns; d152 back to 5 with the duller exits)
 const HAZARD = 0.2;
@@ -283,6 +283,8 @@ function boatPhysics(b, inp, dt) {
   if (bump > 0.05) b.yaw += (simRandom() * 2 - 1) * bump * 6 * WAKE.kick * (0.3 + 0.7 * (b.wakeTurn || 0)) * dt;
   b.cav = Math.max(0, (b.cav || 0) - dt);
   if (b.wakeFresh && bump > WAKE_CAV.bump && (b.wakeTurn || 0) > 0.5 && b.v > 8 && !(b.cav > 0) && simRandom() < WAKE_CAV.rate * bump * dt) b.cav = WAKE_CAV.time;
+  // d396 (まえ: 交差の集中してるとこはキャビるとか): crossing wakes heaped up — air under the prop, straight or turning
+  if (typeof WAKE_X !== 'undefined' && (b.wakeX || 0) > WAKE_X.cavX && b.v > 8 && !(b.cav > 0) && simRandom() < WAKE_X.cavRate * (b.wakeX - WAKE_X.cavX * 0.5) * (1 - (1 - WILLIE.wake) * wil) * tR * dt) b.cav = WAKE_CAV.time;
 
   // how hard the hull can be pushed sideways before it lets go: body position, then the rider's skill
   // Posture counts for a lot: leaning in bites, sitting up makes the lean bite harder, staying crouched fights it.

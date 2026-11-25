@@ -1,4 +1,4 @@
-// Honor for GP — 画面：スリット写真・水面とボートの描画・HUD
+//⁠​‌​​‌​​​​‌‌​‌‌‌‌​‌‌​‌‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌‌​​‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌​​​‌‌‌​‌​‌​​​​​​‌​​​​​‌‌‌​​‌‌​‌​‌‌​​‌‌‌​‌​​​‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌‌‌​‌‌‌​​‌​‌‌​​‌​​​​‌​​‌​​​‌‌‌‌​​​‌‌‌​​​​​​‌‌​​‌​​‌‌‌‌‌​​​‌‌‌​​​​​​‌‌​​​​‌‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌​‌‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​​‌​‌​​​​‌‌​​​‌‌​​‌​‌​​‌​​‌​​​​​​​‌‌​​‌​​​‌‌​​​​​​‌‌​​‌​​​‌‌​‌‌​​​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌​‌​‌​‌​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​​​​‌‌‌‌‌‌​​​‌‌‌​​​​​‌​‌​‌‌‌​​‌​​‌​​​​​​​‌​‌​​​​‌​​‌‌​‌​​‌​‌‌​‌​‌​​​‌​​​‌‌​​‌​‌​‌‌​​​​‌​‌‌‌​‌​​​‌‌​‌​​​​​‌​‌​​‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌‌​‌‌‌‌​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​‌​‌‌​‌‌‌​​‌‌​​​​‌​‌‌​‌‌​​​​‌​​​​​​‌‌​​​‌‌​‌‌​‌‌‌‌​‌‌​​‌​​​‌‌​​‌​‌​​‌​‌‌​​​​‌​​​​​​‌‌​​​​‌​‌‌​‌‌​​​‌‌​‌‌​​​​‌​​​​​​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​​​‌‌‌​‌​​​‌‌‌​​‌‌​​‌​​​​​​‌‌‌​​‌​​‌‌​​‌​‌​‌‌‌​​‌‌​‌‌​​‌​‌​‌‌‌​​‌​​‌‌‌​‌‌​​‌‌​​‌​‌​‌‌​​‌​​​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌​​‌​​​​‌​​​‌‌​​‌​​​‌‌‌​‌​‌​​​​​​‌​‌‌​‌​‌​‌​​‌‌​‌​​‌​​‌​‌​​​‌‌‌​​‌​‌‌​‌​​‌‌​​​‌⁠ Honor for GP — 画面：スリット写真・水面とボートの描画・HUD
 function slitCreate(label){return {label,frames:[],boats:[],archived:false};}
 function slitCapture(rec,t,rows){
   if(!rec || rec.archived || t < -2.2 || t > 1.6)return;
@@ -570,7 +570,7 @@ function draw() {
     for (const [k, end, label, dy] of measTicks()) if (GATES[k]) tick(GATES[k][end], label, dy || 0);   // d254: the venue's sections
     ctx.setLineDash([]);
   }
-  if (fleet) for (const r of fleet.boats) { if (!r.gone) drawWake(r.wake); } else drawWake(wake);
+  if (fleet) { for (const r of fleet.boats) { if (!r.gone) drawWake(r.wake); } drawWakeCross(fleet.boats.filter(r => !r.gone).map(r => r.wake)); } else drawWake(wake);
 
   // ピット and 小回り防止ブイ (shown in ピット離れ mode)
   if (entryMode || (fleet && fleet.pitMode)) {
@@ -662,6 +662,48 @@ function drawRain() {
   }
   ctx.stroke();
   ctx.fillStyle = 'rgba(40,60,70,.12)'; ctx.fillRect(0, 0, W, H);   // the light goes grey under the cloud
+}
+/* d394 引き波の交差 (まえ 2026-11-25: 2本の引き波が重なった時の見た目): where two boats' wakes cross at an angle the water peaks
+   into a broken, white 三角波. Found on a 1.5 m grid from the wave lines and troughs of every wake (the same spread as race.js
+   wakeAt), one result per frame shared by 2D and 3D. Looks only — the race's own crossing hit is race.js setWake (WAKE_X). */
+const WXVIEW = { cell: 1.5, minK: 0.06, minX: 0.35, max: 70 };
+let _wxCache = { t: -1, n: -1, list: [] };
+function wakeCrossings(arrs) {
+  if (_wxCache.t === time && _wxCache.n === arrs.length) return _wxCache.list;
+  const C = WXVIEW, grid = new Map(), out = [];
+  const kOf = (pt, age) => typeof wakeK === 'function' ? wakeK(pt, age) : Math.max(0, 1 - age / 3) * Math.min(1, pt.v / 15) * (pt.s ?? 1);
+  const put = (ai, x, y, a, k) => {
+    const key = Math.floor(x / C.cell) * 4096 + Math.floor(y / C.cell), e = grid.get(key);
+    if (!e) { grid.set(key, { ai, x, y, a, k }); return; }
+    if (e.ai === ai) { if (k > e.k) { e.x = x; e.y = y; e.a = a; e.k = k; } return; }
+    if (e.cx) { if (!e.cx.by.has(ai)) { e.cx.by.add(ai); e.cx.n++; e.cx.k += 0.6 * k; } return; }   // d396 3本目〜: the heap gets bigger
+    if (out.length >= C.max) return;
+    const xa = Math.abs(Math.sin(a - e.a)); if (xa < C.minX) return;
+    e.cx = { x: (x + e.x) / 2, y: (y + e.y) / 2, a: (a + e.a) / 2, a1: e.a, a2: a, k: Math.min(k, e.k) * xa, n: 2, seed: key, by: new Set([e.ai, ai]) }; out.push(e.cx);
+  };
+  arrs.forEach((arr, ai) => { if (!arr) return;
+    for (let i = arr.length - 1; i >= 0; i -= 2) { const pt = arr[i], age = time - pt.t; if (age < 0.3) continue; if (age > 4.5) break;
+      const k = kOf(pt, age); if (k < C.minK) continue;
+      const sp = age * (1.4 + pt.v * 0.12), sx = -Math.sin(pt.a), sy = Math.cos(pt.a);
+      put(ai, pt.x, pt.y, pt.a, k);
+      for (const side of [-1, 1]) put(ai, pt.x + sx * side * sp, pt.y + sy * side * sp, pt.a + side * 0.35, k);   // (a line runs out at an angle to the trail)
+    } });
+  _wxCache = { t: time, n: arrs.length, list: out };
+  return out;
+}
+function drawWakeCross(arrs) {
+  const L = wakeCrossings(arrs); if (!L.length) return;
+  ctx.save(); const tick = Math.floor(time * 8);
+  for (const c of L) { const al = Math.min(1, c.k * 2.2), R = 0.7 + 1.1 * al, pulse = 0.85 + 0.15 * Math.sin(time * 9 + c.seed);
+    // d396 三角波: the water heaps into a point where the lines cross — a 4-pointed crest along both lines, shaded on one side
+    const pts = [c.a1, c.a1 + Math.PI, c.a2, c.a2 + Math.PI].sort((p, q) => ((p % 6.283) + 6.283) % 6.283 - ((q % 6.283) + 6.283) % 6.283);
+    ctx.beginPath(); pts.forEach((a, i) => { const a2 = a + (pts[(i + 1) % 4] - a + 6.283 * 2) % 6.283 / 2, L1 = R * pulse, L2 = R * 0.28;
+      ctx[i ? 'lineTo' : 'moveTo'](c.x + Math.cos(a) * L1, c.y + Math.sin(a) * L1); ctx.lineTo(c.x + Math.cos(a2) * L2, c.y + Math.sin(a2) * L2); });
+    ctx.closePath(); ctx.fillStyle = `rgba(2,40,49,${0.35 * al})`; ctx.save(); ctx.translate(0.18, 0.18); ctx.fill(); ctx.restore();
+    ctx.fillStyle = `rgba(205,240,236,${0.55 * al})`; ctx.fill();
+    for (let j = 0; j < 3; j++) { const h1 = hash(c.seed + j, tick), h2 = hash(j, c.seed + tick);
+      ctx.fillStyle = `rgba(250,255,253,${(0.4 + 0.5 * h2) * al})`; ctx.beginPath(); ctx.arc(c.x + (h1 - .5) * 0.8, c.y + (h2 - .5) * 0.8, 0.12 + 0.3 * al * h1, 0, Math.PI * 2); ctx.fill(); } }
+  ctx.restore();
 }
 function drawWake(arr) {
   // Turbulent propeller wash: dark trough, soft aerated water, white core, and the two spreading

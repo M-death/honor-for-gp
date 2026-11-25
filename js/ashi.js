@@ -1,4 +1,4 @@
-/* d355 足合わせ (まえ: チュートリアルの最終レッスン、羽美との2艇合わせ足): two laps side by side with 羽美 (a real boat,
+/*⁠​‌​​‌​​​​‌‌​‌‌‌‌​‌‌​‌‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌‌​​‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌​​​‌‌‌​‌​‌​​​​​​‌​​​​​‌‌‌​​‌‌​‌​‌‌​​‌‌‌​‌​​​‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌‌‌​‌‌‌​​‌​‌‌​​‌​​​​‌​​‌​​​‌‌‌‌​​​‌‌‌​​​​​​‌‌​​‌​​‌‌‌‌‌​​​‌‌‌​​​​​​‌‌​​​​‌‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌​‌‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​​‌​‌​​​​‌‌​​​‌‌​​‌​‌​​‌​​‌​​​​​​​‌‌​​‌​​​‌‌​​​​​​‌‌​​‌​​​‌‌​‌‌​​​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌​‌​‌​‌​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​​​​‌‌‌‌‌‌​​​‌‌‌​​​​​‌​‌​‌‌‌​​‌​​‌​​​​​​​‌​‌​​​​‌​​‌‌​‌​​‌​‌‌​‌​‌​​​‌​​​‌‌​​‌​‌​‌‌​​​​‌​‌‌‌​‌​​​‌‌​‌​​​​​‌​‌​​‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌‌​‌‌‌‌​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​‌​‌‌​‌‌‌​​‌‌​​​​‌​‌‌​‌‌​​​​‌​​​​​​‌‌​​​‌‌​‌‌​‌‌‌‌​‌‌​​‌​​​‌‌​​‌​‌​​‌​‌‌​​​​‌​​​​​​‌‌​​​​‌​‌‌​‌‌​​​‌‌​‌‌​​​​‌​​​​​​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​​​‌‌‌​‌​​​‌‌‌​​‌‌​​‌​​​​​​‌‌‌​​‌​​‌‌​​‌​‌​‌‌‌​​‌‌​‌‌​​‌​‌​‌‌‌​​‌​​‌‌‌​‌‌​​‌‌​​‌​‌​‌‌​​‌​​​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌​​‌​​​​‌​​​‌‌​​‌​​​‌‌‌​‌​‌​​​​​​‌​‌‌​‌​‌​‌​​‌‌​‌​​‌​​‌​‌​​​‌‌‌​​‌​‌‌​‌​​‌‌​​​‌⁠ d355 足合わせ (まえ: チュートリアルの最終レッスン、羽美との2艇合わせ足): two laps side by side with 羽美 (a real boat,
    contact on). Lap 1 the player runs inside, lap 2 outside; on the stand-side straight after lap 1's 2M both boats are
    driven to swap places and control comes back at the slit. Points only while close: a combo builds while the two
    stay near (closer = faster), shown climbing in the score; it is banked when the combo ends, lost on contact.
@@ -7,7 +7,7 @@
 const ASHI = { on: false, phase: '', U: null, uin: { thr: 0, steer: 0, roll: 0, pitch: 0 }, mB: null, mU: null,
   score: 0, pot: 0, comboT: 0, tick: 0, gap0: 0, out: 0, best: 0, shown: 0, hot: false, contactT: 0, capT: 0, swapSt: 0, uOff: 22, bOff: 16 };
 const ASHI_K = { rU1: 26, rB1: 20, rU2: 20, rB2: 25, vTurn0: 0, vTurnK: 0.8, off: 5, vMax: 70 / 3.6, vPush: 73 / 3.6, turnK: 0.8, nobi: 0.92, lv: [2, 4, 6, 9], pts: [500, 300, 200, 100], turnX: 2, zoneA: [0.30, 0.20, 0.13, 0.07], every: 0.5, multEvery: 5, multMax: 5, grace: 0.6, commit: 3,
-  key: 'honorGP.ashi.best', ranks: [['SS', 1.1], ['S', 0.8], ['A', 0.55], ['B', 0.3], ['C', 0]], perfect: 180000 };
+  key: 'honorGP.ashi.v3.best', ranks: [['SS', 1.1], ['S', 0.8], ['A', 0.55], ['B', 0.3], ['C', 0]], perfect: 180000 };
 try { ASHI.best = +(localStorage.getItem(ASHI_K.key) || 0); } catch (e) {}
 const UMI_REAL = { hull: '#20844f', num: '#ffffff', label: '6', helmet: '#20844f' };
 
@@ -340,8 +340,9 @@ function ashiRows() { return ASHI.on && ASHI.U ? [{ b: ASHI.U, inp: ASHI.uin, no
 { const _st = step; step = function (dt) { _st(dt); ashiStep(dt); if (ASHI.on) ashiHudStep(dt); }; }
 
 // ---------- d362 (まえ): 足合わせのランキング（端末内10位まで／全体は1人1記録、サーバー v3 の /ashi） ----------
-ASHI_K.rules = 'honorGP.ashi.v1';      // 点数の決まりが変わったら v2 にして表を分ける
-ASHI_K.rankKey = 'honorGP.ashi.rank'; ASHI_K.sentKey = 'honorGP.ashi.sent';
+// d388 (まえ: 公開時は全ての記録を消して): v2 — a new table on the server and new keys on the device (best, list, sent)
+ASHI_K.rules = 'honorGP.ashi.v3';   // d389: v3 (the release table once more)      // 点数の決まりが変わったら次の版にして表を分ける
+ASHI_K.rankKey = 'honorGP.ashi.v3.rank'; ASHI_K.sentKey = 'honorGP.ashi.v3.sent';
 function ashiRankLoad() { try { const a = JSON.parse(localStorage.getItem(ASHI_K.rankKey) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 function ashiRankAdd(score, grade) {
   if (!(score > 0)) return;

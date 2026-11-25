@@ -1,4 +1,4 @@
-/* ---------- タイムアタック (1艇・大時計スタートから3周・級判定) ----------
+/*⁠​‌​​‌​​​​‌‌​‌‌‌‌​‌‌​‌‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌‌​​‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌​​​‌‌‌​‌​‌​​​​​​‌​​​​​‌‌‌​​‌‌​‌​‌‌​​‌‌‌​‌​​​‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌‌‌​‌‌‌​​‌​‌‌​​‌​​​​‌​​‌​​​‌‌‌‌​​​‌‌‌​​​​​​‌‌​​‌​​‌‌‌‌‌​​​‌‌‌​​​​​​‌‌​​​​‌‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌​‌‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​​‌​‌​​​​‌‌​​​‌‌​​‌​‌​​‌​​‌​​​​​​​‌‌​​‌​​​‌‌​​​​​​‌‌​​‌​​​‌‌​‌‌​​​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌​‌​‌​‌​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​​​​‌‌‌‌‌‌​​​‌‌‌​​​​​‌​‌​‌‌‌​​‌​​‌​​​​​​​‌​‌​​​​‌​​‌‌​‌​​‌​‌‌​‌​‌​​​‌​​​‌‌​​‌​‌​‌‌​​​​‌​‌‌‌​‌​​​‌‌​‌​​​​​‌​‌​​‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌‌​‌‌‌‌​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​‌​‌‌​‌‌‌​​‌‌​​​​‌​‌‌​‌‌​​​​‌​​​​​​‌‌​​​‌‌​‌‌​‌‌‌‌​‌‌​​‌​​​‌‌​​‌​‌​​‌​‌‌​​​​‌​​​​​​‌‌​​​​‌​‌‌​‌‌​​​‌‌​‌‌​​​​‌​​​​​​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​​​‌‌‌​‌​​​‌‌‌​​‌‌​​‌​​​​​​‌‌‌​​‌​​‌‌​​‌​‌​‌‌‌​​‌‌​‌‌​​‌​‌​‌‌‌​​‌​​‌‌‌​‌‌​​‌‌​​‌​‌​‌‌​​‌​​​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌​​‌​​​​‌​​​‌‌​​‌​​​‌‌‌​‌​‌​​​​​​‌​‌‌​‌​‌​‌​​‌‌​‌​​‌​​‌​‌​​​‌‌‌​​‌​‌‌​‌​​‌‌​​​‌⁠ ---------- タイムアタック (1艇・大時計スタートから3周・級判定) ----------
    The time is a race time: from the hand hitting zero to the finish line on the 3rd lap. Calm water, an average
    motor (出足・伸び1.0), and only a trace of the race's fade (水面の荒れ・熱ダレ, d161: FADE.ta) — alone on the water it holds its speed.
    フライング・出遅れ・転覆・内側航走 end the run with no record. The best run is kept in this browser and comes back
@@ -12,7 +12,9 @@
 // d339 (まえ: 一周前の引き波の残りをタイムアタックにも): the run now meets its own うねり (練習 +0.1–0.2 s, なにわ +0.4–0.5 s for a CPU
 // running the same line each lap) → a new key; d265 records stay viewable by version.
 // d350 (まえ: タイムアタックの記録を全てリセット、ゴーストが邪魔になる — 伸び 1.012 にした d349 から): a new key; d339 records stay viewable by version.
-const TA = { laps: 3, keyBase: 'honorGP.ta.d350', key: 'honorGP.ta.d350' + VENUE.taSuffix, ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
+// d388 (まえ: 公開時は全ての記録を消して、先行してる人のは気にしなくていい): the public release starts on a new key (both courses, all inputs).
+// d389 (まえ: まちがってランキングにのせちゃった → 公開版を更新して消す): d388 → d389, a fresh table once more.
+const TA = { laps: 3, keyBase: 'honorGP.ta.d389', key: 'honorGP.ta.d389' + VENUE.taSuffix, ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
 // A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
 // d136: エクストラ (まえ) — GP覇者 and レジェンド sit above 記念クラス

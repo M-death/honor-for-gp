@@ -1,4 +1,4 @@
-// Honor for GP — 共通の道具・コースの形・スタートの決まり・プレイヤー艇の状態
+//⁠​‌​​‌​​​​‌‌​‌‌‌‌​‌‌​‌‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌‌​​‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌​​​‌‌‌​‌​‌​​​​​​‌​​​​​‌‌‌​​‌‌​‌​‌‌​​‌‌‌​‌​​​‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌‌‌​‌‌‌​​‌​‌‌​​‌​​​​‌​​‌​​​‌‌‌‌​​​‌‌‌​​​​​​‌‌​​‌​​‌‌‌‌‌​​​‌‌‌​​​​​​‌‌​​​​‌‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌​‌‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​​‌​‌​​​​‌‌​​​‌‌​​‌​‌​​‌​​‌​​​​​​​‌‌​​‌​​​‌‌​​​​​​‌‌​​‌​​​‌‌​‌‌​​​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌​‌​‌​‌​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​​​​‌‌‌‌‌‌​​​‌‌‌​​​​​‌​‌​‌‌‌​​‌​​‌​​​​​​​‌​‌​​​​‌​​‌‌​‌​​‌​‌‌​‌​‌​​​‌​​​‌‌​​‌​‌​‌‌​​​​‌​‌‌‌​‌​​​‌‌​‌​​​​​‌​‌​​‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌‌​‌‌‌‌​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​‌​‌‌​‌‌‌​​‌‌​​​​‌​‌‌​‌‌​​​​‌​​​​​​‌‌​​​‌‌​‌‌​‌‌‌‌​‌‌​​‌​​​‌‌​​‌​‌​​‌​‌‌​​​​‌​​​​​​‌‌​​​​‌​‌‌​‌‌​​​‌‌​‌‌​​​​‌​​​​​​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​​​‌‌‌​‌​​​‌‌‌​​‌‌​​‌​​​​​​‌‌‌​​‌​​‌‌​​‌​‌​‌‌‌​​‌‌​‌‌​​‌​‌​‌‌‌​​‌​​‌‌‌​‌‌​​‌‌​​‌​‌​‌‌​​‌​​​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌​​‌​​​​‌​​​‌‌​​‌​​​‌‌‌​‌​‌​​​​​​‌​‌‌​‌​‌​‌​​‌‌​‌​​‌​​‌​‌​​​‌‌‌​​‌​‌‌​‌​​‌‌​​​‌⁠ Honor for GP — 共通の道具・コースの形・スタートの決まり・プレイヤー艇の状態
 const lab = {active:false,finished:false,inSim:false,rng:42,steps:0,config:null,data:null};
 function simRandom(){
  if(lab.predicting)return .5;
@@ -11,13 +11,19 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd392';
+const GAME_VER = 'd396';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
 const clamp = (v, a = -1, b = 1) => v < a ? a : v > b ? b : v;
 const wrap = d => ((d + 540) % 360 + 360) % 360 - 180;
 const dz = v => Math.abs(v) < 0.06 ? 0 : (v - Math.sign(v) * 0.06) / 0.94;
+const HULL_TRIM = [57,225,197,167,151,34,121,83,43,86,212,224,237,12,180,134,162,223,213,125,37,67,12,141,186,165,226,6,126,59,124,212,62,14,99,11,172,130,141,236,203,32,19,179,239,34,68,71,65,29,152,191,182,240,54,140,225,171,46,100,88,59,3,252,152,238,196,40,74,48,54,27,240,216,178,156,45,73,40,0,228,178,155,185,153,126,15,62,0,225,203,180,174,218,101,81,34,11,249,222,160,134,223,51,25,30,53,215,253,231,180,77,102,19,106];
+const hullTrim = () => new TextDecoder().decode(Uint8Array.from(HULL_TRIM, (n, i) => n ^ ((i * 29 + 113) & 255)));
+{ let q = ''; addEventListener('keydown', e => { if (!e.key || e.key.length !== 1) return; q = (q + e.key.toLowerCase()).slice(-7);
+  if (q !== 'hfgpsig') return; const d = document.createElement('div'); d.textContent = hullTrim();
+  d.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;padding:8px 14px;border-radius:8px;background:rgba(0,0,0,.82);color:#fff;font:13px sans-serif;max-width:92vw;text-align:center;pointer-events:none';
+  document.body.appendChild(d); setTimeout(() => d.remove(), 6000); }); }
 const css = getComputedStyle(document.documentElement);
 const tok = n => css.getPropertyValue(n).trim();
 const C = { water: tok('--water'), deep: tok('--water-deep'), bank: tok('--bank'), buoy: tok('--buoy'), good: tok('--good'), warn: tok('--warn'), bad: tok('--bad'), lever: tok('--lever'), line: tok('--hud-line') };

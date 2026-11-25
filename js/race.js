@@ -1,4 +1,4 @@
-// Honor for GP — レース本体：CPU・進入・スタート・水面・判定・結果・写真判定・実況・事故
+//⁠​‌​​‌​​​​‌‌​‌‌‌‌​‌‌​‌‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌‌​​‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌​​​‌‌‌​‌​‌​​​​​​‌​​​​​‌‌‌​​‌‌​‌​‌‌​​‌‌‌​‌​​​‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌‌‌​‌‌‌​​‌​‌‌​​‌​​​​‌​​‌​​​‌‌‌‌​​​‌‌‌​​​​​​‌‌​​‌​​‌‌‌‌‌​​​‌‌‌​​​​​​‌‌​​​​‌‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌​‌‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​​‌​‌​​​​‌‌​​​‌‌​​‌​‌​​‌​​‌​​​​​​​‌‌​​‌​​​‌‌​​​​​​‌‌​​‌​​​‌‌​‌‌​​​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌​‌​‌​‌​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​​​​‌‌‌‌‌‌​​​‌‌‌​​​​​‌​‌​‌‌‌​​‌​​‌​​​​​​​‌​‌​​​​‌​​‌‌​‌​​‌​‌‌​‌​‌​​​‌​​​‌‌​​‌​‌​‌‌​​​​‌​‌‌‌​‌​​​‌‌​‌​​​​​‌​‌​​‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌‌​‌‌‌‌​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​‌​‌‌​‌‌‌​​‌‌​​​​‌​‌‌​‌‌​​​​‌​​​​​​‌‌​​​‌‌​‌‌​‌‌‌‌​‌‌​​‌​​​‌‌​​‌​‌​​‌​‌‌​​​​‌​​​​​​‌‌​​​​‌​‌‌​‌‌​​​‌‌​‌‌​​​​‌​​​​​​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​​​‌‌‌​‌​​​‌‌‌​​‌‌​​‌​​​​​​‌‌‌​​‌​​‌‌​​‌​‌​‌‌‌​​‌‌​‌‌​​‌​‌​‌‌‌​​‌​​‌‌‌​‌‌​​‌‌​​‌​‌​‌‌​​‌​​​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌​​‌​​​​‌​​​‌‌​​‌​​​‌‌‌​‌​‌​​​​​​‌​‌‌​‌​‌​‌​​‌‌​‌​​‌​​‌​‌​​​‌‌‌​​‌​‌‌​‌​​‌‌​​​‌⁠ Honor for GP — レース本体：CPU・進入・スタート・水面・判定・結果・写真判定・実況・事故
 // the racing line: a stadium around both marks, run anticlockwise
 // The racing line: two straights joined by half-circles of radius R. Each circle is pulled toward the
 // infield so that its outermost point passes `gap` metres from the mark: the boat swings round and
@@ -82,9 +82,12 @@ function roughAt(x, y) { const R = roughOf(); if (!R) return 0; const d = Math.h
 const roughWave = (x, y) => { const R = roughOf(), k = R ? roughAt(x, y) : 0; return k ? k * (R.wave + R.tail * Math.max(0, waterEnv ? waterEnv.wx : 0)) : 0; };
 const wakeLifeMax = () => { const R = roughOf(); return R ? Math.max(1, R.wakeLife) : 1; };
 function wakeAt(x, y, wakes, now, ahead = 0) {
-  let w = 0, ang = 0, line = false, fresh = false;
+  // d394 (まえ 2026-11-25: 2本の引き波が交差してるとこは影響が強まる): the strongest hit from each boat's wake, then the best two
+  // of different boats — w/ang/line/fresh/age = the strongest (as before), w2/ang2 = the next boat's (setWake adds them up)
+  let W = 0, A = 0, Ln = false, F = false, AG = 0, w2 = 0, ang2 = 0, rest = 0;
   const RZ = roughOf(), LM = wakeLifeMax();
-  for (const arr of wakes) for (let i = arr.length - 1; i >= 0; i -= 2) {
+  for (const arr of wakes) { let w = 0, ang = 0, line = false, fresh = false, hitAge = 0;
+  for (let i = arr.length - 1; i >= 0; i -= 2) {
     const pt = arr[i], age = now + ahead - pt.t;
     if (age < 0.3) continue;
     if (age > WAKE.life * WAKE_TURN.lifeK * LM) break;
@@ -98,17 +101,28 @@ function wakeAt(x, y, wakes, now, ahead = 0) {
     if (fwd < 1.2 && (inTrough || Math.abs(lat - spread) < WAKE.width)) {
       const tk = clamp((ps - WAKE_TURN.straight) / (1 - WAKE_TURN.straight), 0, 1), fd = WAKE.fade + ((WAKE_TURN.fadeTurn ?? WAKE.fade) - WAKE.fade) * tk;   // d309: a turn's wake fades slower
       const k = Math.pow(1 - age / life, fd * (zk ? 1 - (1 - RZ.wakeFade) * zk : 1)) * Math.min(1, pt.v / 15) * ps * (zk && RZ.wakeHit ? 1 + (RZ.wakeHit - 1) * zk : 1);   // fresh wake, close behind the boat, hits hardest
-      if (k > w) { w = k; ang = pt.a; line = !inTrough; fresh = age < WAKE_CAV.age && ps > WAKE_CAV.ps; }
+      if (k > w) { w = k; ang = pt.a; line = !inTrough; fresh = age < WAKE_CAV.age && ps > WAKE_CAV.ps; hitAge = age; }
     }
   }
-  return { w, ang, line, fresh };
+  if (w > W) { rest += w2; w2 = W; ang2 = A; W = w; A = ang; Ln = line; F = fresh; AG = hitAge; } else if (w > w2) { rest += w2; w2 = w; ang2 = ang; } else rest += w; }
+  return { w: W, ang: A, line: Ln, fresh: F, age: AG, w2, ang2, rest };   // d396 rest: the 3rd and further boats' wakes at this spot
 }
 // 引き波 under a hull. Riding along a neighbour's spreading wave line (same direction, side by side)
 // only drags a little; the trough right behind a boat and crossing a line square hit hard.
 const WAKE_LINE = { along: 0.4, bumpBase: 0.1 };
 // 直線とターン: running straight, only the trough right behind a boat really bites — its spreading wave lines are
 // ridden over with little more than a shudder. Going round a turn, crossing those lines is what hurts.
-const WAKE_STRAIGHT = { line: 0.3, turnYaw: 0.35, bump: 0.4 };
+// d395 (まえ 2026-11-25: 引き波を弱くするとチルト跳ねた方が有利 → 前の引き波の強さに戻す。ただ引き波のないとこはちゃんと弱めて、
+// 直線ならほとんど影響なし): the d394 fade with distance is gone — a wake hits as it did before d394. Riding beside a wake's spreading
+// lines on a straight (かわして走る) costs next to nothing (line 0.3 → 0.08), and on a straight the left-over うねり (no wake there any
+// more) all but stops counting in a race (raceStraight; タイムアタック keeps SWELL.straight, so its times and ranking stay).
+// チルト−0.5 rides a wake a little better (lowTilt: ×(1 − 0.2) per tilt step below 0 → ×0.9 at −0.5), other boats' wakes only.
+const WAKE_STRAIGHT = { line: 0.08, turnYaw: 0.35, bump: 0.4, raceStraight: 0.03, lowTilt: 0.2 };
+// d394 // 交差: where two boats' wakes cross, the heights add (×add of the weaker) and the peaked water slams the hull (bump × how square
+// they cross) — at any distance, straight or turning.
+const WAKE_X = { add: 0.5, bump: 0.9, straight: 0.6, more: 0.8, cavX: 0.12, cavRate: 3 };
+// d396 (まえ 2026-11-25: 交差の集中してるとこは走りへの影響を強めて、キャビるとか): every further boat's wake on the same spot (3本目〜)
+// adds ×more to the peaked water; where it is that rough (b.wakeX > cavX) the prop can suck air — straight or turning (physics.js).
 // キャビ: crossing a fresh, still-splashing wave line hard in a turn can pull air into the prop — the thrust goes for a moment
 const WAKE_CAV = { age: 1.0, ps: 0.7, bump: 0.35, rate: 1.2, time: 0.45, thrust: 0.35 };
 // d309 うねり (まえ: 先行艇は前の周の引き波の残りでタイムを落としていく): every boat's wake, 3 s old and older, is left on the water
@@ -155,7 +169,8 @@ function swellAt(x, y, now) {
 }
 function setWake(b, wa, sw = 0) {
   const cross = Math.abs(Math.sin(b.a - wa.ang));
-  const turnK = clamp(Math.abs(b.yaw || 0) / WAKE_STRAIGHT.turnYaw, 0, 1), lineK = wa.line ? WAKE_STRAIGHT.line + (1 - WAKE_STRAIGHT.line) * turnK : 1;
+  const turnK = clamp(Math.abs(b.yaw || 0) / WAKE_STRAIGHT.turnYaw, 0, 1);
+  const lineK = (wa.line ? WAKE_STRAIGHT.line + (1 - WAKE_STRAIGHT.line) * turnK : 1) * (1 - WAKE_STRAIGHT.lowTilt * Math.max(0, -(b.tilt || 0)));   // d395 チルト−0.5
   b.inWake = wa.w * lineK;
   b.wakeLine = wa.line;
   b.wakeTurn = turnK;
@@ -163,8 +178,17 @@ function setWake(b, wa, sw = 0) {
   // d172 (まえ: ポンポン跳ねて減速, running straight in a boat's wake): straight, the hull rides the trough with a smaller hop
   const bumpK = WAKE_STRAIGHT.bump + (1 - WAKE_STRAIGHT.bump) * turnK;
   b.wakeBump = wa.w * lineK * bumpK * (wa.line ? WAKE_LINE.bumpBase + (1 - WAKE_LINE.bumpBase) * cross : 0.35 + 0.65 * cross);
+  b.wakeX = 0;
+  if (wa.w2 > 0) {   // d394 交差
+    const xa = Math.abs(Math.sin((wa.ang - wa.ang2))), sk = (WAKE_X.straight + (1 - WAKE_X.straight) * turnK) * (1 - WAKE_STRAIGHT.lowTilt * Math.max(0, -(b.tilt || 0))), lo = Math.min(wa.w, wa.w2);
+    const more = WAKE_X.more * (wa.rest || 0) * (0.5 + 0.5 * xa);   // d396 3本目〜
+    b.wakeX = lo * xa + more;
+    b.inWake += WAKE_X.add * (lo + more) * sk;
+    b.wakeBump += WAKE_X.bump * (lo * xa + more) * sk;
+  }
   b.swell = sw;
-  if (sw > 0) { b.wakeBump = Math.max(b.wakeBump, sw * (SWELL.straight + (1 - SWELL.straight) * turnK) * SWELL.cross); b.inWake = Math.max(b.inWake, sw * SWELL.inWake * (SWELL.straight + (1 - SWELL.straight) * turnK)); }   // d309 うねり
+  if (sw > 0) { const st = wa === SOLO_NOWAKE ? SWELL.straight : WAKE_STRAIGHT.raceStraight, sk = st + (1 - st) * turnK;   // d395: a race's straights barely feel it; solo (TA) as before
+    b.wakeBump = Math.max(b.wakeBump, sw * sk * SWELL.cross); b.inWake = Math.max(b.inWake, sw * SWELL.inWake * sk); }   // d309 うねり
 }
 const nearMarkAt = (x, y, r) => COURSE.marks.some(m => Math.hypot(x - m.x, y - m.y) < r);
 

@@ -1,4 +1,4 @@
-/* 3D視点 (d268 本編・体験版に統合, まえ: 3D試作を本編、体験版に統合、ゴーストも共用): the race seen in 3D — 追尾（少し上から）/ レーサー視点. Looks only: reads the boats, never writes race
+/*⁠​‌​​‌​​​​‌‌​‌‌‌‌​‌‌​‌‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌‌​​‌‌​​‌‌​‌‌‌‌​‌‌‌​​‌​​​‌​​​​​​‌​​​‌‌‌​‌​‌​​​​​​‌​​​​​‌‌‌​​‌‌​‌​‌‌​​‌‌‌​‌​​​‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌‌‌​‌‌‌​​‌​‌‌​​‌​​​​‌​​‌​​​‌‌‌‌​​​‌‌‌​​​​​​‌‌​​‌​​‌‌‌‌‌​​​‌‌‌​​​​​​‌‌​​​​‌‌​‌‌‌​​​‌‌‌​​​​​​‌‌​‌​‌​‌‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​​‌​‌​​​​‌‌​​​‌‌​​‌​‌​​‌​​‌​​​​​​​‌‌​​‌​​​‌‌​​​​​​‌‌​​‌​​​‌‌​‌‌​​​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌​‌​‌​‌​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​‌​​​​​‌‌‌​​​‌‌‌​​​​​‌‌‌​​​​‌‌‌‌‌‌​​​‌‌‌​​​​​‌​‌​‌‌‌​​‌​​‌​​​​​​​‌​‌​​​​‌​​‌‌​‌​​‌​‌‌​‌​‌​​​‌​​​‌‌​​‌​‌​‌‌​​​​‌​‌‌‌​‌​​​‌‌​‌​​​​​‌​‌​​‌​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌‌​‌‌‌‌​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​‌​‌‌​‌‌‌​​‌‌​​​​‌​‌‌​‌‌​​​​‌​​​​​​‌‌​​​‌‌​‌‌​‌‌‌‌​‌‌​​‌​​​‌‌​​‌​‌​​‌​‌‌​​​​‌​​​​​​‌‌​​​​‌​‌‌​‌‌​​​‌‌​‌‌​​​​‌​​​​​​‌‌‌​​‌​​‌‌​‌​​‌​‌‌​​‌‌‌​‌‌​‌​​​​‌‌‌​‌​​​‌‌‌​​‌‌​​‌​​​​​​‌‌‌​​‌​​‌‌​​‌​‌​‌‌‌​​‌‌​‌‌​​‌​‌​‌‌‌​​‌​​‌‌‌​‌‌​​‌‌​​‌​‌​‌‌​​‌​​​​‌​​​​​​​‌​‌‌‌‌​​‌​​​​​​‌​​‌​​​​‌​​​‌‌​​‌​​​‌‌‌​‌​‌​​​​​​‌​‌‌​‌​‌​‌​​‌‌​‌​​‌​​‌​‌​​​‌‌‌​​‌​‌‌​‌​​‌‌​​​‌⁠ 3D視点 (d268 本編・体験版に統合, まえ: 3D試作を本編、体験版に統合、ゴーストも共用): the race seen in 3D — 追尾（少し上から）/ レーサー視点. Looks only: reads the boats, never writes race
  * state, never calls the race RNG. The physics, the HUD, the mini map and every rule stay the 2D game's.
  * World: three.js Y up; game (x, y) → (X, Z) = (x, y), so seen from above it matches the 2D screen (+y down).
  * Boats are the hfgp3d actors (the same models as 3D（新モデル）). Toggle: the 視点 button or the V key. */
@@ -951,6 +951,47 @@ function drawWakesReal(arrs) {
   wrMesh.geometry.setDrawRange(0, n * 6);
   G.position.needsUpdate = true; G.color.needsUpdate = true; G.uv.needsUpdate = true;
 }
+/* d396 三角波 (まえ: 交差点で波の線が盛り上がって尖る、そこに小さなしぶき): at each crossing (view.js wakeCrossings) a low pointed heap
+   of water — four faces rising to a peak along both wave lines, lit on the sun side, white at the tip — that bobs; and a few
+   drops thrown up from it (spray3, no boat). Looks only. Not スマホ軽量. */
+const XPEAK = { max: 70, h: .55, base: 1.6, spray: 26 };
+let xpMesh = null; const xpAcc = { v: 0 };
+function drawCrossPeaks(arrs, sdt) {
+  const on = tierNow !== 'lite' && typeof wakeCrossings === 'function';
+  if (!on) { if (xpMesh) xpMesh.visible = false; return; }
+  if (!xpMesh) {
+    const geo = new THREE.BufferGeometry(), n = XPEAK.max * 8 * 3;
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 4), 4).setUsage(THREE.DynamicDrawUsage));
+    xpMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+    xpMesh.frustumCulled = false; xpMesh.renderOrder = 1; scene.add(xpMesh);
+  }
+  xpMesh.visible = true;
+  const L = wakeCrossings(arrs), P = xpMesh.geometry.attributes.position.array, C = xpMesh.geometry.attributes.color.array;
+  const lum = tod === 'night' ? .42 : tod === 'evening' ? .8 : 1, sun = .6;   // (light from one fixed side: one face bright, the other in shade)
+  let n = 0;
+  const vtx = (x, y, z, r, g, b, a) => { const o = n * 3, c = n * 4; P[o] = x; P[o + 1] = y; P[o + 2] = z; C[c] = r * lum; C[c + 1] = g * lum; C[c + 2] = b * lum; C[c + 3] = a; n++; };
+  for (const c of L.slice(0, XPEAK.max)) {
+    const al = Math.min(1, c.k * 3), bob = .75 + .25 * Math.sin(time * 7 + c.seed * .37), H = XPEAK.h * al * bob, R = .6 + XPEAK.base * al;
+    const dirs = [c.a1, c.a1 + Math.PI, c.a2, c.a2 + Math.PI].sort((p, q) => ((p % 6.283) + 6.283) % 6.283 - ((q % 6.283) + 6.283) % 6.283);
+    const rim = []; dirs.forEach((a, i) => { const a2 = a + (dirs[(i + 1) % 4] - a + 6.283 * 2) % 6.283 / 2;
+      rim.push([c.x + Math.cos(a) * R, c.y + Math.sin(a) * R]); rim.push([c.x + Math.cos(a2) * R * .35, c.y + Math.sin(a2) * R * .35]); });
+    for (let i = 0; i < 8; i++) { const p = rim[i], q = rim[(i + 1) % 8], mx = (p[0] + q[0]) / 2 - c.x, my = (p[1] + q[1]) / 2 - c.y;
+      const lit = .55 + .45 * Math.max(0, (mx * Math.cos(sun) + my * Math.sin(sun)) / (Math.hypot(mx, my) || 1));
+      vtx(p[0], .03, p[1], .35 * lit, .55 * lit, .6 * lit, .3 * al);
+      vtx(q[0], .03, q[1], .35 * lit, .55 * lit, .6 * lit, .3 * al);
+      vtx(c.x, .03 + H, c.y, .97, .99, .99, .85 * al); }
+    // a few drops off the tip
+    if (spray3 && sdt > 0) { xpAcc.v += XPEAK.spray * al * sdt;
+      while (xpAcc.v >= 1 && spray3.n < SPRAY.max) { xpAcc.v -= 1; const S3 = spray3, i = S3.n++, a = r3() * 6.283, sp = .4 + r3() * 1.6;
+        S3.who[i] = 0; S3.P[i * 3] = c.x + (r3() - .5) * .6; S3.P[i * 3 + 1] = .05 + H; S3.P[i * 3 + 2] = c.y + (r3() - .5) * .6;
+        S3.vx[i] = Math.cos(a) * sp; S3.vz[i] = Math.sin(a) * sp; S3.vy[i] = (1.2 + r3() * 2.4) * (.6 + .6 * al);
+        S3.life[i] = .35 + r3() * .4; S3.age[i] = 0; S3.size0[i] = .08 + r3() * .14; S3.a0[i] = .5 + .4 * al; } }
+  }
+  xpAcc.v = Math.min(xpAcc.v, 3);
+  xpMesh.geometry.setDrawRange(0, n);
+  xpMesh.geometry.attributes.position.needsUpdate = true; xpMesh.geometry.attributes.color.needsUpdate = true;
+}
 // the left-over うねり (race.js swellG cells, 3 m) as a texture over the water: choppy crossing ripples, light tips and dark troughs
 const swellFx = { mesh: null, tex: null, data: null, G: null, t: -1 };
 function swellFxStep() {
@@ -1576,7 +1617,7 @@ function frame3d(now) {
     a.chooseLOD((mode === 'top' ? 3.3 * (cam.S || 20) : 3.3 * focal / (Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1)) * lodK);
     a.updatePose({ propAngle: time * 60 }); a.root.visible = true;
   }
-  { const ws = fleet ? fleet.boats.filter(r => !r.gone).map(r => r.wake) : [wake]; if (wrealOn()) drawWakesReal(ws); else { if (wrMesh) wrMesh.visible = false; if (wakeMesh) wakeMesh.visible = true; drawWakes(ws); } }   // d334
+  { const ws = fleet ? fleet.boats.filter(r => !r.gone).map(r => r.wake) : [wake]; if (wrealOn()) drawWakesReal(ws); else { if (wrMesh) wrMesh.visible = false; if (wakeMesh) wakeMesh.visible = true; drawWakes(ws); } drawCrossPeaks(ws, lastGameT == null ? 0 : lim(time - lastGameT, 0, .1)); }   // d334; d396 三角波
   swellFxStep();
   if (spray3 || rippleTex) {
     const sdt = lastGameT == null ? 0 : lim(time - lastGameT, 0, .1); lastGameT = time;   // the race clock (a demo can run fast)
