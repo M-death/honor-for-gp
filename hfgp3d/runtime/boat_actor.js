@@ -168,8 +168,8 @@ export class BoatActor{
  /** d369: the realistic racer's inner suit (sleeves) — by racerId / name, as in the replay */
  setSuit(key){const i=suitIndex(key);if(this.suit===i)return this;this.suit=i;for(const m of this.materials){const u=m.userData.real;if(u){u.realSuit.value.set(SUITS[i][0]);u.realAcc.value.set(SUITS[i][1]);}}return this;}
  setLOD(level){level=clamp(Math.round(level),0,2);if(this.lod!==level){this.levels[this.lod].boat.visible=false;this.lod=level;this.levels[level].boat.visible=true;this.updatePose(this.lastPose??{});}return this;}
- updatePose({pitch=0,roll=0,steer=0,propAngle=0,phase=0,turn=0,willie=0,wheel=null}={}){
-  this.lastPose={pitch,roll,steer,propAngle,phase,turn,willie,wheel};const a=this.levels[this.lod];a.pose.update({heightCm:this.heightCm,pitch,roll,phase,turn,willie,steer:wheel});if(a.motor)a.motor.rotation.y=clamp(steer,-.6,.6);if(a.prop)a.prop.rotation.z=propAngle;return this;
+ updatePose({pitch=0,roll=0,steer=0,propAngle=0,phase=0,turn=0,willie=0,wheel=null}={}){const low=this.low||0;   /* d403: 羽美の伏せ (set by the game per rider) */
+  this.lastPose={pitch,roll,steer,propAngle,phase,turn,willie,wheel};const a=this.levels[this.lod];a.pose.update({heightCm:this.heightCm,pitch,roll,phase,turn,willie,steer:wheel,low});if(a.motor)a.motor.rotation.y=clamp(steer,-.6,.6);if(a.prop)a.prop.rotation.z=propAngle;return this;
  }
  /** Already resolved visual angles, in radians. Game +y down maps to glTF +Z. */
  setGameTransform({x=0,y=0,hop=0,modelYaw=0,modelBank=0,nose=0}={}){

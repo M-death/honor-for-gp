@@ -6,6 +6,15 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const GRIPS={L:V(-.245,-.055,.48),R:V(.115,-.03,.41)};   // d374: R on the rim of the new boat's wheel (radius 0.115)
 const TURN_POSE={monkey:{pelvis:[.12,-.58,.84],lean:1.36,side:.55,head_up:1.18,ankle_in:[.12,-.42,.29],ankle_out:[.34,-.86,.29],toe_in:[.15,.95,-.28],toe_out:[.50,.80,-.30]},
  willie:{pelvis:[.08,-.74,.64],lean:.80,side:.30,head_up:.70,ankle_in:[.13,-.44,.29],ankle_out:[.24,-.58,.29],toe_in:[.05,.95,-.30],toe_out:[.15,.95,-.30]}};
+// d403 (まえ: 姿勢の参考写真 notes/pose_ref): the three riding postures by pitch — 起こし (−1: up off the heels from 正座),
+// ニュートラル (0: 正座, sat on the heels, arms out to the wheel and lever), 伏せ (+1: chest down to the knees, head in behind the cowl).
+// low 0–1 = 羽美's 伏せ: lower still, all of her behind the cowl. hip [y fwd, z up], lean = torso from upright (rad), head = neck back from the torso line
+const RIDE={up:{hip:[-.50,.63],lean:.55,head:.40,knee:.06},mid:{hip:[-.66,.48],lean:.56,head:.42,knee:.06},down:{hip:[-.64,.47],lean:1.50,head:.42,knee:.15},low:{hip:[-.66,.44],lean:1.74,head:.22,knee:.17}};
+function ridePose(pitch,low){
+ const k=['hip','lean','head','knee'],lerp=(a,b,t)=>Array.isArray(a)?a.map((v,i)=>v+(b[i]-v)*t):a+(b-a)*t,e=t=>t*t*(3-2*t);
+ const F=low>0?Object.fromEntries(k.map(n=>[n,lerp(RIDE.down[n],RIDE.low[n],clamp(low,0,1))])):RIDE.down;
+ const A=pitch<0?RIDE.up:F,t=e(Math.abs(pitch));return Object.fromEntries(k.map(n=>[n,lerp(RIDE.mid[n],A[n],t)]));
+}
 const WHEEL={center:V(0,-.03,.41),axis:V(0,.77,-.64).normalize(),max:.9};
 // the right hand on the wheel rim: turned round the wheel centre by steer × 0.9 rad (steer −1 = left = the hand goes up)
 const wheelGrip=steer=>GRIPS.R.clone().sub(WHEEL.center).applyAxisAngle(WHEEL.axis,steer*WHEEL.max).add(WHEEL.center);
@@ -27,7 +36,7 @@ export class RacerPose {
    const n='Hand_'+side;this.gripLocal[side]=V(0,.065,0).applyMatrix4(this.rb[n]).applyMatrix4(C).applyMatrix4(this.restG[n].clone().invert());
   }
  }
- update({heightCm=165,pitch=0,roll=0,phase=0,turn=0,willie=0,steer=null}={},reachAttempt=0){
+ update({heightCm=165,pitch=0,roll=0,phase=0,turn=0,willie=0,steer=null,low=0}={},reachAttempt=0){
   if(!Number.isFinite(heightCm)||heightCm<140||heightCm>200)throw new RangeError('heightCm must be within 140–200');
   if(![pitch,roll,phase,turn,willie].every(Number.isFinite))throw new TypeError('Non-finite pose');
   pitch=clamp(pitch,-1,1);roll=clamp(roll,-1,1);
@@ -36,23 +45,24 @@ export class RacerPose {
   // and down, chest up, arms out) and the right hand on the wheel rim (steer −1…1). Looks only.
   const m=clamp(turn,0,1),w=clamp(willie,0,1),si=roll<=0?-1:1,scale=heightCm/165,ankleZ=.196+.084*scale;
   const sv=(v,sx=1)=>V(v[0]*si*sx,v[1],v[2]),mix=(a,b,t)=>a.clone().lerp(b,t),T=TURN_POSE.monkey,W=TURN_POSE.willie;
-  const legs={};
+  const legs={},RP=ridePose(pitch,low);
   for(const [side,s] of [['L',-1],['R',1]]){
    const inner=s===si,k=Math.max(m,w);
    const a=mix(mix(V(s*.14,-.75,ankleZ),inner?sv(T.ankle_in):sv(T.ankle_out,-1),m),inner?sv(W.ankle_in):sv(W.ankle_out,-1),w);
    const d=mix(mix(V(0,-.97,-.20),inner?sv(T.toe_in):sv(T.toe_out,-1),m),inner?sv(W.toe_in):sv(W.toe_out,-1),w);d.z-=.9*Math.sin(Math.PI*Math.min(k,1)*.999)*(1-k);
-   legs[side]={a,d:d.normalize(),pole:k<.5?V(s*.06,.8,-.15):V(s*(inner?.10:.30),.8,.05)};
+   legs[side]={a,d:d.normalize(),pole:k<.5?V(s*RP.knee,.8,-.15):V(s*(inner?.10:.30),.8,.05)};
   }
-  const lean=(1-w)*((1-m)*(.98+pitch*.44)+m*(T.lean+pitch*.18))+w*(W.lean+pitch*.12);
+  const lean=(1-w)*((1-m)*RP.lean+m*(T.lean+pitch*.18))+w*(W.lean+pitch*.12);
   const sideValue=(1-w)*((1-m)*Math.sin(roll*.30)+m*si*T.side)+w*si*W.side;
-  const headUp=(1-w)*((1-m)*.72+m*T.head_up)+w*W.head_up;
-  const hip=mix(mix(V(roll*.08,-.62+pitch*.045,.49),sv(T.pelvis).add(V(0,pitch*.03,0)),m),sv(W.pelvis),w);hip.z+=.004*Math.sin(phase);
+  const headUp=(1-w)*((1-m)*RP.head+m*T.head_up)+w*W.head_up;
+  const hip=mix(mix(V(roll*.08,RP.hip[0],RP.hip[1]),sv(T.pelvis).add(V(0,pitch*.03,0)),m),sv(W.pelvis),w);hip.z+=.004*Math.sin(phase);
   for(let i=0;i<16;i++){
    let correction=0;for(const [side,sign] of [['L',-1],['R',1]]){
     const a=hip.clone().divideScalar(scale).add(V(sign*.09,0,0)),target=legs[side].a.clone().divideScalar(scale);
     const knee=ik2(a,target,.395126562,.400031249,a.clone().add(legs[side].pole)).joint;correction=Math.max(correction,.196+.102*scale-knee.z*scale);
    }if(correction<.00005)break;hip.z+=correction*1.12;
   }
+  const ec=clamp((lean-.6)/.85,0,1)*(1-Math.max(m,w));
   const torso=V(sideValue,Math.sin(lean),Math.cos(lean)).normalize(),H=hip.clone().divideScalar(scale),sp=H.clone().addScaledVector(torso,.13),ch=sp.clone().addScaledVector(torso,.16),ne=ch.clone().addScaledVector(torso,.15);
   const neck=V(sideValue*.2*(1-m)+si*.12*m,Math.sin(lean-headUp),Math.cos(lean-headUp)).normalize(),he=ne.clone().addScaledVector(neck,.10);
   const align=(name,head,direction)=>{
@@ -68,14 +78,14 @@ export class RacerPose {
    const shoulder=H.clone().addScaledVector(torso,.415).addScaledVector(lat,sign*.185),clavroot=H.clone().addScaledVector(torso,.41);
    const clav=new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0,0,1),torso)).multiply(this.rb['Clavicle_'+side]);clav.setPosition(clavroot);desired['Clavicle_'+side]=clav;
    const grip=this.grips[side].clone().divideScalar(scale),hand=V(0,.77,-.64).normalize(),wrist=grip.clone().addScaledVector(hand,-.065);
-   const arm=ik2(shoulder,wrist,length('UpperArm_'+side),length('Forearm_'+side),shoulder.clone().add(V(sign*.6,-.32,-.30)));
+   const arm=ik2(shoulder,wrist,length('UpperArm_'+side),length('Forearm_'+side),shoulder.clone().add(V(sign*(.6-.68*ec),-.32-.3*ec,-.30-.25*ec)));   // d403: 伏せ — the elbows tuck in and down inside the cockpit, not out over the side
    desired['UpperArm_'+side]=align('UpperArm_'+side,shoulder,arm.joint.clone().sub(shoulder));desired['Forearm_'+side]=align('Forearm_'+side,arm.joint,arm.reached.clone().sub(arm.joint));desired['Hand_'+side]=align('Hand_'+side,arm.reached,hand);error=Math.max(error,arm.error*scale);
    const thigh=H.clone().add(V(sign*.09,0,0)),ankle=legs[side].a.clone().divideScalar(scale),leg=ik2(thigh,ankle,length('Thigh_'+side),length('Shin_'+side),thigh.clone().add(legs[side].pole));
    desired['Thigh_'+side]=align('Thigh_'+side,thigh,leg.joint.clone().sub(thigh));desired['Shin_'+side]=align('Shin_'+side,leg.joint,leg.reached.clone().sub(leg.joint));desired['Foot_'+side]=align('Foot_'+side,leg.reached,legs[side].d);
   }
   // Keep grip contact at extreme combinations of stature and lean.
   // Reduce only the visual lean toward Cruise; never alter boat physics.
-  if(error>0.00001 && reachAttempt<16)return this.update({heightCm,pitch:pitch*.75,roll:roll*.75,phase,turn,willie,steer},reachAttempt+1);
+  if(error>0.00001 && reachAttempt<16)return this.update({heightCm,pitch:pitch*.75,roll:roll*.75,phase,turn,willie,steer,low},reachAttempt+1);
   const global={};for(const n of this.order)global[n]=C.clone().multiply(desired[n]).multiply(this.invRest[n]).multiply(CI).multiply(this.restG[n]);
   for(const n of this.order){const parent=this.rest[n].parent;const local=(parent?global[parent]:this.parentG[n]).clone().invert().multiply(global[n]);local.decompose(this.bones[n].position,this.bones[n].quaternion,this.bones[n].scale);this.bones[n].updateMatrix();}
   this.scene.scale.setScalar(scale);this.scene.updateMatrixWorld(true);return {maxSolverGripErrorM:error,reachLimited:reachAttempt>0,effectivePitch:pitch,effectiveRoll:roll};
