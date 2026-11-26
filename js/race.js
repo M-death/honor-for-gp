@@ -41,6 +41,7 @@ const RACE_START_PULL = false;
 const startPullK = (v, pre, boat) => RACE_START_PULL ? startK(v, pre, boat) : 1;
 const startGainK = (v, pre) => !RACE_START_PULL && pre ? gainK(v, 0) : 1;
 // seconds to reach a line d metres ahead from speed v with the lever wide open
+const TTL_ROUGH = { from: 8, k: 0.06 };   // d403: waves over 8 cm slow the run-up more than their average drag (hops, falling off the plane) — measured on storm days
 function timeToLine(d, v, crouch = 0, pre = true, boat = null) {
   let x = 0, t = 0;
   const wk = boat && boat.weightK || 1, dk = 0.012 * (1 - 0.1 * crouch) * (boat && boat.stabilizer ? ENV.stabDrag : 1) * (boat && boat.hullDrag || 1) * (boat && boat.bodyDrag || 1), w = waterEnv ? ENV.windAir * waterEnv.wx : 0;
@@ -49,7 +50,10 @@ function timeToLine(d, v, crouch = 0, pre = true, boat = null) {
   const bump = wvRun ? wvRun * ENV.waveBump * waveHeadK(0) * (boat && boat.hullRide || 1) * (boat && boat.stabilizer ? ENV.stabBump : 1) * (boat && boat.tiltTurn != null ? 1 + TILT.rough * Math.max(0, (boat.tilt || 0) - 1) : 1) : 0, drift = waterEnv ? ENV.windDrift * waterEnv.wx + (fleet || humpSetup ? curAt(-d / 2, boat && boat.y > 0 ? boat.y : 30)[0] : 0) : 0;   // d402: the current along its run-up carries it too
   const dk0 = waterEnv ? dk / (1 - 0.1 * crouch) : 0, dkW = dk0 * (1 - ENV.airFrac), dkA = dk0 * (ENV.airFrac - 0.1 * crouch) * airRho(waterEnv);   // d398: water and air apart, as in boatPhysics
   const hump = humpOn() && HUMP.ttl;
-  while (x < d && t < 20) { const vr = v - w; let acc = THRUST * thrustK(v) * startPullK(v, pre, boat) * motorK(boat, v) * wk * (hump ? humpK(v, 1, 0, crouch, boat) : 1) - (waterEnv ? dkW * v * v + dkA * vr * Math.abs(vr) : dk * vr * Math.abs(vr)) - 0.1 * v - bump * (0.8 + v * 0.07) * WAKE.drag; if (acc > 0) acc *= startGainK(v, pre); v += acc * 0.05; x += (v + drift) * 0.05; t += 0.05; }
+  const wvK = h => wvRun ? h / wvRun * (wv3 ? 1 + TTL_ROUGH.k * Math.max(0, h - TTL_ROUGH.from) : 1) : 1;   // d403: big waves cost more than the average says (the hull hops and falls off the plane)
+  // d403: the waves along the run-up, not just half-way down it — on a windy day the far end (where a dash boat starts) is rougher (WAVE_FIELD), and reading it short left the dash boats seconds late
+  const wyR = boat && boat.y > 0 ? boat.y : 30, wv3 = wvRun && d > 20 && (fleet || humpSetup) && WAVE_FIELD.on ? [waveHere(-d, wyR), wvRun, waveHere(0, wyR)] : null;
+  while (x < d && t < 20) { const vr = v - w; let acc = THRUST * thrustK(v) * startPullK(v, pre, boat) * motorK(boat, v) * wk * (hump ? humpK(v, 1, 0, crouch, boat) : 1) - (waterEnv ? dkW * v * v + dkA * vr * Math.abs(vr) : dk * vr * Math.abs(vr)) - 0.1 * v - bump * wvK(wv3 ? (x < d / 2 ? wv3[0] + (wv3[1] - wv3[0]) * x / (d / 2) : wv3[1] + (wv3[2] - wv3[1]) * (x - d / 2) / (d / 2)) : wvRun) * (0.8 + v * 0.07) * WAKE.drag; if (acc > 0) acc *= startGainK(v, pre); v += acc * 0.05; x += (v + drift) * 0.05; t += 0.05; }
   return t;
 }
 const RECOV = { thr: 0.45, hitT: 20 };   // d371 立て直し: lever while turning round, s after a mark/boom hit it applies
@@ -714,9 +718,9 @@ function makeDriver(prof, trait = {}) {
     mem.stMode = mode;
     const sc = prof.stCls || START_CLASS[prof.name] || START_CLASS.B1;
     const cf = prof.wideOut && !trait.slow ? START_COURSE.outSpec : (START_COURSE.by[trait.course - 1] ?? 1.5) * (trait.slow ? 1 : START_COURSE.dash);
-    mem.stTarget = START_MODE[mode] + sc.shift + (trait.stShift || 0) + (prof.storm && stormDay() ? prof.storm.st : 0) + START_COURSE.margin * sc.sd * Math.max(0, cf - START_COURSE.by[0]);
+    mem.stTarget = START_MODE[mode] + START_TUNE.late + sc.shift + (trait.stShift || 0) + (prof.storm && stormDay() ? prof.storm.st : 0) + START_COURSE.margin * sc.sd * Math.max(0, cf - START_COURSE.by[0]);
     const ge = gauss() * sc.sd * cf * (trait.stSdMul || 1);
-    mem.stErr = mode === 'shobu' ? ge : (ge < 0 ? ge * 0.6 : ge);   // a safe start's early misses mostly get caught (放る)
+    mem.stErr = ge < 0 ? ge * (mode === 'shobu' ? START_TUNE.earlyShobu : START_TUNE.early) : ge;   // a safe start's early misses mostly get caught (放る)
     if (simRandom() < sc.dent * cf * (mode === 'antei' ? 0.5 : 1)) mem.stErr += 0.06 + simRandom() * 0.15;   // ミス／凹み
     mem.misread = false; mem.tkOn = false; mem.tkLane = null; mem.tkAll = false; mem.soft = false; mem.softNo = false; mem.hou = false; mem.houed = false;
     mem.houSure = mode !== 'shobu' || simRandom() < START_SHOBU_HOU;   // going for it, it doesn't always pull out in time
@@ -1010,6 +1014,12 @@ function makeDriver(prof, trait = {}) {
       if (mem.go && !mem.misread && mem.houSure && tFull < 1.8 && stNow < HOU_AT) { mem.hou = true; mem.houed = true; }
       if (mem.hou && stNow > HOU_AT + 0.03) mem.hou = false;
       thrT = mem.go && !mem.hou ? 1 : 0;
+      // d403 アジャスト (prof.softGo, 羽美): her run-up is the longest of the six, so a small misreading of the water grows into a
+      // フライング by the line (d399's hump made the run longer still) — while there is time she eases the lever a little when
+      // she sees she is early, and is flat out again for the last 1.2 s (スリットはほぼ全速)
+      if (sg && mem.go && !mem.hou && rem > SOFT_EASE.until && aim - tFull > SOFT_EASE.from) thrT = clamp(1 - (aim - tFull - SOFT_EASE.from) * SOFT_EASE.k, SOFT_EASE.min, 1);
+      // d405: and right at the line, if she can see she would cross before the clock, a touch off the lever (not a full 放る)
+      else if (sg && mem.go && !mem.hou && !mem.misread && rem <= SOFT_EASE.until && tFull - rem < SOFT_EASE.floor) thrT = SOFT_EASE.last;
       if (mem.soft && !mem.go && !mem.hou) {
         const lead = env.inner ? boatBow(b).x - boatBow(env.inner).x : 99;
         thrT = lead >= sg.ahead && !env.innerGo ? sg.hold : sg.thr;
@@ -1026,7 +1036,10 @@ function makeDriver(prof, trait = {}) {
           if (mem.preSq == null) mem.preSq = simRandom() < ((trait.kado ? SQUEEZE.p.kado : SQUEEZE.p[trait.course] ?? 0) * 0.6 * Math.min(1.3, trait.pushMul ?? 1));
           if (mem.preSq) { want = laneA() - 0.05; mem.preSqOn = true; }
         }
-        steerT = clamp((want - wrapRad(b.a)) * 2, -PRE_SLIT.steer, PRE_SLIT.steer);
+        // d403: in a strong cross wind it holds its lane (a little bow into the wind) — the side push (d398) otherwise carried the outside boats to the edge of the course before the slit
+        const sw = waterEnv ? Math.abs(waterEnv.wy || 0) : 0, swK = clamp((sw - 3) / 3, 0, 1);
+        if (swK > 0 && !mem.preSqOn) want += swK * clamp((laneYAt(env.laneY, b.x) - b.y) * 0.03, -0.08, 0.08);
+        steerT = clamp((want - wrapRad(b.a)) * 2, -PRE_SLIT.steer * (1 + swK), PRE_SLIT.steer * (1 + swK));
       }
       pitchT = mem.go ? prof.cruise : 0;   // 起こしたらすぐ伏せる（timeToLine と同じ前提で読む）
       o.thr += (thrT - o.thr) * (1 - Math.exp(-12 * dt));
@@ -1978,6 +1991,9 @@ const ST_MARGIN = 0.5, HOU_AT = 0.01;
 // climbing onto the plane, but its own read already covers that — it crossed ~0.045 s earlier than it meant to. Now 0.025.
 const START_REST = 0.025;
 const START_MODE = { shobu: 0.05, pin: 0.10, antei: 0.15 };
+// d404 (まえ: スタートは全体的に遅く、.00 が乱発されてる、.10 を基準に、A1記念とか .05 以下だらけ): every aim that much later, and the early side of the error
+// tighter (a rider who sees he is early holds back) — early: 安定/ドンピシャ, earlyShobu: 勝負駆け (was 0.6 / 1)
+const START_TUNE = { late: 0.035, early: 0.4, earlyShobu: 0.7 };
 // how hard each spot is to time (× sd), by course: the 1コース is the easiest to read, harder the further out.
 // A dash boat (any course) times it from a run-up — harder still, but it crosses with the speed on.
 // margin: how much later (× its extra error) an outside boat aims to stay clear of a フライング
@@ -2032,7 +2048,8 @@ function heightDraw(sex, rnd = Math.random) {
   return Math.round(h);
 }
 // what the race engine takes from a body: grip (monkey kick, reach) and air drag (frontal area)
-const bodyRace = h => ({ bodyGrip: 1 + (h - SETSU.body.ref) * SETSU.body.gripPerCm, bodyDrag: 1 + (h - SETSU.body.ref) * SETSU.body.dragPerCm });
+const bodyBand = h => { const B = SETSU.body; return h <= B.small.max ? B.small : h >= B.big.min ? B.big : null; };   // d406
+const bodyRace = h => { const B = SETSU.body, k = bodyBand(h); return { bodyGrip: 1 + (h - B.ref) * B.gripPerCm + (k ? k.grip : 0), bodyDrag: 1 + (h - B.ref) * B.dragPerCm + (k ? k.drag : 0), bodyShove: k ? k.shove : 1 }; };
 function bodyRows(rows) {
   for (const r of rows) {
     if (r.body) continue;
@@ -2257,6 +2274,8 @@ function entryOrder(E, boats) {
   order.forEach((r, i) => { r.en.course = i + 1; });
   return { order, nSlow: slow.length };
 }
+const SOFT_EASE = { from: 0, k: 6, min: 0.55, until: 1.2, floor: 0.03, last: 0.5 };   // d403: s early before she eases, lever off per s early, least lever, s before the clock she stops adjusting
+const DAY_REACH = 1.0;   // d403: s of the run-up a dash boat keeps in hand when it picks its spot on a slow day
 function entrySpot(r, nSlow, contested) {
   const c = r.en.course;
   if (!r.en.dash && !r.en.rewind) {
@@ -2267,7 +2286,14 @@ function entrySpot(r, nSlow, contested) {
     return { x, y: laneYAt(laneYOf(c), x) };   // イン sits 5 m deeper
   }
   // dash: the earlier the call, the deeper (longer run-up) the spot it takes
-  const x = Math.max(COURSE.xMin + VENUE.spotRoom, slitXAt(laneYOf(c)) + ENTRY.dashX - Math.max(0, c - nSlow - 1) * 3 - (r.en.dashBonus || 0)) + tiltDashShift(r);
+  let x = Math.max(COURSE.xMin + VENUE.spotRoom, slitXAt(laneYOf(c)) + ENTRY.dashX - Math.max(0, c - nSlow - 1) * 3 - (r.en.dashBonus || 0)) + tiltDashShift(r);
+  // d403: on a day the boat can't cover its usual run-up in the clock's time (a strong head wind, the rough far end of the
+  // course) it takes its spot that much shallower — else it reaches the line seconds late (d398–d402 made such days slower)
+  if (waterEnv && humpOn()) {
+    const sx = slitXAt(laneYOf(c)), key = Math.round(x) + ':' + c;
+    if (r.en.dayKey !== key) { let d = sx - x; while (d > 80 && timeToLine(d, WAIT_V, r.prof.cruise, true, r.b) > ENTRY_RUNUP - DAY_REACH) d -= 5; r.en.dayKey = key; r.en.dayX = sx - d; }
+    x = Math.max(x, r.en.dayX);
+  }
   return { x, y: laneYAt(laneYOf(c), x) };
 }
 // d193: a tilted-up boat is heavy below planing, so from a standstill it covers less water in the clock's run-up than
@@ -2276,7 +2302,8 @@ function tiltDashShift(r) {
   const b = r.b, t = b.tilt || 0;
   if (t <= 0 && b.tiltTurn == null) return 0;   // (d212: 羽美 on a 安定板 day rides tilt 0 but still reads the chop for her spot)
   const key = t + ':' + (waterEnv ? waterEnv.wave : 0);
-  if (r.en.reachKey !== key) { r.en.reachKey = key; r.en.reachShift = Math.max(0, reachIn(ENTRY_RUNUP, 0.5, { ...b, tilt: 0, tiltTurn: undefined, yaw: 0 }) - reachIn(ENTRY_RUNUP, 0.5, { ...b, yaw: 0 })); }
+  if (r.en.reachKey !== key) { r.en.reachKey = key; const hr = HUMP.reach; HUMP.reach = false;   // d403: the spot as it was tuned (no hump) — with the hump read in, 羽美 sat 10–30 m shallower and came to the line 1.5 km/h slower; a day too slow for the spot is entrySpot's DAY_REACH
+    r.en.reachShift = Math.max(0, reachIn(ENTRY_RUNUP, 0.5, { ...b, tilt: 0, tiltTurn: undefined, yaw: 0 }) - reachIn(ENTRY_RUNUP, 0.5, { ...b, yaw: 0 })); HUMP.reach = hr; }
   return r.en.reachShift;
 }
 function reachIn(T, v, boat) {

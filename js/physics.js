@@ -561,12 +561,12 @@ function boatContacts(list) {
     c.v = Math.max(0, ncx * fcx + ncy * fcy) * scrub; c.vl = clamp(c.vl + ((-ncx * fcy + ncy * fcx) - c.vl) * 0.6, -7, 7);
     if (SHOVE.on && fax * fcx + fay * fcy > SHOVE.same && !(fax * fcx + fay * fcy > 0.8 && (nx * fax + ny * fay > 0.75 || -(nx * fcx + ny * fcy) > 0.75))) {
       const mx = fax + fcx, my = fay + fcy, aAhead = ((a.x - c.x) * mx + (a.y - c.y) * my) > 0 ? 1 : 0;
-      const sA = (aInto + 0.3) * (a.weightGrip || 1) * (1 + SHOVE.ahead * aAhead), sC = (cInto + 0.3) * (c.weightGrip || 1) * (1 + SHOVE.ahead * (1 - aAhead));
+      const sA = (aInto + 0.3) * (a.weightGrip || 1) * (a.bodyShove || 1) * (1 + SHOVE.ahead * aAhead), sC = (cInto + 0.3) * (c.weightGrip || 1) * (c.bodyShove || 1) * (1 + SHOVE.ahead * (1 - aAhead));
       const P = sA >= sC ? a : c, V = P === a ? c : a, share = Math.abs(sA - sC) / (sA + sC);
       const P0 = P === a ? [va0, vla0] : [vc0, vlc0];
       P.v += (P0[0] - P.v) * SHOVE.keep * (0.5 + share); P.vl += (P0[1] - P.vl) * SHOVE.keep * (0.5 + share);   // the pusher holds its line
       const ox = P === a ? nx : -nx, oy = P === a ? ny : -ny, fvx = Math.cos(V.a), fvy = Math.sin(V.a);   // away from the pusher
-      const kick = SHOVE.k * J * (0.5 + share);
+      const kick = SHOVE.k * J * (0.5 + share) / (V.bodyShove || 1);   // d406: a small rider is thrown further
       V.vl = clamp(V.vl + kick * (-ox * fvy + oy * fvx), -SHOVE.vlMax, SHOVE.vlMax);
       V.shoveT = Math.max(V.shoveT || 0, SHOVE.t * clamp(J / SHOVE.jRef, 0.3, 1));
       V.shoveBy = P; V.shoveAt = time;   // d267: who shoved and when (race.js: 押し出しで内側航走させたら押した側が失格)

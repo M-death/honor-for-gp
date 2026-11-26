@@ -55,7 +55,7 @@ const NAMED = [
   { id: 'umi', name: '瀬戸内羽美', kana: 'せとうちうみ', cls: 'A2', branch: '岡山', body: { sex: 'f', height: 145, weight: 41 },
     prof: { ...DRIVERS[1], kinen: true, named: 'umi', label: 'A2', stCls: { shift: -0.06, sd: 0.015, dent: 0.01 }, flyRisk: 0.004,
             wideOut: true, kinenGap: 3, sweep: { from: 30, late: 8, gap: 10, mkR: 12, mkK: 0.6, svMin: 0.3, svEnd: 0, lyMax: 44, wakeDx: [3, 25], wakeDy: [-25, -3], wakeA: 0.25, wakeDx2: 99, leanFrom: 0.4, leanK: 1.6, crouchFrom: 0.5, grid: [0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1], wall: 8, slack: 3, minLy: 15, pathEase: { sIn: -0.5, T: 1.2, sv: 0.25, dv: 1.5, hold: 0.3 } }, tataki: { fromX: 5, endX: 35, minLy: 22, clear: 3, gap: 5, ks: 0.08, ka: 2, kS: 0.4, sMax: 0.12 },
-                 softGo: { lead: 1.2, thr: 0.55, hold: 0.4, ahead: 2, calm: 4, roughSd: 0.012, stAdj: 0.045 },
+                 softGo: { lead: 1.2, thr: 0.55, hold: 0.4, ahead: 2, calm: 4, roughSd: 0.012, stAdj: 0 },
                  noLift: 0.9, tilt: 3.0, tiltTurn: 1, storm: { st: 0.03, fly: 0 }, hazMul: 0.3, wakeAvoid: 3, trait: { pushMul: 2, care: 0.45, resistP: 0.9, shobuMul: 0.4, stSdMul: 0.6 },
             slowTrait: { stShift: 0.05, stSdMul: 1.6, shobuMul: 0 } },   // in the 1コース (slow) her start loses its edge — the 1枠 takes away what makes her good
     temper: 'aggr', out: true, motorLowK: 2 },
@@ -133,7 +133,10 @@ const SETSU = {
   // d172 体格 (まえ; the life-sim will go deeper): height in cm. 養成所 takes no one over 175 cm, but now and then a rider
   // grew after debut. Taller = the monkey kick and reach (a touch more grip in the turn) but more body in the wind and a
   // heavier natural weight to keep down (wPerCm); shorter = the reverse. Health cost of cutting weight: life-sim.
-  body: { hMean: { m: 165, f: 157 }, hSd: 4.5, hMax: 175, growP: 0.02, growMax: 4, wPerCm: 0.3, ref: 165, gripPerCm: 0.002, dragPerCm: 0.0004, femaleP: 0.13 },
+  body: { hMean: { m: 165, f: 157 }, hSd: 4.5, hMax: 175, growP: 0.02, growMax: 4, wPerCm: 0.3, ref: 165, gripPerCm: 0.002, dragPerCm: 0.0004, femaleP: 0.13,
+    // d406 (まえ: 見た目と性能を合わせる、身長で区分け): 小柄 (≤145 cm) hides right behind the cowl = less air drag (伸び), but less
+    // strength = the turn slides more and a bump pushes them off; 大柄 (≥170 cm) can't hide = more drag, steadier in the turn
+    small: { max: 145, drag: -0.012, grip: -0.02, shove: 0.85 }, big: { min: 170, drag: 0.01, grip: 0.015, shove: 1 } },
   wear: { hi: 0.002, mid: 0.004, lo: 0.007 }, durJa: { hi: '高', mid: '並', lo: '低' }, recover: 0.6,
   get season() { return SEASONS; },
   dayJa: ['前検日', '初日', '2日目', '3日目', '4日目', '5日目（準優勝戦）', '最終日（優勝戦）'],

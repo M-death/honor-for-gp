@@ -1031,6 +1031,7 @@ function actorFor(row) {
   if (a.setSuit) a.setSuit(row.racerId || row.name || row.no);   // d369: the inner suit's colours follow the racer (as in the replay)
   if (a.setLivery) a.setLivery(liveryId(), row.name);   // d384: the chosen / fixed paint (core.js LIVERY); d376: the venue's paint sheet (hfgp3d/liveries, same files as the replay), surname mark from the name
   a.heightCm = lim(body.height || (sex === 'f' ? 157 : 165), 140, 200);
+  a.low = a.heightCm <= SETSU.body.small.max ? 1 : 0;   // d403 (まえ): 羽美 lies right down behind the cowl; d406: by height (小柄), not by name
   return a;
 }
 // d358 足合わせ: flat see-through rings on the water round 羽美 (ashi.js ashiZones), darker the higher the score rate
@@ -1053,6 +1054,7 @@ function ghostActor(kind) {
     a = set.create({ lane: 1, sex: 'm', heightCm: 165 });
     for (const m of a.materials) { m.transparent = true; m.opacity = kind === 'umi' ? .5 : kind === 'rival' ? .45 : .38; m.depthWrite = false;
       const n = m.name.split('.')[0]; if (n === 'BoatPaint' || n === 'RacerPaint' || n === 'BoatLivery' || n === 'RacerReal' || n === 'HullSide' || n === 'HullMain' || n === 'HullTrim' || n === 'HullLivery' || n === 'HullLip' || n === 'HullInner') m.color.set(GHOST_TINT[kind]); }
+    if (kind === 'umi') { a.low = 1; a.heightCm = 145; }   // d403
     a.setLivery = null;   // d374: keep the ghost tint (actorFor never recolours a ghost)
     a.root.traverse(o => { if (o.isMesh) o.renderOrder = 3; });
     scene.add(a.root); ghostActors.set(kind, a);
@@ -1615,7 +1617,7 @@ function frame3d(now) {
     const a = ghostActor(kind);
     a.setGameTransform({ x: b.x, y: b.y, hop: 0, modelYaw: -Math.PI / 2 - b.a, modelBank: 0, nose: 0 });
     a.chooseLOD((mode === 'top' ? 3.3 * (cam.S || 20) : 3.3 * focal / (Math.hypot(b.x - camera.position.x, b.y - camera.position.z) || 1)) * lodK);
-    a.updatePose({ propAngle: time * 60 }); a.root.visible = true;
+    a.updatePose({ pitch: .8, propAngle: time * 60 }); a.root.visible = true;   // d403: ghosts ride 伏せ (pitch 0 is now the upright 正座)
   }
   { const ws = fleet ? fleet.boats.filter(r => !r.gone).map(r => r.wake) : [wake]; if (wrealOn()) drawWakesReal(ws); else { if (wrMesh) wrMesh.visible = false; if (wakeMesh) wakeMesh.visible = true; drawWakes(ws); } drawCrossPeaks(ws, lastGameT == null ? 0 : lim(time - lastGameT, 0, .1)); }   // d334; d396 三角波
   swellFxStep();

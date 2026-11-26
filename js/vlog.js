@@ -371,7 +371,7 @@ VR = (() => {
     // d391 (リプレイ依頼, まえ 2026-11-23): per-rider fixed riding motion for the replay only (look, not physics).
     // 羽美 = 'umi_low' (伏せはカウルに隠れるくらい低く). Others = null → replay draws the usual posture. Values: [a-z0-9_].
     // Like replayDesign.boat, a new value must be added with the same name on both the game and the replay side.
-    const entMotion = r => (r && r.prof && r.prof.named === 'umi') ? 'umi_low' : null;
+    const entMotion = r => (r && r.body && r.body.height <= SETSU.body.small.max) ? 'umi_low' : null;   // d406: by height (小柄), not by name
     const ents = R.solo ? [{ no: 1, name: playerName(), class: null, colors: [PLAYER_STYLE.hull, PLAYER_STYLE.num], course: 1, player: true, motor: { deashi: B.deashi ?? 1, mid: B.mMid ?? null, mawari: B.mawari ?? 1, nobi: B.nobi ?? 1 }, tilt: B.tilt ?? 0, motion: null, body: bodyJson(null) }]
       : fleet.boats.map(r => ({ no: r.no, name: r.name || (r.player ? playerName() : null), class: r.prof ? profJa(r.prof) : null, colors: r.col, course: r.trait.course, slow: !!r.trait.slow,
         player: !!r.player, motor: { deashi: r.b.deashi ?? 1, mawari: r.b.mawari ?? 1, nobi: r.b.nobi ?? 1 }, tilt: r.b.tilt ?? 0, motion: entMotion(r), body: bodyJson(r.body) }));

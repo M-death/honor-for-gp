@@ -335,7 +335,7 @@ function ashiDraw() {
 }
 // for play3d: [radius, alpha] from the outside in, centre
 function ashiZones() { if (!ASHI.on || !ASHI.U || ASHI.phase === 'show' || ASHI.phase === 'end') return null; return { x: ASHI.U.x + Math.cos(ASHI.U.a) * 0.66, y: ASHI.U.y + Math.sin(ASHI.U.a) * 0.66, h: ASHI.U.a, vin: ashiValidIn(), r: ASHI_K.lv, a: ASHI_K.zoneA.map((a, i) => a * (ASHI.zone === i ? 1.6 : 1)), b: ASHI_K.zoneA.map(a => a * 0.8) }; }
-function ashiRows() { return ASHI.on && ASHI.U ? [{ b: ASHI.U, inp: ASHI.uin, no: 6, body: { sex: 'f', height: 145 } }] : []; }
+function ashiRows() { return ASHI.on && ASHI.U ? [{ b: ASHI.U, inp: ASHI.uin, no: 6, umi: true, body: { sex: 'f', height: 145 } }] : []; }
 { const _ui = updateInput; updateInput = function (dt) { _ui(dt); ashiInput(dt); }; }
 { const _st = step; step = function (dt) { _st(dt); ashiStep(dt); if (ASHI.on) ashiHudStep(dt); }; }
 
