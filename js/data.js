@@ -88,7 +88,14 @@ const TIDE_JA = ['満潮', '下げ潮', '下げ潮', '下げ潮', '下げ潮', '
 const VENUES = {
   // the one water we have for now; a real 場 later gets its own numbers (淡水: tide.amp 0; 荒れ水面: wave.k up; 追い風の場: dirW)
   standard: { name: '標準水面', water: '海水',
-    tide: { amp: 90, flow: 0.25 },                                     // 潮位の振れ (cm) and the current at mid-tide (m/s)
+    // 潮位の振れ (cm) and the current at mid-tide (m/s). d402 (まえ: 潮の仕組みを入れておく、場ごとの形は各場を作る時に) — each 場 sets:
+    //   dir    which way the 上げ潮 runs, a unit vector ([1, 0] = from 2M toward 1M); the 下げ潮 runs back
+    //   bankK  how much of the flow is lost at the banks (0 = the same everywhere, 1 = still water at the wall, fastest mid-water)
+    //   windK  cm of wave per (m/s of wind against the flow × m/s of flow): wind over tide stands the water up
+    //   swell  満潮のうねり: comes in above `from` of the range, `cm` at the top of the tide, around zone {x, y, r} (null = everywhere);
+    //          it has no direction (hits whichever way the bow points) and takes `grip` off a turn at full height
+    //   lowCalm  干潮: the banks shelter the low water — this share of the wind's wave is gone at the bottom of the tide
+    tide: { amp: 90, flow: 0.25, dir: [1, 0], bankK: 0.5, windK: 3, swell: { from: 0.55, cm: 3, zone: { x: 150, y: 0, r: 90 }, grip: 0.03 }, lowCalm: 0.2 },
     wind: { strongP: 0.2, base: [0.3, 3], strong: [4, 8], stormP: 0.05, storm: [8, 11], gust: [0.8, 1.2], dirW: [1, 1, 1, 1], keepP: 0.3 },
     rain: { storm: 0.8, strong: 0.25, calm: 0.08 },                      // chance the day is wet (荒天 / 風の強い日 / 穏やかな日)
     wave: { 追い風: 0.8, 向かい風: 1.6, 横風: 1.1, highTide: 1 },          // cm of wave per m/s of wind, + at high tide

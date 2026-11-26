@@ -397,7 +397,7 @@ VR = (() => {
                         dayLabel: SETSU.dayJa[st.day] || null, startTime: st.R ? hourTxt(raceHourOf(venueOf(setsu.venue), st.R)) : st.env && st.env.time || null }   // d258: ナイター 1R 15:10
       : { grade: !R.solo && sgMode ? 'SG' : null, venueName: VENUE.name, venueId: VENUE.id, date: null, ...(R.info || (R.info = raceInfo(R.mode, R.tod))) };   // d249 venue; d250 race-info-v1
     const env = Object.assign(R.solo || !waterEnv ? { calm: true, laps: R.solo ? TA.laps : 3 } : { laps: raceLaps(), dir: waterEnv.dir, wind: waterEnv.wind, windVec: { wx: waterEnv.wx, wy: waterEnv.wy },
-      tideFlow: waterEnv.cx, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, tideLv: waterEnv.tideLv }, { timeOfDay: R.tod || (R.night ? 'night' : 'day'), lighting: { night: 'floodlights', evening: 'sunset' }[R.tod || (R.night ? 'night' : 'day')] || 'daylight' });   // d217 ナイトレース
+      tideFlow: waterEnv.cx, tideFlowVec: { cx: waterEnv.cx || 0, cy: waterEnv.cy || 0 }, wave: waterEnv.wave, rain: !!waterEnv.rain, stabilizer: !!waterEnv.stabilizer, temp: waterEnv.temp, waterTemp: waterEnv.wtemp ?? null, tideLv: waterEnv.tideLv }, { timeOfDay: R.tod || (R.night ? 'night' : 'day'), lighting: { night: 'floodlights', evening: 'sunset' }[R.tod || (R.night ? 'night' : 'day')] || 'daylight' });   // d217 ナイトレース
     env.sky = vlogSky(env);   // d368 (まえ: リプレイにも季節の空・星座・月を) the same values play3d.js draws the 3D sky with
     let seedH = 2166136261; for (const ch of R.id) seedH = Math.imul(seedH ^ ch.charCodeAt(0), 16777619) >>> 0;
     return {

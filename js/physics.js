@@ -74,6 +74,14 @@ const TILT = { up: { nobi: 0.036, low: 0.09, mid: 0.02 }, rough: 1.5, hop: 0.12,
 // has is felt MOTOR_FX.nobi times as much at the top end. An average motor (1.00) is untouched, so タイムアタック is the same.
 const MOTOR_FX = { nobi: 1.6 };
 const nobiFx = b => 1 + (b.nobi - 1) * MOTOR_FX.nobi;
+// d400 気温 (まえ: 2 気温・水温とエンジン出力): the motor breathes the day's air. Colder air is denser — more of it in the cylinder, more
+// power (冬はモーターが出る); hot, humid air is thin (夏は出足が落ちる). airRho = density against 20 ℃. The low end feels it most
+// (TEMP.low of the density change), the top end less (the prop holds the revs); rain (humid air) takes a touch more.
+// The same denser air drags a little more on the hull and rider (the air part of the drag × airRho).
+// 水温: cold water cools the motor better — a touch more again (TEMP.water per ℃ under 20).
+const TEMP = { low: 0.6, top: 0.35, rain: 0.005, water: 0.0005 };
+const airRho = env => env && env.temp != null ? 293.15 / (273.15 + env.temp) : 1;
+const tempFeet = env => { if (!env || env.temp == null) return { tempLow: 0, tempTop: 0 }; const d = airRho(env) - 1, w = (env.rain ? TEMP.rain : 0) - (env.wtemp != null ? TEMP.water * (20 - env.wtemp) : 0); return { tempLow: TEMP.low * d - w, tempTop: TEMP.top * d - w }; };
 function motorK(b, v = b.v) {
   if (!b || b.nobi == null) return 1;
   let tk = tiltPull(b.tilt || 0, v);
@@ -99,7 +107,13 @@ function tiltPull(t, v) {
 let waterEnv = null;
 // the chop runs with the wind: punching into it (向かい) slams the hull, running with it (追い波) is far smoother
 const waveHeadK = a => { if (!waterEnv) return 1; const w = Math.hypot(waterEnv.wx, waterEnv.wy); if (w < 0.3) return 0.65; const c = (waterEnv.wx * Math.cos(a) + waterEnv.wy * Math.sin(a)) / w; return 0.65 - 0.35 * c; };
-const ENV = { windDrift: 0.035, windAir: 0.025, waveBump: 0.012, waveStab: 6, stabDrag: 1.08, stabBump: 0.6, boatMass: 110 };
+// d398 風 (まえ: 風の影響をリアルに、走り全体に、姿勢での風の抵抗も): the v² drag is split into water and air. The air part (airFrac of it at a
+// neutral posture, half that crouched, half as much again sat up ≈ a real rider's frontal area: 0.5ρCdA/m ≈ 0.0012 / 0.0024 /
+// 0.0036 per m; the rest of the sit-up brake stays on the boat's own speed) is taken at the true air speed: the boat's
+// speed less the whole wind along its bow. The wind's side component pushes on the hull's side (side × air speed × side wind)
+// and goes through the chine like any other side load: on a straight the hull crabs a little, in a turn at the limit it is
+// carried on. A head wind gets under a high bow (hopHead). With no wind set (タイムアタック) nothing changes.
+const ENV = { airFrac: 0.2, side: 0.006, hopHead: 0.1, windDrift: 0, windAir: 1, waveBump: 0.012, waveStab: 6, stabDrag: 1.08, stabBump: 0.6, boatMass: 110 };
 /* バウンド (d155, まえ): crossing a wake or a wave crest at speed throws the hull up. In the air the prop is out of the
    water (thrust gone, worse when crouched — the bow goes down and the stern comes up) and the hull barely bites.
    Landing crouched (前荷重) digs the bow in — 刺さり: speed lost, the hull bucks (load) and a big one can put it over —
@@ -220,6 +234,21 @@ function willieToast(b) {
   if (e === 'ok') { spdEvent(b, 'surge'); sfxWillie(b.x, b.y); }
   else spdEvent(b, 'drop', 1);
 }
+// d399 起こし (まえ: 起こしから滑走までの加速を実際に近づける。タイムアタックとレースは別物): below the plane the hull ploughs — the prop's
+// push sits the stern down and lifts the bow, and the boat has a hill of water to climb before it is up and running. The drag
+// peaks about vp/3 (≈9 km/h) and is gone at vp (on the plane); it grows with the lever (idling along it hardly shows) and
+// is taken as a share of the push (never more than cap of it).
+// Heavier riders, a body sat back, and chop make the hill higher; lying forward gets over it sooner. Races only (fleet):
+// タイムアタック・大時計・展示・チュートリアル keep the old pull.
+const HUMP = { on: true, k: 0.5, cap: 0.7, vp: 7.5, up: 0.4, down: 0.15, wt: 10, wave: 0.015, ttl: true, reach: true, phys: true, entry: false };
+let humpSetup = false;   // true while a race's boats are being placed (the fleet isn't there yet)
+const humpOn = () => HUMP.on && (!!fleet || humpSetup);
+// share of the push that gets through to the hull (1 = on the plane)
+function humpK(v, te, up, down, b) {
+  if (v >= HUMP.vp) return 1;
+  const s = v / HUMP.vp;
+  return 1 - Math.min(HUMP.cap, HUMP.k * te * 6.75 * s * (1 - s) * (1 - s) * (1 + HUMP.up * up - HUMP.down * down) * (1 + HUMP.wt * (1 - (b && b.weightK || 1))) * (1 + HUMP.wave * (b && b.waveH != null ? b.waveH : waterEnv ? waterEnv.wave || 0 : 0)));
+}
 const tiltGrip = b => 1 - TILT.grip * Math.max(0, b.tilt || 0) * (1 - (+b.tiltTurn || 0)) + 0.02 * Math.max(0, -(b.tilt || 0));   // d203: a rider who can turn on a high tilt (羽美) doesn't slide out on it
 
 // 艇の傾き (d158, まえ): the hull's own bank (not the rider's body), + = right side down, radians. Rolled in by the rider's
@@ -252,7 +281,7 @@ function boatPhysics(b, inp, dt) {
   b.porp = Math.max(0, b.porp - dt * 2);
   // チルト+2以上: the bow rides high and hops (ポーポイズ) — now and then on a flat straight, much more in waves, wake and turns
   if ((b.tilt || 0) >= 2 && b.v > 17 && b.cap <= 0) {
-    const rate = TILT.hop * ((b.tilt || 0) - 1.5) * clamp((b.v - 17) / 6, 0, 1) * (1 + (waterEnv ? waterEnv.wave / 3 : 0) + (b.wakeBump || 0) * 4) * (Math.abs(b.yaw) > 0.3 && !b.tiltTurn ? 3 : 1) * (b.hullRide || 1);
+    const rate = TILT.hop * ((b.tilt || 0) - 1.5) * clamp((b.v - 17) / 6, 0, 1) * (1 + (waterEnv ? (b.waveH != null ? b.waveH : waterEnv.wave) / 3 + ENV.hopHead * Math.max(0, -(waterEnv.wx * Math.cos(b.a) + waterEnv.wy * Math.sin(b.a))) : 0) + (b.wakeBump || 0) * 4) * (Math.abs(b.yaw) > 0.3 && !b.tiltTurn ? 3 : 1) * (b.hullRide || 1);
     if (simRandom() < rate * dt) b.porp = Math.min(1, b.porp + 0.35);
   }
 
@@ -268,8 +297,10 @@ function boatPhysics(b, inp, dt) {
   heatStep(b, t, dt);
   // wind: the air the boat runs through moves with it (追い風) or against it (向かい風)
   const wAlong = waterEnv ? ENV.windAir * (waterEnv.wx * Math.cos(b.a) + waterEnv.wy * Math.sin(b.a)) : 0, vRel = b.v - wAlong;
-  const airA = drag * (b.stabilizer ? ENV.stabDrag : 1) * (b.hullDrag || 1) * (b.bodyDrag || 1) * vRel * Math.abs(vRel) + 0.1 * b.v;
+  const dragK = (b.stabilizer ? ENV.stabDrag : 1) * (b.hullDrag || 1) * (b.bodyDrag || 1);
+  const airA = (waterEnv ? 0.012 * dragK * ((1 - ENV.airFrac + 0.15 * up) * b.v * b.v + airRho(waterEnv) * (ENV.airFrac + 0.1 * up - 0.1 * down) * vRel * Math.abs(vRel)) : drag * (b.stabilizer ? ENV.stabDrag : 1) * (b.hullDrag || 1) * (b.bodyDrag || 1) * vRel * Math.abs(vRel)) + 0.1 * b.v;
   let acc = thrustA - airA;
+  if (humpOn() && HUMP.phys && b.v < HUMP.vp && (HUMP.entry || SS.phase !== 'entry')) acc -= thrustA * (1 - humpK(b.v, te, up, down, b));   // not in the ピット離れ〜待機行動: the 進入 was tuned on the old pull (枠なり 10/16 → 6/16 with it)
   const holdA = b.hold === 'hang' ? 1.5 * b.v : b.hold ? WAIT_DRAG * b.v : 0;
   acc -= holdA;   // 待機: lever shut and sat up — it still drifts on at a slow walk (~7 km/h); hanging bow-off it all but stops
   acc -= b.porp * (1.2 + simRandom() * 2.2);
@@ -329,6 +360,10 @@ function boatPhysics(b, inp, dt) {
     // is giving it) and bend the path round; whatever they can't hold slides on out.
     const da = b.yaw * dt, c = Math.cos(da), sn = Math.sin(da), v0 = b.v, l0 = b.vl;
     b.v = Math.max(0, v0 * c + l0 * sn); b.vl = l0 * c - v0 * sn;
+    if (waterEnv && (waterEnv.wx || waterEnv.wy) && b.cap <= 0) {   // d398 横からの風: it pushes on the side of the hull and the rider
+      const wL = waterEnv.wx * rx + waterEnv.wy * ry - b.vl;
+      b.vl += ENV.side * airRho(waterEnv) * (1 + 0.3 * up - 0.15 * down) * Math.hypot(vRel, wL) * wL * dt;
+    }
     latNeed = DRIFT.kL * (1 + BANK.bite * tf * (bankIn - BANK.ref)) * Math.abs(b.vl);   // d159: the chine set deep catches the slide sooner
     const cap = grip * DRIFT.gripK * (1 - (1 - WILLIE.bite) * wil), aLat = Math.min(latNeed, cap);   // ウィリー: less hull in the water — less bite, it slides more
     b.vl -= Math.sign(b.vl) * Math.min(Math.abs(b.vl), Math.min(aLat, cap * (1 - SHOVE.grip * shK)) * dt);   // d176: shoved, the hull bites less and is carried on sideways
@@ -359,8 +394,8 @@ function boatPhysics(b, inp, dt) {
   b.v = Math.max(0, b.v + acc * dt);
   b.a += b.yaw * dt;
   // 潮の流れ carries everyone; the wind pushes on the hull too (追い風 runs a boat on past 1M, 横風 sets it sideways)
-  b.x += (fx * b.v + rx * b.vl) * dt + (waterEnv ? (waterEnv.cx + ENV.windDrift * waterEnv.wx) * dt : 0);
-  b.y += (fy * b.v + ry * b.vl) * dt + (waterEnv ? ENV.windDrift * waterEnv.wy * dt : 0);
+  b.x += (fx * b.v + rx * b.vl) * dt + (waterEnv ? ((b.curX != null ? b.curX : waterEnv.cx) + ENV.windDrift * waterEnv.wx) * dt : 0);   // d402: the current where the boat is (race.js curAt); solo runs take the day's
+  b.y += (fy * b.v + ry * b.vl) * dt + (waterEnv ? ((b.curY != null ? b.curY : waterEnv.cy || 0) + ENV.windDrift * waterEnv.wy) * dt : 0);
 
   // 安定度 (load): how close the hull is to letting go; 1.0 is the danger line.
   // Below it the boat is safe. Above it every moment carries a chance of going over that grows

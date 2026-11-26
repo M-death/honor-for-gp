@@ -45,8 +45,11 @@ function timeToLine(d, v, crouch = 0, pre = true, boat = null) {
   let x = 0, t = 0;
   const wk = boat && boat.weightK || 1, dk = 0.012 * (1 - 0.1 * crouch) * (boat && boat.stabilizer ? ENV.stabDrag : 1) * (boat && boat.hullDrag || 1) * (boat && boat.bodyDrag || 1), w = waterEnv ? ENV.windAir * waterEnv.wx : 0;
   // the water as the rider reads it: the chop's average drag (waves × how the hull rides them) and the wind's push (d203: a high-tilt specialist (羽美) also counts how much harder the chop holds her back)
-  const bump = waterEnv && waterEnv.wave ? waterEnv.wave * ENV.waveBump * waveHeadK(0) * (boat && boat.hullRide || 1) * (boat && boat.stabilizer ? ENV.stabBump : 1) * (boat && boat.tiltTurn != null ? 1 + TILT.rough * Math.max(0, (boat.tilt || 0) - 1) : 1) : 0, drift = waterEnv ? ENV.windDrift * waterEnv.wx : 0;
-  while (x < d && t < 20) { const vr = v - w; let acc = THRUST * thrustK(v) * startPullK(v, pre, boat) * motorK(boat, v) * wk - dk * vr * Math.abs(vr) - 0.1 * v - bump * (0.8 + v * 0.07) * WAKE.drag; if (acc > 0) acc *= startGainK(v, pre); v += acc * 0.05; x += (v + drift) * 0.05; t += 0.05; }
+  const wvRun = waterEnv && waterEnv.wave ? (fleet || humpSetup ? waveHere(-d / 2, boat && boat.y > 0 ? boat.y : 30) : waterEnv.wave) : 0;   // d401: the water it will run through (half-way down its run-up)
+  const bump = wvRun ? wvRun * ENV.waveBump * waveHeadK(0) * (boat && boat.hullRide || 1) * (boat && boat.stabilizer ? ENV.stabBump : 1) * (boat && boat.tiltTurn != null ? 1 + TILT.rough * Math.max(0, (boat.tilt || 0) - 1) : 1) : 0, drift = waterEnv ? ENV.windDrift * waterEnv.wx + (fleet || humpSetup ? curAt(-d / 2, boat && boat.y > 0 ? boat.y : 30)[0] : 0) : 0;   // d402: the current along its run-up carries it too
+  const dk0 = waterEnv ? dk / (1 - 0.1 * crouch) : 0, dkW = dk0 * (1 - ENV.airFrac), dkA = dk0 * (ENV.airFrac - 0.1 * crouch) * airRho(waterEnv);   // d398: water and air apart, as in boatPhysics
+  const hump = humpOn() && HUMP.ttl;
+  while (x < d && t < 20) { const vr = v - w; let acc = THRUST * thrustK(v) * startPullK(v, pre, boat) * motorK(boat, v) * wk * (hump ? humpK(v, 1, 0, crouch, boat) : 1) - (waterEnv ? dkW * v * v + dkA * vr * Math.abs(vr) : dk * vr * Math.abs(vr)) - 0.1 * v - bump * (0.8 + v * 0.07) * WAKE.drag; if (acc > 0) acc *= startGainK(v, pre); v += acc * 0.05; x += (v + drift) * 0.05; t += 0.05; }
   return t;
 }
 const RECOV = { thr: 0.45, hitT: 20 };   // d371 立て直し: lever while turning round, s after a mark/boom hit it applies
@@ -80,6 +83,53 @@ function clearOfMarks(x1, y1, x2, y2) {
 const roughOf = () => venueOf(VENUE.id).rough || null;
 function roughAt(x, y) { const R = roughOf(); if (!R) return 0; const d = Math.hypot(x - R.x, y - R.y); return d >= R.r ? 0 : 1 - d / R.r; }
 const roughWave = (x, y) => { const R = roughOf(), k = R ? roughAt(x, y) : 0; return k ? k * (R.wave + R.tail * Math.max(0, waterEnv ? waterEnv.wx : 0)) : 0; };
+// d401 波を場所と向きで持つ (まえ: 3): the day's wave (waterEnv.wave, cm) is what stands in the middle of the pool. The wind builds it
+// over the water it has blown across (fetch): little under the windward bank, most at the far end (∝ √fetch, WAVE_FIELD.lo–hi of
+// the day's number); against the lee wall it bounces back and stands up in a jumble (refl within reflD m — and there it hits from
+// every side, whichever way the bow points). The crests run with the wind, so a boat meets them fast head-on and slowly running
+// with them (phase). No wind: the same everywhere.
+const WAVE_FIELD = { on: true, lo: 0.3, hi: 1.5, refl: 0.35, reflD: 25, lenBase: 2, lenPerCm: 0.25 };
+function waveInfo(x, y) {
+  const w0 = windWave(x, y), tw = tideWave(x, y); if (!tw) return w0;
+  const hw = w0.h * tw.calm, h = hw + tw.add;
+  return { h, conf: h > 0 ? (w0.conf * hw + tw.swellK * (venueOf(VENUE.id).tide.swell || {}).cm || 0) / h : 0, ph: w0.ph, swellK: tw.swellK };
+}
+function windWave(x, y) {
+  const E = waterEnv; if (!E) return { h: 0, conf: 0, ph: null };
+  const H = E.wave || 0, w = Math.hypot(E.wx, E.wy);
+  if (!WAVE_FIELD.on || w < 0.3 || !H) return { h: H, conf: 0, ph: null };
+  const ux = E.wx / w, uy = E.wy / w, x0 = COURSE.xMin, x1 = COURSE.xMax;
+  const yS = standY(x), yB = backY(x);
+  const up = (px, py) => Math.min(ux > 1e-6 ? (px - x0) / ux : ux < -1e-6 ? (x1 - px) / -ux : 1e9, uy > 1e-6 ? (py - yB) / uy : uy < -1e-6 ? (yS - py) / -uy : 1e9);   // m of water upwind of the point
+  const down = Math.min(ux > 1e-6 ? (x1 - x) / ux : ux < -1e-6 ? (x - x0) / -ux : 1e9, uy > 1e-6 ? (yS - y) / uy : uy < -1e-6 ? (y - yB) / -uy : 1e9);
+  const f = Math.max(0, up(x, y)), f0 = Math.max(1, up(0, 0));
+  const refl = WAVE_FIELD.refl * Math.exp(-Math.max(0, down) / WAVE_FIELD.reflD);
+  const g = clamp(Math.sqrt(f / f0), WAVE_FIELD.lo, WAVE_FIELD.hi) + refl, h = H * g;
+  const len = WAVE_FIELD.lenBase + WAVE_FIELD.lenPerCm * h, k = 2 * Math.PI / len;
+  return { h, conf: clamp(refl / (WAVE_FIELD.refl || 1), 0, 1), ph: k * (x * ux + y * uy) - Math.sqrt(9.8 * k) * time };
+}
+// d402 潮: the current where a boat is ([m/s east, m/s south]) — the venue's flow, weaker toward the banks (tide.bankK)
+function curAt(x, y) {
+  const E = waterEnv; if (!E || !(E.cx || E.cy)) return [0, 0];
+  const bk = venueOf(VENUE.id).tide.bankK || 0; if (!bk) return [E.cx || 0, E.cy || 0];
+  const yS = standY(x), yB = backY(x), u = clamp((y - (yS + yB) / 2) / Math.max(1, (yS - yB) / 2), -1, 1), k = 1 - bk * u * u;
+  return [(E.cx || 0) * k, (E.cy || 0) * k];
+}
+// how far up (hi) or down (lo) the tide is, 0–1 past the venue's `from` / the bottom 45%
+function tideHiLo() {
+  const E = waterEnv, T = venueOf(VENUE.id).tide; if (!E || E.tideLv == null || !(T.amp > 0)) return { hi: 0, lo: 0 };
+  const n = clamp((E.tideLv - 100) / T.amp, -1, 1), from = T.swell ? T.swell.from : 0.55;
+  return { hi: clamp((n - from) / Math.max(0.05, 1 - from), 0, 1), lo: clamp((-n - 0.55) / 0.45, 0, 1) };
+}
+// the tide's part of the water at (x, y): the wind's wave × calm (干潮), + cm more (wind over tide, 満潮のうねり), swellK = how much of the うねり is here
+function tideWave(x, y) {
+  const E = waterEnv, T = venueOf(VENUE.id).tide; if (!E || !(T.amp > 0)) return null;
+  const { hi, lo } = tideHiLo(); let add = 0, swellK = 0;
+  if (T.windK && (E.cx || E.cy) && (E.wx || E.wy)) { const c = curAt(x, y), cs = Math.hypot(c[0], c[1]); if (cs > 0.01) add += T.windK * Math.max(0, -(E.wx * c[0] + E.wy * c[1]) / cs) * cs; }
+  if (T.swell && hi > 0) { const z = T.swell.zone; swellK = hi * (z ? clamp(1 - Math.hypot(x - z.x, y - z.y) / z.r, 0, 1) : 1); add += T.swell.cm * swellK; }
+  return { calm: 1 - (T.lowCalm || 0) * lo, add, swellK };
+}
+const waveHere = (x, y) => waveInfo(x, y).h;
 const wakeLifeMax = () => { const R = roughOf(); return R ? Math.max(1, R.wakeLife) : 1; };
 function wakeAt(x, y, wakes, now, ahead = 0) {
   // d394 (まえ 2026-11-25: 2本の引き波が交差してるとこは影響が強まる): the strongest hit from each boat's wake, then the best two
@@ -198,6 +248,17 @@ const nearMarkAt = (x, y, r) => COURSE.marks.some(m => Math.hypot(x - m.x, y - m
 //   fly  chance of misjudging the big clock (フライング)
 // 差し構え: where it drops the lever before 1M (m before the turn), how far, when it grips again
 // (share of the arc), how much tighter the arc, how much later the lean, how much wider past the buoy
+// d397 差し・まくり差しの旋回 (まえ: まず逃げ・差し・まくり・まくり差しを理解するところから — 実際の決まり手と比べると差しが決まっていなかった):
+// the 差し is its own turn, not the buoy's circle. It lets the boat inside go a length clear on the run-in (SASHI_GAP, with the lever),
+// runs straight on in its lane, then turns on ONE cut read like any other turn (cutDrive) — tight to the buoy, lever on from the cut —
+// and leaves inside the boat it let go. The まくり差し is the same cut made from further out, over the boats it has beaten (MS_GAP).
+//   at: from this far before 1M / g: m off the buoy it aims the cut / lever, dropAt: lever on the run-in from dropAt m before the mark
+//   clear: the boat in front has to be this far ahead (or already turning) before the cut / avFloor: lever kept through the cut
+//   msOut: a まくり差し with no way in by this far past the buoy gives it up and goes round the outside / endX: handed back this far up the back straight
+const SASHI_ARC = { on: true, ms: true, msOut: 4, at: 40, g: 4, lever: 0.7, dropAt: 30, clear: 4, avFloor: 0.75, endX: 6 };
+const MS_GAP = { from: 60, to: 14, liftAt: 30, G: 4.5, k: 0.2, kv: 0.5, min: 0.25, ahead: 5.5, latK: 0.3, minLead: 0.8, inOff: 4.5, inMin: 11, inDev: 0.2 };
+const NIGE_CUT = { on: true };   // d397: the 逃げ takes 1M on one cut like any other turn (its accuracy by class) — unless it is swinging out against a まくり
+const SASHI_GAP = { on: true, from: 80, to: 2, G: 6.2, k: 0.2, kv: 0.6, min: 0.3, lateAt: 28, lateMin: 0.05, lat: 14, back: 9, margin: 0.1 };
 const SASHI_YIELD = { course: 2, lat: 12, clear: 9.2, ahead: 6, late: 3, dropAdd: 12, leverCut: 0.12 };
 const SASHI = {
   win:   { dropAt: 30, lever: 0.68, regrip: 0.2, rCut: 2,   late: 3, gapAdd: 0.5 },
@@ -662,7 +723,7 @@ function makeDriver(prof, trait = {}) {
     if (simRandom() < (prof.storm && stormDay() ? prof.storm.fly : trait.flyRisk || 0)) { mem.stTarget = -0.01 - simRandom() * 0.05; mem.stErr = 0; mem.misread = true; }   // reads the clock wrong and never notices
     mem.cpuDecision=null;mem.cpuLine=null;mem.cpuWide=null;mem.cpuThreaded=false;mem.cpuSlotGap=null;mem.cpuReadAt=0;mem.cpuChangedAt=0;
     mem.push = null; mem.pushDecided = false;
-    mem.go = false; mem.firstDone = false; mem.dumpT = 0; mem.dumpQ = null; mem.dumpSeen.clear();
+    mem.go = false; mem.firstDone = false; mem.sgArc = null; mem.sgQ = null; mem.sgOff = false; mem.msBlocked = false; mem.msClear = true; mem.dumpT = 0; mem.dumpQ = null; mem.dumpSeen.clear();
     mem.wakeOff = mem.wakeOffT = mem.wakeAhead = mem.brace = mem.emergency = 0; mem.ft = null; mem.sashiDrop = false; mem.sashiYield = false; mem.exitHold = null; mem.wasInTurn = false; mem.entryWide = 0; mem.nigeDrop = false; mem.squeeze = null; mem.commit = false; mem.follow = false; mem.followDecided = false; mem.kabe = false; mem.kuDecided = null; mem.ku = null; mem.kuWon = false; mem.kuResp = null; mem.kuLift = 0; mem.kuSeen = false; mem.guard = null; mem.kabeDecided = false; mem.commitDecided = false; mem.turnRole = null; mem.turnStyle = null; mem.sqDecided = false; mem.sqResp = null; mem.sqRespT = 0; mem.resistQ = null; mem.planDecided = false; mem.plan = null; mem.tsukeDecided = false; mem.tsukeQ = null; mem.tacticNow = trait.tactic; mem.tacticLock = null; mem.tacticNow = trait.tactic;
   }
   reset();
@@ -723,7 +784,8 @@ function makeDriver(prof, trait = {}) {
         if (g < 0) break;
       }
       const tsukeTgt = !priority && mem.tacticNow === 'tsuke' && q === mem.tsukeQ && !mem.firstDone;
-      if (gapMin > (tsukeTgt ? 0.15 : margin)) continue;   // stays clear
+      const sashiTgt = !priority && SASHI_GAP.on && q === mem.sgQ && !mem.firstDone;   // d397: tucked in behind the boat it is going under — close is the point
+      if (gapMin > (tsukeTgt ? 0.15 : sashiTgt ? SASHI_GAP.margin : margin)) continue;   // stays clear
       // d305 壁: not clear ahead of me and not just a boat I am running up behind → hold my line and my drive
       if (wallHold(b, q, priority, fwd)) {
         wallHeld = true;
@@ -930,7 +992,7 @@ function makeDriver(prof, trait = {}) {
       const tFull = timeToLine(Math.max(0, d), b.v, prof.cruise, true, b);   // its own motor's pull, as the rider knows it
       // it goes by its own read of the clock, which is off by stErr
       // lever lag makes it arrive a touch late; from a standstill (待機水面で止まっていた) the hull has to climb onto the plane too
-      let aim = rem + mem.stErr + mem.stTarget - 0.05 - (!trait.slow && b.v < 3 ? START_REST : 0);
+      let aim = rem + mem.stErr + mem.stTarget - (humpOn() ? 0.03 : 0.05) - (!trait.slow && b.v < 3 ? START_REST : 0);
       // d206 ゆるやかな起こし (prof.softGo, 羽美): open the lever part-way a little before the real 起こし and get the bow
       // ahead of the boat inside before it opens, so its wake never lands on a high-tilt hull still climbing onto the plane;
       // then go full on the clock so the slit comes at (nearly) full speed. Missed if the inside boat has already gone.
@@ -1095,6 +1157,14 @@ function makeDriver(prof, trait = {}) {
         if (tiA.inTurn && (Math.PI * R - tiA.left) > Math.PI * R * k.regrip) mem.sashiDrop = false;
         mem.sashiLever = k.lever - (yk ? SASHI_YIELD.leverCut : 0);
         tThr = mem.sashiDrop ? k.lever : 1;
+        // d397 間を取る: the 差し needs the boat it goes under a clear length ahead BEFORE the mark — made on the run-in with the lever
+        mem.sgThr = 1;
+        if (SASHI_GAP.on && b.y > 0 && b.x > MK - SASHI_GAP.from && b.x < MK + SASHI_GAP.to && env.others) {
+          let q = null;
+          for (const o of env.others) { if (o === b || o.cap > 0 || o.y <= 0 || o.y >= b.y - 0.5 || b.y - o.y > SASHI_GAP.lat) continue; if (o.x - b.x > -SASHI_GAP.back && (!q || o.x < q.x)) q = o; }
+          if (q) mem.sgQ = q;
+          if (q) { const err = SASHI_GAP.G - (q.x - b.x) + SASHI_GAP.kv * Math.max(0, b.v - q.v); if (err > 0) mem.sgThr = clamp(1 - err * SASHI_GAP.k, b.x > MK - SASHI_GAP.lateAt ? SASHI_GAP.lateMin : SASHI_GAP.min, 1); }
+        }
       }
       // 壁: stay on the gas and turn just outside the boat inside, so the まくり from outside can't get over
       // まくり・壁 don't aim at the buoy: they aim at the boat inside (the one they are going over / shutting out)
@@ -1110,6 +1180,22 @@ function makeDriver(prof, trait = {}) {
         mem.makuriTgt = tgt;
       }
       if(first&&tactic==='makurisashi'){R=Math.max(prof.line,21);gap=Math.max(gap,9);pre+=3;tThr=.92;}
+      // d397 まくり差し: over the boats it has beaten, then one cut in behind the boats in front — the same late cut as the 差し
+      if (first && tactic === 'makurisashi' && SASHI_ARC.ms) {
+        mem.sgThr = 1; mem.msBlocked = false; mem.msClear = true; mem.msInY = 0; mem.msNeed = MS_GAP.G;
+        if (b.y > 0 && b.x > MK - MS_GAP.from && b.x < MK + MS_GAP.to && env.others) {
+          let q = null;
+          for (const o of env.others) {
+            if (o === b || o.cap > 0 || o.y <= 0 || o.y >= b.y - 0.5) continue;
+            const d = o.x - b.x;
+            const need = Math.max(MS_GAP.minLead, SASHI_ARC.clear - MS_GAP.latK * Math.max(0, b.y - o.y - 4));   // the further out it starts, the less lead the boat in front needs: it is gone by the time the bow gets there
+            if (d > -1) { if (!q || o.x < q.x) { q = o; mem.msNeed = need; } if (!(d >= need || wrapRad(o.a) < -0.6 && d > 1.5)) mem.msClear = false; mem.msInY = Math.max(mem.msInY, o.y); }
+            else if (d > -MS_GAP.ahead) mem.msBlocked = true;   // not clear in front of it yet: no turning in across its bow
+          }
+          mem.sgQ = q;
+          if (q && b.x > MK - MS_GAP.liftAt) { const err = mem.msNeed + 0.5 - (q.x - b.x) + MS_GAP.kv * Math.max(0, b.v - q.v); if (err > 0) mem.sgThr = clamp(1 - err * MS_GAP.k, MS_GAP.min, 1); }
+        }
+      }
       // ツケマイ: ride 3 m outside the target's line, flat out, leaning in early and hard
       if (first && tactic === 'tsuke' && mem.tsukeQ && !mem.turnRole) {
         const q = mem.tsukeQ, mk = COURSE.marks[0], dq = Math.hypot(q.x - mk.x, q.y - mk.y);
@@ -1513,6 +1599,7 @@ function makeDriver(prof, trait = {}) {
       if (mem.resistQ) thrT = 1;
       if (first && mem.kuLift > 0) { thrT = Math.min(thrT, KADO_UKE.liftThr); pitchT = Math.min(pitchT, 0); mem.kuLift -= dt; }   // d245: 張られて引く
       if (first && isSashi && mem.sashiDrop) { thrT = Math.min(thrT, mem.sashiLever); pitchT = Math.min(pitchT, 0); }   // lever down, sat up
+      if (first && isSashi && mem.sgThr < 1) { thrT = Math.min(thrT, mem.sgThr); pitchT = Math.min(pitchT, 0); }   // d397
       if (first && tactic === 'wall' && !(mem.emergency > 0)) thrT = Math.max(thrT, 0.95);
       if (first && tactic === 'nige' && mem.nigeDrop) thrT = Math.min(thrT, NIGE_DROP.lever[prof.name] ?? 0.7);
       if (first && tactic === 'makuri' && !(mem.emergency > 0)) thrT = 1;   // まくり: flat out all the way round
@@ -1593,6 +1680,39 @@ function makeDriver(prof, trait = {}) {
       if (Math.abs(steerT) > 0.2 && rollT !== 0 && Math.sign(steerT) !== Math.sign(rollT)) rollT *= 0.6;
       if (mem.recov) { steerT = mem.recov.dir; thrT = Math.min(thrT, RECOV.thr); rollT = 0; pitchT = Math.min(pitchT, 0); }
       if(lab.active){const targets=labTraceInputs(mem,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},b,prof,o);thrT=targets.thr;steerT=targets.steer;rollT=targets.roll;pitchT=targets.pitch;}
+      const isMs = tactic === 'makurisashi' && SASHI_ARC.ms;
+      if (SASHI_ARC.on && (first || mem.sgArc) && (isSashi || isMs) && (mem.sgQ || mem.sgArc) && !mem.sgOff && !lab.active && !prof.kinen && !env.caution && !env.cruise && !mem.recov && !mem.push && !dumping && b.cap <= 0) {
+        let A = mem.sgArc;
+        if (!A && b.y > 3 && b.x > MK - SASHI_ARC.at && b.x < MK + (isMs ? SASHI_ARC.msOut : 6) && Math.abs(wrapRad(b.a)) < 0.5 && !(isMs && mem.msBlocked)) A = mem.sgArc = { ph: 0 };
+        if (A) {
+          const lean = -prof.lean * clamp((b.v - 4) / 4, 0, 1), upA = prof.up * CPU_TURN.upK, G_ = prof.gain ?? 2.2, emg = mem.emergency > 0;
+          const body = { thr: 1, roll: lean, pitch: clamp((CUT_PITCH[prof.name] ?? 0) - KINEN.kl * Math.max(0, (b.load || 0) - KINEN.Lmax), -1, 1) };
+          if (A.ph === 0) {   // the run-in: straight on in its lane, the gap made with the lever; then one cut, read like any other turn
+            const q = mem.sgQ, qThru = !q || q.cap > 0 || q.y <= 0 || q.x - b.x >= SASHI_ARC.clear || wrapRad(q.a) < -0.6 && q.x - b.x > 1.5;
+            const canCut = isMs ? mem.msClear && !mem.msBlocked : qThru || b.x > MK + 10;   // the boats it goes under have to be through first
+            const aDes = isMs && !mem.msBlocked ? clamp((Math.max(MS_GAP.inMin, mem.msInY + MS_GAP.inOff) - b.y) / 20, -MS_GAP.inDev, 0) : 0;   // まくり差し: clear in front of the boats it has beaten → close in over them while it waits
+            steerT = clamp(G_ * wrapRad(aDes - b.a), -0.5, 0.5); rollT = 0;
+            thrT = Math.min(!isMs && b.x > MK - SASHI_ARC.dropAt ? SASHI_ARC.lever : 1, mem.sgThr) * (emg ? av.thrMul : Math.max(av.thrMul, 0.6)); if (!canCut && !isMs && b.x > MK - 12) thrT = Math.min(thrT, 0.05);
+            pitchT = thrT < 0.95 ? 0 : prof.cruise;
+            if (b.x <= MK) { const cut = canCut ? cutDrive(b, mem, o, prof, SASHI_ARC.g + PLAN_HULL.r + 1.5, body, true) : null; if (cut != null || mem.cut && mem.cut.ph === 'hold') A.ph = 1; }
+            else if (canCut) A.ph = 3;
+            else if (isMs && b.x > MK + SASHI_ARC.msOut) { mem.sgArc = null; mem.sgOff = true; A = null; }   // no way in: round the outside the usual way
+          }
+          if (A && A.ph === 1) {   // the cut: rudder over once, lever on, body in
+            const cut = cutDrive(b, mem, o, prof, SASHI_ARC.g + PLAN_HULL.r + 1.5, body, true);
+            if (cut == null && !(mem.cut && mem.cut.ph === 'hold')) A.ph = 2;
+            else { steerT = cut ?? o.steer; rollT = body.roll; pitchT = body.pitch; thrT = emg ? av.thrMul : Math.max(av.thrMul, SASHI_ARC.avFloor); }
+          }
+          if (A && A.ph === 3) {   // past the buoy already: cut now and hold it round
+            steerT = -1; rollT = body.roll; pitchT = body.pitch; thrT = emg ? av.thrMul : Math.max(av.thrMul, SASHI_ARC.avFloor);
+            const la = wrapRad(b.a); if (la < -Math.PI + 35 * D2R || la > 1.5 || b.v < 4) A.ph = 2;
+          }
+          if (A && A.ph === 2) {   // up the back straight on the line it came out on
+            steerT = clamp(wrapRad(Math.PI - b.a) * G_, -0.6, 0.6); rollT = Math.abs(wrapRad(Math.PI - b.a)) > 0.25 ? lean * 0.6 : 0; pitchT = prof.cruise; thrT = emg ? av.thrMul : Math.max(av.thrMul, SASHI_ARC.avFloor);
+            if (b.x < MK - SASHI_ARC.endX || b.y > 3 && Math.abs(wrapRad(b.a)) > 2) { mem.sgArc = null; mem.wasInTurn = true; }
+          }
+        }
+      }
       if(!lab.active&&prioNow()){
         const safe=labPriorityPlan(b,env,{thr:thrT,steer:steerT,roll:rollT,pitch:pitchT},mem,prof,o);
         ({thr:thrT,steer:steerT,roll:rollT,pitch:pitchT}=safe.inputs);mem.cpuSafety=safe.detail;
@@ -1608,14 +1728,14 @@ function makeDriver(prof, trait = {}) {
           if (thrT > 0.9) pitchT = Math.max(pitchT, STRAIGHT_RUN.crouch);
         }
       }
-      if (ONECUT.on && !lab.active) {   // 一発切り: the rudder for the turn itself
+      if (ONECUT.on && !lab.active && !mem.sgArc) {   // 一発切り: the rudder for the turn itself
         const close = env.others && env.others.some(q => {   // someone right there, or on my line ahead: race them, don't read the buoy
           if (q === b || q.cap > 0) return false;
           const ex = q.x - b.x, ey = q.y - b.y, f = ex * Math.cos(b.a) + ey * Math.sin(b.a), sd = -ex * Math.sin(b.a) + ey * Math.cos(b.a);
           const gone = Math.abs(wrapRad(q.a - b.a)) > ONECUT.goneA && Math.hypot(ex, ey) > ONECUT.near;   // d162: already turning away ahead of me — not on my line any more, read the buoy
           return f > -3 && (Math.hypot(ex, ey) < ONECUT.near || f < ONECUT.ahead && Math.abs(sd) < ONECUT.side && !gone);
         });
-        const free = b.cap <= 0 && !env.caution && !env.cruise && !dumping && !avoiding && !mem.push && !first && !close && !(mem.emergency > 0);   // (1周1M is the start battle: its entry, 逃げ・差し・まくり lines as they were)
+        const free = b.cap <= 0 && !env.caution && !env.cruise && !dumping && !avoiding && !mem.push && (first ? NIGE_CUT.on && tactic === 'nige' && !mem.guard : !close) && !(mem.emergency > 0);   // (1周1M is the start battle: its entry, 逃げ・差し・まくり lines as they were)
         const upA = prof.up * CPU_TURN.upK, body = { thr: tThr, roll: -prof.lean * clamp((b.v - 4) / 4, 0, 1), pitch: clamp((CUT_PITCH[prof.name] ?? 0) - KINEN.kl * Math.max(0, (b.load || 0) - KINEN.Lmax), -1, 1) };   // the body it turns with: half crouched (CUT_PITCH), sitting up as the load nears the edge
         const cut = cutDrive(b, mem, o, prof, gap, body, free);
         if (cut == null && mem.cut && mem.cut.run && mem.cut.ph === 'app' && free) {   // the run in to the cut: straight, the line held on the lean, body up only when it cuts
@@ -1973,7 +2093,9 @@ const HANE = { tilt: 3, p: 0.06, sgP: 0.03 };   // d192: share of races where th
 function fitMotor(r, course, again) {
   const b = r.b;
   b.deashi = r.motor.deashi; b.nobi = r.motor.nobi; b.mawari = r.motor.mawari || 0;
-  b.mMid = r.motor.mid ?? (r.motor.mawari ? 1 + (r.motor.mawari - 1) * MID_FX : null);   // d248 (まえ: 回り足＝行き足): a 6艇レース motor's 回り足 is its 中速 band too (3段階, as in 節間) b.powerK = r.motor.powerK || 1; b.tempLow = r.motor.tempLow || 0; b.tempTop = r.motor.tempTop || 0;
+  b.mMid = r.motor.mid ?? (r.motor.mawari ? 1 + (r.motor.mawari - 1) * MID_FX : null);   // d248 (まえ: 回り足＝行き足): a 6艇レース motor's 回り足 is its 中速 band too (3段階, as in 節間)
+  // d400: these three had slid into the comment above at d248 — the 節間's motor condition (wear, 安定性) and the temperature never reached the boat
+  b.powerK = r.motor.powerK || 1; { const tf = tempFeet(waterEnv); b.tempLow = tf.tempLow; b.tempTop = tf.tempTop; }
   b.hullGrip = r.motor.hullGrip || 1; b.hullRide = r.motor.hullRide || 1; b.hullDrag = r.motor.hullDrag || 1;
   b.weightK = 1 - (1 - (r.motor.weightK || 1)) * (venueOf(VENUE.id).weightK || 1); b.weightGrip = r.motor.weightGrip || 1;
   Object.assign(b, bodyRace(r.body ? r.body.height : SETSU.body.ref));
@@ -1991,6 +2113,7 @@ function fitMotor(r, course, again) {
   r.tilt = b.tilt;
 }
 function setupFleet(rowsIn, runup = RUNUP) {
+  humpSetup = true;
   const rows = rowsIn || newRows(FIXED_ENTRY);
   // entry: boats take courses by preference, inside first
   rows.sort((a, b) => a.key - b.key);
@@ -2010,9 +2133,13 @@ function setupFleet(rowsIn, runup = RUNUP) {
     applyCourse(r, course, slow, kado, okoshi);
     r.b = { x: x0, y: laneYAt(r.trait.laneY, x0), a: laneA(), v: IDLE_V, vl: 0, yaw: 0, porp: 0, cap: 0 };
     fitMotor(r, course);
+    // d399: a boat that can't make its spot in the time there is (high tilt, heavy, chop — slow onto the plane) opens up from nearer in
+    if (HUMP.on) { let ok = okoshi, tl; while ((tl = timeToLine(ok, IDLE_V, r.prof.cruise, true, r.b)) > runup - 0.4 && ok > 60) ok -= 5;
+      if (ok < okoshi) { r.b.x = slitXAt(laneYOf(course)) - (ok + IDLE_V * Math.max(0, runup - (tl - 0.1))) - BOW_TIP; r.b.y = laneYAt(r.trait.laneY, r.b.x); } }
     raceFieldsInit(r);
   });
   rows.sort((a, b) => a.no - b.no);
+  humpSetup = false;
   return rows;
 }
 function freshFleet(boats) {
@@ -2156,7 +2283,7 @@ function reachIn(T, v, boat) {
   let x = 0, t = 0; const dk = 0.012 * 0.9 * (boat && boat.hullDrag || 1) * (boat && boat.bodyDrag || 1), wk = boat && boat.weightK || 1;
   // d206: a high-tilt specialist (羽美) also reads the day's chop here, as in timeToLine — on a rough day her 3.0 needs a much shallower spot
   const bump = boat && boat.tiltTurn != null && waterEnv && waterEnv.wave ? waterEnv.wave * ENV.waveBump * waveHeadK(0) * (boat.hullRide || 1) * (boat.stabilizer ? ENV.stabBump : 1) * (1 + TILT.rough * Math.max(0, (boat.tilt || 0) - 1)) : 0;
-  while (t < T) { let acc = THRUST * thrustK(v) * startPullK(v, true, boat) * motorK(boat, v) * wk - dk * v * v - 0.1 * v - bump * (0.8 + v * 0.07) * WAKE.drag; if (acc > 0) acc *= startGainK(v, true); v += acc * 0.05; x += v * 0.05; t += 0.05; }
+  while (t < T) { let acc = THRUST * thrustK(v) * startPullK(v, true, boat) * motorK(boat, v) * wk * (humpOn() && HUMP.reach ? humpK(v, 1, 0, 1, boat) : 1) - dk * v * v - 0.1 * v - bump * (0.8 + v * 0.07) * WAKE.drag; if (acc > 0) acc *= startGainK(v, true); v += acc * 0.05; x += v * 0.05; t += 0.05; }
   return x;
 }
 // the player's dash: from 引く until squared up the boat paces itself to its spot (the lever does nothing)
@@ -2228,7 +2355,7 @@ const thrFor = (v, vT) => clamp(0.25 + (vT - v) * 0.35, 0, 1);
 // timing — the only way to kill time is to swing the bow off the line (it then moves slower toward it),
 // and only so far. Arrive too early, or hold the lever too long, and the boat ends up deep (起こし short).
 const WAIT_V = 1.8;   // m/s the hull settles at, lever shut and sat up (≈7 km/h)
-const creepAfter = ok => WAIT_V * Math.max(0, ENTRY_RUNUP - timeToLine(ok, WAIT_V) - 0.2) + 2;   // m still crept after the hand starts (till the lever opens)
+const creepAfter = ok => { const h = HUMP.ttl; HUMP.ttl = false; const t = timeToLine(ok, WAIT_V); HUMP.ttl = h; return WAIT_V * Math.max(0, ENTRY_RUNUP - t - 0.2) + 2; };   // d399: the waiting spots stay where the 進入 was tuned (old pull); the lever itself goes by the real one   // m still crept after the hand starts (till the lever opens)
 // steering for the pit-out loop: along the home side to the 小回り防止ブイ, round it (outside), back to 2M, round 2M
 function entryAim(b, R, stage, look, A = -MK) {
   const Bx = SMALL_TURN_BUOY.x;
@@ -2745,7 +2872,8 @@ function envDay(V, season, prev, force) {
   for (let i = 1; i < 3; i++) { if (Math.random() < W.keepP) { dirs.push(dirs[i - 1]); continue; } let d; do d = ENV_DIRS[envPick(dirW)]; while (d === dirs[i - 1]); dirs.push(d); }
   const tide0 = prev ? (prev.tide0 + 2 + Math.floor(Math.random() * 2)) % 12 : Math.floor(Math.random() * 12);
   const tBase = (SEASONS[season] || SEASONS.spring).t + V.temp.off + envU(-V.temp.jitter, V.temp.jitter);
-  return { strong, storm, rain, base, dirs, tide0, tBase };
+  const sT = (SEASONS[season] || SEASONS.spring).t, wBase = sT * 0.75 + 5 + 0.3 * (tBase - sT);   // d400 水温: follows the season, far steadier than the air (夏 ≈27 ℃, 冬 ≈10 ℃)
+  return { strong, storm, rain, base, dirs, tide0, tBase, wBase };
 }
 // d258 (リプレイ側の指摘): 発走時刻 follows the ナイター setting — night runs 1R 15:10 (as 6艇レース), day/夕方 the venue's day schedule
 const NIGHT_START = 15 + 10 / 60, MIDNIGHT_START = 17 + 10 / 60, MORNING_START = 8 + 30 / 60;   // d290 モーニング: 1R 8:30 … 12R 14:00   // d289 ミッドナイト: 12R 22:40 (大村ミッドナイトの最終レース締切 22:40 に合わせて)
@@ -2762,16 +2890,18 @@ function envRace(V, D, R) {
   const wave = Math.max(0, Math.round(wind * (V.wave[dir] ?? V.wave.横風) + (hasTide && tideLv > 100 + V.tide.amp * 0.55 ? V.wave.highTide : 0) + envU(-0.5, 0.5)));
   const hour = raceHourOf(V, R), temp = Math.round((D.tBase + V.temp.swing * Math.sin(Math.PI * (hour - 8) / 12)) * 10) / 10;
   const short = wave >= V.short.wave || wind >= V.short.wind;
-  return { dir, wind, wave, tideLv, tideJa: hasTide ? TIDE_JA[ts] : null, flow, temp, stab: short || wave >= V.stab.wave || wind >= V.stab.wind,
+  const wtemp = D.wBase != null ? Math.round((D.wBase + 0.5 * Math.sin(Math.PI * (hour - 10) / 12)) * 10) / 10 : null;
+  return { dir, wind, wave, tideLv, tideJa: hasTide ? TIDE_JA[ts] : null, flow, temp, wtemp, stab: short || wave >= V.stab.wave || wind >= V.stab.wind,
            laps: short ? 2 : 3, rain: !!D.rain, time: hourTxt(hour) };
 }
 // what the race engine takes (waterEnv): the wind as a vector (+x = toward 1M from the start = 追い風), the tide's drift,
 // waves, 安定板 — plus the readings, for the screen and for effects still to come
 function envPhysics(V, e) {
   const w = e.wind, wx = e.dir === '追い風' ? w : e.dir === '向かい風' ? -w : 0, wy = e.dir === '横風(外向き)' ? w : e.dir === '横風(内向き)' ? -w : 0;
-  return { wx, wy, cx: V.tide.flow * e.flow, wave: e.wave, stabilizer: e.stab, dir: e.dir, wind: w, temp: e.temp, tideLv: e.tideLv, tideJa: e.tideJa, water: V.water, laps: e.laps || 3, rain: !!e.rain };
+  const td = V.tide.dir || [1, 0];
+  return { wx, wy, cx: V.tide.flow * e.flow * td[0], cy: V.tide.flow * e.flow * td[1], wave: e.wave, stabilizer: e.stab, dir: e.dir, wind: w, temp: e.temp, wtemp: e.wtemp, tideLv: e.tideLv, tideJa: e.tideJa, water: V.water, laps: e.laps || 3, rain: !!e.rain };
 }
-const envText = e => `${e.time}頃 ${e.rain ? '雨 ' : ''}${e.wind ? e.dir + ' ' + e.wind.toFixed(1) + 'm' : '無風'} 波${e.wave}cm 気温${e.temp.toFixed(0)}℃${e.tideJa ? ` ${e.tideJa}（${e.tideLv}cm）` : ''}${e.stab ? ' 安定板' : ''}${e.laps === 2 ? ' 周回短縮（2周）' : ''}`;
+const envText = e => `${e.time}頃 ${e.rain ? '雨 ' : ''}${e.wind ? e.dir + ' ' + e.wind.toFixed(1) + 'm' : '無風'} 波${e.wave}cm 気温${e.temp.toFixed(0)}℃${e.wtemp != null ? ` 水温${e.wtemp.toFixed(0)}℃` : ''}${e.tideJa ? ` ${e.tideJa}（${e.tideLv}cm）` : ''}${e.stab ? ' 安定板' : ''}${e.laps === 2 ? ' 周回短縮（2周）' : ''}`;
 function randomWaterEnv(force) {
   const V = venueOf(VENUE.id), season = Object.keys(SEASONS)[Math.floor(Math.random() * 4)];
   return envPhysics(V, envRace(V, envDay(V, season, null, force), 1 + Math.floor(Math.random() * 12)));
@@ -2983,10 +3113,14 @@ function fleetStep(dt, playerInput) {
     setWake(r.b, wakeAt(r.b.x, r.b.y, r.wakesOthers, time), r.st != null && fleet.raceOn ? swellAt(r.b.x, r.b.y, time) : 0);
     // 波: the day's chop under every hull (a rough-riding boat feels it more; 安定板 takes the edge off it)
     const zr = r.st != null && roughOf();   // 2M の荒れ: once the boat is racing (the 待機行動 near 2M is left alone)
-    const wvHere = (waterEnv ? waterEnv.wave : 0) + (zr ? roughWave(r.b.x, r.b.y) : 0);
-    r.b.roughGrip = zr ? 1 - roughOf().grip * roughAt(r.b.x, r.b.y) : 1;
+    const wi = waterEnv ? waveInfo(r.b.x, r.b.y) : null;
+    const wvHere = (wi ? wi.h : 0) + (zr ? roughWave(r.b.x, r.b.y) : 0);
+    r.b.waveH = wvHere;
+    r.b.roughGrip = (zr ? 1 - roughOf().grip * roughAt(r.b.x, r.b.y) : 1) * (wi && wi.swellK && r.st != null ? 1 - ((venueOf(VENUE.id).tide.swell || {}).grip || 0) * wi.swellK : 1);   // d402 満潮のうねり: the hull can't be held on its edge
+    if (waterEnv && (waterEnv.cx || waterEnv.cy)) { const c = curAt(r.b.x, r.b.y); r.b.curX = c[0]; r.b.curY = c[1]; } else { r.b.curX = r.b.curY = 0; }
     if (wvHere > 0) {
-      const wb = wvHere * ENV.waveBump * waveHeadK(r.b.a) * (r.b.hullRide || 1) * (r.b.stabilizer ? ENV.stabBump : 1) * (0.5 + 0.5 * Math.abs(Math.sin(time * 2.1 + r.b.x * 0.19 + r.no)));
+      const hk = waveHeadK(r.b.a), cf = wi ? wi.conf : 0;
+      const wb = wvHere * ENV.waveBump * (hk + (0.75 - hk) * cf) * (r.b.hullRide || 1) * (r.b.stabilizer ? ENV.stabBump : 1) * (0.5 + 0.5 * Math.abs(Math.sin(wi && wi.ph != null ? wi.ph + r.no : time * 2.1 + r.b.x * 0.19 + r.no)));
       r.b.wakeBump = Math.max(r.b.wakeBump || 0, wb);
     }
     // 航跡: a boat ahead on (nearly) my line
@@ -3360,7 +3494,7 @@ const photoGapJa = p => p.tie ? '同着' : (d => d < 0.3 ? `舳先わずか（�
 // still close, when it reaches the 2M approach — so a まくり that only gets past on the back straight still counts as the 1M move.
 //   1コースが先頭 = 逃げ / 内側の艇を全部外から = まくり / 全部内から = 差し / 混ざる = まくり差し
 //   その先頭が1着でない = 抜き（先頭が転覆・失格などでいなくなった = 恵まれ）
-const K1_AT = { open: MK - 40, clearX: MK - 60, clear: 4, judgeX: -MK + 40, R0: 15, cap: 40 };
+const K1_AT = { close: 6, after: 30, front: 2, open: MK - 40, clearX: MK - 60, clear: 8, judgeX: -MK + 40, R0: 15, cap: 40 };
 function turnS(b) {   // progress round 1M along radial lines, m (R0 per radian in the turn)
   const p = boatBow(b), K = K1_AT;
   if (p.x < MK && p.y >= 0 && !(b.y < 0)) return p.x - MK;   // on the way in
@@ -3368,14 +3502,16 @@ function turnS(b) {   // progress round 1M along radial lines, m (R0 per radian 
   return K.R0 * clamp(Math.atan2(p.x - MK, p.y), 0, Math.PI);   // in the turn: 0 = level with the mark coming in, π = level going out
 }
 function kimariteWatch(zero) {
-  const f = fleet, K = f.k1w || (f.k1w = { on: false, ahead: {}, side: {} });
+  const f = fleet, K = f.k1w || (f.k1w = { on: false, ahead: {}, side: {}, off: {} });
   const run = f.boats.filter(r => r.st != null && !r.out);   // a flying boat still runs the 1M, so it is still there to be passed
   const s = new Map(run.map(r => [r, turnS(r.b)]));
   const key = (a, b) => a.no * 10 + b.no;
-  if (!K.on) {
+  if (K.wait2) { /* sides are settled: only the lead is still open */ }
+  else if (!K.on) {
     if (!(time > zero + 1 && run.some(r => r.b.y > 0 && boatBow(r.b).x > K1_AT.open))) return;
     K.on = true;
-    for (const a of run) for (const b of run) if (a !== b) { const ah = s.get(a) > s.get(b); K.ahead[key(a, b)] = ah; K.side[key(a, b)] = ah ? 'out' : null; }
+    // d397: only a boat clearly in front going in (K1_AT.front m) has gone over the other from outside; boats about level are judged by where each went round (K.off)
+    for (const a of run) for (const b of run) if (a !== b) { const ah = s.get(a) > s.get(b); K.ahead[key(a, b)] = ah; K.side[key(a, b)] = s.get(a) - s.get(b) > K1_AT.front ? 'out' : null; }
   } else {
     for (const a of run) for (const b of run) {
       if (a === b) continue; const k = key(a, b), ah = s.get(a) > s.get(b);
@@ -3383,9 +3519,17 @@ function kimariteWatch(zero) {
       K.ahead[k] = ah;
     }
   }
+  for (const r of run) if (K.off[r.no] == null && s.get(r) >= K1_AT.R0 * Math.PI / 2) K.off[r.no] = offLine(r.b);   // how far off the mark it was when half-way round
   const live = f.boats.filter(r => !r.dq && r.st != null && !r.out);
   const byS = live.slice().sort((a, b) => turnS(b.b) - turnS(a.b)), lead = byS[0], p = lead && boatBow(lead.b);
   const clear = !byS[1] || turnS(lead.b) - turnS(byS[1].b) > K1_AT.clear;
+  // d397: still close at the 2M approach (a 差し tucked in on the inside) → the lead is whoever comes off 2M in front
+  if (K.wait2) {
+    const L2 = live.slice().sort((a, b) => b.prog - a.prog)[0], q = L2 && L2.b;
+    if (L2 && (q.y > 0 && q.x > -MK + K1_AT.after && q.x < 0 || time > zero + K1_AT.cap)) f.k1 = { lead: L2, how: L2 !== K.leadB && L2.trait.course === 1 ? '抜き' : kimariteOf(L2) };   // (the 1 getting back past a まくり at 2M did not 逃げ)
+    return;
+  }
+  if (lead && p.y < 0 && p.x < K1_AT.judgeX && byS[1] && turnS(lead.b) - turnS(byS[1].b) < K1_AT.close && offLine(byS[1].b) < offLine(lead.b) - 1 && time < zero + K1_AT.cap) { K.wait2 = true; K.leadB = lead; return; }
   if (lead && (p.y < 0 && (p.x < K1_AT.judgeX || clear && p.x < K1_AT.clearX) || time > zero + K1_AT.cap)) {
     f.k1 = { lead, how: kimariteOf(lead) };
   }
@@ -3401,7 +3545,7 @@ function kimariteOf(w) {
   if (fleet.k1 && fleet.k1.lead === w && fleet.k1.how) return fleet.k1.how;
   if (w.trait.course === 1) return '逃げ';
   const K = fleet.k1w; if (!K) return 'まくり';
-  const sides = fleet.boats.filter(r => r.trait.course < w.trait.course).map(r => K.side[w.no * 10 + r.no]).filter(Boolean);
+  const sides = fleet.boats.filter(r => r.trait.course < w.trait.course && r.st != null).map(r => K.side[w.no * 10 + r.no] || (K.off && K.off[w.no] != null && K.off[r.no] != null ? (K.off[w.no] > K.off[r.no] ? 'out' : 'in') : null)).filter(Boolean);
   if (!sides.length) return 'まくり';
   const out = sides.filter(v => v === 'out').length;
   return out === sides.length ? 'まくり' : out === 0 ? '差し' : 'まくり差し';

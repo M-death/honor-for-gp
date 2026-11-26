@@ -165,7 +165,7 @@ function setsuMotor(q, env, noisy) {
   const T = env ? env.temp : 20;
   return { deashi: motorMul(f.low, 'low'), mid: motorMul(f.mid, 'mid'), nobi: motorMul(f.top, 'top'),
            powerK: mo.cond * (noisy ? 1 + gauss() * (0.002 + (100 - mo.stab) / 100 * 0.008) : 1),
-           tempLow: -0.0012 * (T - 20), tempTop: -0.0005 * (T - 20),
+           ...tempFeet(env),   // d400: by air density (physics.js TEMP); the race takes it from the day's water itself
            hullGrip: hullMul(bt.turn, 'turn'), hullRide: hullMul(bt.ride, 'ride'), hullDrag: hullMul(bt.drag, 'drag'),
            weightK: 1 - (w - min) * 0.003, weightGrip: 1 + (w - min) * 0.005 };
 }

@@ -38,7 +38,7 @@ function rpvPrep(d) {
       name: en.name || null, cls: en.class || null, course: en.course || null, wake: [], gone: false, out: null, fin: null, flying: false, passed1M: false, laps: 0, rk: 0, land: land.get(no) || [] };
   });
   const c = H.conditions || {};
-  const env = c.calm ? null : { wx: (c.windVec && c.windVec.wx) || 0, wy: (c.windVec && c.windVec.wy) || 0, rain: !!c.rain, wave: c.wave || 0, dir: c.dir, wind: c.wind || 0, cx: c.tideFlow || 0,
+  const env = c.calm ? null : { wx: (c.windVec && c.windVec.wx) || 0, wy: (c.windVec && c.windVec.wy) || 0, rain: !!c.rain, wave: c.wave || 0, dir: c.dir, wind: c.wind || 0, cx: c.tideFlowVec ? c.tideFlowVec.cx : c.tideFlow || 0, cy: c.tideFlowVec ? c.tideFlowVec.cy : 0,
     stabilizer: !!c.stabilizer, temp: c.temp, tideLv: c.tideLv };
   const solo = H.mode === 'ta';
   const pit = !solo && fr.length && fr[0].slice(1).some(v => v && v[I.x] < -230);
