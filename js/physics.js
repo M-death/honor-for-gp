@@ -69,7 +69,7 @@ const raceFadeK = b => (1 - CHOP.thr * chopNow()) * (1 - HEAT.thr * fadeScale() 
 // 回り足 (quick races): extra pull and bite while the boat is turning; 1 = average motor
 const MAWARI = { yaw: 0.35, thr: 2.5, grip: 1.2 };
 const mawariK = (b, k) => b && b.mawari ? 1 + (b.mawari - 1) * k * clamp(Math.abs(b.yaw) / MAWARI.yaw, 0, 1) : 1;
-const TILT = { up: { nobi: 0.036, low: 0.09, mid: 0.02 }, rough: 1.5, hop: 0.12, nobi: 0.025, low: 0.07, mid: 0.015, planeV: [10.3, 12.5], deashi: 0.012, grip: 0.065, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };   // d191 (まえ: alone on clean water tilt up should pay): A1 solo 3 laps tilt 0/1/2/3 = 107.5/107.2/106.9/106.4 s, top 79.8/81.3/82.6/83.8 km/h; in a race the wake/chop penalty (rough) eats it. d189: nobi .006→.025, hop .25→.12
+const TILT = { up: { raceNobi: [0.0215, 0.026], nobi: 0.036, low: 0.09, mid: 0.02 }, rough: 1.5, hop: 0.12, nobi: 0.025, low: 0.07, mid: 0.015, planeV: [10.3, 12.5], deashi: 0.012, grip: 0.065, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };   // d191 (まえ: alone on clean water tilt up should pay): A1 solo 3 laps tilt 0/1/2/3 = 107.5/107.2/106.9/106.4 s, top 79.8/81.3/82.6/83.8 km/h; in a race the wake/chop penalty (rough) eats it. d189: nobi .006→.025, hop .25→.12
 // d230 (まえ: モーター・ペラ・チルトの効果を上げて。伸び無印＝タイムアタックと同じ、○・◎で上): the 伸び a motor (and its ペラ)
 // has is felt MOTOR_FX.nobi times as much at the top end. An average motor (1.00) is untouched, so タイムアタック is the same.
 const MOTOR_FX = { nobi: 1.6 };
@@ -84,7 +84,7 @@ const airRho = env => env && env.temp != null ? 293.15 / (273.15 + env.temp) : 1
 const tempFeet = env => { if (!env || env.temp == null) return { tempLow: 0, tempTop: 0 }; const d = airRho(env) - 1, w = (env.rain ? TEMP.rain : 0) - (env.wtemp != null ? TEMP.water * (20 - env.wtemp) : 0); return { tempLow: TEMP.low * d - w, tempTop: TEMP.top * d - w }; };
 function motorK(b, v = b.v) {
   if (!b || b.nobi == null) return 1;
-  let tk = tiltPull(b.tilt || 0, v);
+  let tk = tiltPull(b.tilt || 0, v, b.tiltVar);
   if (tk > 0 && b.tiltFit != null) tk *= b.tiltFit;   // d203: a rider who can't set her motor up gets the tilt's pull only when it happens to suit it (羽美)
   if (b.mMid == null) { const w = clamp((v - 14) / 8, 0, 1); return (b.deashi * (1 - w) + nobiFx(b) * w + tk) * (b.powerK || 1) * mawariK(b, MAWARI.thr); }
   // 3つの速度域: 出足 (low), 回り足・行き足 (mid), 伸び (top), blended by speed; temperature hits the low end harder
@@ -97,11 +97,11 @@ function motorK(b, v = b.v) {
 // the middle and keeps going at the top. Tilt down (−0.5) the other way round, a little.
 // d230 (まえ: チルトの影響をしっかりと): tilt up pulls harder at the top and is heavier below planing (TILT.up); tilt down
 // (−0.5, where タイムアタック runs) keeps the old numbers
-function tiltPull(t, v) {
+function tiltPull(t, v, tv) {
   if (!t) return 0;
   const u = clamp((v - TILT.planeV[0]) / (TILT.planeV[1] - TILT.planeV[0]), 0, 1), s = u * u * (3 - 2 * u), wTop = clamp((v - 16) / 6, 0, 1);
   const K = t > 0 ? TILT.up : TILT;
-  return t * (-K.low * (1 - s) + s * (K.mid * (1 - wTop) + K.nobi * wTop));
+  return t * (-K.low * (1 - s) + s * (K.mid * (1 - wTop) + (t > 0 && waterEnv ? TILT.up.raceNobi[0] + (TILT.up.raceNobi[1] - TILT.up.raceNobi[0]) * (tv ?? 0.5) : K.nobi) * wTop));   // d408/d409 (まえ: チルト3.0の伸びは +4〜5 km/h の間の変動): in a race, how well the tilt suits this boat today (b.tiltVar 0–1); タイムアタック keeps its own
 }
 // その日の水面 (節間): wind (m/s, a vector: +x = blowing from 2M toward 1M = 追い風 on the home straight), tide current, wave height (cm)
 let waterEnv = null;

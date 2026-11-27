@@ -11,7 +11,7 @@ let VR = null;   // 動画用ログ (vlog.js) — null until it loads
 const D2R = Math.PI / 180;
 const $ = id => document.getElementById(id);
 // 版: shown on the start screen and written into the logs. Bump it with every update (dNNN).
-const GAME_VER = 'd406';
+const GAME_VER = 'd410';
 if ($('verTag')) $('verTag').textContent = GAME_VER;
 const cv = $('cv'), ctx = cv.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
@@ -41,7 +41,8 @@ const BOW_TIP = 2.25;
 const VENUES_GEO = {
   standard: { id: 'standard', name: '練習コース', courseVersion: 1, taSuffix: '',   // the course up to d234 (a ±58 m box, a square start line)
     stand: [[-150, 58], [0, 58], [150, 58]], back: [[-150, 58], [0, 58], [150, 58]], behind1: 50, behind2: 160, slitK: 0,
-    lanes: [10, 18.5, 27, 35, 42.5, 50], laneMax: 52, pitX: -280, spotRoom: 10 },
+    // d410 (まえ: 6コースは壁がすぐ横にあってせまかった): 6コースと壁の間を10m以上 — ダッシュ勢 35/42.5/50 → 32/39/46、外の上限 52 → 48（壁 58）。1〜3コースはそのまま
+    lanes: [10, 18.5, 27, 32, 39, 46], laneMax: 48, pitX: -280, spotRoom: 10 },
   suminoe: { id: 'suminoe', name: 'なにわ競艇場',   // d249 (まえ): 実名は使わない — 表示名は架空。id 'suminoe' は中の名前（TA記録・リプレイの場IDのまま）
     courseVersion: 2, taSuffix: '.suminoe',
     stand: [[-150, 63], [0, 51], [150, 45]],   // スタンド側 (m from the mark line)
@@ -50,7 +51,8 @@ const VENUES_GEO = {
     slitK: 0.06,                               // (63 − 45) / 300: the stand closes in on the mark line toward 1M
     // at the start line; spacing as まえ asked (5 m of water between the slow boats, 4 m between the dash boats, hull 1.3 m →
     // 6.3 / 5.3 m centre to centre). d237 (まえ): 1号艇 8 m from the mark line to the hull's centre (was 15, provisional)
-    lanes: [8, 14.3, 20.6, 25.9, 31.2, 36.5], laneMax: 46, pitX: -262, spotRoom: 25 },
+    // d410: 外の上限 46 → 41（スリットの壁は約51m、自分で外に構えても壁まで10m）。CPUの位置は同じ
+    lanes: [8, 14.3, 20.6, 25.9, 31.2, 36.5], laneMax: 41, pitX: -262, spotRoom: 25 },
 };
 const VENUE_LIST = ['standard', 'suminoe'];
 let VENUE = VENUES_GEO.standard;

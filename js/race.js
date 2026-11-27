@@ -376,6 +376,12 @@ function kinenClear(b, env, r) {
   }
   return true;
 }
+// d407: is this boat the leader, clear of the next one by `clear` m of running?
+function sweepLeading(b, L) {
+  let me = null, best = -Infinity;
+  for (const r of fleet.boats) { if (r.b === b) me = r; else if (!r.out && r.fin == null && r.prog > best) best = r.prog; }
+  return !!me && me.prog - best >= L.clear;
+}
 // d205 羽美's sweep (from まえ's runs): the lean and the half crouch come in with the rudder — part rudder, hardly any lean, still crouched
 const sweepBody = (sw, sv) => ({ roll: -clamp((sv - sw.leanFrom) * sw.leanK, 0, 1), pitch: 1 - (1 - KINEN.pT) * clamp((sv - sw.crouchFrom) / (1 - sw.crouchFrom), 0, 1) });
 // the gentlest rudder (with its body) that still takes the sweep round the buoy by `need` — the least speed given up; null = none does yet
@@ -435,7 +441,7 @@ function kinenDrive(b, env, mem, dt, o, prof) {
     if (sg * b.y < 0 && lx > MK - 40) { kn.m = m ^ 1; return null; }   // already round this one (taken by the A1★ driving)
     if (ly < 0 || !fleet.raceOn) return null;
     const sw = prof && prof.sweep && ly >= prof.sweep.minLy && !(prof.tataki && !m && !mem.firstDone && mem.tkAll && lx >= MK - prof.tataki.endX) ? prof.sweep : null;   // (from the inside — 1コース — she turns it like any 記念 rider; d211: in front of them all after a 叩き she turns it as the leader)
-    let Ly0 = Math.max(m ? KINEN.Ly2 : KINEN.Ly, sw ? Math.min(ly, sw.lyMax) : -Infinity);   // d205 羽美: never swings in toward the others' wakes on the run in
+    let Ly0 = Math.max(m ? KINEN.Ly2 : KINEN.Ly, sw ? (sw.lead && sweepLeading(b, sw.lead) ? (sw.lead.ly != null ? sw.lead.ly : Math.min(ly, sw.lead.lyMax)) : Math.min(ly, sw.lyMax)) : -Infinity);   // d205 羽美: never swings in toward the others' wakes on the run in
     // d211 叩き (まえ): out of the start on the first run to 1M, a boat she is clear ahead of is one she can cut across — she works in
     // over every one she has beaten (bow to stern, with room) and turns first, before anyone's wake is down. Not clear of one: she
     // stays outside it (and goes round the outside of them all, as before)
@@ -459,18 +465,21 @@ function kinenDrive(b, env, mem, dt, o, prof) {
     if (Ly > Ly0) S = kinenScan(b, env, m, lx, ly, Ly);
     if (S.block || !(prof && prof.wideOut) && !kinenMakuriOk(b, S)) { kn.ph = 'skip'; kn.why = S.block ? 'block' : 'pay'; return null; }   // d203 羽美: round the outside of them flat out, paying or not
     if (S.wide) Ly = Math.min(Ly, Math.max(ly, 0));   // someone out wide: no swing out, turn from the lane it is in
-    const g0 = sw ? sw.gap : prof && prof.kinenGap || KINEN.gap;   // d203: a rider who swings it wider than the 記念 line (羽美)
+    // d407 (まえ: 先頭を走るときはターンマークに合わせた大回り＝ターン開始を早める): out in front with no one inside her, the sweep
+    // starts earlier and comes round close to the buoy instead of 20 m off it
+    const swL = sw && sw.lead && !S.inner.length && sweepLeading(b, sw.lead) ? sw.lead : null;
+    const g0 = swL ? swL.gap : sw ? sw.gap : prof && prof.kinenGap || KINEN.gap;   // d203: a rider who swings it wider than the 記念 line (羽美)
     kn.need = S.inner.length ? Math.max(g0, (sw ? sw.mkR : KINEN.mkR) + Math.max(0, S.innerY - KINEN.mkY) * (sw ? sw.mkK : KINEN.mkK)) : g0;
     const want = KINEN.ks * (Ly - ly) - KINEN.ka * la;
     const run = { thr: 1, steer: clamp(want * 0.5, -KINEN.sMax, KINEN.sMax), roll: clamp(want, -STRAIGHT_LEAN.free, STRAIGHT_LEAN.free), pitch: 1 };
     if (lx > MK - 5) { kn.ph = 'skip'; kn.why = 'past'; return null; }   // d153: never ran past the buoy on the run in (the A1★ driving turns it)
     if (sw) {   // d205 (まえ's own 3.0 runs): a long sweep — in early, ~30 m before the buoy, on part rudder that tightens as it comes round, flat out, outside everyone
-      if (lx < MK - sw.from || time < kn.next) return run;
+      if (lx < MK - (swL ? swL.from : sw.from) || time < kn.next) return run;
       kn.next = time + 1 / KINEN.hz;
       if (lx < MK - sw.late && kinenWakeAhead(b, env, m, lx, ly, sw)) return run;   // a boat just ahead and inside is laying its wake across my arc: run on and go round after it
       const sv0 = sweepRudder(b, m, sw, kn.need);
       if (sv0 == null) return run;
-      kn.ph = 'turn'; kn.tt = time; kn.next = 0; kn.mk = S.inner.length > 0; kn.sweep = true; kn.sv = sv0; kn.pe = 0;
+      kn.ph = 'turn'; kn.tt = time; kn.next = 0; kn.mk = S.inner.length > 0; kn.sweep = true; kn.sv = sv0; kn.pe = 0; kn.lead = swL;
     } else {
     if (lx < MK - KINEN.from || time < kn.next) return run;
     kn.next = time + 1 / KINEN.hz;
@@ -494,7 +503,7 @@ function kinenDrive(b, env, mem, dt, o, prof) {
     }
   }
   if (kn.ph === 'turn') {
-    if (kn.sweep && time >= kn.next && la > -Math.PI + 0.9) { kn.next = time + 1 / KINEN.hz; const v = sweepRudder(b, m, prof.sweep, kn.need, kn.sv); kn.sv = v == null ? 1 : v; }   // (the rudder only ever comes in further)
+    if (kn.sweep && time >= kn.next && la > -Math.PI + 0.9) { kn.next = time + 1 / KINEN.hz; if (kn.lead && kn.lead.svMax) { const v = sweepRudder(b, m, prof.sweep, kn.need, 0); if (v != null) kn.sv = Math.min(v, kn.lead.svMax); } else { const v = sweepRudder(b, m, prof.sweep, kn.need, kn.sv); kn.sv = v == null ? 1 : v; } }   // d410: out in front she never goes to full lock (lead.svMax) — a little wider, still flat out   // (the rudder only ever comes in further)
     else if (!KINEN.oneCut && !kn.sweep && time >= kn.next && la > -Math.PI / 2 - 0.2) {
       kn.next = time + 1 / KINEN.hz;
       let lo = 0.15, hi = 1;
@@ -2037,6 +2046,10 @@ let fleet = null, simSpeed = 1.5, sgMode = false;   // demo playback speed; the 
 
 function pickW(pairs) { let r = simRandom() * pairs.reduce((a, p) => a + p[1], 0); for (const [v, w] of pairs) { if ((r -= w) < 0) return v; } return pairs[0][0]; }
 
+// d408 (まえ: モーターの伸びだけの最高速は 81.5 km/h まで): a one-off race's motor — below par as before (down to 0.95), above par
+// squeezed to MOTOR_TOP.max (was 1.04 = 83 km/h)
+const MOTOR_TOP = { max: 1.023 };
+const motorNobiDraw = u => { const x = 0.95 + u * 0.09; return x > 1 ? 1 + (x - 1) * (MOTOR_TOP.max - 1) / 0.04 : x; };
 // d172 体格 (SETSU.body): drawn for 節間 riders in setsu.js; a one-off race draws its riders' bodies from a hash of the
 // motors it already drew (no simRandom — the race's own random sequence is untouched)
 function weightDraw(sex, h, rnd = Math.random) { const B = SETSU.body, dh = h != null ? (h - B.hMean[sex === 'f' ? 'f' : 'm']) * B.wPerCm : 0; return Math.round(((sex === 'f' ? 45.5 + rnd() * 3 + rnd() * 2.5 : 50.5 + rnd() * 3.5 + rnd() * 3) + dh) * 2) / 2; }
@@ -2068,7 +2081,7 @@ function newRows(fixedEntry) {
     const pi = sgMode ? 0 : pickW([[0, 2], [1, 3], [2, 3], [3, 2]]);   // SG: everyone is A1
     const pref = fixedEntry ? 'waku' : pickW([['waku', 8], ['in', 1.0], ['out', 1.2]]);
     rows.push({ no, prof: DRIVERS[pi], pref, key: no + (pref === 'in' ? -2.6 : pref === 'out' ? 2.6 : 0) + simRandom() * 0.1,
-                temper: pickW([['calm', 3], ['normal', 5], ['aggr', 2]]), motor: { deashi: 0.94 + simRandom() * 0.12, nobi: 0.95 + simRandom() * 0.09, mawari: 0.95 + simRandom() * 0.1 }, col: LANE_COL[no - 1] });
+                temper: pickW([['calm', 3], ['normal', 5], ['aggr', 2]]), motor: { deashi: 0.94 + simRandom() * 0.12, nobi: motorNobiDraw(simRandom()), mawari: 0.95 + simRandom() * 0.1 }, col: LANE_COL[no - 1] });
   }
   if (sgMode) {
     const n = pickW([[1, 5], [2, 4], [3, 1]]);
@@ -2116,6 +2129,9 @@ function fitMotor(r, course, again) {
   b.hullGrip = r.motor.hullGrip || 1; b.hullRide = r.motor.hullRide || 1; b.hullDrag = r.motor.hullDrag || 1;
   b.weightK = 1 - (1 - (r.motor.weightK || 1)) * (venueOf(VENUE.id).weightK || 1); b.weightGrip = r.motor.weightGrip || 1;
   Object.assign(b, bodyRace(r.body ? r.body.height : SETSU.body.ref));
+  { // d409: how much the tilt gives this boat today (0–1) — from the motor it drew and the day's water, not from the race's random sequence
+    const e = waterEnv || {}; let h = Math.floor((r.motor.deashi * 7919 + r.motor.nobi * 104729 + (r.motor.mawari || 1) * 15485863) * 1000) ^ (r.no * 40503) ^ Math.floor(((e.temp || 0) * 31 + (e.wind || 0) * 977 + (e.wave || 0) * 131 + (e.tideLv || 0) * 7) * 10);
+    h = h + 0x6D2B79F5 | 0; let t = Math.imul(h ^ h >>> 15, 1 | h); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; b.tiltVar = ((t ^ t >>> 14) >>> 0) / 4294967296; }
   b.stabilizer = !!(waterEnv && waterEnv.stabilizer);
   if (r.player) { b.tilt = playerTilt; return; }
   if (r.prof.tilt != null) { const pt = r.umiIn ? UMI1.tiltIn : r.prof.tilt; b.tilt = r.tilt = b.stabilizer ? Math.min(pt, STAB_TILT) : pt;   // d212 (まえ): 安定板の日に3.0は怒られる — tilt back to 0
@@ -3966,7 +3982,7 @@ function buildCard() {
   for (const r of fleet.boats) {
     const tr = document.createElement('tr');
     const dsh = !r.motor ? '—' : r.motor.deashi >= 1.03 ? '◎' : r.motor.deashi > 1 ? '○' : r.motor.deashi >= 0.98 ? '－' : '△';   // d160: ○ = above an average motor (ウィリーの最低条件)
-    const nb = !r.motor || r.motor.nobi == null ? '—' : r.motor.nobi >= 1.02 ? '◎' : r.motor.nobi >= 1.005 ? '○' : r.motor.nobi >= 0.985 ? '－' : '△';   // d230: 無印（－）= an average motor
+    const nb = !r.motor || r.motor.nobi == null ? '—' : r.motor.nobi >= 1.0115 ? '◎' : r.motor.nobi >= 1.003 ? '○' : r.motor.nobi >= 0.985 ? '－' : '△';   // d230: 無印（－）= an average motor
     const mw = !r.motor || r.motor.mawari == null ? '—' : r.motor.mawari >= 1.02 ? '◎' : r.motor.mawari > 1 ? '○' : r.motor.mawari >= 0.98 ? '－' : '△';
     const tl = r.b && r.b.tilt != null ? (r.b.tilt > 0 ? '+' : '') + r.b.tilt.toFixed(1) : '—';
     const cells = [r.no, (r.name ? r.name + ' ' : '') + (r.prof.named ? r.prof.label : r.prof.kinen ? 'A1 ★記念クラス' : r.prof.top ? 'A1 ★トップ' : r.prof.name), (r.trait ? `${r.trait.course}コース` : '未定') + (r.entryViol && r.entryViol.length ? ' ⚠待機行動違反' : ''), r.trait ? (r.trait.kado ? 'カド' : r.trait.slow ? 'スロー' : 'ダッシュ') + (r.trait.okoshi ? ` ${Math.round(r.trait.okoshi)}m` : '') : '—', r.trait ? (r.trait.cpuMode===COURSE_CPU.version?`${COURSE_CPU.courses[r.trait.course].label} → ${TACTIC_JA[r.drv.mem.tacticNow||r.trait.tactic]}`:TACTIC_JA[r.trait.tactic]) : '—', PREF_JA[r.pref], TEMPER[r.temper].ja, dsh, mw, nb, tl];
